@@ -1,0 +1,91 @@
+import { readFile, readdir, stat } from 'node:fs/promises';
+import { dirname, extname, join, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+
+const testsDir = dirname(fileURLToPath(import.meta.url));
+const root = resolve(testsDir, '..');
+const failures = [];
+const ok = (condition, message) => condition ? console.log(`✓ ${message}`) : failures.push(message);
+
+async function filesUnder(dir) {
+  const result = [];
+  for (const name of await readdir(dir)) {
+    const path = join(dir, name);
+    const info = await stat(path);
+    if (info.isDirectory()) result.push(...await filesUnder(path));
+    else result.push(path);
+  }
+  return result;
+}
+
+const allFiles = await filesUnder(root);
+const jsFiles = allFiles.filter(path => ['.js', '.mjs'].includes(extname(path)) && !path.includes('/vendor/') && !path.includes('/node_modules/'));
+const importPattern = /(?:from\s+|import\s+)["']([^"']+)["']/g;
+for (const file of jsFiles) {
+  const source = await readFile(file, 'utf8');
+  for (const match of source.matchAll(importPattern)) {
+    const specifier = match[1];
+    if (!specifier.startsWith('.')) continue;
+    const target = resolve(dirname(file), specifier);
+    ok(allFiles.includes(target), `module path: ${target.slice(root.length + 1)}`);
+  }
+}
+
+const content = await import(pathToFileURL(join(root, 'js/data/content.js')));
+const config = await import(pathToFileURL(join(root, 'js/config.js')));
+const zones = Object.keys(content.ZONES);
+const enemies = Object.values(content.ENEMY_TYPES);
+const bosses = enemies.filter(enemy => enemy.boss);
+const shapes = new Set(enemies.map(enemy => enemy.shape));
+
+ok(zones.length === 6, '6 ecological zones');
+ok(enemies.length === 42, '42 monster types');
+ok(bosses.length === 6, '6 zone bosses');
+ok(shapes.size === 22, '22 monster body shapes');
+ok(Object.keys(content.RARITIES).length === 5, '5 equipment rarities');
+ok(Object.keys(content.WEAPON_BASES).length === 8, '8 weapon bases');
+ok(Object.keys(content.ARMOR_BASES).length === 6, '6 armor bases');
+ok(Object.keys(content.CHARM_BASES).length === 6, '6 charm bases');
+ok(content.AFFIXES.length === 10, '10 random equipment affixes');
+ok(Object.keys(content.SKILLS).length === 8, '8 active/passive skills');
+ok(config.GAME_CONFIG.maxEnemies >= 58, 'max concurrent enemies setting');
+ok(config.GAME_CONFIG.saveVersion === 3, 'save data version 3');
+
+const storage = new Map();
+globalThis.localStorage = {
+  getItem: key => storage.has(key) ? storage.get(key) : null,
+  setItem: (key, value) => storage.set(key, String(value)),
+  removeItem: key => storage.delete(key),
+};
+const { SaveManager } = await import(pathToFileURL(join(root, 'js/core/SaveManager.js')));
+const saveManager = new SaveManager();
+ok(saveManager.save({ marker: 731, player: { level: 9 } }), 'save write');
+ok(saveManager.hasSave(), 'save exists check');
+ok(saveManager.load()?.marker === 731 && saveManager.load()?.player?.level === 9, 'save read and version check');
+saveManager.clear();
+ok(!saveManager.hasSave(), 'save delete');
+
+for (const zone of zones) {
+  ok(Boolean(content.ZONE_BOSSES[zone]), `${zone} boss mapping`);
+  ok((content.ZONE_SPAWNS[zone] ?? []).length === 6, `${zone} normal monster pool 6`);
+}
+
+const modelSource = await readFile(join(root, 'js/graphics/ModelFactory.js'), 'utf8');
+for (const shape of shapes) ok(new RegExp(`\\b${shape}:\\s*build`, 'm').test(modelSource), `model builder: ${shape}`);
+
+const html = await readFile(join(root, 'index.html'), 'utf8');
+for (const skill of ['whirlwind', 'crescent', 'skyfall', 'starburst']) {
+  ok(html.includes(`data-slot="${skill}"`), `HUD skill slot: ${skill}`);
+}
+ok(html.includes('./vendor/three.module.min.js'), 'local Three.js import map');
+const externalRefs = [...html.matchAll(/(?:src|href)=[\"'](https?:\/\/[^\"']+)/gi)];
+ok(externalRefs.length === 0, 'no external network dependency');
+ok(allFiles.includes(join(root, 'vendor/three.module.min.js')), 'local Three.js file exists');
+ok(allFiles.includes(join(root, 'THIRD_PARTY_LICENSES/three-LICENSE.txt')), 'Three.js license exists');
+
+if (failures.length) {
+  console.error(`\n${failures.length} validation failure(s):`);
+  failures.forEach(message => console.error(`- ${message}`));
+  process.exit(1);
+}
+console.log(`\nAll checks passed · ${allFiles.length} files · ${jsFiles.length} JS modules`);

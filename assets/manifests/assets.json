@@ -1,0 +1,711 @@
+{
+  "version": 1,
+  "models": {
+    "hero.aerin": {
+      "type": "character",
+      "lods": {
+        "high": "./assets/models/hero/aerin_lod0.glb",
+        "medium": "./assets/models/hero/aerin_lod1.glb",
+        "low": "./assets/models/hero/aerin_lod1.glb"
+      },
+      "animationMap": {
+        "idle": "idle",
+        "run": "run",
+        "sprint": "sprint",
+        "attack_1": "attack_1",
+        "attack_2": "attack_2",
+        "attack_3": "attack_3",
+        "attack_4": "attack_4",
+        "dodge": "dodge",
+        "hit": "hit",
+        "death": "death",
+        "skill_whirlwind": "skill_whirlwind",
+        "skill_crescent": "skill_crescent",
+        "skill_skyfall": "skill_skyfall",
+        "skill_starburst": "skill_starburst"
+      }
+    },
+    "monster.slime": {
+      "type": "monster",
+      "lods": {
+        "high": "./assets/models/monsters/slime_lod0.glb",
+        "medium": "./assets/models/monsters/slime_lod1.glb",
+        "low": "./assets/models/monsters/slime_lod1.glb"
+      }
+    },
+    "monster.hare": {
+      "type": "monster",
+      "lods": {
+        "high": "./assets/models/monsters/hare_lod0.glb",
+        "medium": "./assets/models/monsters/hare_lod1.glb",
+        "low": "./assets/models/monsters/hare_lod1.glb"
+      }
+    },
+    "monster.boar": {
+      "type": "monster",
+      "lods": {
+        "high": "./assets/models/monsters/boar_lod0.glb",
+        "medium": "./assets/models/monsters/boar_lod1.glb",
+        "low": "./assets/models/monsters/boar_lod1.glb"
+      }
+    },
+    "monster.wisp": {
+      "type": "monster",
+      "lods": {
+        "high": "./assets/models/monsters/wisp_lod0.glb",
+        "medium": "./assets/models/monsters/wisp_lod1.glb",
+        "low": "./assets/models/monsters/wisp_lod1.glb"
+      }
+    },
+    "monster.humanoid": {
+      "type": "monster",
+      "lods": {
+        "high": "./assets/models/monsters/humanoid_lod0.glb",
+        "medium": "./assets/models/monsters/humanoid_lod1.glb",
+        "low": "./assets/models/monsters/humanoid_lod1.glb"
+      }
+    },
+    "monster.colossus": {
+      "type": "monster",
+      "lods": {
+        "high": "./assets/models/monsters/colossus_lod0.glb",
+        "medium": "./assets/models/monsters/colossus_lod1.glb",
+        "low": "./assets/models/monsters/colossus_lod1.glb"
+      }
+    },
+    "environment.tree.0": {
+      "type": "environment",
+      "url": "./assets/models/environment/tree_0.glb"
+    },
+    "environment.tree.1": {
+      "type": "environment",
+      "url": "./assets/models/environment/tree_1.glb"
+    },
+    "environment.tree.2": {
+      "type": "environment",
+      "url": "./assets/models/environment/tree_2.glb"
+    },
+    "environment.tree.3": {
+      "type": "environment",
+      "url": "./assets/models/environment/tree_3.glb"
+    },
+    "environment.rock.0": {
+      "type": "environment",
+      "url": "./assets/models/environment/rock_0.glb"
+    },
+    "environment.rock.1": {
+      "type": "environment",
+      "url": "./assets/models/environment/rock_1.glb"
+    },
+    "environment.rock.2": {
+      "type": "environment",
+      "url": "./assets/models/environment/rock_2.glb"
+    },
+    "environment.rock.3": {
+      "type": "environment",
+      "url": "./assets/models/environment/rock_3.glb"
+    },
+    "environment.rock.4": {
+      "type": "environment",
+      "url": "./assets/models/environment/rock_4.glb"
+    },
+    "environment.rock.5": {
+      "type": "environment",
+      "url": "./assets/models/environment/rock_5.glb"
+    },
+    "environment.ruin.arch": {
+      "type": "environment",
+      "url": "./assets/models/environment/ruin_arch.glb"
+    },
+    "prop.well": {
+      "type": "prop",
+      "url": "./assets/models/props/well.glb"
+    },
+    "weapon.sword": {
+      "type": "prop",
+      "url": "./assets/models/props/weapon_sword.glb"
+    },
+    "weapon.saber": {
+      "type": "prop",
+      "url": "./assets/models/props/weapon_saber.glb"
+    },
+    "weapon.greatsword": {
+      "type": "prop",
+      "url": "./assets/models/props/weapon_greatsword.glb"
+    },
+    "weapon.leaf": {
+      "type": "prop",
+      "url": "./assets/models/props/weapon_leaf.glb"
+    },
+    "weapon.katana": {
+      "type": "prop",
+      "url": "./assets/models/props/weapon_katana.glb"
+    },
+    "weapon.relic": {
+      "type": "prop",
+      "url": "./assets/models/props/weapon_relic.glb"
+    }
+  },
+  "textures": {
+    "hero.baseColor": {
+      "url": "./assets/textures/characters/hero_basecolor.webp",
+      "colorSpace": "srgb",
+      "anisotropy": 8
+    },
+    "hero.normal": {
+      "url": "./assets/textures/characters/hero_normal.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8
+    },
+    "hero.roughness": {
+      "url": "./assets/textures/characters/hero_roughness.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8
+    },
+    "hero.ao": {
+      "url": "./assets/textures/characters/hero_ao.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8
+    },
+    "environment.bark.baseColor": {
+      "url": "./assets/textures/environment/bark_basecolor.webp",
+      "colorSpace": "srgb",
+      "anisotropy": 8,
+      "repeat": [
+        4,
+        4
+      ]
+    },
+    "environment.bark.normal": {
+      "url": "./assets/textures/environment/bark_normal.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8,
+      "repeat": [
+        4,
+        4
+      ]
+    },
+    "environment.bark.roughness": {
+      "url": "./assets/textures/environment/bark_roughness.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8,
+      "repeat": [
+        4,
+        4
+      ]
+    },
+    "environment.leaves.baseColor": {
+      "url": "./assets/textures/environment/leaves_basecolor.webp",
+      "colorSpace": "srgb",
+      "anisotropy": 8,
+      "repeat": [
+        4,
+        4
+      ]
+    },
+    "environment.leaves.normal": {
+      "url": "./assets/textures/environment/leaves_normal.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8,
+      "repeat": [
+        4,
+        4
+      ]
+    },
+    "environment.leaves.roughness": {
+      "url": "./assets/textures/environment/leaves_roughness.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8,
+      "repeat": [
+        4,
+        4
+      ]
+    },
+    "environment.stone.baseColor": {
+      "url": "./assets/textures/environment/stone_basecolor.webp",
+      "colorSpace": "srgb",
+      "anisotropy": 8,
+      "repeat": [
+        4,
+        4
+      ]
+    },
+    "environment.stone.normal": {
+      "url": "./assets/textures/environment/stone_normal.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8,
+      "repeat": [
+        4,
+        4
+      ]
+    },
+    "environment.stone.roughness": {
+      "url": "./assets/textures/environment/stone_roughness.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8,
+      "repeat": [
+        4,
+        4
+      ]
+    },
+    "effects.soft": {
+      "url": "./assets/textures/effects/soft_particle.png",
+      "colorSpace": "linear",
+      "anisotropy": 8
+    },
+    "effects.ribbon": {
+      "url": "./assets/textures/effects/blade_ribbon.webp",
+      "colorSpace": "srgb",
+      "anisotropy": 8
+    },
+    "effects.rune": {
+      "url": "./assets/textures/effects/rune_noise.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8
+    },
+    "effects.dust": {
+      "url": "./assets/textures/effects/dust_noise.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8
+    },
+    "monster.slime.baseColor": {
+      "url": "./assets/textures/characters/monster_slime_basecolor.webp",
+      "colorSpace": "srgb",
+      "anisotropy": 8
+    },
+    "monster.slime.normal": {
+      "url": "./assets/textures/characters/monster_slime_normal.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8
+    },
+    "monster.slime.roughness": {
+      "url": "./assets/textures/characters/monster_slime_roughness.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8
+    },
+    "monster.slime.ao": {
+      "url": "./assets/textures/characters/monster_slime_ao.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8
+    },
+    "monster.hare.baseColor": {
+      "url": "./assets/textures/characters/monster_hare_basecolor.webp",
+      "colorSpace": "srgb",
+      "anisotropy": 8
+    },
+    "monster.hare.normal": {
+      "url": "./assets/textures/characters/monster_hare_normal.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8
+    },
+    "monster.hare.roughness": {
+      "url": "./assets/textures/characters/monster_hare_roughness.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8
+    },
+    "monster.hare.ao": {
+      "url": "./assets/textures/characters/monster_hare_ao.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8
+    },
+    "monster.boar.baseColor": {
+      "url": "./assets/textures/characters/monster_boar_basecolor.webp",
+      "colorSpace": "srgb",
+      "anisotropy": 8
+    },
+    "monster.boar.normal": {
+      "url": "./assets/textures/characters/monster_boar_normal.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8
+    },
+    "monster.boar.roughness": {
+      "url": "./assets/textures/characters/monster_boar_roughness.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8
+    },
+    "monster.boar.ao": {
+      "url": "./assets/textures/characters/monster_boar_ao.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8
+    },
+    "monster.wisp.baseColor": {
+      "url": "./assets/textures/characters/monster_wisp_basecolor.webp",
+      "colorSpace": "srgb",
+      "anisotropy": 8
+    },
+    "monster.wisp.normal": {
+      "url": "./assets/textures/characters/monster_wisp_normal.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8
+    },
+    "monster.wisp.roughness": {
+      "url": "./assets/textures/characters/monster_wisp_roughness.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8
+    },
+    "monster.wisp.ao": {
+      "url": "./assets/textures/characters/monster_wisp_ao.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8
+    },
+    "monster.humanoid.baseColor": {
+      "url": "./assets/textures/characters/monster_humanoid_basecolor.webp",
+      "colorSpace": "srgb",
+      "anisotropy": 8
+    },
+    "monster.humanoid.normal": {
+      "url": "./assets/textures/characters/monster_humanoid_normal.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8
+    },
+    "monster.humanoid.roughness": {
+      "url": "./assets/textures/characters/monster_humanoid_roughness.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8
+    },
+    "monster.humanoid.ao": {
+      "url": "./assets/textures/characters/monster_humanoid_ao.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8
+    },
+    "monster.colossus.baseColor": {
+      "url": "./assets/textures/characters/monster_colossus_basecolor.webp",
+      "colorSpace": "srgb",
+      "anisotropy": 8
+    },
+    "monster.colossus.normal": {
+      "url": "./assets/textures/characters/monster_colossus_normal.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8
+    },
+    "monster.colossus.roughness": {
+      "url": "./assets/textures/characters/monster_colossus_roughness.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8
+    },
+    "monster.colossus.ao": {
+      "url": "./assets/textures/characters/monster_colossus_ao.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8
+    },
+    "terrain.grass.baseColor": {
+      "url": "./assets/textures/terrain/grass_basecolor.webp",
+      "colorSpace": "srgb",
+      "anisotropy": 8,
+      "repeat": [
+        18,
+        18
+      ]
+    },
+    "terrain.grass.normal": {
+      "url": "./assets/textures/terrain/grass_normal.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8,
+      "repeat": [
+        18,
+        18
+      ]
+    },
+    "terrain.grass.roughness": {
+      "url": "./assets/textures/terrain/grass_roughness.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8,
+      "repeat": [
+        18,
+        18
+      ]
+    },
+    "terrain.grass.ao": {
+      "url": "./assets/textures/terrain/grass_ao.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8,
+      "repeat": [
+        18,
+        18
+      ]
+    },
+    "terrain.dirt.baseColor": {
+      "url": "./assets/textures/terrain/dirt_basecolor.webp",
+      "colorSpace": "srgb",
+      "anisotropy": 8,
+      "repeat": [
+        18,
+        18
+      ]
+    },
+    "terrain.dirt.normal": {
+      "url": "./assets/textures/terrain/dirt_normal.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8,
+      "repeat": [
+        18,
+        18
+      ]
+    },
+    "terrain.dirt.roughness": {
+      "url": "./assets/textures/terrain/dirt_roughness.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8,
+      "repeat": [
+        18,
+        18
+      ]
+    },
+    "terrain.dirt.ao": {
+      "url": "./assets/textures/terrain/dirt_ao.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8,
+      "repeat": [
+        18,
+        18
+      ]
+    },
+    "terrain.sand.baseColor": {
+      "url": "./assets/textures/terrain/sand_basecolor.webp",
+      "colorSpace": "srgb",
+      "anisotropy": 8,
+      "repeat": [
+        18,
+        18
+      ]
+    },
+    "terrain.sand.normal": {
+      "url": "./assets/textures/terrain/sand_normal.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8,
+      "repeat": [
+        18,
+        18
+      ]
+    },
+    "terrain.sand.roughness": {
+      "url": "./assets/textures/terrain/sand_roughness.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8,
+      "repeat": [
+        18,
+        18
+      ]
+    },
+    "terrain.sand.ao": {
+      "url": "./assets/textures/terrain/sand_ao.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8,
+      "repeat": [
+        18,
+        18
+      ]
+    },
+    "terrain.stone.baseColor": {
+      "url": "./assets/textures/terrain/stone_basecolor.webp",
+      "colorSpace": "srgb",
+      "anisotropy": 8,
+      "repeat": [
+        18,
+        18
+      ]
+    },
+    "terrain.stone.normal": {
+      "url": "./assets/textures/terrain/stone_normal.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8,
+      "repeat": [
+        18,
+        18
+      ]
+    },
+    "terrain.stone.roughness": {
+      "url": "./assets/textures/terrain/stone_roughness.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8,
+      "repeat": [
+        18,
+        18
+      ]
+    },
+    "terrain.stone.ao": {
+      "url": "./assets/textures/terrain/stone_ao.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8,
+      "repeat": [
+        18,
+        18
+      ]
+    },
+    "terrain.path.baseColor": {
+      "url": "./assets/textures/terrain/path_basecolor.webp",
+      "colorSpace": "srgb",
+      "anisotropy": 8,
+      "repeat": [
+        18,
+        18
+      ]
+    },
+    "terrain.path.normal": {
+      "url": "./assets/textures/terrain/path_normal.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8,
+      "repeat": [
+        18,
+        18
+      ]
+    },
+    "terrain.path.roughness": {
+      "url": "./assets/textures/terrain/path_roughness.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8,
+      "repeat": [
+        18,
+        18
+      ]
+    },
+    "terrain.path.ao": {
+      "url": "./assets/textures/terrain/path_ao.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8,
+      "repeat": [
+        18,
+        18
+      ]
+    },
+    "terrain.cliff.baseColor": {
+      "url": "./assets/textures/terrain/cliff_basecolor.webp",
+      "colorSpace": "srgb",
+      "anisotropy": 8,
+      "repeat": [
+        18,
+        18
+      ]
+    },
+    "terrain.cliff.normal": {
+      "url": "./assets/textures/terrain/cliff_normal.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8,
+      "repeat": [
+        18,
+        18
+      ]
+    },
+    "terrain.cliff.roughness": {
+      "url": "./assets/textures/terrain/cliff_roughness.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8,
+      "repeat": [
+        18,
+        18
+      ]
+    },
+    "terrain.cliff.ao": {
+      "url": "./assets/textures/terrain/cliff_ao.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8,
+      "repeat": [
+        18,
+        18
+      ]
+    },
+    "environment.bark.ao": {
+      "url": "./assets/textures/environment/bark_ao.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8,
+      "repeat": [
+        4,
+        4
+      ]
+    },
+    "environment.stone.ao": {
+      "url": "./assets/textures/environment/stone_ao.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8,
+      "repeat": [
+        4,
+        4
+      ]
+    },
+    "ui.sword": {
+      "url": "./assets/textures/ui/icon_sword.png",
+      "colorSpace": "srgb",
+      "anisotropy": 8
+    },
+    "ui.saber": {
+      "url": "./assets/textures/ui/icon_saber.png",
+      "colorSpace": "srgb",
+      "anisotropy": 8
+    },
+    "ui.greatsword": {
+      "url": "./assets/textures/ui/icon_greatsword.png",
+      "colorSpace": "srgb",
+      "anisotropy": 8
+    },
+    "ui.leaf": {
+      "url": "./assets/textures/ui/icon_leaf.png",
+      "colorSpace": "srgb",
+      "anisotropy": 8
+    },
+    "ui.katana": {
+      "url": "./assets/textures/ui/icon_katana.png",
+      "colorSpace": "srgb",
+      "anisotropy": 8
+    },
+    "ui.relic": {
+      "url": "./assets/textures/ui/icon_relic.png",
+      "colorSpace": "srgb",
+      "anisotropy": 8
+    },
+    "ui.armor": {
+      "url": "./assets/textures/ui/icon_armor.png",
+      "colorSpace": "srgb",
+      "anisotropy": 8
+    },
+    "ui.charm": {
+      "url": "./assets/textures/ui/icon_charm.png",
+      "colorSpace": "srgb",
+      "anisotropy": 8
+    },
+    "terrain.world.baseColor": {
+      "url": "./assets/textures/terrain/world/world_basecolor.webp",
+      "colorSpace": "srgb",
+      "anisotropy": 8,
+      "repeat": [
+        1,
+        1
+      ]
+    },
+    "terrain.world.normal": {
+      "url": "./assets/textures/terrain/world/world_normal.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8,
+      "repeat": [
+        1,
+        1
+      ]
+    },
+    "terrain.world.roughness": {
+      "url": "./assets/textures/terrain/world/world_roughness.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8,
+      "repeat": [
+        1,
+        1
+      ]
+    },
+    "terrain.world.ao": {
+      "url": "./assets/textures/terrain/world/world_ao.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8,
+      "repeat": [
+        1,
+        1
+      ]
+    },
+    "terrain.world.masks": {
+      "url": "./assets/textures/terrain/world/world_masks.webp",
+      "colorSpace": "linear",
+      "anisotropy": 8,
+      "repeat": [
+        1,
+        1
+      ]
+    }
+  }
+}

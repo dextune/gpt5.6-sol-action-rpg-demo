@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#162532">
+  <meta name="description" content="Stylized PBR miniature diorama 3D hunting action RPG">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Cpath fill=%27%23f1ca69%27 d=%27M29 4h6v35l10 11-4 4-9-10-9 10-4-4 10-11z%27/%3E%3C/svg%3E">
+  <title>GPT-5.6: Sol / Action RPG DEMO</title>
+  <link rel="stylesheet" href="./css/game.css">
+  <script type="importmap">
+    { "imports": { "three": "./vendor/three.module.min.js" } }
+  </script>
+</head>
+<body>
+  <main id="app">
+    <canvas id="game-canvas" aria-label="GPT-5.6: Sol / Action RPG DEMO game screen"></canvas>
+    <div id="vignette" aria-hidden="true"></div>
+    <div id="damage-flash" aria-hidden="true"></div>
+
+    <section id="loading-screen" class="screen active" aria-live="polite">
+      <div class="loading-emblem"><span></span><i></i></div>
+      <p class="eyebrow">ACTION RPG DEMO</p>
+      <h1>GPT-5.6: SOL</h1>
+      <p id="loading-text">Preparing the wild hunting grounds…</p>
+      <div class="loading-track"><span id="loading-bar"></span></div>
+    </section>
+
+    <section id="title-screen" class="screen title-screen" aria-label="Title screen">
+      <div class="title-sun" aria-hidden="true"></div>
+      <div class="title-content">
+        <p class="eyebrow">ACTION RPG DEMO</p>
+        <h1><span>GPT-5.6:</span> SOL</h1>
+        <p class="title-copy">Track wild monsters in a warm miniature diorama hunting ground<br>and combine skills and gear to forge your own swordsman.</p>
+        <div class="feature-runes" aria-label="Key features">
+          <span><b>42</b> Monsters</span><span><b>6</b> Biomes</span><span><b>∞</b> World Tiers</span><span><b>3</b> Gear Slots</span>
+        </div>
+        <div class="title-actions">
+          <button id="new-game-btn" class="primary-button"><span>New Hunt</span><kbd>ENTER</kbd></button>
+          <button id="continue-btn" class="secondary-button"><span>Continue</span><small id="continue-meta">No save data</small></button>
+        </div>
+        <details class="controls-card">
+          <summary>Controls</summary>
+          <div><span><kbd>WASD</kbd> Move</span><span><kbd>L-Click / J</kbd> Attack</span><span><kbd>R-Click / SPACE</kbd> Dodge</span><span><kbd>Q E R C</kbd> Skills</span><span><kbd>1</kbd> Potion</span><span><kbd>I / K / TAB</kbd> Menu</span><span><kbd>Z X / Scroll</kbd> Camera</span></div>
+        </details>
+      </div>
+      <footer>Rigged GLB · Stylized PBR · Local offline</footer>
+    </section>
+
+    <section id="hud" class="hidden" aria-label="Game HUD">
+      <aside class="player-card glass-panel">
+        <div class="portrait"><span id="portrait-level">1</span></div>
+        <div class="player-card-body">
+          <div class="name-row"><strong id="player-name">Kai</strong><em id="hunter-title">Rookie Hunter</em></div>
+          <div class="resource-bar hp-bar"><span id="hp-fill"></span><b id="hp-text">140 / 140</b></div>
+          <div class="resource-bar mp-bar"><span id="mp-fill"></span><b id="mp-text">80 / 80</b></div>
+          <div class="xp-row"><span>EXP</span><div><i id="xp-fill"></i></div><b id="xp-text">0 / 172</b></div>
+        </div>
+      </aside>
+
+      <div class="zone-ribbon">
+        <span id="world-tier">WORLD TIER 1</span>
+        <strong id="zone-name">Emerald Meadow</strong>
+        <small id="zone-subtitle">Hunting Grounds Where the Wind Stays</small>
+      </div>
+
+      <aside class="hunt-card glass-panel">
+        <div class="hunt-top"><span>HUNT RECORD</span><b><i id="kill-count">0</i> KILLS</b></div>
+        <div class="hunt-stats"><span>Streak <b id="streak-count">0</b></span><span>Elite <b id="elite-count">0</b></span><span>Boss <b id="boss-count">0</b></span></div>
+        <div class="boss-charge-row"><span>Boss Presence</span><b id="boss-charge-text">0%</b></div>
+        <div class="boss-charge"><i id="boss-charge-fill"></i></div>
+        <div class="contract-box">
+          <small>Active Contract</small>
+          <strong id="contract-title">Preparing contract…</strong>
+          <div><i id="contract-fill"></i></div>
+          <span id="contract-progress">0 / 0</span>
+        </div>
+      </aside>
+
+      <div id="boss-hud" class="boss-hud hidden">
+        <div class="boss-name-row"><span>REGION ALPHA</span><strong id="boss-name">Area Boss</strong><em id="boss-level">LV.1</em></div>
+        <div class="boss-health"><i id="boss-health-fill"></i></div>
+      </div>
+
+      <aside class="resource-pills">
+        <span><i class="gold-icon"></i><b id="gold-count">0</b></span>
+        <span><i class="essence-icon"></i><b id="essence-count">0</b></span>
+        <span><i class="bag-icon"></i><b id="bag-count">1 / 48</b></span>
+      </aside>
+
+      <div class="ability-bar" aria-label="Combat skills">
+        <div class="ability-slot attack-slot" data-slot="attack"><span class="ability-icon sword-icon"></span><b>Attack</b><kbd>J</kbd><i class="cooldown"></i></div>
+        <div class="ability-slot" data-slot="dash"><span class="ability-icon dash-icon"></span><b>Dodge</b><kbd>SPACE</kbd><i class="cooldown"></i></div>
+        <div class="ability-divider"></div>
+        <div class="ability-slot locked" data-slot="whirlwind"><span class="ability-icon whirlwind-icon"></span><b>Whirlwind</b><kbd>Q</kbd><i class="cooldown"></i><em class="lock-level">LV.3</em></div>
+        <div class="ability-slot locked" data-slot="crescent"><span class="ability-icon crescent-icon"></span><b>Crescent</b><kbd>E</kbd><i class="cooldown"></i><em class="lock-level">LV.6</em></div>
+        <div class="ability-slot locked" data-slot="skyfall"><span class="ability-icon skyfall-icon"></span><b>Skyfall</b><kbd>R</kbd><i class="cooldown"></i><em class="lock-level">LV.10</em></div>
+        <div class="ability-slot locked" data-slot="starburst"><span class="ability-icon starburst-icon"></span><b>Starburst</b><kbd>C</kbd><i class="cooldown"></i><em class="lock-level">LV.16</em></div>
+        <div class="ability-divider"></div>
+        <div class="ability-slot potion-slot" data-slot="potion"><span class="ability-icon potion-icon"></span><b>Potion <strong id="potion-count">3</strong></b><kbd>1</kbd><i class="cooldown"></i></div>
+      </div>
+
+      <aside class="minimap-shell glass-panel">
+        <div class="minimap-heading"><span id="minimap-zone">Emerald Meadow</span><b>N</b></div>
+        <canvas id="minimap" width="250" height="250"></canvas>
+        <div class="minimap-legend"><span class="enemy-dot">Enemy</span><span class="elite-dot">Elite</span><span class="boss-dot">Boss</span></div>
+      </aside>
+
+      <div class="menu-hints"><span><kbd>I</kbd> Equipment</span><span><kbd>K</kbd> Skills</span><span><kbd>TAB</kbd> Records</span><span><kbd>ESC</kbd> Menu</span></div>
+      <div id="zone-toast" class="zone-toast"><small>New Hunting Ground</small><strong></strong><span></span></div>
+      <div id="notifications" aria-live="polite"></div>
+      <div id="float-layer" aria-hidden="true"></div>
+      <aside id="debug-hud" class="debug-hud hidden" aria-live="polite"></aside>
+      <div id="aim-reticle" aria-hidden="true"><span></span></div>
+    </section>
+
+    <section id="panel-layer" class="panel-layer hidden" aria-modal="true" role="dialog">
+      <div class="panel-shell">
+        <header>
+          <div><span>HUNTER MANAGEMENT</span><h2 id="panel-title">Equipment</h2></div>
+          <nav>
+            <button data-panel="inventory"><kbd>I</kbd> Equipment</button>
+            <button data-panel="skills"><kbd>K</kbd> Skills</button>
+            <button data-panel="hunter"><kbd>TAB</kbd> Hunt Records</button>
+            <button data-panel="pause"><kbd>ESC</kbd> System</button>
+          </nav>
+          <button id="panel-close" class="icon-button" aria-label="Close">×</button>
+        </header>
+        <div id="panel-content" class="panel-content"></div>
+      </div>
+    </section>
+
+    <section id="death-screen" class="death-screen hidden">
+      <div><span>HUNTER DOWN</span><h2>The hunt is not over</h2><p>Regroup at the camp's guardian stone.</p><div class="death-timer"><i id="death-timer-fill"></i></div></div>
+    </section>
+
+    <div id="fatal-error" class="fatal-error hidden" role="alert"><h2>Failed to start the game</h2><p></p></div>
+  </main>
+  <script type="module" src="./js/main.js"></script>
+</body>
+</html>
