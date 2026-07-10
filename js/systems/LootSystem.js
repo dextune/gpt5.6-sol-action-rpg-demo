@@ -12,6 +12,7 @@ const STAT_KEYS = ['power', 'defense', 'hp', 'crit', 'haste', 'leech', 'xpBonus'
 const BASE_LEVELS = Object.freeze({
   field_blade: 1, moon_saber: 5, stone_cleaver: 9, thorn_edge: 12,
   sun_fang: 18, glacier_brand: 27, ember_katana: 36, astral_oath: 50,
+  oak_staff: 1, crystal_rod: 14, void_scepter: 40,
   hide_vest: 1, leaf_mail: 8, dune_plate: 16, frost_coat: 25, forge_shell: 36, starweave: 49,
   fang_charm: 1, breeze_knot: 6, heart_seed: 12, coin_eye: 19, scholar_rune: 28, eclipse_shard: 48,
 });

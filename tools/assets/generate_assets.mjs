@@ -572,10 +572,116 @@ function heroAnimations(skeletonInfo) {
   return clips;
 }
 
-function createHero(resolution = 52) {
+/** Shared hero bake profiles — add a profile + export path for each new class. */
+const HERO_BAKE_PROFILES = Object.freeze({
+  aerin: Object.freeze({
+    name: 'Aerin_Hero_Rig',
+    skin: 0xe9a87e,
+    cloth: 0x275f72,
+    leather: 0x59392e,
+    cape: 0x8f3148,
+    hair: 0x25425a,
+    eye: 0x172435,
+    eyeWhite: 0xfff6df,
+    brow: 0x56392f,
+    mouth: 0x8c4f50,
+    trim: 0xd6ad62,
+    belt: 0x3e2a24,
+    buckle: 0xd8b362,
+    outline: 0x14232f,
+    hairStyle: 'aerin',
+    headGear: 'none',
+  }),
+  wizard: Object.freeze({
+    name: 'Wizard_Hero_Rig',
+    skin: 0xe9a87e,
+    cloth: 0x3a4f9c,
+    leather: 0x2a2440,
+    cape: 0x24306e,
+    hair: 0xe8e0f4,
+    eye: 0x6b2db8,
+    eyeWhite: 0xfff6df,
+    brow: 0xb0a0d0,
+    mouth: 0x8c4f50,
+    trim: 0xd4b862,
+    belt: 0x1e1840,
+    buckle: 0xe0c878,
+    outline: 0x121428,
+    hairStyle: 'wizard',
+    headGear: 'hat',
+  }),
+});
+
+function heroHairParts(style) {
+  if (style === 'wizard') {
+    return [
+      p => sdfEllipsoid(p, V3(0, .08, -.02), V3(.5, .42, .42)),
+      p => sdfEllipsoid(p, V3(0, .2, -.28), V3(.38, .4, .22)),
+      p => sdfCapsule(p, V3(.28, .1, -.08), V3(.34, -.55, -.18), .16, .08),
+      p => sdfCapsule(p, V3(-.28, .1, -.08), V3(-.34, -.55, -.18), .16, .08),
+      p => sdfCapsule(p, V3(0, .05, -.3), V3(0, -.62, -.36), .2, .1),
+      p => sdfEllipsoid(p, V3(.14, .22, .22), V3(.24, .14, .16)),
+      p => sdfEllipsoid(p, V3(-.14, .22, .22), V3(.24, .14, .16)),
+      p => sdfEllipsoid(p, V3(0, .02, .28), V3(.22, .1, .12)),
+    ];
+  }
+  return [
+    p => sdfEllipsoid(p, V3(0, .09, -.04), V3(.53, .48, .43)),
+    p => sdfEllipsoid(p, V3(0, .16, -.34), V3(.42, .46, .24)),
+    p => sdfCapsule(p, V3(.34, .12, -.12), V3(.27, -.40, -.28), .20, .11),
+    p => sdfCapsule(p, V3(-.34, .12, -.12), V3(-.27, -.40, -.28), .20, .11),
+    p => sdfCapsule(p, V3(0, .08, -.34), V3(0, -.48, -.40), .24, .13),
+    p => sdfEllipsoid(p, V3(.18, .25, .18), V3(.28, .18, .20)),
+    p => sdfEllipsoid(p, V3(-.16, .28, .20), V3(.31, .17, .20)),
+  ];
+}
+
+function attachWizardHat(headBone, profile) {
+  const hatRoot = new THREE.Group();
+  hatRoot.name = 'wizard_hat';
+  const brim = new THREE.Mesh(
+    new THREE.CylinderGeometry(.58, .62, .05, 28),
+    material('hero_cloth', profile.cloth, .86, 0),
+  );
+  brim.name = 'wizard_hat_brim';
+  brim.position.set(0, .22, -.02);
+  brim.castShadow = true;
+  hatRoot.add(brim);
+  const cone = new THREE.Mesh(
+    new THREE.ConeGeometry(.34, .95, 24),
+    material('hero_cloth', profile.cloth, .84, 0),
+  );
+  cone.name = 'wizard_hat_cone';
+  cone.position.set(0, .72, -.04);
+  cone.rotation.x = -.12;
+  cone.castShadow = true;
+  hatRoot.add(cone);
+  const tip = new THREE.Mesh(
+    new THREE.SphereGeometry(.07, 12, 10),
+    material('hero_trim', profile.trim, .4, .7),
+  );
+  tip.name = 'wizard_hat_tip';
+  tip.position.set(0, 1.2, -.12);
+  hatRoot.add(tip);
+  const band = new THREE.Mesh(
+    new THREE.TorusGeometry(.28, .035, 8, 28),
+    material('hero_trim', profile.trim, .42, .72),
+  );
+  band.name = 'wizard_hat_band';
+  band.rotation.x = Math.PI / 2;
+  band.position.set(0, .38, -.02);
+  hatRoot.add(band);
+  hatRoot.position.set(0, .02, 0);
+  headBone.add(hatRoot);
+  return hatRoot;
+}
+
+function createHero(resolution = 52, profileId = 'aerin') {
+  const profile = HERO_BAKE_PROFILES[profileId] ?? HERO_BAKE_PROFILES.aerin;
   const group = new THREE.Group();
-  group.name = 'Aerin_Hero_Rig';
+  group.name = profile.name;
   group.userData.assetType = 'hero';
+  group.userData.heroClass = profileId;
   group.userData.modelHeight = 3.28;
   const skeletonInfo = heroSkeleton();
   group.add(skeletonInfo.rootBone);
@@ -595,70 +701,74 @@ function createHero(resolution = 52) {
     return 1;
   };
   const mats = [
-    material('hero_skin', 0xe9a87e, .72, 0),
-    material('hero_cloth', 0x275f72, .84, 0),
-    material('hero_leather', 0x59392e, .62, 0),
+    material('hero_skin', profile.skin, .72, 0),
+    material('hero_cloth', profile.cloth, .84, 0),
+    material('hero_leather', profile.leather, .62, 0),
   ];
   for (let i = 0; i < 3; i += 1) {
     const geometry = subsetGeometry(body, classify, i);
     if (geometry.getAttribute('position').count === 0) continue;
     group.add(makeSkinnedMesh(geometry, mats[i], skeletonInfo.skeleton, `hero_body_${i}`));
   }
-  const outlineMat = new THREE.MeshBasicMaterial({ name: 'outline_proxy', color: 0x14232f, transparent: true, opacity: .001, depthWrite: false, side: THREE.BackSide });
+  const outlineMat = new THREE.MeshBasicMaterial({ name: 'outline_proxy', color: profile.outline, transparent: true, opacity: .001, depthWrite: false, side: THREE.BackSide });
   const outline = makeSkinnedMesh(body.clone(), outlineMat, skeletonInfo.skeleton, 'hero_outline_proxy');
   outline.userData.outlineProxy = true;
   group.add(outline);
 
-  const cape = makeSkinnedMesh(createCapeGeometry(skeletonInfo), material('hero_cape', 0x8f3148, .9, 0), skeletonInfo.skeleton, 'hero_cape');
+  const cape = makeSkinnedMesh(createCapeGeometry(skeletonInfo), material('hero_cape', profile.cape, .9, 0), skeletonInfo.skeleton, 'hero_cape');
   group.add(cape);
 
   const headBone = skeletonInfo.bones.get('head');
-  const eyeMat = material('hero_eye', 0x172435, .35, 0);
-  const eyeWhite = material('hero_eye_white', 0xfff6df, .45, 0);
+  const eyeMat = material('hero_eye', profile.eye, .35, 0, profile.eye, profileId === 'wizard' ? .25 : 0);
+  const eyeWhite = material('hero_eye_white', profile.eyeWhite, .45, 0);
   const eyeGeo = new THREE.CircleGeometry(.105, 24);
   addSurfaceDetail(group, headBone, 'eye_white_L', eyeGeo, eyeWhite, [.185, .10, .425], [0, 0, 0], [1.12, 1.35, 1]);
   addSurfaceDetail(group, headBone, 'eye_white_R', eyeGeo, eyeWhite, [-.185, .10, .425], [0, 0, 0], [1.12, 1.35, 1]);
   addSurfaceDetail(group, headBone, 'eye_L', eyeGeo, eyeMat, [.185, .10, .437], [0, 0, 0], [.5, .72, 1]);
   addSurfaceDetail(group, headBone, 'eye_R', eyeGeo, eyeMat, [-.185, .10, .437], [0, 0, 0], [.5, .72, 1]);
   const browGeo = new THREE.BoxGeometry(.18, .025, .018);
-  const browL = addSurfaceDetail(group, headBone, 'brow_L', browGeo, material('hero_brow', 0x56392f, .9, 0), [.185, .245, .44], [0, 0, -.12]);
+  const browL = addSurfaceDetail(group, headBone, 'brow_L', browGeo, material('hero_brow', profile.brow, .9, 0), [.185, .245, .44], [0, 0, -.12]);
   const browR = addSurfaceDetail(group, headBone, 'brow_R', browGeo, browL.material, [-.185, .245, .44], [0, 0, .12]);
   void browR;
   const mouthCurve = new THREE.QuadraticBezierCurve3(V3(-.11, -.06, .447), V3(0, -.11, .457), V3(.11, -.06, .447));
-  addSurfaceDetail(group, headBone, 'mouth', new THREE.TubeGeometry(mouthCurve, 12, .012, 5, false), material('hero_mouth', 0x8c4f50, .72, 0), [0, 0, 0]);
+  addSurfaceDetail(group, headBone, 'mouth', new THREE.TubeGeometry(mouthCurve, 12, .012, 5, false), material('hero_mouth', profile.mouth, .72, 0), [0, 0, 0]);
 
-  const hairParts = [
-    p => sdfEllipsoid(p, V3(0, .09, -.04), V3(.53, .48, .43)),
-    p => sdfEllipsoid(p, V3(0, .16, -.34), V3(.42, .46, .24)),
-    p => sdfCapsule(p, V3(.34, .12, -.12), V3(.27, -.40, -.28), .20, .11),
-    p => sdfCapsule(p, V3(-.34, .12, -.12), V3(-.27, -.40, -.28), .20, .11),
-    p => sdfCapsule(p, V3(0, .08, -.34), V3(0, -.48, -.40), .24, .13),
-    p => sdfEllipsoid(p, V3(.18, .25, .18), V3(.28, .18, .20)),
-    p => sdfEllipsoid(p, V3(-.16, .28, .20), V3(.31, .17, .20)),
-  ];
-  const hairGeometry = implicitGeometry(p => unionSdf(hairParts, p, .08), { min: V3(-.65, -.62, -.62), max: V3(.65, .68, .48) }, Math.max(34, resolution - 10), 50000);
-  const hair = new THREE.Mesh(hairGeometry, material('hero_hair', 0x25425a, .55, 0));
+  const hairParts = heroHairParts(profile.hairStyle);
+  const hairGeometry = implicitGeometry(p => unionSdf(hairParts, p, .08), { min: V3(-.65, -.72, -.62), max: V3(.65, .68, .48) }, Math.max(34, resolution - 10), 50000);
+  const hair = new THREE.Mesh(hairGeometry, material('hero_hair', profile.hair, .55, 0));
   hair.name = 'hero_hair_silhouette';
   hair.castShadow = true;
   hair.receiveShadow = true;
   skeletonInfo.bones.get('hair_root').add(hair);
 
-  const collar = new THREE.Mesh(new THREE.TorusGeometry(.39, .055, 8, 36), material('hero_trim', 0xd6ad62, .42, .72));
+  if (profile.headGear === 'hat') attachWizardHat(headBone, profile);
+
+  const collar = new THREE.Mesh(new THREE.TorusGeometry(.39, .055, 8, 36), material('hero_trim', profile.trim, .42, .72));
   collar.name = 'hero_collar';
   collar.rotation.x = Math.PI / 2;
   collar.scale.z = .72;
   collar.position.set(0, .27, .015);
   skeletonInfo.bones.get('chest').add(collar);
-  const belt = new THREE.Mesh(new THREE.TorusGeometry(.43, .055, 8, 40), material('hero_belt', 0x3e2a24, .7, .05));
+  const belt = new THREE.Mesh(new THREE.TorusGeometry(.43, .055, 8, 40), material('hero_belt', profile.belt, .7, .05));
   belt.name = 'hero_belt';
   belt.rotation.x = Math.PI / 2;
   belt.scale.z = .72;
   belt.position.set(0, -.19, .01);
   skeletonInfo.bones.get('pelvis').add(belt);
-  const buckle = new THREE.Mesh(new RoundedBoxGeometry(.18, .16, .06, 3, .035), material('hero_buckle', 0xd8b362, .35, .85));
+  const buckle = new THREE.Mesh(new RoundedBoxGeometry(.18, .16, .06, 3, .035), material('hero_buckle', profile.buckle, .35, .85));
   buckle.name = 'hero_buckle';
   buckle.position.set(0, -.19, .36);
   skeletonInfo.bones.get('pelvis').add(buckle);
+
+  if (profileId === 'wizard') {
+    // Soft robe flare on lower body via leather-role sash trim.
+    const sash = new THREE.Mesh(new THREE.TorusGeometry(.48, .04, 8, 36), material('hero_trim', profile.trim, .5, .55));
+    sash.name = 'wizard_sash';
+    sash.rotation.x = Math.PI / 2;
+    sash.scale.set(1, 1, .78);
+    sash.position.set(0, -.05, .02);
+    skeletonInfo.bones.get('pelvis').add(sash);
+  }
 
   const socket = skeletonInfo.bones.get('weapon_socket');
   socket.userData.socket = 'weapon';
@@ -685,6 +795,7 @@ function bladeShape(kind, length, width) {
 }
 
 function createWeapon(kind) {
+  if (kind === 'staff') return createStaff();
   const specs = {
     sword: { length: 1.55, width: .18 },
     saber: { length: 1.62, width: .18 },
@@ -745,6 +856,48 @@ function createWeapon(kind) {
   tip.position.set(0, specs.length + .23, 0);
   group.add(base, tip);
   group.rotation.set(0, 0, -.08);
+  return group;
+}
+
+function createStaff() {
+  const group = new THREE.Group();
+  group.name = 'weapon_staff';
+  group.userData.weaponKind = 'staff';
+  const wood = material('weapon_grip', 0x6a4a32, .85, .05);
+  const metal = material('weapon_metal', 0xb8c8e0, .32, .7);
+  const crystal = material('weapon_rune', 0xb06dff, .22, .15, 0x8a4dff, .9);
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(.055, .07, 1.95, 12), wood);
+  shaft.name = 'blade_mesh';
+  shaft.position.y = .85;
+  shaft.castShadow = true;
+  group.add(shaft);
+  const wrap = new THREE.Mesh(new THREE.CylinderGeometry(.08, .08, .28, 10), metal);
+  wrap.name = 'weapon_grip';
+  wrap.position.y = .22;
+  group.add(wrap);
+  const ferrule = new THREE.Mesh(new THREE.CylinderGeometry(.06, .04, .12, 10), metal);
+  ferrule.position.y = -.05;
+  group.add(ferrule);
+  const band = new THREE.Mesh(new THREE.TorusGeometry(.09, .025, 8, 16), metal);
+  band.position.y = 1.72;
+  band.rotation.x = Math.PI / 2;
+  group.add(band);
+  const gem = new THREE.Mesh(new THREE.OctahedronGeometry(.18, 0), crystal);
+  gem.name = 'weapon_rune';
+  gem.position.y = 1.95;
+  gem.castShadow = true;
+  group.add(gem);
+  const tipOrb = new THREE.Mesh(new THREE.SphereGeometry(.08, 12, 10), crystal);
+  tipOrb.position.y = 2.12;
+  group.add(tipOrb);
+  const base = new THREE.Object3D();
+  base.name = 'blade_base';
+  base.position.set(0, .2, 0);
+  const tip = new THREE.Object3D();
+  tip.name = 'blade_tip';
+  tip.position.set(0, 2.15, 0);
+  group.add(base, tip);
+  group.rotation.set(0, 0, -.06);
   return group;
 }
 
@@ -1191,18 +1344,46 @@ function createWell() {
   return root;
 }
 
+async function exportHeroClass(classId, fileStem) {
+  const hero0 = createHero(52, classId);
+  await exportGLB(hero0.group, resolve(ASSETS, `models/hero/${fileStem}_lod0.glb`), hero0.animations);
+  const hero1 = createHero(38, classId);
+  await exportGLB(hero1.group, resolve(ASSETS, `models/hero/${fileStem}_lod1.glb`), hero1.animations);
+}
+
 async function main() {
+  const args = new Set(process.argv.slice(2));
+  const heroesOnly = args.has('--heroes-only') || args.has('--wizard-only');
+  const wizardOnly = args.has('--wizard-only');
+  const staffOnly = args.has('--staff-only');
+
   await mkdir(resolve(ASSETS, 'models/hero'), { recursive: true });
-  await mkdir(resolve(ASSETS, 'models/monsters'), { recursive: true });
-  await mkdir(resolve(ASSETS, 'models/environment'), { recursive: true });
   await mkdir(resolve(ASSETS, 'models/props'), { recursive: true });
 
-  const hero0 = createHero(52);
-  await exportGLB(hero0.group, resolve(ASSETS, 'models/hero/aerin_lod0.glb'), hero0.animations);
-  const hero1 = createHero(38);
-  await exportGLB(hero1.group, resolve(ASSETS, 'models/hero/aerin_lod1.glb'), hero1.animations);
+  if (staffOnly) {
+    await exportGLB(createWeapon('staff'), resolve(ASSETS, 'models/props/weapon_staff.glb'));
+    console.log('Staff weapon generation complete.');
+    return;
+  }
 
-  for (const kind of ['sword', 'saber', 'greatsword', 'leaf', 'katana', 'relic']) {
+  if (!heroesOnly) {
+    await mkdir(resolve(ASSETS, 'models/monsters'), { recursive: true });
+    await mkdir(resolve(ASSETS, 'models/environment'), { recursive: true });
+  }
+
+  if (wizardOnly) {
+    await exportHeroClass('wizard', 'wizard');
+  } else if (!args.has('--no-heroes')) {
+    await exportHeroClass('aerin', 'aerin');
+    await exportHeroClass('wizard', 'wizard');
+  }
+
+  if (heroesOnly) {
+    console.log('Hero asset generation complete.');
+    return;
+  }
+
+  for (const kind of ['sword', 'saber', 'greatsword', 'leaf', 'katana', 'relic', 'staff']) {
     await exportGLB(createWeapon(kind), resolve(ASSETS, `models/props/weapon_${kind}.glb`));
   }
 

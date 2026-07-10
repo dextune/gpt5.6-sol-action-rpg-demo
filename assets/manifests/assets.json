@@ -25,6 +25,30 @@
         "skill_starburst": "skill_starburst"
       }
     },
+    "hero.wizard": {
+      "type": "character",
+      "lods": {
+        "high": "./assets/models/hero/wizard_lod0.glb",
+        "medium": "./assets/models/hero/wizard_lod1.glb",
+        "low": "./assets/models/hero/wizard_lod1.glb"
+      },
+      "animationMap": {
+        "idle": "idle",
+        "run": "run",
+        "sprint": "sprint",
+        "attack_1": "attack_1",
+        "attack_2": "attack_2",
+        "attack_3": "attack_3",
+        "attack_4": "attack_4",
+        "dodge": "dodge",
+        "hit": "hit",
+        "death": "death",
+        "skill_whirlwind": "skill_whirlwind",
+        "skill_crescent": "skill_crescent",
+        "skill_skyfall": "skill_skyfall",
+        "skill_starburst": "skill_starburst"
+      }
+    },
     "monster.slime": {
       "type": "monster",
       "lods": {
@@ -144,6 +168,10 @@
     "weapon.relic": {
       "type": "prop",
       "url": "./assets/models/props/weapon_relic.glb"
+    },
+    "weapon.staff": {
+      "type": "prop",
+      "url": "./assets/models/props/weapon_staff.glb"
     }
   },
   "textures": {

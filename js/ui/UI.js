@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import { GAME_CONFIG, PLAYER_CONFIG } from '../config.js';
-import { RARITIES, SKILLS, ZONES } from '../data/content.js';
+import {
+  DEFAULT_HERO_CLASS_ID, RARITIES, SKILLS, ZONES,
+  getClassActiveSkills, getClassPassiveSkills, getHeroClass, resolveHeroClassId,
+} from '../data/content.js';
 import { clamp, formatTime } from '../core/Utils.js';
 
 const STAT_LABELS = Object.freeze({
@@ -40,9 +43,10 @@ export class UI {
     this.hudTimer = 0;
     this.minimapTimer = 0;
     this.lastZoneId = null;
+    this.selectedClassId = resolveHeroClassId(game.query?.get?.('class') || DEFAULT_HERO_CLASS_ID);
     this.elements = {};
     for (const id of [
-      'loading-screen', 'loading-text', 'loading-bar', 'title-screen', 'new-game-btn', 'defense-btn', 'continue-btn', 'continue-meta',
+      'loading-screen', 'loading-text', 'loading-bar', 'title-screen', 'class-select', 'new-game-btn', 'defense-btn', 'continue-btn', 'continue-meta',
       'hud', 'player-name', 'portrait-level', 'hunter-title', 'hp-fill', 'hp-text', 'mp-fill', 'mp-text', 'xp-fill', 'xp-text',
       'world-tier', 'zone-name', 'zone-subtitle', 'defense-wave-panel', 'defense-wave-label', 'defense-wave-remaining',
       'kill-count', 'streak-count', 'elite-count', 'boss-count',
@@ -54,23 +58,36 @@ export class UI {
     ]) this.elements[id] = document.getElementById(id);
     this.minimapContext = this.elements.minimap.getContext('2d');
     this.abilitySlots = Object.fromEntries([...document.querySelectorAll('.ability-slot')].map(slot => [slot.dataset.slot, slot]));
+    this.skillKeySlots = Object.fromEntries(
+      [...document.querySelectorAll('.ability-slot[data-key]')].map(slot => [slot.dataset.key, slot]),
+    );
+    this.boundSkillSlots = {};
+    this.lastAbilityClassId = null;
     this.panelButtons = [...document.querySelectorAll('[data-panel]')];
+    this.classCards = [...document.querySelectorAll('[data-class-id]')];
     this.#bindEvents();
+    this.#syncClassSelect();
   }
 
   #bindEvents() {
     this.elements['new-game-btn'].addEventListener('click', async () => {
       await this.game.audio.unlock();
-      this.game.newGame();
+      this.game.newGame({ classId: this.selectedClassId });
     });
     this.elements['defense-btn']?.addEventListener('click', async () => {
       await this.game.audio.unlock();
-      if (typeof this.game.startDefense === 'function') this.game.startDefense();
+      if (typeof this.game.startDefense === 'function') this.game.startDefense({ classId: this.selectedClassId });
     });
     this.elements['continue-btn'].addEventListener('click', async () => {
       if (this.elements['continue-btn'].disabled) return;
       await this.game.audio.unlock();
       this.game.continueGame();
+    });
+    this.classCards.forEach(card => {
+      card.addEventListener('click', () => {
+        this.selectedClassId = resolveHeroClassId(card.dataset.classId);
+        this.#syncClassSelect();
+      });
     });
     this.elements['panel-close'].addEventListener('click', () => this.closePanel());
     this.panelButtons.forEach(button => button.addEventListener('click', () => this.openPanel(button.dataset.panel)));
@@ -84,6 +101,16 @@ export class UI {
         (this.game.save.hasSave() ? this.elements['continue-btn'] : this.elements['new-game-btn']).click();
       }
     });
+  }
+
+  #syncClassSelect() {
+    const id = resolveHeroClassId(this.selectedClassId);
+    this.selectedClassId = id;
+    for (const card of this.classCards) {
+      const selected = card.dataset.classId === id;
+      card.classList.toggle('is-selected', selected);
+      card.setAttribute('aria-pressed', selected ? 'true' : 'false');
+    }
   }
 
   setLoading(progress, text) {
@@ -114,6 +141,7 @@ export class UI {
     this.elements['death-screen'].classList.add('hidden');
     this.elements['defense-wave-panel']?.classList.toggle('hidden', mode !== 'defense');
     this.lastZoneId = null;
+    this.lastAbilityClassId = null;
     this.update(1);
   }
 
@@ -192,12 +220,14 @@ export class UI {
 
     this.#updateAbility('dash', player.cooldownRatio('dash'), player.dashCooldown);
     this.#updateAbility('potion', player.cooldownRatio('potion'), player.potionCooldown);
-    for (const skillId of ['whirlwind', 'crescent', 'skyfall', 'starburst']) {
-      const unlocked = player.skillRank(skillId) > 0;
-      const slot = this.abilitySlots[skillId];
+    this.#syncAbilityBarForClass(player.classId);
+    for (const skill of getClassActiveSkills(player.classId)) {
+      const unlocked = player.skillRank(skill.id) > 0;
+      const slot = this.boundSkillSlots[skill.id] ?? this.skillKeySlots[skill.key];
+      if (!slot) continue;
       slot.classList.toggle('locked', !unlocked);
-      this.#updateAbility(skillId, player.cooldownRatio(skillId), player.skillCooldowns[skillId]);
-      slot.classList.toggle('insufficient', unlocked && player.mp < SKILLS[skillId].mp);
+      this.#updateAbilitySlot(slot, player.cooldownRatio(skill.id), player.skillCooldowns[skill.id]);
+      slot.classList.toggle('insufficient', unlocked && player.mp < skill.mp);
     }
     this.#updateBossHUD();
     // Smooth damage flash — hard class toggle at a threshold looked like random screen flicker.
@@ -214,8 +244,43 @@ export class UI {
     }
   }
 
+  #syncAbilityBarForClass(classId) {
+    if (this.lastAbilityClassId === classId) return;
+    this.lastAbilityClassId = classId;
+    const hero = getHeroClass(classId);
+    const attackLabel = document.getElementById('attack-slot-label');
+    if (attackLabel) attackLabel.textContent = hero.attackLabel ?? 'Attack';
+    const attackSlot = this.abilitySlots.attack;
+    if (attackSlot) {
+      const icon = attackSlot.querySelector('.ability-icon');
+      if (icon) {
+        icon.classList.toggle('sword-icon', hero.attackStyle !== 'magic');
+        icon.classList.toggle('starburst-icon', hero.attackStyle === 'magic');
+      }
+    }
+    this.boundSkillSlots = {};
+    for (const skill of getClassActiveSkills(classId)) {
+      const slot = this.skillKeySlots[skill.key];
+      if (!slot) continue;
+      slot.dataset.slot = skill.id;
+      this.boundSkillSlots[skill.id] = slot;
+      this.abilitySlots[skill.id] = slot;
+      const nameEl = slot.querySelector('b');
+      if (nameEl) nameEl.textContent = skill.name;
+      const lock = slot.querySelector('.lock-level');
+      if (lock) lock.textContent = `LV.${skill.unlockLevel}`;
+      const kbd = slot.querySelector('kbd');
+      if (kbd) kbd.textContent = skill.key;
+    }
+  }
+
   #updateAbility(id, ratio, seconds) {
     const slot = this.abilitySlots[id];
+    if (!slot) return;
+    this.#updateAbilitySlot(slot, ratio, seconds);
+  }
+
+  #updateAbilitySlot(slot, ratio, seconds) {
     if (!slot) return;
     const value = clamp(ratio || 0, 0, 1);
     slot.style.setProperty('--cooldown', value);
@@ -442,15 +507,16 @@ export class UI {
   }
 
   #renderSkills() {
-    this.elements['panel-title'].textContent = 'Blade Arts & Hunt Instincts';
     const player = this.game.player;
-    const active = Object.values(SKILLS).filter(skill => !skill.passive).map(skill => this.#skillCard(skill)).join('');
-    const passive = Object.values(SKILLS).filter(skill => skill.passive).map(skill => this.#skillCard(skill)).join('');
+    const hero = getHeroClass(player.classId);
+    this.elements['panel-title'].textContent = hero.skillPanelTitle ?? 'Skills';
+    const active = getClassActiveSkills(player.classId).map(skill => this.#skillCard(skill)).join('');
+    const passive = getClassPassiveSkills(player.classId).map(skill => this.#skillCard(skill)).join('');
     this.elements['panel-content'].innerHTML = `
       <div class="skills-layout">
         <div class="skill-points-banner"><div><span>AVAILABLE POINTS</span><strong>Earned from level-ups and hunt milestones.</strong></div><b>${player.skillPoints} SP</b></div>
         <section class="skill-group"><h3>Active Arts</h3>${active}</section>
-        <section class="skill-group"><h3>Passive Instincts</h3>${passive}</section>
+        <section class="skill-group"><h3>Passives</h3>${passive}</section>
       </div>`;
   }
 

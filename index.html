@@ -44,9 +44,19 @@
       <div class="title-content">
         <p class="eyebrow">ACTION RPG DEMO</p>
         <h1><span>GPT-5.6:</span> SOL</h1>
-        <p class="title-copy">Track wild monsters in a warm miniature diorama hunting ground<br>and combine skills and gear to forge your own swordsman.</p>
+        <p class="title-copy">Track wild monsters in a warm miniature diorama hunting ground<br>and combine skills and gear to forge your own hunter.</p>
         <div class="feature-runes" aria-label="Key features">
           <span><b>42</b> Monsters</span><span><b>6</b> Biomes</span><span><b>∞</b> World Tiers</span><span><b>3</b> Gear Slots</span>
+        </div>
+        <div class="class-select" id="class-select" role="group" aria-label="Hero class">
+          <button type="button" class="class-card is-selected" data-class-id="aerin" aria-pressed="true">
+            <strong>Hunter</strong>
+            <small>Aerin · Swift blade</small>
+          </button>
+          <button type="button" class="class-card" data-class-id="wizard" aria-pressed="false">
+            <strong>Wizard</strong>
+            <small>Lyra · Arcane focus</small>
+          </button>
         </div>
         <div class="title-actions">
           <button id="new-game-btn" class="primary-button"><span>New Hunt</span><kbd>ENTER</kbd></button>
@@ -109,13 +119,13 @@
       </aside>
 
       <div class="ability-bar" aria-label="Combat skills">
-        <div class="ability-slot attack-slot" data-slot="attack"><span class="ability-icon sword-icon"></span><b>Attack</b><kbd>J</kbd><i class="cooldown"></i></div>
+        <div class="ability-slot attack-slot" data-slot="attack"><span class="ability-icon sword-icon"></span><b id="attack-slot-label">Attack</b><kbd>J</kbd><i class="cooldown"></i></div>
         <div class="ability-slot" data-slot="dash"><span class="ability-icon dash-icon"></span><b>Dodge</b><kbd>SPACE</kbd><i class="cooldown"></i></div>
         <div class="ability-divider"></div>
-        <div class="ability-slot locked" data-slot="whirlwind"><span class="ability-icon whirlwind-icon"></span><b>Whirlwind</b><kbd>Q</kbd><i class="cooldown"></i><em class="lock-level">LV.3</em></div>
-        <div class="ability-slot locked" data-slot="crescent"><span class="ability-icon crescent-icon"></span><b>Crescent</b><kbd>E</kbd><i class="cooldown"></i><em class="lock-level">LV.6</em></div>
-        <div class="ability-slot locked" data-slot="skyfall"><span class="ability-icon skyfall-icon"></span><b>Skyfall</b><kbd>R</kbd><i class="cooldown"></i><em class="lock-level">LV.10</em></div>
-        <div class="ability-slot locked" data-slot="starburst"><span class="ability-icon starburst-icon"></span><b>Starburst</b><kbd>C</kbd><i class="cooldown"></i><em class="lock-level">LV.16</em></div>
+        <div class="ability-slot locked" data-key="Q" data-slot="skill-q"><span class="ability-icon whirlwind-icon"></span><b>Skill</b><kbd>Q</kbd><i class="cooldown"></i><em class="lock-level">LV.3</em></div>
+        <div class="ability-slot locked" data-key="E" data-slot="skill-e"><span class="ability-icon crescent-icon"></span><b>Skill</b><kbd>E</kbd><i class="cooldown"></i><em class="lock-level">LV.6</em></div>
+        <div class="ability-slot locked" data-key="R" data-slot="skill-r"><span class="ability-icon skyfall-icon"></span><b>Skill</b><kbd>R</kbd><i class="cooldown"></i><em class="lock-level">LV.10</em></div>
+        <div class="ability-slot locked" data-key="C" data-slot="skill-c"><span class="ability-icon starburst-icon"></span><b>Skill</b><kbd>C</kbd><i class="cooldown"></i><em class="lock-level">LV.16</em></div>
         <div class="ability-divider"></div>
         <div class="ability-slot potion-slot" data-slot="potion"><span class="ability-icon potion-icon"></span><b>Potion <strong id="potion-count">3</strong></b><kbd>1</kbd><i class="cooldown"></i></div>
       </div>

@@ -43,13 +43,16 @@ ok(enemies.length === 42, '42 monster types');
 ok(bosses.length === 6, '6 zone bosses');
 ok(shapes.size === 22, '22 monster body shapes');
 ok(Object.keys(content.RARITIES).length === 5, '5 equipment rarities');
-ok(Object.keys(content.WEAPON_BASES).length === 8, '8 weapon bases');
+ok(Object.keys(content.WEAPON_BASES).length === 11, '11 weapon bases');
 ok(Object.keys(content.ARMOR_BASES).length === 6, '6 armor bases');
 ok(Object.keys(content.CHARM_BASES).length === 6, '6 charm bases');
 ok(content.AFFIXES.length === 10, '10 random equipment affixes');
-ok(Object.keys(content.SKILLS).length === 8, '8 active/passive skills');
-ok(config.GAME_CONFIG.maxEnemies >= 58, 'max concurrent enemies setting');
-ok(config.GAME_CONFIG.saveVersion === 3, 'save data version 3');
+ok(Object.keys(content.SKILLS).length === 16, '16 active/passive skills (2 classes)');
+ok(content.HERO_CLASSES.wizard.activeSkills.includes('fireball'), 'wizard has fireball');
+ok(content.HERO_CLASSES.wizard.attackStyle === 'magic', 'wizard attackStyle magic');
+ok(content.HERO_CLASSES.aerin.attackStyle === 'melee', 'hunter attackStyle melee');
+ok(config.GAME_CONFIG.maxEnemies >= 42, 'max concurrent enemies setting');
+ok(config.GAME_CONFIG.saveVersion === 4, 'save data version 4');
 
 const storage = new Map();
 globalThis.localStorage = {
@@ -74,9 +77,10 @@ const modelSource = await readFile(join(root, 'js/graphics/ModelFactory.js'), 'u
 for (const shape of shapes) ok(new RegExp(`\\b${shape}:\\s*build`, 'm').test(modelSource), `model builder: ${shape}`);
 
 const html = await readFile(join(root, 'index.html'), 'utf8');
-for (const skill of ['whirlwind', 'crescent', 'skyfall', 'starburst']) {
-  ok(html.includes(`data-slot="${skill}"`), `HUD skill slot: ${skill}`);
+for (const key of ['Q', 'E', 'R', 'C']) {
+  ok(html.includes(`data-key="${key}"`), `HUD skill key slot: ${key}`);
 }
+ok(allFiles.includes(join(root, 'assets/models/props/weapon_staff.glb')), 'staff weapon glb exists');
 ok(html.includes('./vendor/three.module.min.js'), 'local Three.js import map');
 const externalRefs = [...html.matchAll(/(?:src|href)=[\"'](https?:\/\/[^\"']+)/gi)];
 ok(externalRefs.length === 0, 'no external network dependency');
@@ -86,8 +90,18 @@ ok(html.includes('id="defense-btn"'), 'title Defense mode button');
 ok(html.includes('id="defense-wave-panel"'), 'defense wave HUD panel');
 ok(Boolean(config.DEFENSE_CONFIG), 'DEFENSE_CONFIG exported');
 ok(allFiles.includes(join(root, 'js/systems/DefenseSystem.js')), 'DefenseSystem module exists');
+ok(html.includes('id="class-select"'), 'title class select');
+ok(html.includes('data-class-id="wizard"'), 'title wizard class card');
+ok(Boolean(content.HERO_CLASSES?.aerin && content.HERO_CLASSES?.wizard), 'HERO_CLASSES aerin + wizard');
+ok(content.DEFAULT_HERO_CLASS_ID === 'aerin', 'default hero class aerin');
+ok(typeof content.resolveHeroClassId === 'function' && content.resolveHeroClassId('nope') === 'aerin', 'resolveHeroClassId fallback');
+ok(allFiles.includes(join(root, 'assets/models/hero/wizard_lod0.glb')), 'wizard lod0 glb exists');
+ok(allFiles.includes(join(root, 'assets/models/hero/wizard_lod1.glb')), 'wizard lod1 glb exists');
 
 const manifest = JSON.parse(await readFile(join(root, 'assets/manifests/assets.json'), 'utf8'));
+ok(Boolean(manifest.models?.['hero.wizard']), 'manifest hero.wizard');
+ok(Boolean(manifest.models?.['hero.aerin']), 'manifest hero.aerin');
+ok(Boolean(manifest.models?.['weapon.staff']), 'manifest weapon.staff');
 if (manifest.audio && typeof manifest.audio === 'object') {
   for (const [key, entry] of Object.entries(manifest.audio)) {
     const urls = Array.isArray(entry?.urls) ? entry.urls : entry?.url ? [entry.url] : [];
@@ -105,3 +119,8 @@ if (failures.length) {
   process.exit(1);
 }
 console.log(`\nAll checks passed · ${allFiles.length} files · ${jsFiles.length} JS modules`);
+
+// Nested import/reference integrity + combat/class simulations (prevents SKILLS-not-defined class bugs).
+console.log('\n--- import-integrity ---');
+const nested = await import(pathToFileURL(join(root, 'tests/import-integrity.mjs')));
+void nested;

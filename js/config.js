@@ -1,7 +1,7 @@
 export const GAME_CONFIG = Object.freeze({
   title: 'GPT-5.6: Sol / Action RPG DEMO',
   saveKey: 'gpt5.6-sol-arpg-demo-v1',
-  saveVersion: 3,
+  saveVersion: 4,
   worldRadius: 172,
   terrainSize: 360,
   terrainSegments: 144,

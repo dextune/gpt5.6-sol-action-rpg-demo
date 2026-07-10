@@ -79,10 +79,14 @@ For larger feature additions see [extension-playbooks.md](./extension-playbooks.
 ## C. Visual · theme
 
 ### Hero outfit / hair color
-- `CharacterFactory` `ANIME` + createHero material branch
+- `CharacterFactory` `CLASS_LOOKS[lookId].palette` + createHero material branch
 
-### Hero hair spikes / head protector
-- `attachAnimeHair`, `findHeadAnchor` bone-name list
+### Hero hair / hood / hat
+- Runtime: head kit (`rogue` / `none`) in CharacterFactory
+- Baked: `generate_assets.mjs` `HERO_BAKE_PROFILES` + hair/hat helpers
+
+### Add playable class
+- See extension-playbooks “Add a hero class”
 
 ### Cel-shading strength
 - `convertToStylized` style `bandStrength`, `bands`

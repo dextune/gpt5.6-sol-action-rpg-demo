@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { GAME_CONFIG } from '../config.js';
-import { SKILLS } from '../data/content.js';
+import { SKILLS, getClassActiveSkills, getClassSkillIds, skillKeyCode } from '../data/content.js';
 import { clamp, randInt } from './Utils.js';
 import { Input } from './Input.js';
 import { SaveManager } from './SaveManager.js';
@@ -294,10 +294,7 @@ export class Game {
 
     if (this.input.isMouseDown(0) || this.input.isDown('KeyJ')) this.player.tryAttack(this);
     if (this.input.consumeMouse(2) || this.input.consume('Space')) this.player.tryDash(this);
-    if (this.input.consume('KeyQ')) this.player.trySkill('whirlwind', this);
-    if (this.input.consume('KeyE')) this.player.trySkill('crescent', this);
-    if (this.input.consume('KeyR')) this.player.trySkill('skyfall', this);
-    if (this.input.consume('KeyC')) this.player.trySkill('starburst', this);
+    this.#tryClassSkillKeys();
     if (this.input.consumeAny('Digit1', 'Numpad1')) this.player.usePotion(this);
 
     const cameraDirection = (this.input.isDown('KeyX') ? 1 : 0) - (this.input.isDown('KeyZ') ? 1 : 0);
@@ -386,11 +383,20 @@ export class Game {
     this.deferred.push({ time, callback });
   }
 
-  newGame() {
+  /** Bind Q/E/R/C (or skill.key) to the active class skill list — not hardcoded hunter ids. */
+  #tryClassSkillKeys() {
+    for (const skill of getClassActiveSkills(this.player.classId)) {
+      const code = skillKeyCode(skill.key);
+      if (code && this.input.consume(code)) this.player.trySkill(skill.id, this);
+    }
+  }
+
+  newGame(options = {}) {
+    const classId = options.classId ?? this.ui?.selectedClassId ?? this.query.get('class');
     this.#clearRun();
     this.mode = 'hunt';
     this.defense.reset();
-    this.player.reset();
+    this.player.reset(classId);
     this.hunt.reset();
     this.playTime = 0;
     this.autoSaveTimer = GAME_CONFIG.autoSaveSeconds;
@@ -401,16 +407,18 @@ export class Game {
     this.ui.showHUD();
     this.#snapCamera();
     this.enemies.populate(28);
-    this.ui.notify('Hunt started · Defeat monsters to earn gear and XP.', 'contract', 4.5);
+    const heroName = this.player.name;
+    this.ui.notify(`Hunt started · ${heroName} enters the field.`, 'contract', 4.5);
     this.requestSave();
   }
 
   /** Endless wave arena — separate entry from Hunt; does not write Hunt continue saves mid-run. */
-  startDefense() {
+  startDefense(options = {}) {
+    const classId = options.classId ?? this.ui?.selectedClassId ?? this.query.get('class');
     this.#clearRun();
     this.mode = 'defense';
     this.defense.reset();
-    this.player.reset();
+    this.player.reset(classId);
     this.hunt.reset();
     this.playTime = 0;
     this.autoSaveTimer = GAME_CONFIG.autoSaveSeconds;
@@ -561,8 +569,11 @@ export class Game {
       this.effects.pillar(this.player.position, 0xffe38a, 8, { life: .9, bottom: 1.25 });
       this.effects.ring(this.player.position, 0xffe38a, 5.5, { life: .85, startScale: .05 });
       this.ui.notify(`LEVEL UP · Lv.${level} · Skill Point +1`, 'level', 4.4);
-      for (const skill of Object.values(SKILLS)) {
-        if (!skill.passive && skill.unlockLevel === level) this.ui.notify(`New skill unlocked · ${skill.name} [${skill.key}]`, 'level', 4.2);
+      for (const id of getClassSkillIds(this.player.classId)) {
+        const skill = SKILLS[id];
+        if (skill && !skill.passive && skill.unlockLevel === level) {
+          this.ui.notify(`New skill unlocked · ${skill.name} [${skill.key}]`, 'level', 4.2);
+        }
       }
     }
     if (this.mode === 'hunt') this.requestSave();

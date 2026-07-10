@@ -50,6 +50,33 @@ button { color: inherit; }
 .feature-runes { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 30px; }
 .feature-runes span { display: flex; align-items: center; gap: 7px; min-width: 110px; padding: 8px 12px; border: 1px solid rgba(212,242,225,.19); background: rgba(12,29,38,.48); backdrop-filter: blur(9px); border-radius: 3px 13px 3px 13px; color: #b9cec8; font-size: 11px; letter-spacing: .06em; }
 .feature-runes b { color: var(--gold); font-size: 18px; }
+.class-select {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  width: min(440px, 86vw);
+  margin: 0 0 12px;
+}
+.class-card {
+  appearance: none;
+  border: 1px solid rgba(216, 244, 226, .22);
+  background: rgba(12, 28, 36, .72);
+  color: #e8f4ee;
+  border-radius: 4px 14px 4px 14px;
+  padding: 12px 14px;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+  transition: transform .16s, border-color .16s, filter .16s, background .16s;
+}
+.class-card strong { display: block; font-size: 14px; letter-spacing: .04em; }
+.class-card small { display: block; margin-top: 4px; color: #9eb3af; font-size: 11px; }
+.class-card:hover { transform: translateY(-2px); filter: brightness(1.06); }
+.class-card.is-selected {
+  border-color: rgba(120, 210, 255, .72);
+  background: linear-gradient(135deg, rgba(48, 72, 120, .55), rgba(18, 36, 52, .85));
+  box-shadow: 0 0 0 1px rgba(120, 210, 255, .25), var(--shadow);
+}
 .title-actions { display: grid; width: min(440px, 86vw); gap: 10px; }
 .title-actions button { height: 62px; border: 0; cursor: pointer; display: flex; align-items: center; justify-content: space-between; padding: 0 22px; border-radius: 4px 17px 4px 17px; letter-spacing: .04em; transition: transform .16s, filter .16s, border-color .16s; box-shadow: var(--shadow); }
 .title-actions button:hover:not(:disabled) { transform: translateX(6px); filter: brightness(1.08); }

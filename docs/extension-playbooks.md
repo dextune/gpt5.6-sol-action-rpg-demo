@@ -233,14 +233,27 @@ Watch for peaking on high volume (small gain values).
 
 ---
 
-## 12) "Re-theme in one request" checklist
+## 12) Add a hero class (full kit)
+
+1. `js/data/content.js`
+   - `HERO_CLASSES.<id>`: `attackStyle` (`melee`|`magic`), `activeSkills`, `passiveSkills`, `starterWeapon`, `baseStatMods`, look/model keys
+   - `SKILLS` entries with `classId`, and for actives: `effect`, `anim`, `castTime`, `key`
+2. `CombatSystem.skillHandlers` — implement each new `effect` id; for magic basics use `attackStyle: 'magic'`
+3. Bake: hero GLB (`exportHeroClass`) + weapon if needed (`--staff-only` pattern)
+4. `assets.json` model keys; `CLASS_LOOKS` + title `data-class-id`
+5. HUD/input auto-bind via class `activeSkills` — no hard-coded skill ids in Game
+6. `node tests/integrity.mjs`
+
+Keep Hunt/Defense mode isolation.
+
+## 13) "Re-theme in one request" checklist
 
 Example: whole Naruto tone → dark fantasy.
 
 | Layer | File |
 |-------|------|
-| Hero palette | CharacterFactory `ANIME` |
-| Weapon silhouette | WEAPON_* + starterBlade |
+| Hero palette | CharacterFactory `CLASS_LOOKS` |
+| Weapon silhouette | WEAPON_* + class starterWeapon |
 | UI gold/ink | config COLORS, game.css variable colors |
 | Zone fog | content ZONES + LightingSystem |
 | Effect base color | CombatSystem hardcoded hex |
@@ -250,7 +263,7 @@ Changing color alone may not match the tone → keep **hero + effects + fog** as
 
 ---
 
-## 13) Test · manual QA scenario (for applied features)
+## 14) Test · manual QA scenario (for applied features)
 
 Minimum play pass after adding a feature:
 

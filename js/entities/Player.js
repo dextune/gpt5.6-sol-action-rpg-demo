@@ -1,7 +1,11 @@
 import * as THREE from 'three';
 import { PLAYER_CONFIG } from '../config.js';
-import { RARITIES, SKILLS } from '../data/content.js';
-import { clamp } from '../core/Utils.js';
+import {
+  DEFAULT_HERO_CLASS_ID, RARITIES, SKILLS,
+  createClassStarterWeapon, createEmptySkillCooldowns, createEmptySkillRanks,
+  getClassSkillIds, getHeroClass, resolveHeroClassId,
+} from '../data/content.js';
+import { clamp, disposeObject } from '../core/Utils.js';
 import { setMaterialHitPulse } from '../graphics/StylizedMaterial.js';
 
 const NUMERIC_GEAR_STATS = Object.freeze([
@@ -9,47 +13,74 @@ const NUMERIC_GEAR_STATS = Object.freeze([
   'skillPower', 'moveSpeed', 'luck',
 ]);
 
-function starterBlade() {
-  return {
-    id: 'starter-field-blade', baseId: 'field_blade', slot: 'weapon', name: 'Swift Field Blade',
-    rarity: 'common', rarityColor: RARITIES.common.color, level: 1, itemLevel: 1,
-    power: 11, speed: .98, crit: .03, model: 'katana', color: 0xe8f2ff,
-    defense: 0, hp: 0, haste: 0, leech: 0, xpBonus: 0, goldBonus: 0,
-    skillPower: 0, moveSpeed: 0, luck: 0, score: 20, affixes: [], locked: true,
-  };
-}
-
 export class Player {
-  constructor(scene, characterFactory, quality = 'medium') {
+  constructor(scene, characterFactory, quality = 'medium', classId = DEFAULT_HERO_CLASS_ID) {
     this.scene = scene;
     this.characterFactory = characterFactory;
-    const character = characterFactory.createHero({ quality });
-    this.refs = character.refs;
-    this.animation = character.animation;
-    this.mesh = character.group;
-    this.scene.add(this.mesh);
+    this.quality = quality;
+    this.classId = resolveHeroClassId(classId);
+    this.#mountCharacter(this.classId);
     this.velocity = new THREE.Vector3();
     this.moveDirection = new THREE.Vector3();
     this.facing = new THREE.Vector3(0, 0, 1);
     this.dashDirection = new THREE.Vector3(0, 0, 1);
     this.knockback = new THREE.Vector3();
-    this.normalScale = this.mesh.scale.clone();
-    this.reset();
+    this.reset(this.classId);
   }
 
-  reset() {
-    this.name = 'Kai';
+  #mountCharacter(classId) {
+    const character = this.characterFactory.createHero({ quality: this.quality, classId });
+    this.classId = character.classId ?? resolveHeroClassId(classId);
+    this.refs = character.refs;
+    this.animation = character.animation;
+    this.mesh = character.group;
+    this.normalScale = this.mesh.scale.clone();
+    this.scene.add(this.mesh);
+  }
+
+  /** Rebuild skeletal mesh when class changes (title start / continue). */
+  setClass(classId, { keepTransform = false } = {}) {
+    const next = resolveHeroClassId(classId);
+    if (next === this.classId && this.mesh) return this.classId;
+    const position = this.mesh?.position.clone() ?? new THREE.Vector3(0, 0, 6);
+    const rotationY = this.mesh?.rotation.y ?? 0;
+    const facing = this.facing?.clone() ?? new THREE.Vector3(0, 0, 1);
+    this.#dismountCharacter();
+    this.#mountCharacter(next);
+    if (keepTransform) {
+      this.mesh.position.copy(position);
+      this.mesh.rotation.y = rotationY;
+      this.facing.copy(facing);
+    }
+    return this.classId;
+  }
+
+  #dismountCharacter() {
+    if (this.mesh) {
+      this.animation?.dispose?.();
+      this.characterFactory?.outlines?.unregister(this.mesh);
+      this.scene.remove(this.mesh);
+      disposeObject(this.mesh);
+    }
+    this.mesh = null;
+    this.refs = null;
+    this.animation = null;
+  }
+
+  reset(classId = this.classId) {
+    const next = resolveHeroClassId(classId);
+    if (next !== this.classId || !this.mesh) this.setClass(next);
+    const heroDef = getHeroClass(this.classId);
+    const starter = createClassStarterWeapon(this.classId);
+    this.name = heroDef.name;
     this.level = 1;
     this.xp = 0;
     this.gold = 0;
     this.essence = 0;
     this.skillPoints = 0;
-    this.skills = {
-      whirlwind: 0, crescent: 0, skyfall: 0, starburst: 0,
-      might: 0, vitality: 0, focus: 0, fortune: 0,
-    };
-    this.inventory = [starterBlade()];
-    this.equipped = { weapon: 'starter-field-blade', armor: null, charm: null };
+    this.skills = createEmptySkillRanks(this.classId);
+    this.inventory = [starter];
+    this.equipped = { weapon: starter.id, armor: null, charm: null };
     this.potions = 3;
     this.maxPotions = 5;
     this.hp = this.maxHp;
@@ -64,7 +95,7 @@ export class Player {
     this.dashTimer = 0;
     this.dashCooldown = 0;
     this.potionCooldown = 0;
-    this.skillCooldowns = { whirlwind: 0, crescent: 0, skyfall: 0, starburst: 0 };
+    this.skillCooldowns = createEmptySkillCooldowns(this.classId);
     this.castTimer = 0;
     this.hitTimer = 0;
     this.runTime = 0;
@@ -100,29 +131,56 @@ export class Player {
     return stats;
   }
 
+  /** Aggregate passive effect ranks for the current class tree. */
+  get passiveEffects() {
+    const out = {
+      attack: 0, hp: 0, defense: 0, skillPower: 0, mpRegen: 0, mpFlat: 0, luck: 0, gold: 0,
+    };
+    for (const id of getClassSkillIds(this.classId)) {
+      const skill = SKILLS[id];
+      const rank = this.skills[id] ?? 0;
+      if (!skill?.passive || rank <= 0) continue;
+      const effect = skill.effect ?? {};
+      for (const key of Object.keys(out)) out[key] += (Number(effect[key]) || 0) * rank;
+    }
+    return out;
+  }
+
+  get classMods() {
+    return getHeroClass(this.classId).baseStatMods ?? { attack: 1, mp: 1, skillPower: 0 };
+  }
+
   get maxHp() {
     const stats = this.equipmentStats;
-    const passive = 1 + this.skills.vitality * .04;
+    const passive = 1 + this.passiveEffects.hp;
     return Math.round((PLAYER_CONFIG.baseHp + (this.level - 1) * 12 + stats.hp) * passive);
   }
-  get maxMp() { return Math.round(PLAYER_CONFIG.baseMp + (this.level - 1) * 3.4 + this.skills.focus * 2); }
+  get maxMp() {
+    const mods = this.classMods;
+    const base = PLAYER_CONFIG.baseMp * (mods.mp ?? 1);
+    return Math.round(base + (this.level - 1) * 3.4 + this.passiveEffects.mpFlat);
+  }
   get attackPower() {
     const stats = this.equipmentStats;
-    const passive = 1 + this.skills.might * .03;
-    return (PLAYER_CONFIG.baseAttack + this.level * 2.15 + stats.power) * passive;
+    const mods = this.classMods;
+    const passive = 1 + this.passiveEffects.attack;
+    return (PLAYER_CONFIG.baseAttack * (mods.attack ?? 1) + this.level * 2.15 + stats.power) * passive;
   }
   get defense() {
     const stats = this.equipmentStats;
-    return (PLAYER_CONFIG.baseDefense + this.level * .82 + stats.defense) * (1 + this.skills.vitality * .02);
+    return (PLAYER_CONFIG.baseDefense + this.level * .82 + stats.defense) * (1 + this.passiveEffects.defense);
   }
   get critChance() { return clamp(PLAYER_CONFIG.baseCrit + this.equipmentStats.crit, 0, .65); }
   get attackSpeed() { return clamp(this.equipmentStats.weaponSpeed * (1 + this.equipmentStats.haste), .65, 1.75); }
   get moveSpeed() { return PLAYER_CONFIG.moveSpeed + this.equipmentStats.moveSpeed; }
-  get skillPower() { return 1 + this.equipmentStats.skillPower + this.skills.focus * .03; }
+  get skillPower() {
+    const mods = this.classMods;
+    return 1 + this.equipmentStats.skillPower + this.passiveEffects.skillPower + (mods.skillPower ?? 0);
+  }
   get leech() { return clamp(this.equipmentStats.leech, 0, .12); }
   get xpBonus() { return this.equipmentStats.xpBonus; }
-  get goldBonus() { return this.equipmentStats.goldBonus + this.skills.fortune * .03; }
-  get luck() { return this.equipmentStats.luck + this.skills.fortune * .025; }
+  get goldBonus() { return this.equipmentStats.goldBonus + this.passiveEffects.gold; }
+  get luck() { return this.equipmentStats.luck + this.passiveEffects.luck; }
   get healthRatio() { return clamp(this.hp / Math.max(1, this.maxHp), 0, 1); }
   get manaRatio() { return clamp(this.mp / Math.max(1, this.maxMp), 0, 1); }
 
@@ -134,6 +192,7 @@ export class Player {
   skillRank(skillId) {
     const skill = SKILLS[skillId];
     if (!skill || this.level < skill.unlockLevel) return 0;
+    if (skill.classId && skill.classId !== this.classId) return 0;
     if (skill.passive) return this.skills[skillId] ?? 0;
     return Math.max(1, this.skills[skillId] ?? 0);
   }
@@ -168,7 +227,7 @@ export class Player {
   }
 
   #regenerate(delta, game) {
-    const focusRegen = 1 + this.skills.focus * .04;
+    const focusRegen = 1 + this.passiveEffects.mpRegen;
     this.mp = Math.min(this.maxMp, this.mp + delta * 5.2 * focusRegen);
     const campDistance = Math.hypot(this.position.x, this.position.z);
     if (campDistance < 14.2) {
@@ -230,9 +289,26 @@ export class Player {
     this.facing.copy(direction.normalize());
   }
 
+  /**
+   * Combat aims along movement if keys are held, otherwise current body facing.
+   * Never snap to mouse aim — that caused bolts/swings to fire “down” while running sideways.
+   */
+  alignCombatFacing() {
+    if (this.moveDirection.lengthSq() > .01) {
+      this.facing.copy(this.moveDirection).setY(0);
+      if (this.facing.lengthSq() > .0001) this.facing.normalize();
+    } else if (this.facing.lengthSq() < .0001) {
+      this.facing.set(0, 0, 1);
+    } else {
+      this.facing.setY(0).normalize();
+    }
+    // Snap visual yaw immediately so mesh and projectiles match.
+    this.mesh.rotation.y = Math.atan2(this.facing.x, this.facing.z);
+  }
+
   tryAttack(game) {
     if (this.attackCooldown > 0 || this.isDashing || this.castTimer > 0 || !this.alive) return false;
-    this.faceToward(game.aimPoint);
+    this.alignCombatFacing();
     this.comboIndex = this.comboWindow > 0 ? (this.comboIndex + 1) % 4 : 0;
     const finisher = this.comboIndex === 3;
     this.comboWindow = finisher ? .48 : .7;
@@ -271,18 +347,24 @@ export class Player {
     const skill = SKILLS[skillId];
     const rank = this.skillRank(skillId);
     if (!skill || skill.passive) return false;
+    if (skill.classId && skill.classId !== this.classId) return false;
     if (rank <= 0) {
       game.ui.notify(`${skill.name}: Unlocks at Lv.${skill.unlockLevel}`, 'danger');
       return false;
     }
-    if (this.skillCooldowns[skillId] > 0 || this.mp < skill.mp || this.isDashing || !this.alive) return false;
-    this.faceToward(game.aimPoint);
+    if ((this.skillCooldowns[skillId] ?? 0) > 0 || this.mp < skill.mp || this.isDashing || !this.alive) return false;
+    this.alignCombatFacing();
     this.mp -= skill.mp;
     this.skillCooldowns[skillId] = skill.cooldown;
-    this.castTimer = skillId === 'skyfall' ? .5 : skillId === 'starburst' ? .72 : .3;
+    this.castTimer = skill.castTime ?? .3;
     this.attackAnimDuration = this.castTimer;
     this.attackAnim = this.castTimer;
-    this.animation.playOneShot(`skill_${skillId}`, { fade: .09, fadeOut: .13, timeScale: skillId === 'starburst' ? .92 : 1.05, fallback: 'idle' });
+    const anim = skill.anim ?? `skill_${skillId}`;
+    this.animation.playOneShot(anim, {
+      fade: .09, fadeOut: .13,
+      timeScale: (skill.castTime ?? .3) > .6 ? .92 : 1.05,
+      fallback: 'idle',
+    });
     game.audio.skill();
     game.combat.usePlayerSkill(skillId, this, rank);
     return true;
@@ -339,8 +421,10 @@ export class Player {
       this.xp -= this.xpNeeded;
       this.level += 1;
       this.skillPoints += 1;
-      for (const [id, skill] of Object.entries(SKILLS)) {
-        if (!skill.passive && skill.unlockLevel === this.level && this.skills[id] === 0) this.skills[id] = 1;
+      for (const id of getClassSkillIds(this.classId)) {
+        const skill = SKILLS[id];
+        if (!skill || skill.passive) continue;
+        if (skill.unlockLevel === this.level && (this.skills[id] ?? 0) === 0) this.skills[id] = 1;
       }
       levelUps.push(this.level);
     }
@@ -412,13 +496,12 @@ export class Player {
   }
 
   dispose() {
-    this.animation?.dispose();
-    this.characterFactory?.outlines?.unregister(this.mesh);
-    this.scene.remove(this.mesh);
+    this.#dismountCharacter();
   }
 
   serialize() {
     return {
+      classId: this.classId,
       name: this.name,
       level: this.level,
       xp: this.xp,
@@ -437,21 +520,30 @@ export class Player {
   }
 
   load(state = {}, world = null) {
-    this.reset();
-    this.name = typeof state.name === 'string' ? state.name : 'Kai';
+    const classId = resolveHeroClassId(state.classId);
+    const starter = createClassStarterWeapon(classId);
+    this.reset(classId);
+    const heroDef = getHeroClass(classId);
+    this.name = typeof state.name === 'string' ? state.name : heroDef.name;
     this.level = Math.max(1, Number(state.level) || 1);
     this.xp = Math.max(0, Number(state.xp) || 0);
     this.gold = Math.max(0, Number(state.gold) || 0);
     this.essence = Math.max(0, Number(state.essence) || 0);
     this.skillPoints = Math.max(0, Number(state.skillPoints) || 0);
-    this.skills = { ...this.skills, ...(state.skills ?? {}) };
+    // Only merge ranks for this class tree (ignore leftover hunter keys on a wizard save, etc.).
+    const ranks = createEmptySkillRanks(classId);
+    const incoming = state.skills ?? {};
+    for (const id of getClassSkillIds(classId)) {
+      if (incoming[id] != null) ranks[id] = Math.max(0, Number(incoming[id]) || 0);
+    }
+    this.skills = ranks;
     const loadedInventory = Array.isArray(state.inventory) ? state.inventory.filter(item => item?.id && item?.slot) : [];
-    if (!loadedInventory.some(item => item.id === 'starter-field-blade')) loadedInventory.unshift(starterBlade());
-    this.inventory = loadedInventory.length ? loadedInventory.slice(0, PLAYER_CONFIG.inventoryLimit) : [starterBlade()];
-    this.equipped = { weapon: 'starter-field-blade', armor: null, charm: null, ...(state.equipped ?? {}) };
+    if (!loadedInventory.some(item => item.id === starter.id)) loadedInventory.unshift(starter);
+    this.inventory = loadedInventory.length ? loadedInventory.slice(0, PLAYER_CONFIG.inventoryLimit) : [starter];
+    this.equipped = { weapon: starter.id, armor: null, charm: null, ...(state.equipped ?? {}) };
     for (const slot of ['weapon', 'armor', 'charm']) {
       const item = this.getItem(this.equipped[slot]);
-      if (!item || item.slot !== slot) this.equipped[slot] = slot === 'weapon' ? 'starter-field-blade' : null;
+      if (!item || item.slot !== slot) this.equipped[slot] = slot === 'weapon' ? starter.id : null;
     }
     this.potions = clamp(Number(state.potions) || 0, 0, Number(state.maxPotions) || 5);
     this.maxPotions = Math.max(5, Number(state.maxPotions) || 5);

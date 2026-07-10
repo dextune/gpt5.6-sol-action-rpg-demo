@@ -29,6 +29,7 @@ Guides for small and large agents to safely modify the **GPT-5.6: Sol / Action R
 | [quick-edit-recipes.md](./quick-edit-recipes.md) | short request → file mapping |
 | [extension-playbooks.md](./extension-playbooks.md) | **applied: zone/skill/theme/performance E2E** |
 | [plan/defense-mode.md](./plan/defense-mode.md) | **plan: Defense mode (waves) — must not regress Hunt** |
+| [plan/multi-class-wizard.md](./plan/multi-class-wizard.md) | **plan: multi-class heroes + wizard GLB** |
 
 ## Agent working rules (summary)
 

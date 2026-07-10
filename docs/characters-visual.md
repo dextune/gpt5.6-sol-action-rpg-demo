@@ -1,35 +1,54 @@
 # Character · Weapon visuals
 
-## Hero
+## Hero classes
+
+Playable looks are data-driven via `HERO_CLASSES` in `js/data/content.js`.
+
+| Class id | Model key | Default name | Notes |
+|----------|-----------|--------------|--------|
+| `aerin` | `hero.aerin` | Kai | Default hunter; runtime rogue hood kit |
+| `wizard` | `hero.wizard` | Lyra | Baked hat + long hair; arcane palette |
+
+**Add a class:**
+
+1. `HERO_CLASSES` row: `modelKey`, `lookId`, `attackStyle`, `activeSkills`, `passiveSkills`, `starterWeapon`, `baseStatMods`
+2. Define skills in `SKILLS` with `classId`, `effect`, `anim`, `castTime` (actives) or passive `effect` multipliers
+3. Register `CombatSystem.skillHandlers[effect]` for each new active effect
+4. Bake hero GLB + optional weapon model; register in `assets.json`
+5. `CLASS_LOOKS[lookId]` in `CharacterFactory.js`
+6. Title card `data-class-id` in `index.html`
+
+HUD/input bind from `activeSkills` keys (Q/E/R/C) automatically.
+
+## Hero pipeline
 
 | Stage | File |
 |-------|------|
-| Creation | `js/characters/CharacterFactory.js` → `createHero` |
-| GLB key | `hero.aerin` (`assets/manifests/assets.json`) |
-| Fallback mesh | `js/graphics/ModelFactory.js` → `createHeroModel` |
+| Creation | `js/characters/CharacterFactory.js` → `createHero({ classId, quality })` |
+| GLB key | `HERO_CLASSES[id].modelKey` |
+| Fallback mesh | `js/graphics/ModelFactory.js` → `createHeroModel` (any `hero.*`) |
 | Animation | `CharacterAnimationController` + GLB clips |
-| Instance | `Player` calls factory on creation |
+| Instance | `Player` mounts/rebuilds on class change |
 
-### Current visual direction
+### Runtime looks
 
-- **Shonen/anime tone** palette (`ANIME` constants): orange jacket, navy pants, blonde spikes, forehead protector
-- Keep GLB + enhance cel-shading materials + attach hair mesh
-- PBR maps(`map/normal/roughness/ao`) disabled → flat color priority
+`CLASS_LOOKS` per `lookId`:
 
-### Color/style editing
+- **palette** — cel recolor by material role (`skin` / `cloth` / `hair` / …)
+- **headKit** — `rogue` (runtime hood/mask) or `none` (use baked head gear)
 
-`CharacterFactory.js` top:
+Maps are cleared for flat anime color priority.
 
-```js
-const ANIME = { skin, cloth, clothDark, leather, hair, hairDark, metal, eye, outline }
+### Bake tool
+
+```bash
+# Requires npm package `three` available for GLTFExporter imports (dev install once)
+node tools/assets/generate_assets.mjs --wizard-only
+node tools/assets/generate_assets.mjs --heroes-only
+node tools/assets/generate_assets.mjs   # full asset set
 ```
 
-Adjust cel strength via `convertToStylized`'s `bandStrength` / `bands`.
-
-### Hair/headband
-
-`attachAnimeHair(group)` — finds head bone/mesh and attaches spikes + band.  
-If head position is off, extend the `findHeadAnchor` name list.
+Profiles: `HERO_BAKE_PROFILES` in `generate_assets.mjs`. Shared: skeleton, body SDF, `heroAnimations` (14 clips).
 
 ## Weapons
 
@@ -39,55 +58,24 @@ If head position is off, extend the `findHeadAnchor` name list.
 | Length multiplier | `WEAPON_LENGTH` (Y scale) |
 | Girth multiplier | `WEAPON_GIRTH` (X/Z scale) |
 | Model type | item.model → `weapon.sword` etc. in manifest |
-| Starting weapon | `Player.js` `starterBlade()` |
+| Starter | `HERO_CLASSES[*].starterWeapon` via `createClassStarterWeapon` |
 
-Current starting weapon: **Swift Field Blade** (`model: 'katana'`).  
-Length reduced to **~70%** after overscale, cross-section adjusted to be **thicker**.
+Hunter starter: **Swift Field Blade** (`katana`).  
+Wizard starter: **Apprentice Focus** (`relic`).
 
-Fallback blade mesh dimensions: `ModelFactory.createHeroModel`'s blade BoxGeometry.
+Hit detection `range` is independent of mesh length.
 
-## Monsters
-
-| File | Role |
-|------|------|
-| `MonsterFactory.js` | `shape` → archetype GLB key, elite/boss tint |
-| `ModelFactory.js` | per-shape procedural fallback mesh |
-| `content.js` | color/accent/scale/ai |
-
-Putting a shape without a `SHAPE_ARCHETYPE` mapping into content may cause fallback/errors.  
-The integrity test checks the body shape list.
-
-## Animation clip names (hero)
-
-Manifest `animationMap`:
+## Animation clip names (all hero classes)
 
 `idle`, `run`, `sprint`, `attack_1`–`attack_4`, `dodge`, `hit`, `death`,  
 `skill_whirlwind`, `skill_crescent`, `skill_skyfall`, `skill_starburst`
 
-On `playOneShot` failure, fallback to idle. When adding a new animation, keep the map + Player/Combat call names in sync.
+Do not rename without updating Player / Combat callers.
 
 ## Outlines
 
-`OutlineSystem` + post OutlinePass may be disabled in quality settings.  
-Silhouette color: `CharacterFactory` outlines.configure `color`.
+`OutlineSystem` silhouette color comes from the active look palette `outline`.
 
-## Application: match weapon types to presentation
+## Save
 
-| model | Presentation hint | Scale key |
-|-------|-------------------|-----------|
-| katana | Looks long and slender, but current setting compensates thicker | WEAPON_* |
-| greatsword | Pairs with slow finisher presentation | multiplier[3] together |
-| saber | Fast combos | Short attackCooldown |
-
-Hit detection `range` is independent of the mesh → after changing weapon visuals, "looks like it hits but doesn't / vice versa" is a common issue.
-
-## Application: GLB vs fallback switching
-
-- On successful GLB load, skeletal animation is kept (recommended)
-- Fallback `createHeroModel` has no animation clips → close to fixed idle
-- To use fully custom procedural hero only, force preload failure or bypass clone path (invasive)
-
-## Application: monster elite/boss look
-
-`MonsterFactory` applies accent emissive, scale, and aura mesh for elite/boss.  
-Overlapping content `scale` and factory boss scale may cause oversized meshes.
+`player.classId` is persisted (`saveVersion` 4+). Missing class → `aerin`.

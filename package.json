@@ -4,6 +4,7 @@
   "scripts": {
     "start": "node server.mjs",
     "test": "node tests/integrity.mjs",
+    "test:imports": "node tests/import-integrity.mjs",
     "deploy": "wrangler deploy",
     "preview": "wrangler dev"
   },

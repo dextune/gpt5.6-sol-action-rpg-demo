@@ -124,6 +124,9 @@ export const WEAPON_BASES = Object.freeze({
   glacier_brand: { id: 'glacier_brand', name: 'Glacier Brand', model: 'greatsword', power: 17, speed: 0.88, crit: 0.02, color: 0xbaf3ff },
   ember_katana: { id: 'ember_katana', name: 'Ember Katana', model: 'katana', power: 14, speed: 1.18, crit: 0.06, color: 0xff7a50 },
   astral_oath: { id: 'astral_oath', name: 'Astral Oath', model: 'relic', power: 18, speed: 1.06, crit: 0.065, color: 0xd9b4ff },
+  oak_staff: { id: 'oak_staff', name: 'Oak Staff', model: 'staff', power: 9, speed: 1.05, crit: 0.03, skillPower: 0.05, color: 0xc4a878 },
+  crystal_rod: { id: 'crystal_rod', name: 'Crystal Rod', model: 'staff', power: 12, speed: 1.08, crit: 0.04, skillPower: 0.08, color: 0xb8d4ff },
+  void_scepter: { id: 'void_scepter', name: 'Void Scepter', model: 'staff', power: 16, speed: 1.02, crit: 0.05, skillPower: 0.12, color: 0xd9b4ff },
 });
 
 export const ARMOR_BASES = Object.freeze({
@@ -157,38 +160,107 @@ export const AFFIXES = Object.freeze([
   { id: 'wind', prefix: 'Gale', stat: 'moveSpeed', min: 0.12, max: 0.42, perLevel: 0.002 },
 ]);
 
+/**
+ * Global skill catalog. Each skill belongs to a class via `classId`.
+ * Active skills need `effect` (CombatSystem handler id), `anim` (clip name in GLB), `castTime`.
+ * Passive skills use `effect` multipliers applied per rank in Player getters.
+ */
 export const SKILLS = Object.freeze({
+  // —— Hunter actives ——
   whirlwind: {
-    id: 'whirlwind', name: 'Whirlwind Slash', key: 'Q', unlockLevel: 3, maxRank: 5, mp: 18, cooldown: 5.5,
-    description: 'Cuts and knocks back nearby enemies in a flurry.', rankText: rank => `Damage ${Math.round(125 + rank * 18)}% · Range ${4.1 + rank * .18}`,
+    id: 'whirlwind', classId: 'aerin', name: 'Whirlwind Slash', key: 'Q', unlockLevel: 3, maxRank: 5, mp: 18, cooldown: 5.5,
+    castTime: .3, anim: 'skill_whirlwind', effect: 'whirlwind',
+    description: 'Cuts and knocks back nearby enemies in a flurry.',
+    rankText: rank => `Damage ${Math.round(125 + rank * 18)}% · Range ${4.1 + rank * .18}`,
   },
   crescent: {
-    id: 'crescent', name: 'Crescent Blade', key: 'E', unlockLevel: 6, maxRank: 5, mp: 22, cooldown: 6.8,
-    description: 'Fires a piercing blade that rends the ground.', rankText: rank => `Damage ${Math.round(150 + rank * 22)}% · Pierce ${3 + rank}`,
+    id: 'crescent', classId: 'aerin', name: 'Crescent Blade', key: 'E', unlockLevel: 6, maxRank: 5, mp: 22, cooldown: 6.8,
+    castTime: .3, anim: 'skill_crescent', effect: 'crescent',
+    description: 'Fires a piercing blade that rends the ground.',
+    rankText: rank => `Damage ${Math.round(150 + rank * 22)}% · Pierce ${3 + rank}`,
   },
   skyfall: {
-    id: 'skyfall', name: 'Skyfall', key: 'R', unlockLevel: 10, maxRank: 5, mp: 30, cooldown: 9.5,
-    description: 'Leaps to the target point and unleashes a shockwave.', rankText: rank => `Damage ${Math.round(185 + rank * 28)}% · Radius ${4.5 + rank * .22}`,
+    id: 'skyfall', classId: 'aerin', name: 'Skyfall', key: 'R', unlockLevel: 10, maxRank: 5, mp: 30, cooldown: 9.5,
+    castTime: .5, anim: 'skill_skyfall', effect: 'skyfall',
+    description: 'Leaps to the target point and unleashes a shockwave.',
+    rankText: rank => `Damage ${Math.round(185 + rank * 28)}% · Radius ${4.5 + rank * .22}`,
   },
   starburst: {
-    id: 'starburst', name: 'Starburst', key: 'C', unlockLevel: 16, maxRank: 5, mp: 42, cooldown: 15,
-    description: 'Summons many starlight blades to purge a wide area.', rankText: rank => `Damage ${Math.round(230 + rank * 34)}% · Hits ${6 + rank}`,
+    id: 'starburst', classId: 'aerin', name: 'Starburst', key: 'C', unlockLevel: 16, maxRank: 5, mp: 42, cooldown: 15,
+    castTime: .72, anim: 'skill_starburst', effect: 'starburst',
+    description: 'Summons many starlight blades to purge a wide area.',
+    rankText: rank => `Damage ${Math.round(230 + rank * 34)}% · Hits ${6 + rank}`,
   },
+  // —— Hunter passives ——
   might: {
-    id: 'might', name: 'Beast Might', passive: true, unlockLevel: 2, maxRank: 10,
+    id: 'might', classId: 'aerin', name: 'Beast Might', passive: true, unlockLevel: 2, maxRank: 10,
+    effect: { attack: .03 },
     description: 'Permanently increases attack power.', rankText: rank => `Attack +${rank * 3}%`,
   },
   vitality: {
-    id: 'vitality', name: 'Survival Instinct', passive: true, unlockLevel: 2, maxRank: 10,
+    id: 'vitality', classId: 'aerin', name: 'Survival Instinct', passive: true, unlockLevel: 2, maxRank: 10,
+    effect: { hp: .04, defense: .02 },
     description: 'Increases max HP and defense.', rankText: rank => `HP +${rank * 4}% · Defense +${rank * 2}%`,
   },
   focus: {
-    id: 'focus', name: 'Blade Focus', passive: true, unlockLevel: 5, maxRank: 10,
+    id: 'focus', classId: 'aerin', name: 'Blade Focus', passive: true, unlockLevel: 5, maxRank: 10,
+    effect: { skillPower: .03, mpRegen: .04, mpFlat: 2 },
     description: 'Increases skill power and mana recovery.', rankText: rank => `Skill Power +${rank * 3}% · MP Regen +${rank * 4}%`,
   },
   fortune: {
-    id: 'fortune', name: 'Hunter Fortune', passive: true, unlockLevel: 8, maxRank: 10,
+    id: 'fortune', classId: 'aerin', name: 'Hunter Fortune', passive: true, unlockLevel: 8, maxRank: 10,
+    effect: { luck: .025, gold: .03 },
     description: 'Increases rare-gear and gold drop chance.', rankText: rank => `Luck +${rank * 2.5}% · Gold +${rank * 3}%`,
+  },
+  // —— Wizard actives ——
+  fireball: {
+    id: 'fireball', classId: 'wizard', name: 'Fireball', key: 'Q', unlockLevel: 3, maxRank: 5, mp: 20, cooldown: 5.2,
+    castTime: .34, anim: 'skill_crescent', effect: 'fireball',
+    description: 'Hurls a searing orb that explodes on impact.',
+    rankText: rank => `Damage ${Math.round(155 + rank * 24)}% · Blast ${2.4 + rank * .12}`,
+  },
+  frost_nova: {
+    id: 'frost_nova', classId: 'wizard', name: 'Frost Nova', key: 'E', unlockLevel: 6, maxRank: 5, mp: 24, cooldown: 7.2,
+    castTime: .32, anim: 'skill_whirlwind', effect: 'frost_nova',
+    description: 'Freezes the ground in a ring and shoves foes outward.',
+    rankText: rank => `Damage ${Math.round(120 + rank * 16)}% · Radius ${4.4 + rank * .2}`,
+  },
+  arcane_blink: {
+    id: 'arcane_blink', classId: 'wizard', name: 'Arcane Blink', key: 'R', unlockLevel: 10, maxRank: 5, mp: 28, cooldown: 9.2,
+    castTime: .48, anim: 'skill_skyfall', effect: 'arcane_blink',
+    description: 'Teleport to the aim point and detonate a mana shock.',
+    rankText: rank => `Damage ${Math.round(170 + rank * 26)}% · Radius ${4.2 + rank * .2}`,
+  },
+  meteor_storm: {
+    id: 'meteor_storm', classId: 'wizard', name: 'Meteor Storm', key: 'C', unlockLevel: 16, maxRank: 5, mp: 46, cooldown: 15.5,
+    castTime: .76, anim: 'skill_starburst', effect: 'meteor_storm',
+    description: 'Calls a barrage of meteors onto the target field.',
+    rankText: rank => `Damage ${Math.round(220 + rank * 32)}% · Meteors ${6 + rank}`,
+  },
+  // —— Wizard passives ——
+  arcane_might: {
+    id: 'arcane_might', classId: 'wizard', name: 'Arcane Might', passive: true, unlockLevel: 2, maxRank: 10,
+    effect: { skillPower: .035, attack: .015 },
+    description: 'Strengthens spell damage and staff strikes.',
+    rankText: rank => `Skill Power +${rank * 3.5}% · Attack +${rank * 1.5}%`,
+  },
+  mana_ward: {
+    id: 'mana_ward', classId: 'wizard', name: 'Mana Ward', passive: true, unlockLevel: 2, maxRank: 10,
+    effect: { hp: .03, defense: .02, mpFlat: 3 },
+    description: 'Wards the body with residual mana.',
+    rankText: rank => `HP +${rank * 3}% · Defense +${rank * 2}% · MP +${rank * 3}`,
+  },
+  mana_font: {
+    id: 'mana_font', classId: 'wizard', name: 'Mana Font', passive: true, unlockLevel: 5, maxRank: 10,
+    effect: { skillPower: .03, mpRegen: .06, mpFlat: 2 },
+    description: 'Deepens the mana well and recovery.',
+    rankText: rank => `Skill Power +${rank * 3}% · MP Regen +${rank * 6}%`,
+  },
+  star_luck: {
+    id: 'star_luck', classId: 'wizard', name: 'Star Luck', passive: true, unlockLevel: 8, maxRank: 10,
+    effect: { luck: .03, gold: .03 },
+    description: 'Fate bends slightly toward the caster.',
+    rankText: rank => `Luck +${rank * 3}% · Gold +${rank * 3}%`,
   },
 });
 
@@ -201,3 +273,130 @@ export const HUNT_TITLES = Object.freeze([
   { kills: 2500, name: 'Starfall Conqueror' },
   { kills: 5000, name: 'Legendary Blade' },
 ]);
+
+/** Default playable class when save/UI omit classId. */
+export const DEFAULT_HERO_CLASS_ID = 'aerin';
+
+const SKILL_KEY_CODES = Object.freeze({
+  Q: 'KeyQ', E: 'KeyE', R: 'KeyR', C: 'KeyC',
+});
+
+/**
+ * Playable hero classes.
+ * Add a job: row here + hero.<id> GLB + CLASS_LOOKS + skills with matching classId + optional weapon model.
+ */
+export const HERO_CLASSES = Object.freeze({
+  aerin: Object.freeze({
+    id: 'aerin',
+    name: 'Kai',
+    title: 'Field Hunter',
+    blurb: 'Swift blade hunter',
+    modelKey: 'hero.aerin',
+    lookId: 'aerin',
+    attackStyle: 'melee',
+    skillPanelTitle: 'Blade Arts & Hunt Instincts',
+    attackLabel: 'Slash',
+    activeSkills: Object.freeze(['whirlwind', 'crescent', 'skyfall', 'starburst']),
+    passiveSkills: Object.freeze(['might', 'vitality', 'focus', 'fortune']),
+    baseStatMods: Object.freeze({ attack: 1, mp: 1, skillPower: 0 }),
+    starterWeapon: Object.freeze({
+      id: 'starter-field-blade',
+      baseId: 'field_blade',
+      slot: 'weapon',
+      name: 'Swift Field Blade',
+      rarity: 'common',
+      level: 1,
+      itemLevel: 1,
+      power: 11,
+      speed: .98,
+      crit: .03,
+      model: 'katana',
+      color: 0xe8f2ff,
+      locked: true,
+    }),
+  }),
+  wizard: Object.freeze({
+    id: 'wizard',
+    name: 'Lyra',
+    title: 'Arcane Adept',
+    blurb: 'Staff caster · elemental spells',
+    modelKey: 'hero.wizard',
+    lookId: 'wizard',
+    attackStyle: 'magic',
+    skillPanelTitle: 'Arcane Arts & Mana Lore',
+    attackLabel: 'Cast',
+    activeSkills: Object.freeze(['fireball', 'frost_nova', 'arcane_blink', 'meteor_storm']),
+    passiveSkills: Object.freeze(['arcane_might', 'mana_ward', 'mana_font', 'star_luck']),
+    baseStatMods: Object.freeze({ attack: .92, mp: 1.28, skillPower: .08 }),
+    starterWeapon: Object.freeze({
+      id: 'starter-apprentice-staff',
+      baseId: 'oak_staff',
+      slot: 'weapon',
+      name: 'Apprentice Staff',
+      rarity: 'common',
+      level: 1,
+      itemLevel: 1,
+      power: 9,
+      speed: 1.04,
+      crit: .035,
+      model: 'staff',
+      color: 0xc8b4ff,
+      skillPower: .08,
+      locked: true,
+    }),
+  }),
+});
+
+export function resolveHeroClassId(classId) {
+  if (classId && HERO_CLASSES[classId]) return classId;
+  return DEFAULT_HERO_CLASS_ID;
+}
+
+export function getHeroClass(classId) {
+  return HERO_CLASSES[resolveHeroClassId(classId)];
+}
+
+/** All skill ids owned by a class (active + passive). */
+export function getClassSkillIds(classId) {
+  const def = getHeroClass(classId);
+  return [...(def.activeSkills ?? []), ...(def.passiveSkills ?? [])];
+}
+
+export function getClassActiveSkills(classId) {
+  return (getHeroClass(classId).activeSkills ?? []).map(id => SKILLS[id]).filter(Boolean);
+}
+
+export function getClassPassiveSkills(classId) {
+  return (getHeroClass(classId).passiveSkills ?? []).map(id => SKILLS[id]).filter(Boolean);
+}
+
+export function skillKeyCode(key) {
+  return SKILL_KEY_CODES[key] ?? null;
+}
+
+/** Empty rank map for a class skill tree. */
+export function createEmptySkillRanks(classId) {
+  const ranks = {};
+  for (const id of getClassSkillIds(classId)) ranks[id] = 0;
+  return ranks;
+}
+
+/** Empty cooldown map for class actives. */
+export function createEmptySkillCooldowns(classId) {
+  const cds = {};
+  for (const id of getHeroClass(classId).activeSkills ?? []) cds[id] = 0;
+  return cds;
+}
+
+/** Build a mutable starter gear item from a class definition. */
+export function createClassStarterWeapon(classId = DEFAULT_HERO_CLASS_ID) {
+  const def = getHeroClass(classId);
+  const base = def.starterWeapon;
+  const rarity = RARITIES[base.rarity] ?? RARITIES.common;
+  return {
+    defense: 0, hp: 0, haste: 0, leech: 0, xpBonus: 0, goldBonus: 0,
+    skillPower: 0, moveSpeed: 0, luck: 0, score: 20, affixes: [],
+    ...base,
+    rarityColor: rarity.color,
+  };
+}

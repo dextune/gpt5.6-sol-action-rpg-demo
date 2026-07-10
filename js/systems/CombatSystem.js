@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { SKILLS, getHeroClass } from '../data/content.js';
 import { clamp, rand } from '../core/Utils.js';
 
 const TMP_A = new THREE.Vector3();
@@ -15,13 +16,44 @@ export class CombatSystem {
     this.projectileGeometry = new THREE.OctahedronGeometry(.28, 1);
     this.waveGeometry = new THREE.BoxGeometry(1.25, .18, .45);
     this.enemyOrbGeometry = new THREE.SphereGeometry(.25, 10, 8);
+    this.orbGeometry = new THREE.SphereGeometry(.22, 12, 10);
+    /** effect id → handler (class skills register here) */
+    this.skillHandlers = {
+      whirlwind: (p, r) => this.#whirlwind(p, r),
+      crescent: (p, r) => this.#crescent(p, r),
+      skyfall: (p, r) => this.#skyfall(p, r),
+      starburst: (p, r) => this.#starburst(p, r),
+      fireball: (p, r) => this.#fireball(p, r),
+      frost_nova: (p, r) => this.#frostNova(p, r),
+      arcane_blink: (p, r) => this.#arcaneBlink(p, r),
+      meteor_storm: (p, r) => this.#meteorStorm(p, r),
+    };
   }
 
   playerAttack(player, combo) {
-    const direction = player.facing.clone();
+    const style = getHeroClass(player.classId).attackStyle ?? 'melee';
+    if (style === 'magic') this.#magicAttack(player, combo);
+    else this.#meleeAttack(player, combo);
+  }
+
+  /** Ground aim locked to facing — not mouse — so skills match movement direction. */
+  #aimAlongFacing(player, distance) {
+    const dir = this.#facingDir(player);
+    const target = player.position.clone().addScaledVector(dir, distance);
+    target.y = this.game.world.heightAt(target.x, target.z);
+    return target;
+  }
+
+  #facingDir(player) {
+    const dir = player.facing.clone().setY(0);
+    if (dir.lengthSq() < .0001) dir.set(0, 0, 1);
+    return dir.normalize();
+  }
+
+  #meleeAttack(player, combo) {
+    const direction = this.#facingDir(player);
     const finisher = combo === 3;
     const color = player.weapon?.rarityColor ?? 0xeef8ff;
-    // Swing anticipation — pure VFX, no camera shake.
     this.game.effects.dust(player.position, 0xd7dbc4, finisher ? 12 : 6 + combo, finisher ? .4 : .28);
     this.game.effects.trail(
       player.position.clone().add(new THREE.Vector3(0, 1.05, 0)).addScaledVector(direction, .55),
@@ -65,11 +97,77 @@ export class CombatSystem {
     });
   }
 
+  /** Staff basic attack — ranged mana bolts (combo builds into a multi-orb finisher). */
+  #magicAttack(player, combo) {
+    // Capture facing at cast time so delayed bolts don't inherit a later turn/mouse aim.
+    const direction = this.#facingDir(player);
+    const finisher = combo === 3;
+    const color = player.weapon?.rarityColor ?? 0xc8b4ff;
+    const origin = player.position.clone().add(new THREE.Vector3(0, 1.15, 0)).addScaledVector(direction, .7);
+    this.game.effects.trail(origin, color, finisher ? .7 : .4, .16);
+    this.game.effects.burst(origin, color, finisher ? 14 : 6 + combo * 2, {
+      speed: 3.2, size: .22, life: .32, upward: .2,
+    });
+
+    const bolts = finisher ? 5 : 1;
+    const baseDamage = player.attackPower * ([.95, 1.05, 1.15, 1.45][combo] ?? 1) * player.skillPower;
+    const baseYaw = Math.atan2(direction.x, direction.z);
+    for (let i = 0; i < bolts; i += 1) {
+      this.#delay(finisher ? i * .05 : .03, () => {
+        if (!player.alive) return;
+        const spread = finisher ? (i - 2) * .12 : 0;
+        const dir = new THREE.Vector3(Math.sin(baseYaw + spread), 0, Math.cos(baseYaw + spread));
+        const start = player.position.clone().add(new THREE.Vector3(0, 1.15, 0)).addScaledVector(dir, .65);
+        this.#spawnFriendlyOrb(start, dir, {
+          color: finisher && i === 2 ? 0xf0e0ff : color,
+          damage: baseDamage * (finisher ? .42 : 1),
+          speed: finisher ? 14 + i : 15.5,
+          radius: finisher ? 1.05 : .9,
+          life: 1.2,
+          pierce: finisher ? 2 : 1,
+          knockback: finisher ? 3.8 : 2.2,
+          skill: false,
+        });
+      });
+    }
+    if (finisher) {
+      this.game.effects.ring(player.position, color, 2.6, { life: .35, startScale: .15, height: .12 });
+      this.game.effects.pillar(player.position, 0xb06dff, 3.5, { life: .28, bottom: .45, opacity: .35 });
+    }
+  }
+
   usePlayerSkill(skillId, player, rank) {
-    if (skillId === 'whirlwind') this.#whirlwind(player, rank);
-    else if (skillId === 'crescent') this.#crescent(player, rank);
-    else if (skillId === 'skyfall') this.#skyfall(player, rank);
-    else if (skillId === 'starburst') this.#starburst(player, rank);
+    const skill = SKILLS[skillId];
+    const effectId = skill?.effect ?? skillId;
+    const handler = this.skillHandlers[effectId];
+    if (handler) handler(player, rank);
+  }
+
+  #spawnFriendlyOrb(start, direction, options = {}) {
+    const color = options.color ?? 0xc8b4ff;
+    const material = new THREE.MeshBasicMaterial({
+      color, transparent: true, opacity: .92, depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    const mesh = new THREE.Mesh(this.orbGeometry, material);
+    mesh.position.copy(start);
+    mesh.scale.setScalar(options.scale ?? 1.15);
+    this.game.scene.add(mesh);
+    this.projectiles.push({
+      mesh, material, friendly: true,
+      velocity: direction.clone().normalize().multiplyScalar(options.speed ?? 15),
+      damage: options.damage ?? 10,
+      radius: options.radius ?? .9,
+      life: options.life ?? 1.25,
+      pierce: options.pierce ?? 1,
+      hit: new Set(),
+      wave: false,
+      color,
+      direction: direction.clone().normalize(),
+      knockback: options.knockback ?? 2.5,
+      skill: Boolean(options.skill),
+      explode: options.explode ?? null,
+    });
   }
 
   #whirlwind(player, rank) {
@@ -95,7 +193,7 @@ export class CombatSystem {
   }
 
   #crescent(player, rank) {
-    const direction = player.facing.clone().normalize();
+    const direction = this.#facingDir(player);
     const start = player.position.clone().addScaledVector(direction, 1.2);
     start.y += 1;
     const material = new THREE.MeshBasicMaterial({
@@ -108,21 +206,17 @@ export class CombatSystem {
     mesh.scale.set(1.25 + rank * .08, 1.2, 1.15);
     this.game.scene.add(mesh);
     this.projectiles.push({
-      mesh, material, friendly: true, velocity: direction.multiplyScalar(16.5 + rank * .5),
+      mesh, material, friendly: true, velocity: direction.clone().multiplyScalar(16.5 + rank * .5),
       damage: player.attackPower * (1.5 + rank * .22), radius: 1.25,
       life: 1.35, pierce: 3 + rank, hit: new Set(), wave: true, color: 0x8fd8ff,
-      direction: player.facing.clone(), knockback: 4.2, skill: true,
+      direction: direction.clone(), knockback: 4.2, skill: true,
     });
-    this.game.effects.slash(player.position, player.facing, 0xc6f1ff, 3.4, { arc: Math.PI * .9, height: 1, life: .32 });
+    this.game.effects.slash(player.position, direction, 0xc6f1ff, 3.4, { arc: Math.PI * .9, height: 1, life: .32 });
   }
 
   #skyfall(player, rank) {
-    const target = this.game.aimPoint.clone();
+    const target = this.#aimAlongFacing(player, 10.5);
     const from = player.position.clone();
-    target.y = this.game.world.heightAt(target.x, target.z);
-    const offset = target.clone().sub(from).setY(0);
-    if (offset.length() > 10.5) target.copy(from).add(offset.normalize().multiplyScalar(10.5));
-    target.y = this.game.world.heightAt(target.x, target.z);
     const radius = 4.5 + rank * .22;
     this.#telegraphCircle(target, radius, .46, 0x9eeeff, () => {
       if (!player.alive) return;
@@ -141,10 +235,7 @@ export class CombatSystem {
   }
 
   #starburst(player, rank) {
-    const center = this.game.aimPoint.clone();
-    const offset = center.clone().sub(player.position).setY(0);
-    if (offset.length() > 12) center.copy(player.position).add(offset.normalize().multiplyScalar(12));
-    center.y = this.game.world.heightAt(center.x, center.z);
+    const center = this.#aimAlongFacing(player, 9.5);
     const hits = 6 + rank;
     const color = 0xe2b7ff;
     for (let i = 0; i < hits; i += 1) {
@@ -169,6 +260,103 @@ export class CombatSystem {
       });
       this.game.effects.impact(center.clone().add(new THREE.Vector3(0, 1.2, 0)), 0xe2b7ff, 'finisher');
       this.game.effects.pillar(center, 0xf3d6ff, 7.5, { life: .55, bottom: 1.1, opacity: .5 });
+    });
+  }
+
+  #fireball(player, rank) {
+    const direction = this.#facingDir(player);
+    const start = player.position.clone().add(new THREE.Vector3(0, 1.2, 0)).addScaledVector(direction, 1.05);
+    const color = 0xff7a42;
+    this.game.effects.slash(player.position, direction, 0xffb080, 2.8, { arc: Math.PI * .7, height: .9, life: .28 });
+    this.#spawnFriendlyOrb(start, direction, {
+      color,
+      damage: player.attackPower * (1.55 + rank * .24) * player.skillPower,
+      speed: 13.5 + rank * .35,
+      radius: 1.15,
+      life: 1.4,
+      pierce: 1,
+      knockback: 4.5,
+      skill: true,
+      scale: 1.45,
+      explode: {
+        radius: 2.4 + rank * .12,
+        damage: player.attackPower * (.55 + rank * .08) * player.skillPower,
+        color: 0xff9a50,
+      },
+    });
+  }
+
+  #frostNova(player, rank) {
+    const radius = 4.4 + rank * .2;
+    const color = 0x7ad8ff;
+    player.invulnerable = Math.max(player.invulnerable, .28);
+    this.game.effects.ring(player.position, color, radius, { life: .55, startScale: .12 });
+    this.game.effects.ring(player.position, 0xd8f4ff, radius * .72, { life: .4, startScale: .2, height: .08 });
+    this.game.effects.burst(player.position.clone().add(new THREE.Vector3(0, .8, 0)), color, 22, {
+      speed: 5.2, size: .28, life: .5, upward: .15,
+    });
+    this.#hitEnemiesInRadius(player.position, radius, player.attackPower * (1.2 + rank * .16) * player.skillPower, {
+      knockback: 5.4, multiHit: true, criticalBonus: .04, skill: true,
+    });
+    for (let i = 0; i < 3; i += 1) {
+      this.#delay(.1 + i * .08, () => {
+        if (!player.alive) return;
+        this.game.effects.ring(player.position, color, radius * (.55 + i * .15), {
+          life: .28, startScale: .4, height: .06, opacity: .55,
+        });
+      });
+    }
+  }
+
+  #arcaneBlink(player, rank) {
+    const target = this.#aimAlongFacing(player, 11);
+    const from = player.position.clone();
+    const radius = 4.2 + rank * .2;
+    const color = 0xb06dff;
+    this.#telegraphCircle(target, radius, .42, color, () => {
+      if (!player.alive) return;
+      this.game.effects.burst(from.clone().add(new THREE.Vector3(0, 1, 0)), color, 16, { speed: 4, size: .28, life: .4 });
+      this.game.effects.ring(from, color, 2.2, { life: .3, startScale: .2 });
+      player.position.copy(target);
+      this.game.world.resolvePosition(player.position, .48);
+      player.invulnerable = Math.max(player.invulnerable, .55);
+      this.game.effects.pillar(target, 0xd4b8ff, 7.5, { life: .65, bottom: 1.1 });
+      this.game.effects.ring(target, color, radius, { life: .58, startScale: .08 });
+      this.game.effects.burst(target, 0xe8d4ff, 26, { speed: 5.8, upward: .55, size: .34, life: .75 });
+      this.#hitEnemiesInRadius(target, radius, player.attackPower * (1.7 + rank * .26) * player.skillPower, {
+        knockback: 6.8, armorPierce: .22, criticalBonus: .05, skill: true,
+      });
+      this.game.effects.impact(target.clone().add(new THREE.Vector3(0, 1.1, 0)), color, 'heavy');
+    }, { fillOpacity: .14 });
+  }
+
+  #meteorStorm(player, rank) {
+    const center = this.#aimAlongFacing(player, 10);
+    const hits = 6 + rank;
+    const color = 0xff6a3a;
+    for (let i = 0; i < hits; i += 1) {
+      const angle = (i / hits) * Math.PI * 2 + rand(-.3, .3);
+      const radius = i === 0 ? 0 : rand(1.2, 5.5);
+      const point = center.clone().add(new THREE.Vector3(Math.cos(angle) * radius, 0, Math.sin(angle) * radius));
+      point.y = this.game.world.heightAt(point.x, point.z);
+      this.#delay(.1 + i * .1, () => {
+        this.#telegraphCircle(point, 1.7 + rank * .06, .26, color, () => {
+          this.game.effects.pillar(point, i % 2 ? 0xff9040 : 0xffd0a0, 6.8, { life: .5, bottom: .75 });
+          this.game.effects.burst(point, color, 14, { speed: 5.2, size: .32, life: .55, upward: .4 });
+          this.game.effects.ring(point, 0xffc090, 2.2, { life: .35, startScale: .15 });
+          this.#hitEnemiesInRadius(point, 1.9 + rank * .07, player.attackPower * (.6 + rank * .055) * player.skillPower, {
+            knockback: 2.8, multiHit: true, armorPierce: .18, skill: true,
+          });
+        }, { fillOpacity: .13 });
+      });
+    }
+    this.#delay(.22 + hits * .1, () => {
+      this.game.effects.ring(center, 0xffe0c0, 6.6, { life: .8, startScale: .05 });
+      this.game.effects.pillar(center, 0xffb070, 8, { life: .6, bottom: 1.15, opacity: .55 });
+      this.#hitEnemiesInRadius(center, 5.6, player.attackPower * (.9 + rank * .1) * player.skillPower, {
+        knockback: 6.4, multiHit: true, armorPierce: .3, skill: true,
+      });
+      this.game.effects.impact(center.clone().add(new THREE.Vector3(0, 1.2, 0)), color, 'finisher');
     });
   }
 
@@ -591,7 +779,20 @@ export class CombatSystem {
 
       const ground = this.game.world.heightAt(projectile.mesh.position.x, projectile.mesh.position.z);
       if (projectile.life <= 0 || projectile.mesh.position.y < ground + .05 || Math.hypot(projectile.mesh.position.x, projectile.mesh.position.z) > 180) {
-        this.game.effects.burst(projectile.mesh.position, projectile.color, 5, { speed: 2.2, size: .2, life: .3 });
+        if (projectile.explode && projectile.friendly) {
+          const blast = projectile.explode;
+          const at = projectile.mesh.position.clone();
+          at.y = ground;
+          this.game.effects.ring(at, blast.color ?? projectile.color, blast.radius, { life: .42, startScale: .12 });
+          this.game.effects.burst(at.clone().add(new THREE.Vector3(0, .8, 0)), blast.color ?? projectile.color, 18, {
+            speed: 5.5, size: .32, life: .5, upward: .35,
+          });
+          this.#hitEnemiesInRadius(at, blast.radius, blast.damage, {
+            knockback: 4.2, multiHit: true, skill: true, armorPierce: .12,
+          });
+        } else {
+          this.game.effects.burst(projectile.mesh.position, projectile.color, 5, { speed: 2.2, size: .2, life: .3 });
+        }
         this.game.scene.remove(projectile.mesh);
         projectile.material.dispose();
         this.projectiles.splice(i, 1);
