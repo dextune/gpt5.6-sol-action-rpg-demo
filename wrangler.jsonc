@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "gpt-rpg",
+  "compatibility_date": "2026-07-10",
+  "observability": {
+    "enabled": true
+  },
+  // Static site: serve game files only. Heavy/dev paths are excluded via .assetsignore.
+  "assets": {
+    "directory": ".",
+    "not_found_handling": "404-page"
+  }
+}

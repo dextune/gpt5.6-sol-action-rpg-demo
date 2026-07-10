@@ -1,0 +1,27 @@
+# Never ship install / build tooling as static assets
+node_modules/
+.wrangler/
+.git/
+.github/
+
+# Dev / agent / docs (not needed to play the game)
+docs/
+tests/
+tools/
+screenshots/
+AGENTS.md
+Agents.md
+server.mjs
+package.json
+package-lock.json
+bun.lock
+bun.lockb
+wrangler.toml
+wrangler.jsonc
+.gitattributes
+.gitignore
+*.log
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

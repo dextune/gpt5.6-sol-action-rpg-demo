@@ -1,5 +1,14 @@
 {
-  "dependencies": {
-    "playwright": "^1.61.1"
+  "name": "gpt5.6-sol-action-rpg-demo",
+  "private": true,
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node tests/integrity.mjs",
+    "deploy": "wrangler deploy",
+    "preview": "wrangler dev"
+  },
+  "devDependencies": {
+    "playwright": "^1.61.1",
+    "wrangler": "^4.110.0"
   }
 }
