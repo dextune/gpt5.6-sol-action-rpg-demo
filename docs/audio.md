@@ -8,7 +8,7 @@
 | `tools/audio/generate-combat-sfx.mjs` | Offline procedural WAV generator |
 | `assets/audio/combat/` | Baked mono WAV banks |
 | `assets/manifests/assets.json` → `audio` | Sample registry |
-| `js/entities/Player.js` | `swing` on attack start |
+| `js/entities/Player.js` | `swing` on attack; **`skill(sfx)`** on cast |
 | `js/systems/CombatSystem.js` | `hit` on successful damage |
 | `js/core/Game.js` | creates `AudioManager` |
 | `js/ui/UI.js` | unlock on title actions |
@@ -24,17 +24,37 @@ Combat feedback follows common action-game layering practice:
 4. **HMLS stack** inside baked samples: Low body · Mid punch · soft High grit · Style enhancer.
 5. **Variation** — multi-sample banks + slight playback-rate jitter.
 6. **Multi-hit** — within ~36 ms only soft secondary ticks (cleave / skills).
+7. **Skill identity** — themed banks so blade / fire / ice / arcane read differently.
 
 Buses: `sfx` → compressor → `master`, plus quiet `ambient` drone. Mute always through master.
 
-Public API (unchanged call sites):
+## Public API
 
 | Method | Trigger |
 |--------|---------|
 | `swing(combo)` | attack starts |
 | `hit(critical, finisher)` | positive damage |
-| `hurt` / `dash` / `skill` / `pickup` / `boss` / `levelUp` / `legendary` | other events |
+| `skill(themeOrKey)` | skill cast — resolves themed bank with fallbacks |
+| `hurt` / `dash` / `pickup` / `boss` / `levelUp` / `legendary` | other events |
 | `click` | UI |
+
+### Themed skill banks
+
+| Bank key | Use / content `sfx` | Also resolves from `theme` |
+|----------|---------------------|----------------------------|
+| `skill` | generic fallback | — |
+| `skill_blade` | knight cuts (whirlwind, crescent) | windsteel, bladewave |
+| `skill_leap` | skyfall land weight | skyice |
+| `skill_star` | starburst | starlight |
+| `skill_fire` | fireball, meteor | ember, meteor |
+| `skill_ice` | frost nova | frost |
+| `skill_arcane` | arcane blink | arcane |
+
+`Player.trySkill` calls `audio.skill(skill.sfx ?? skill.theme ?? 'skill')`.  
+Missing samples fall back to `skill` bank, then procedural tones.
+
+Manifest entries live under `assets/manifests/assets.json` → `audio`.  
+WAV files: `assets/audio/combat/skill_*_0.wav` (generated).
 
 ## Rebuild samples
 
@@ -44,7 +64,15 @@ node tests/integrity.mjs
 node server.mjs   # http://127.0.0.1:8080
 ```
 
-No CDN / external runtime audio URLs. Samples are original procedural assets.
+Generator includes themed synths: `synthSkillTheme(seed, 'blade'|'fire'|'ice'|…)`.  
+No CDN / external runtime audio URLs.
+
+## Adding SFX for a new skill
+
+1. Pick or add a bank id (`skill_*`)
+2. Generate WAV in `tools/audio/generate-combat-sfx.mjs` + register in `assets.json`
+3. Set `SKILLS[id].sfx` (and matching `theme` if useful)
+4. Keep player-facing silence-safe: procedural fallback already in `AudioManager.skill`
 
 ## Validation
 
@@ -52,4 +80,5 @@ No CDN / external runtime audio URLs. Samples are original procedural assets.
 - Miss: swing only.
 - Normal / crit / finisher audibly distinct (depth, not pitch sparkle).
 - Multi-target stays clear.
+- Different skill themes are audible (blade vs fire vs ice vs arcane).
 - Mute silences SFX + ambient.

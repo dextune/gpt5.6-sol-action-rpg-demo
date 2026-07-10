@@ -337,12 +337,27 @@ export class Player {
     const lunge = (finisher ? 2.4 : 1.35 + this.comboIndex * .22) * Math.min(1.15, this.attackSpeed);
     this.velocity.addScaledVector(this.facing, lunge * .35);
     const timeScale = Math.min(2.15, this.attackSpeed * (finisher ? 1.02 : 1.35));
-    // Only 4 attack clips exist; late combo steps reuse 3/4 with more combat VFX.
-    const animSlot = this.comboIndex < 4
-      ? this.comboIndex + 1
-      : (this.comboIndex % 2 === 0 ? 3 : 4);
-    this.animation.playOneShot(`attack_${animSlot}`, {
-      fade: .04, fadeOut: finisher ? .12 : .07, timeScale, fallback: 'idle',
+    // Melee: attack_1..7 when baked. Magic: prefer cast_1..4 staff poses.
+    const style = getHeroClass(this.classId).attackStyle ?? 'melee';
+    let animName;
+    if (style === 'magic') {
+      const castSlot = (this.comboIndex % 4) + 1;
+      animName = `cast_${castSlot}`;
+      if (!this.animation.has(animName)) animName = `attack_${Math.min(4, castSlot)}`;
+    } else {
+      const preferred = Math.min(7, this.comboIndex + 1);
+      animName = `attack_${preferred}`;
+      if (!this.animation.has(animName)) {
+        const fallbackSlot = this.comboIndex < 4
+          ? this.comboIndex + 1
+          : (this.comboIndex % 2 === 0 ? 3 : 4);
+        animName = `attack_${fallbackSlot}`;
+      }
+    }
+    // Late-chain steps without unique clips still read differently via speed + combat VFX.
+    const lateBoost = this.comboIndex >= 4 ? 1.08 + (this.comboIndex - 3) * 0.04 : 1;
+    this.animation.playOneShot(animName, {
+      fade: .04, fadeOut: finisher ? .12 : .07, timeScale: timeScale * lateBoost, fallback: 'idle',
     });
     game.audio.swing(Math.min(3, this.comboIndex));
     game.combat.playerAttack(this, this.comboIndex, comboLength);
@@ -379,14 +394,42 @@ export class Player {
     this.castTimer = skill.castTime ?? .3;
     this.attackAnimDuration = this.castTimer;
     this.attackAnim = this.castTimer;
-    const anim = skill.anim ?? `skill_${skillId}`;
+    let anim = skill.anim ?? `skill_${skillId}`;
+    // Graceful fallback if unique wizard clip not yet in GLB.
+    if (!this.animation.has(anim)) {
+      const fallbacks = {
+        skill_fireball: 'skill_crescent',
+        skill_frost_nova: 'skill_whirlwind',
+        skill_blink: 'skill_skyfall',
+        skill_meteor: 'skill_starburst',
+        cast_1: 'attack_1',
+        cast_2: 'attack_2',
+        cast_3: 'attack_3',
+        cast_4: 'attack_4',
+      };
+      anim = fallbacks[anim] ?? (this.animation.has('skill_whirlwind') ? 'skill_whirlwind' : 'idle');
+    }
     this.animation.playOneShot(anim, {
       fade: .09, fadeOut: .13,
       timeScale: (skill.castTime ?? .3) > .6 ? .92 : 1.05,
       fallback: 'idle',
     });
-    game.audio.skill();
-    game.combat.usePlayerSkill(skillId, this, rank);
+    if (typeof game.audio.skill === 'function') {
+      game.audio.skill(skill.sfx ?? skill.theme ?? 'skill');
+    }
+    const hits = skill.timeline?.hits;
+    if (Array.isArray(hits) && hits.length && this.animation.oneShot) {
+      // Pose-synced skill phases — combat fires on normalized clip times.
+      for (let i = 0; i < hits.length; i += 1) {
+        const phase = i;
+        this.animation.scheduleNormalized(hits[i], () => {
+          if (!this.alive) return;
+          game.combat.usePlayerSkill(skillId, this, rank, phase);
+        }, Symbol(`${skillId}-phase-${phase}`));
+      }
+    } else {
+      game.combat.usePlayerSkill(skillId, this, rank, null);
+    }
     return true;
   }
 

@@ -20,6 +20,7 @@ import { LootSystem } from '../systems/LootSystem.js';
 import { HuntSystem } from '../systems/HuntSystem.js';
 import { DefenseSystem } from '../systems/DefenseSystem.js';
 import { UI } from '../ui/UI.js';
+import { TouchControls } from '../ui/TouchControls.js';
 
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const TMP_FORWARD = new THREE.Vector3();
@@ -53,6 +54,7 @@ export class Game {
     this.save = new SaveManager();
     this.audio = new AudioManager();
     this.ui = new UI(this);
+    this.touchControls = new TouchControls(this);
 
     this.state = 'loading';
     /** @type {'hunt' | 'defense'} */
@@ -282,17 +284,24 @@ export class Game {
   }
 
   #handleInput(delta) {
-    const forwardAmount = (this.input.isDown('KeyW') || this.input.isDown('ArrowUp') ? 1 : 0)
-      - (this.input.isDown('KeyS') || this.input.isDown('ArrowDown') ? 1 : 0);
-    const rightAmount = (this.input.isDown('KeyD') || this.input.isDown('ArrowRight') ? 1 : 0)
-      - (this.input.isDown('KeyA') || this.input.isDown('ArrowLeft') ? 1 : 0);
     TMP_FORWARD.copy(this.player.position).sub(this.camera.position).setY(0).normalize();
     TMP_RIGHT.crossVectors(TMP_FORWARD, Y_AXIS).normalize();
-    TMP_MOVE.set(0, 0, 0).addScaledVector(TMP_FORWARD, forwardAmount).addScaledVector(TMP_RIGHT, rightAmount);
+
+    // Virtual stick (mobile) preferred when active; else WASD / arrows.
+    if (this.input.hasVirtualMove?.()) {
+      const { x, y } = this.input.virtualAxes;
+      TMP_MOVE.set(0, 0, 0).addScaledVector(TMP_FORWARD, y).addScaledVector(TMP_RIGHT, x);
+    } else {
+      const forwardAmount = (this.input.isDown('KeyW') || this.input.isDown('ArrowUp') ? 1 : 0)
+        - (this.input.isDown('KeyS') || this.input.isDown('ArrowDown') ? 1 : 0);
+      const rightAmount = (this.input.isDown('KeyD') || this.input.isDown('ArrowRight') ? 1 : 0)
+        - (this.input.isDown('KeyA') || this.input.isDown('ArrowLeft') ? 1 : 0);
+      TMP_MOVE.set(0, 0, 0).addScaledVector(TMP_FORWARD, forwardAmount).addScaledVector(TMP_RIGHT, rightAmount);
+    }
     if (TMP_MOVE.lengthSq() > 1) TMP_MOVE.normalize();
     this.player.setMoveDirection(TMP_MOVE);
 
-    // Combat is keyboard-only. Mouse is reserved for UI (menus, inventory, buttons).
+    // Combat: keyboard and virtual touch buttons (same codes). Mouse LMB remains UI-only.
     if (this.input.isDown('KeyJ')) this.player.tryAttack(this);
     if (this.input.consume('Space')) this.player.tryDash(this);
     this.#tryClassSkillKeys();
@@ -304,6 +313,17 @@ export class Game {
     if (this.input.isMouseDown(1)) {
       const pointerDelta = this.input.consumePointerDelta();
       this.cameraYaw -= pointerDelta.x * .0055;
+    }
+    // Mobile: one-finger drag on canvas orbits camera; pinch zooms.
+    const lookDx = this.input.consumeLookDelta?.() ?? 0;
+    if (lookDx) this.cameraYaw -= lookDx * .0048;
+    const pinch = this.input.consumePinchZoom?.() ?? 0;
+    if (pinch) {
+      this.cameraDistance = clamp(
+        this.cameraDistance + pinch,
+        GAME_CONFIG.cameraMinDistance,
+        GAME_CONFIG.cameraMaxDistance,
+      );
     }
     const wheel = this.input.consumeWheel();
     if (wheel) {
@@ -657,6 +677,7 @@ export class Game {
     this.renderPipeline.setQuality(quality);
     this.assets?.setQuality(quality);
     this.lighting?.applyQuality(quality);
+    this.effects?.setQuality?.(quality);
     this.ui.notify(`Graphics quality: ${QUALITY_PRESETS[quality].label}`, 'loot', 2.4);
     return true;
   }

@@ -2,8 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#162532">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="description" content="Stylized PBR miniature diorama 3D hunting action RPG — hunt, farm, upgrade, and ascend world tiers.">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="GPT-5.6: Sol">
@@ -65,7 +68,12 @@
         </div>
         <details class="controls-card">
           <summary>Controls</summary>
-          <div><span><kbd>WASD</kbd> Move</span><span><kbd>J</kbd> Attack</span><span><kbd>SPACE</kbd> Dodge</span><span><kbd>Q E R C</kbd> Skills</span><span><kbd>1</kbd> Potion</span><span><kbd>I / K / TAB</kbd> Menu</span><span><kbd>Z X / Scroll</kbd> Camera</span><span><kbd>Mouse</kbd> UI only</span></div>
+          <div class="controls-desktop">
+            <span><kbd>WASD</kbd> Move</span><span><kbd>J</kbd> Attack</span><span><kbd>SPACE</kbd> Dodge</span><span><kbd>Q E R C</kbd> Skills</span><span><kbd>1</kbd> Potion</span><span><kbd>I / K / TAB</kbd> Menu</span><span><kbd>Z X / Scroll</kbd> Camera</span><span><kbd>Mouse</kbd> UI only</span>
+          </div>
+          <div class="controls-mobile">
+            <span>Left stick · Move</span><span>Right buttons · Attack / Dodge / Skills / Potion</span><span>Drag on world · Camera</span><span>Pinch · Zoom</span><span>Menu button · System</span>
+          </div>
         </details>
       </div>
       <footer>Rigged GLB · Stylized PBR · Local offline</footer>
@@ -128,6 +136,15 @@
         <div class="ability-slot locked" data-key="C" data-slot="skill-c"><span class="ability-icon starburst-icon"></span><b>Skill</b><kbd>C</kbd><i class="cooldown"></i><em class="lock-level">LV.16</em></div>
         <div class="ability-divider"></div>
         <div class="ability-slot potion-slot" data-slot="potion"><span class="ability-icon potion-icon"></span><b>Potion <strong id="potion-count">3</strong></b><kbd>1</kbd><i class="cooldown"></i></div>
+      </div>
+
+      <!-- Mobile / touch: left move stick + menu (skills use .ability-bar repositioned by CSS) -->
+      <div id="touch-controls" class="touch-controls hidden" aria-hidden="true">
+        <div id="touch-stick-zone" class="touch-stick-zone" aria-label="Move">
+          <div class="touch-stick-base"></div>
+          <div id="touch-stick-knob" class="touch-stick-knob"></div>
+        </div>
+        <button type="button" id="touch-menu-btn" class="touch-menu-btn" aria-label="Open menu">Menu</button>
       </div>
 
       <aside class="minimap-shell glass-panel">

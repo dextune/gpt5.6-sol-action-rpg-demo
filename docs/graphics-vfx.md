@@ -25,16 +25,20 @@ Post-processing: `PostProcessSystem.js`
 
 ## Stylized material
 
-`StylizedMaterial.js` — cel bands, rim, hit pulse.
-`convertToStylized` / `inferMaterialRole` set roughness etc. per role.
+`StylizedMaterial.js` — cel bands, rim, hit pulse.  
+`convertToStylized` / `inferMaterialRole` set roughness etc. per role.  
+Enemy status pulse (burn/slow) also drives hit-pulse tint via `Enemy.#animate`.
 
 ## Effect API (`Effects.js`)
 
-Pool-based. Call `effects.update(delta)` every frame.
+Pool-based. Call `effects.update(delta)` every frame.  
+Constructor: `new Effects(scene, assets?, quality?)` — quality also via `effects.setQuality(q)` (`Game.setQuality` forwards).
+
+### Primitives
 
 | Method | Use |
 |--------|-----|
-| `burst(pos, color, count, opts)` | particle explosion |
+| `burst(pos, color, count, opts)` | particle explosion (**count quality-scaled** unless `rawCount`) |
 | `dust(pos, color, count, size)` | dust (non-additive) |
 | `slash(pos, dir, color, size, opts)` | slash ribbon |
 | `ring(pos, color, radius, opts)` | shockwave ring |
@@ -42,17 +46,53 @@ Pool-based. Call `effects.update(delta)` every frame.
 | `trail(pos, color, radius, life)` | afterglow sphere |
 | `impact(pos, color, intensity, opts)` | **combined hit presentation** |
 | `swingArc(pos, dir, color, size, opts)` | **multi-arc swing** |
+| `groundDecal(pos, color, radius, opts)` | fading ground disc (ice residual / scorch) |
+| `afterimage(pos, color, opts)` | short ghost capsule (blink) |
+| `verticalBeam(pos, color, height, opts)` | meteor / sky column |
 
-### impact intensity
+### Named skill recipes (prefer these over ad-hoc stacks)
+
+| Recipe | Skill identity |
+|--------|----------------|
+| `recipeSpinStorm` | whirlwind multi-height spin |
+| `recipeGroundWave` | crescent ground scar wave |
+| `recipeLeapImpact` | skyfall landing (dual ring + dust cone) |
+| `recipeStarBlade` / `recipeStarFinale` | starburst star blades + finale |
+| `recipeFireOrb` / `recipeFireBlast` | fireball muzzle + explode |
+| `recipeIceNova` | frost lattice rings + decal |
+| `recipeBlinkBurst` | arcane blink from/to afterimages |
+| `recipeMeteorDrop` / `recipeMeteorFinale` | falling meteors (vertical, not star twins) |
+
+**Rule for new skills:** add a **new recipe** (or clearly different composition) so silhouettes stay distinct. Do not only recolor another skill’s stack.
+
+### Impact intensity
 
 `light` | `heavy` | `critical` | `finisher`
 
+### Themes (`js/data/fxThemes.js`)
+
+```js
+import { getFxTheme, scaleCount } from '../data/fxThemes.js';
+const theme = getFxTheme('ember'); // primary, secondary, core, dust, accent
+```
+
+Handlers should pull colors from themes — avoid new hardcoded hex in `CombatSystem`.
+
+### Quality particle LOD
+
+```js
+// automatic inside burst() via Effects.quality
+// low ≈ 0.45 · medium ≈ 0.75 · high = 1.0  (qualityParticleMul)
+```
+
+`Game.setQuality` → `effects.setQuality(quality)` so mid-session quality changes budgets.
+
 ### Pool limits
 
-- `MAX_PARTICLES` (default 96)
-- particles / slashes / rings / pillars / trails pool counts
+- `MAX_PARTICLES` (128)
+- pools: particles, slashes, rings, pillars, trails, **decals**, **ghosts**, **beams**
 
-If you raise the juice and the pool is exhausted, old effects are recycled and may cut off → raise pool size alongside.
+If juice rises and effects cut off early → raise the relevant pool **and** keep quality scaling.
 
 ## Camera (graphics view)
 
@@ -63,34 +103,23 @@ If you raise the juice and the pool is exhausted, old effects are recycled and m
 
 - Adding a post pass is costly even on medium
 - The terrain shader is already a texture-unit-saving version (`TerrainSystem` planar sample) — be careful reverting to triplanar
+- Skill VFX density × `maxEnemies` can thrash pools — measure on medium quality
 
-## Application: add a new VFX preset
+## Application: add a new skill recipe
 
-1. Add a method to `Effects` (reuse existing pools if possible)
-2. Call it from CombatSystem / skills
-3. Compute concurrent spawns × pool size
-   Example: crit impact does burst ×3 of 40 particles → pool 40 can exhaust in one hit
+1. Compose existing primitives in a `recipe…` method on `Effects`
+2. Call it from the skill handler with `getFxTheme(skill.theme)`
+3. Estimate concurrent spawns × pool size on low/medium/high
+4. Document the recipe name on `SKILLS[id].recipe` in content
 
-## Application: color theme tokens
+## Application: new primitive (only if recipes cannot differentiate)
 
-Hex values are scattered across CombatSystem / Effects.
-Candidate for theme work:
+1. New pool + update loop in `Effects`
+2. Clear/dispose paths
+3. Prefer 1–2 primitives per feature PR (`groundDecal`, `afterimage`, `verticalBeam` already ship)
 
-```js
-// example: top of CombatSystem
-const FX = { slash: 0xeef8ff, crit: 0xffe47a, skillWind: 0x8feaff, skillStar: 0xe2b7ff };
-```
+## Related
 
-Collecting them in one file before substituting makes re-theming safe.
-
-## Application: per-quality effect LOD
-
-Current effects barely look at quality. Low-end response:
-
-```js
-const q = game.renderPipeline.quality;
-const count = q === 'low' ? 8 : q === 'medium' ? 16 : 28;
-effects.burst(..., count, ...);
-```
-
-Inject the quality reference at `Game` / `Effects` creation.
+- [combat.md](./combat.md) — when to call recipes
+- [content-data.md](./content-data.md) — `theme` / `recipe` fields
+- [plan/skill-motion-spectacle.md](./plan/skill-motion-spectacle.md)

@@ -299,6 +299,45 @@ function synthSkill(seed) {
   return fade(out, 2, 8);
 }
 
+/** Themed skill banks — blade / fire / ice / arcane / leap / star */
+function synthSkillTheme(seed, theme = 'blade') {
+  const rng = mulberry32(seed);
+  const pink = makePink(rng);
+  const lp = makeLP();
+  const frames = Math.floor(SR * (theme === 'leap' ? 0.28 : 0.24));
+  const out = new Float32Array(frames);
+  for (let i = 0; i < frames; i += 1) {
+    const t = i / SR;
+    const u = i / frames;
+    let sample = 0;
+    if (theme === 'blade') {
+      sample = lp(pink(), lerp(700, 280, u)) * expDecay(t, 10) * 0.55
+        + Math.sin(2 * Math.PI * lerp(90, 48, u) * t) * expDecay(t, 9) * 0.4;
+    } else if (theme === 'fire') {
+      sample = lp(pink(), lerp(400, 180, u)) * expDecay(t, 7) * 0.6
+        + Math.sin(2 * Math.PI * lerp(70, 38, u) * t) * expDecay(t, 6) * 0.45;
+    } else if (theme === 'ice') {
+      sample = lp(pink(), lerp(1200, 600, u)) * expDecay(t, 14) * 0.45
+        + Math.sin(2 * Math.PI * lerp(160, 90, u) * t) * expDecay(t, 11) * 0.4;
+    } else if (theme === 'arcane') {
+      sample = lp(pink(), lerp(550, 320, u)) * expDecay(t, 9) * 0.5
+        + Math.sin(2 * Math.PI * lerp(110, 180, Math.min(1, t * 3)) * t) * expDecay(t, 8) * 0.42;
+    } else if (theme === 'leap') {
+      sample = lp(pink(), lerp(300, 120, u)) * expDecay(t, 6) * 0.55
+        + Math.sin(2 * Math.PI * 48 * t) * expDecay(t, 5) * 0.5;
+    } else if (theme === 'star') {
+      sample = lp(pink(), lerp(800, 400, u)) * expDecay(t, 10) * 0.45
+        + Math.sin(2 * Math.PI * lerp(100, 150, u) * t) * expDecay(t, 8) * 0.4
+        + Math.sin(2 * Math.PI * 60 * t) * expDecay(t, 7) * 0.25;
+    } else {
+      sample = lp(pink(), 500) * expDecay(t, 10) * 0.5
+        + Math.sin(2 * Math.PI * 80 * t) * expDecay(t, 8) * 0.4;
+    }
+    out[i] = sample * (0.85 + rng() * 0.15);
+  }
+  return fade(out, 2, 8);
+}
+
 function synthHurt(seed) {
   const rng = mulberry32(seed);
   const pink = makePink(rng);
@@ -413,6 +452,12 @@ save('ui_click', synthClick(9001));
 save('dash_0', synthDash(9101));
 save('dash_1', synthDash(9102));
 save('skill_0', synthSkill(9201));
+save('skill_blade_0', synthSkillTheme(9210, 'blade'));
+save('skill_fire_0', synthSkillTheme(9220, 'fire'));
+save('skill_ice_0', synthSkillTheme(9230, 'ice'));
+save('skill_arcane_0', synthSkillTheme(9240, 'arcane'));
+save('skill_leap_0', synthSkillTheme(9250, 'leap'));
+save('skill_star_0', synthSkillTheme(9260, 'star'));
 save('hurt_0', synthHurt(9301));
 save('hurt_1', synthHurt(9302));
 save('pickup_0', synthPickup(9401, 0.9));

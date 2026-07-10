@@ -5,7 +5,9 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(fileURLToPath(new URL('.', import.meta.url)));
 const rootPrefix = root.endsWith(sep) ? root : `${root}${sep}`;
-const port = Number(process.env.PORT) || 8080;
+const port = Number(process.env.PORT) || 8777;
+/** Bind address: 0.0.0.0 = all interfaces (LAN / hostname access). Override with HOST=127.0.0.1 for local-only. */
+const host = process.env.HOST || '0.0.0.0';
 const mime = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -56,7 +58,18 @@ const server = createServer(async (request, response) => {
   }
 });
 
-server.listen(port, '127.0.0.1', () => {
-  console.log(`\nGPT-5.6: Sol / Action RPG DEMO running at: http://127.0.0.1:${port}`);
+server.listen(port, host, () => {
+  const local = `http://127.0.0.1:${port}`;
+  const lan = host === '0.0.0.0' || host === '::'
+    ? `http://<this-host>:${port}  (all interfaces)`
+    : `http://${host}:${port}`;
+  console.log(`\nGPT-5.6: Sol / Action RPG DEMO`);
+  console.log(`  local:  ${local}`);
+  console.log(`  bind:   ${host}:${port}`);
+  if (host === '0.0.0.0' || host === '::') {
+    console.log(`  lan:    use this machine hostname, e.g. http://<hostname>:${port}`);
+  } else {
+    console.log(`  url:    ${lan}`);
+  }
   console.log('Quit: Ctrl+C\n');
 });

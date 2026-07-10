@@ -13,19 +13,21 @@ Concrete map of how **Wizard** (`classId: wizard`) was added. Use this as a work
 | Starter | Apprentice Staff (`model: 'staff'`, id `starter-apprentice-staff`) |
 | Look kit | Baked hat/hair; runtime `headKit: 'none'`; indigo/violet palette |
 
-## Skills
+## Skills (spectacle pass — unique clips + recipes)
 
-| Key | Skill id | Effect id | Anim clip (reused) | Unlock |
-|-----|----------|-----------|--------------------|--------|
-| Q | `fireball` | `fireball` | `skill_crescent` | 3 |
-| E | `frost_nova` | `frost_nova` | `skill_whirlwind` | 6 |
-| R | `arcane_blink` | `arcane_blink` | `skill_skyfall` | 10 |
-| C | `meteor_storm` | `meteor_storm` | `skill_starburst` | 16 |
+| Key | Skill id | Effect | Anim clip (**unique**) | Theme / recipe | Status | Unlock |
+|-----|----------|--------|------------------------|----------------|--------|--------|
+| Q | `fireball` | `fireball` | `skill_fireball` | ember / fireOrb | burn | 3 |
+| E | `frost_nova` | `frost_nova` | `skill_frost_nova` | frost / iceNova | slow | 6 |
+| R | `arcane_blink` | `arcane_blink` | `skill_blink` | arcane / blinkBurst | — | 10 |
+| C | `meteor_storm` | `meteor_storm` | `skill_meteor` | meteor / meteorDrop | burn | 16 |
 
+Basic magic uses `cast_1`–`cast_4` (not sword swings).  
 Passives: `arcane_might`, `mana_ward`, `mana_font`, `star_luck`.
 
 Combat is **keyboard-only** (`J` / skills keys). Mouse is UI-only.  
-Implementations live in `CombatSystem` (`#fireball`, `#frostNova`, `#arcaneBlink`, `#meteorStorm`). Ground-targeted spells place along **facing** (`#aimAlongFacing`), not mouse.
+Implementations live in `CombatSystem` (`#fireball`, `#frostNova`, `#arcaneBlink`, `#meteorStorm`). Ground-targeted spells place along **facing** (`#aimAlongFacing`), not mouse.  
+Balance: `SKILLS.*.combat` + `skillCombatAtRank` — see [../combat.md](../combat.md).
 
 ## Files touched for Wizard (historical)
 
@@ -88,8 +90,13 @@ Applied in Player getters with passive aggregation.
 2. **`SKILLS is not defined`** — Game level-up notify used `SKILLS` after import was dropped; fixed + guarded by `tests/import-integrity.mjs`.  
 3. Extension noise (`contentscript.js` ObjectMultiplex) is not game code.  
 
-## What was deliberately not done for Wizard
+## What was deliberately not done for Wizard (historical V1)
 
-- Unique skeleton or cast-only animation set  
-- Class-locked loot (wizard can still equip swords if looted)  
 - Separate Defense/Hunt balance tables per class  
+- Class-locked loot (wizard can still equip swords if looted)  
+
+## Later spectacle upgrades (now shipped)
+
+- Unique cast/skill clips + `cast_*` basic attacks  
+- Themed SFX, FX recipes, frost slow / fire burn  
+- See [../plan/skill-motion-spectacle.md](../plan/skill-motion-spectacle.md)  

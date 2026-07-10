@@ -313,10 +313,58 @@ export class AudioManager {
     this.#tone(120, 0.09, { type: 'triangle', volume: 0.03, end: 50, filter: 400 });
   }
 
-  skill() {
-    if (this.playSample('skill', { volume: 0.65, rate: 0.96 + Math.random() * 0.06, filter: 1200 })) return;
+  /**
+   * Skill cast SFX — themed banks with fallback chain.
+   * @param {string} [themeOrKey] e.g. skill_blade | skill_fire | ember | frost
+   */
+  skill(themeOrKey = 'skill') {
+    const key = this.#resolveSkillBank(themeOrKey);
+    if (this.playSample(key, { volume: 0.68, rate: 0.95 + Math.random() * 0.08, filter: 1200 })) return;
+    if (key !== 'skill' && this.playSample('skill', { volume: 0.65, rate: 0.96 + Math.random() * 0.06, filter: 1200 })) return;
+    // Procedural thematic fallbacks
+    if (key.includes('fire') || key.includes('ember') || key.includes('meteor')) {
+      this.#noise(0.14, 0.032, { type: 'bandpass', frequency: 320, q: 0.6, decay: 1.0 });
+      this.#tone(70, 0.16, { type: 'sawtooth', volume: 0.035, end: 40, filter: 380 });
+      return;
+    }
+    if (key.includes('ice') || key.includes('frost')) {
+      this.#noise(0.12, 0.028, { type: 'highpass', frequency: 900, q: 0.5, decay: 1.2 });
+      this.#tone(140, 0.12, { type: 'triangle', volume: 0.03, end: 70, filter: 900 });
+      return;
+    }
+    if (key.includes('arcane') || key.includes('star')) {
+      this.#noise(0.13, 0.03, { type: 'bandpass', frequency: 500, q: 0.7, decay: 1.0 });
+      this.#tone(100, 0.15, { type: 'sine', volume: 0.04, end: 160, filter: 700 });
+      return;
+    }
+    if (key.includes('leap')) {
+      this.#noise(0.11, 0.03, { type: 'lowpass', frequency: 350, decay: 1.0 });
+      this.#tone(55, 0.14, { type: 'sine', volume: 0.04, end: 36, filter: 220 });
+      return;
+    }
     this.#noise(0.12, 0.03, { type: 'bandpass', frequency: 400, q: 0.7, decay: 1.0 });
     this.#tone(90, 0.14, { type: 'triangle', volume: 0.04, end: 48, filter: 400 });
+  }
+
+  #resolveSkillBank(themeOrKey) {
+    if (!themeOrKey || themeOrKey === 'skill') return 'skill';
+    const map = {
+      skill_blade: 'skill_blade',
+      skill_leap: 'skill_leap',
+      skill_star: 'skill_star',
+      skill_fire: 'skill_fire',
+      skill_ice: 'skill_ice',
+      skill_arcane: 'skill_arcane',
+      windsteel: 'skill_blade',
+      bladewave: 'skill_blade',
+      skyice: 'skill_leap',
+      starlight: 'skill_star',
+      ember: 'skill_fire',
+      meteor: 'skill_fire',
+      frost: 'skill_ice',
+      arcane: 'skill_arcane',
+    };
+    return map[themeOrKey] ?? (String(themeOrKey).startsWith('skill_') ? themeOrKey : 'skill');
   }
 
   pickup(rarity = 'common') {

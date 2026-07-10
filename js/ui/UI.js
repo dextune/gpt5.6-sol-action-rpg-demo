@@ -382,13 +382,19 @@ export class UI {
   }
 
   notify(message, type = 'normal', duration = 3) {
+    const touch = document.body.classList.contains('touch-ui');
+    // Shorter, fewer toasts on phones so combat stays readable.
+    const life = touch ? Math.min(duration, 2.1) : duration;
+    const maxStack = touch ? 2 : 6;
     const element = document.createElement('div');
     element.className = `notification ${type}`;
     element.textContent = message;
-    element.style.setProperty('--out-delay', `${Math.max(.2, duration - .35)}s`);
+    element.style.setProperty('--out-delay', `${Math.max(.15, life - .3)}s`);
     this.elements.notifications.prepend(element);
-    while (this.elements.notifications.children.length > 6) this.elements.notifications.lastElementChild.remove();
-    setTimeout(() => element.remove(), duration * 1000 + 120);
+    while (this.elements.notifications.children.length > maxStack) {
+      this.elements.notifications.lastElementChild.remove();
+    }
+    setTimeout(() => element.remove(), life * 1000 + 100);
   }
 
   floatText(worldPosition, text, type = 'damage') {
@@ -419,6 +425,7 @@ export class UI {
     if (this.game.state === 'title' || !this.game.player.alive) return;
     this.currentPanel = type;
     this.elements['panel-layer'].classList.remove('hidden');
+    document.body.classList.add('panel-open');
     this.game.setPaused(true);
     this.panelButtons.forEach(button => button.classList.toggle('active', button.dataset.panel === type));
     this.renderPanel();
@@ -427,6 +434,7 @@ export class UI {
   closePanel() {
     if (this.elements['panel-layer'].classList.contains('hidden')) return;
     this.elements['panel-layer'].classList.add('hidden');
+    document.body.classList.remove('panel-open');
     this.currentPanel = null;
     if (this.game.state !== 'title' && this.game.player.alive) this.game.setPaused(false);
   }

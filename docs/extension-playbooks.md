@@ -69,33 +69,54 @@ New AI pattern: one **line** of branch in `Enemy.#combatAI` + a `CombatSystem` m
 
 ---
 
-## 3) New active skill full set
+## 3) New active skill full set (spectacle-grade)
+
+New skills must ship as **identity kits**, not recolors. Follow [plan/skill-motion-spectacle.md](./plan/skill-motion-spectacle.md).
 
 ### Checklist
 
 | # | File | Work |
 |---|------|------|
-| 1 | `content.js` `SKILLS` | id, key, unlockLevel, mp, cooldown, rankText |
-| 2 | `CombatSystem.usePlayerSkill` | `else if (skillId === '...')` |
-| 3 | `CombatSystem` private method | actual hit + VFX |
-| 4 | `Player.trySkill` | animation `skill_<id>` (idle fallback if absent in GLB) |
-| 5 | `index.html` | ability-slot + kbd (rearrange existing keys if no slot space) |
-| 6 | `UI.#updateAbility` loop | add to skill id array |
-| 7 | manifest animationMap | (when clips exist) |
-| 8 | integrity HUD slot check | edit tests if needed |
+| 1 | `content.js` `SKILLS` | Full active schema: `classId`, key, unlock, mp/cd, **`combat`**, **`theme`**, **`sfx`**, **`recipe`**, `anim`, `effect`, optional `timeline.hits`, `rankText` synced to combat |
+| 2 | `fxThemes.js` | New theme token only if existing themes cannot cover the fantasy |
+| 3 | `CombatSystem` | `skillHandlers[effect] = …`; handler uses `skillCombatAtRank` / `skillDamage` / `getFxTheme` + **recipe** calls |
+| 4 | `Effects.js` | Prefer new or extended **recipe** (unique silhouette). New primitive only if needed |
+| 5 | `Player.trySkill` | Automatic via `skill.anim` + timeline; add runtime fallback only if clip may be missing |
+| 6 | `HERO_CLASSES.*.activeSkills` | Slot the skill on Q/E/R/C (class list drives HUD — no hardcode ids) |
+| 7 | Bake + `assets.json` animationMap | Unique clip names; **wizard must not alias knight skill_*** |
+| 8 | Audio | `SKILLS.sfx` bank; regenerate WAV if new bank (`tools/audio/generate-combat-sfx.mjs`) |
+| 9 | Status (optional) | `combat.status` + `Enemy.applyStatus` path |
+| 10 | Tests | `node tests/skill-combat.mjs` + `node tests/integrity.mjs` |
 
-### Copy-paste source patterns
+### skillPower rules (do not regress)
 
-- Radial AoE multi-hit: `#whirlwind`
-- Projectile: `#crescent` + `projectiles[]`
-- Jump landing: `#skyfall` + telegraph
-- Delayed bursts: `#starburst` + `#delay`
+| Hit path | Damage at spawn / call | Flag |
+|----------|------------------------|------|
+| Radius / cone | `skillDamage(atk, combat)` + `skill: true` | no bake |
+| Projectile unbaked (crescent-like) | `skillDamage(...)` | `skillPowerApplied: false` (default) |
+| Projectile baked (fireball-like) | `skillDamage(...) * player.skillPower` | **`skillPowerApplied: true`** |
+
+Resolution uses `resolveSkillHitRaw` in `#damageEnemy`.
+
+### Copy-paste structural patterns
+
+| Pattern | Reference | Distinct presentation |
+|---------|-----------|------------------------|
+| Anim-synced multi-pulse AoE | `#whirlwind` + `timeline.hits` | `recipeSpinStorm` |
+| Ground pierce projectile | `#crescent` | `recipeGroundWave` + expose |
+| Leap / blink land | `#skyfall` / `#arcaneBlink` | leapImpact vs blinkBurst (afterimage) |
+| Star radial multi-zone | `#starburst` | `pattern: 'star'` + star blades |
+| Fall-cone barrage | `#meteorStorm` | `pattern: 'fallCone'` + verticalBeam |
+| Exploding orb | `#fireball` | fireOrb + fireBlast + burn |
+
+**Anti-pattern:** copy `#starburst` and only change colors → fails identity bar (meteor already uses a different pattern).
 
 ### Balance levers (skill)
 
-- content: mp, cooldown, unlockLevel
-- CombatSystem: radius, damage mult (`player.attackPower * k`), knockback, delay timing
-- rank: convention is linear radius/damage growth via the `rank` argument
+- **content only:** `combat.*` arrays, mp, cooldown, unlockLevel, status duration
+- rank: linear `[base, perRank]` via `skillCombatAtRank`
+- Handler timing: telegraph duration, `timeline.hits`, `#delay` for barrages
+- Presentation: recipe layers, theme, sfx — not damage
 
 ---
 
@@ -142,18 +163,21 @@ Do not change a single axis — **tune the set together**.
 
 **Allowed**
 
-- `Effects.impact` / `swingArc` / particle / ring / pillar / slash
-- Sound `AudioManager.hit/swing`
-- Enemy knockback / hitstun (`Enemy.state = 'hit'`)
+- Skill **recipes** + primitives (`impact`, `swingArc`, slash/ring/pillar/trail, groundDecal, afterimage, verticalBeam)
+- Theme colors from `fxThemes.js`
+- Sound `AudioManager.hit` / `swing` / **`skill(theme)`**
+- Enemy knockback / hitstun / status residual VFX
 - Damage floating-text scale (CSS)
+- Quality-scaled particle counts
 
 **Forbidden (current policy)**
 
 - Restoring real `Game.shake`
 - Freezing the world via `Game.hitStop`
 - Player mesh scale punch, strong lunge (camera-follow jitter)
+- Palette-only skill twins without structural VFX/motion difference
 
-When increasing hit feel, lever priority: **VFX layer count → particles → sound → knockback → (last) very weak lunge**.
+When increasing hit feel, lever priority: **recipe layer count → particles (with LOD) → themed SFX → knockback → (last) very weak lunge**.
 
 ---
 

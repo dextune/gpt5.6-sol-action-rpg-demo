@@ -51,21 +51,47 @@ Drop/craft logic: `js/systems/LootSystem.js`.
 
 ## Skills `SKILLS`
 
+Active skills are **content-first** (balance + identity + presentation hooks).  
+Pure math helpers: `js/data/skillCombat.js`. Themes: `js/data/fxThemes.js`.
+
 ```js
 {
-  id, name, key, unlockLevel, maxRank,
-  mp, cooldown,  // active only
-  passive: true, // passive
-  description, rankText(rank)
+  id, classId, name, key, unlockLevel, maxRank,
+  mp, cooldown, castTime,          // active only
+  anim,                            // GLB clip — class-unique preferred
+  effect,                          // CombatSystem.skillHandlers key
+  theme,                           // FX_THEMES id (windsteel, ember, frost, …)
+  sfx,                             // AudioManager bank (skill_blade, skill_fire, …)
+  recipe,                          // presentation identity label (spinStorm, iceNova, …)
+  timeline: { hits: [0.22, 0.48] }, // optional normalized anim cues → phase index
+  combat: {
+    mult: [base, perRank],         // arrays scale with rank via skillCombatAtRank
+    radius: [base, perRank],
+    // … hits, knockback, armorPierce, leap, pattern, status, …
+    status: { id: 'slow'|'burn'|'expose', duration, power?, dps?, tick? },
+  },
+  description,
+  rankText(rank),                  // must match combat[] math (same bases)
+  // passives:
+  passive: true,
+  effect: { attack?, hp?, skillPower?, … },
 }
 ```
 
 - Unlock/rank: `Player.skills`, `Player.trySkill`
-- Actual effect implementation: `CombatSystem.usePlayerSkill` / `#whirlwind` etc.
-- HUD slots: `index.html` `.ability-slot[data-slot]` must match skill id
+- Handler: `CombatSystem.skillHandlers[effect]` — must call `skillCombatAtRank` / `skillDamage`, not hardcode mults
+- HUD: class `activeSkills` → Q/E/R/C slots (`UI.#syncAbilityBarForClass`)
+- Integrity + unit tests: `tests/integrity.mjs`, `tests/skill-combat.mjs`
 
-**Skill values are in content, but damage multipliers are often hardcoded in CombatSystem.**  
-Check both when balancing.
+### Spectacle rules (required for new actives)
+
+1. **Unique silhouette** — do not ship a palette-only twin of an existing skill (e.g. starburst = star radial; meteor = fallCone).
+2. **Unique `theme` + `recipe` + `sfx`** (or clearly distinct recipe layers).
+3. **Wizard `anim` must not alias knight clips** (`skill_whirlwind|crescent|skyfall|starburst`). See [characters-visual.md](./characters-visual.md).
+4. Prefer `timeline.hits` for body-synced multi-pulse skills.
+5. Rank text uses the same `[base, perRank]` pairs as `combat`.
+
+Full identity matrix: [plan/skill-motion-spectacle.md](./plan/skill-motion-spectacle.md), [combat.md](./combat.md).
 
 ## Hunt titles `HUNT_TITLES`
 
@@ -125,10 +151,20 @@ To strengthen a specific range only → delay appearance level with `BASE_LEVELS
 Too many early skills → raise unlockLevel.  
 Skill point scarcity → Hunt 100-kill bonus or points per level.
 
+## Application: tune skill damage / radius only
+
+1. Edit `SKILLS.<id>.combat` arrays (`mult`, `radius`, …) in `content.js`
+2. Keep `rankText` in sync with those bases
+3. Do **not** re-hardcode the same numbers inside `CombatSystem` handlers
+4. Run `node tests/skill-combat.mjs` (or full `node tests/integrity.mjs`)
+
 ## Related files
 
 - `js/data/content.js` ← main edit target
+- `js/data/skillCombat.js`, `js/data/fxThemes.js`
+- `js/systems/CombatSystem.js`, `js/graphics/Effects.js`
 - `js/systems/LootSystem.js`, `EnemySystem.js`, `HuntSystem.js`
 - `js/entities/Player.js`, `Enemy.js`
-- `tests/integrity.mjs`
+- `tests/integrity.mjs`, `tests/skill-combat.mjs`
 - [extension-playbooks.md](./extension-playbooks.md)
+- [combat.md](./combat.md), [plan/skill-motion-spectacle.md](./plan/skill-motion-spectacle.md)

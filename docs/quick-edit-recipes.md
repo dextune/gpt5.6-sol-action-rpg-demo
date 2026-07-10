@@ -54,9 +54,12 @@ For larger feature additions see [extension-playbooks.md](./extension-playbooks.
 - Animation timeScale cap
 
 ### Hit effect more / less flashy
-- `Effects.impact`, `swingArc`
-- Calls: `#damageEnemy`, `playerAttack`
-- Pool: `MAX_PARTICLES`, particles/slashes pool counts
+- Prefer skill **recipes** in `Effects.js` (`recipeSpinStorm`, `recipeFireBlast`, …)
+- Basic hits: `Effects.impact`, `swingArc`
+- Calls: `#damageEnemy`, skill handlers, `playerAttack`
+- Themes: `js/data/fxThemes.js` (not scattered hex)
+- Pool: `MAX_PARTICLES`, particles/slashes/decals/ghosts/beams
+- Quality LOD: `Effects.setQuality` / `scaleCount`
 
 ### Screen shake / jitter
 - Keep shake/hitStop no-op (`Game.js`)
@@ -70,9 +73,12 @@ For larger feature additions see [extension-playbooks.md](./extension-playbooks.
 - Enemy mass feel: `Enemy.takeDamage` boss multiplier `.72`
 
 ### Buff a single skill
-- content `SKILLS.<id>` mp/cd
-- `CombatSystem.#<id>` internal radius/mult
-- rank scaling formula
+- **First** `content.js` `SKILLS.<id>.combat` (`mult`, `radius`, hits, status…) + matching `rankText`
+- mp / cooldown / unlockLevel on the same entry
+- Handler should only read combat via `skillCombatAtRank` — do not re-hardcode mults
+- Presentation: `theme` / `recipe` / `sfx` / `Effects.recipe…`
+- skillPower rules: [combat.md](./combat.md) (no double-apply)
+- Validate: `node tests/skill-combat.mjs`
 
 ---
 

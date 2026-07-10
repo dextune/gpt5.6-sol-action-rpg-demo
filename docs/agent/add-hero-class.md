@@ -55,20 +55,25 @@ knight: Object.freeze({
 }),
 ```
 
-### 1.2 `SKILLS` entries
+### 1.2 `SKILLS` entries (spectacle-grade)
 
-For **each** active skill:
+For **each** active skill (see [../content-data.md](../content-data.md) + [../combat.md](../combat.md)):
 
-- `classId`, `key` (`Q`/`E`/`R`/`C`), `unlockLevel`, `maxRank`, `mp`, `cooldown`  
-- `castTime`, `anim` (existing GLB clip name), `effect` (handler id)  
-- `name`, `description`, `rankText`  
+- `classId`, `key` (`Q`/`E`/`R`/`C`), `unlockLevel`, `maxRank`, `mp`, `cooldown`, `castTime`  
+- `anim` — **class-unique GLB clip** (do not alias another class’s skill clips forever)  
+- `effect` — handler id registered on `skillHandlers`  
+- `theme` — `FX_THEMES` id · `sfx` — audio bank · `recipe` — presentation identity label  
+- `combat` — all mult/radius/hits/status as `[base, perRank]` or numbers (handlers must read via `skillCombatAtRank`)  
+- optional `timeline.hits` — normalized anim cues for pose-synced phases  
+- `name`, `description`, `rankText` **synced to combat math**  
 
 For **each** passive:
 
 - `classId`, `passive: true`, `effect: { attack?, hp?, defense?, skillPower?, mpRegen?, mpFlat?, luck?, gold? }`  
 - Player getters aggregate passives via `passiveEffects`  
 
-Keys within a class’s four actives must be unique.
+Keys within a class’s four actives must be unique.  
+**Identity bar:** each active needs a distinct silhouette (recipe + motion + SFX), not a recolor of another skill.
 
 ### 1.3 Optional weapon bases
 
@@ -82,16 +87,20 @@ If the starter uses a new `model`:
 
 ## 2. Combat — `js/systems/CombatSystem.js`
 
-1. Implement methods for each new `effect` (e.g. `#shieldBash`).  
+1. Implement methods for each new `effect` (e.g. `#shieldBash(player, rank, phase?)`).  
 2. Register on `this.skillHandlers`:
 
 ```js
-shield_bash: (p, r) => this.#shieldBash(p, r),
+shield_bash: (p, r, phase) => this.#shieldBash(p, r, phase),
 ```
 
-3. If `attackStyle: 'magic'`, basic attack already uses `#magicAttack` (orbs along facing).  
-4. If `attackStyle: 'melee'`, `#meleeAttack` is used.  
-5. Direction rules: use `#facingDir` / `#aimAlongFacing` — **do not** aim player skills at mouse `aimPoint`. See [combat-facing.md](./combat-facing.md).
+3. Inside handler:  
+   - `const { combat, theme } = this.#skillBundle(skillId, rank)` (or equivalent)  
+   - damage: `skillDamage(player.attackPower, combat)` + `skill: true` (see skillPower table in [../extension-playbooks.md](../extension-playbooks.md) §3)  
+   - VFX: `effects.recipe…(…, theme, …)` — add a **new recipe** if none fits  
+4. If `attackStyle: 'magic'`, basic attack uses `#magicAttack` + prefer `cast_*` clips.  
+5. If `attackStyle: 'melee'`, `#meleeAttack` + `attack_1..7` when baked.  
+6. Direction rules: use `#facingDir` / `#aimAlongFacing` — **do not** aim player skills at mouse `aimPoint`. See [combat-facing.md](./combat-facing.md).
 
 ---
 
@@ -115,7 +124,9 @@ Output pattern:
 - `assets/models/hero/<stem>_lod0.glb`  
 - `assets/models/hero/<stem>_lod1.glb`  
 
-Keep **identical bone names** and **animation clip names** as Aerin/Wizard (reuse `heroAnimations`).
+Keep **identical bone names** (shared skeleton).  
+Locomotion clips stay shared (`idle`/`run`/…).  
+**Combat clips should be class-distinct** where possible: add profile-specific skill/cast clips in `heroAnimations()` rather than permanently aliasing another job’s skills. Reuse `heroAnimations` pipeline, extend it.
 
 ### 3.2 Manifest — `assets/manifests/assets.json`
 

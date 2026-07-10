@@ -120,6 +120,11 @@ if (failures.length) {
 }
 console.log(`\nAll checks passed · ${allFiles.length} files · ${jsFiles.length} JS modules`);
 
+// Skill combat params / presentation / status unit tests
+console.log('\n--- skill-combat ---');
+const skillCombat = await import(pathToFileURL(join(root, 'tests/skill-combat.mjs')));
+void skillCombat;
+
 // Nested import/reference integrity + combat/class simulations (prevents SKILLS-not-defined class bugs).
 console.log('\n--- import-integrity ---');
 const nested = await import(pathToFileURL(join(root, 'tests/import-integrity.mjs')));

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
+import { scaleCount } from '../data/fxThemes.js';
 
-const MAX_PARTICLES = 96;
+const MAX_PARTICLES = 128;
 
 function makeSoftDiscTexture() {
   const size = 64;
@@ -55,8 +56,17 @@ class Pool {
 }
 
 export class Effects {
-  constructor(scene) {
+  /**
+   * @param {THREE.Scene} scene
+   * @param {object|string} [assetsOrOptions] legacy assets bag, options object, or quality string
+   * @param {string} [qualityArg] quality when called as (scene, assets, quality)
+   */
+  constructor(scene, assetsOrOptions = {}, qualityArg) {
     this.scene = scene;
+    const opts = typeof assetsOrOptions === 'string'
+      ? { quality: assetsOrOptions }
+      : (assetsOrOptions && !assetsOrOptions.isAssetManager ? assetsOrOptions : {});
+    this.quality = qualityArg ?? opts.quality ?? 'medium';
     this.root = new THREE.Group(); this.root.name = 'PooledCombatEffects'; scene.add(this.root);
     this.texture = makeSoftDiscTexture();
     this.shared = {
@@ -64,6 +74,9 @@ export class Effects {
       ring: new THREE.RingGeometry(.78, 1, 64),
       pillar: new THREE.CylinderGeometry(.08, .68, 1, 16, 1, true),
       trail: new THREE.SphereGeometry(1, 12, 9),
+      decal: new THREE.CircleGeometry(1, 28),
+      ghost: new THREE.CapsuleGeometry(.28, .9, 4, 8),
+      beam: new THREE.CylinderGeometry(.06, .14, 1, 8, 1, true),
     };
     this.particles = new Pool(() => {
       const geometry = new THREE.BufferGeometry();
@@ -73,28 +86,52 @@ export class Effects {
       const material = new THREE.PointsMaterial({ map: this.texture, size: .3, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true });
       const object = new THREE.Points(geometry, material); object.visible = false; object.frustumCulled = false; this.root.add(object);
       return { object, geometry, material, velocities: new Float32Array(MAX_PARTICLES * 3), count: 0 };
-    }, 40);
+    }, 48);
     this.slashes = new Pool(() => {
       const material = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending });
       const object = new THREE.Mesh(this.shared.slash, material); object.visible = false; this.root.add(object); return { object, material };
-    }, 28);
+    }, 36);
     this.rings = new Pool(() => {
       const material = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending });
       const object = new THREE.Mesh(this.shared.ring, material); object.visible = false; object.rotation.x = -Math.PI / 2; this.root.add(object); return { object, material };
-    }, 36);
+    }, 44);
     this.pillars = new Pool(() => {
       const material = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending });
       const object = new THREE.Mesh(this.shared.pillar, material); object.visible = false; this.root.add(object); return { object, material };
-    }, 18);
+    }, 24);
     this.trails = new Pool(() => {
       const material = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending });
       const object = new THREE.Mesh(this.shared.trail, material); object.visible = false; this.root.add(object); return { object, material };
-    }, 32);
+    }, 40);
+    this.decals = new Pool(() => {
+      const material = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending });
+      const object = new THREE.Mesh(this.shared.decal, material); object.visible = false; object.rotation.x = -Math.PI / 2; this.root.add(object);
+      return { object, material };
+    }, 20);
+    this.ghosts = new Pool(() => {
+      const material = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending });
+      const object = new THREE.Mesh(this.shared.ghost, material); object.visible = false; this.root.add(object);
+      return { object, material };
+    }, 8);
+    this.beams = new Pool(() => {
+      const material = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending });
+      const object = new THREE.Mesh(this.shared.beam, material); object.visible = false; this.root.add(object);
+      return { object, material };
+    }, 16);
+  }
+
+  setQuality(quality) {
+    this.quality = quality ?? 'medium';
+  }
+
+  #count(n, min = 1) {
+    return scaleCount(n, this.quality, min);
   }
 
   burst(position, color = 0xffffff, count = 12, options = {}) {
     const effect = this.particles.acquire();
-    effect.count = Math.min(MAX_PARTICLES, Math.max(1, count));
+    const scaled = options.rawCount ? count : this.#count(count);
+    effect.count = Math.min(MAX_PARTICLES, Math.max(1, scaled));
     effect.geometry.setDrawRange(0, effect.count);
     const positions = effect.geometry.attributes.position.array;
     const baseSpeed = options.speed ?? 4.2;
@@ -231,6 +268,209 @@ export class Effects {
     });
   }
 
+  /** Fading ground disc (ice residual / scorch). */
+  groundDecal(position, color = 0xffffff, radius = 2, options = {}) {
+    const effect = this.decals.acquire();
+    effect.object.position.copy(position);
+    effect.object.position.y += options.height ?? 0.04;
+    effect.object.scale.setScalar(radius * (options.startScale ?? 0.35));
+    effect.material.color.set(color);
+    effect.material.opacity = options.opacity ?? 0.55;
+    effect.material.blending = options.additive === false ? THREE.NormalBlending : THREE.AdditiveBlending;
+    effect.material.needsUpdate = true;
+    effect.life = effect.maxLife = options.life ?? 0.85;
+    effect.baseOpacity = options.opacity ?? 0.55;
+    effect.targetScale = radius;
+    return effect.object;
+  }
+
+  /** Short-lived additive ghost (blink afterimage). */
+  afterimage(position, color = 0xb06dff, options = {}) {
+    const effect = this.ghosts.acquire();
+    effect.object.position.copy(position);
+    effect.object.position.y += options.height ?? 1.05;
+    effect.object.rotation.y = options.yaw ?? 0;
+    const s = options.scale ?? 1;
+    effect.object.scale.set(s * 0.9, s, s * 0.9);
+    effect.material.color.set(color);
+    effect.material.opacity = options.opacity ?? 0.55;
+    effect.life = effect.maxLife = options.life ?? 0.32;
+    effect.baseOpacity = options.opacity ?? 0.55;
+    effect.rise = options.rise ?? 0.6;
+    return effect.object;
+  }
+
+  /** Vertical beam / meteor fall column. */
+  verticalBeam(position, color = 0xff9040, height = 8, options = {}) {
+    const effect = this.beams.acquire();
+    effect.object.position.copy(position);
+    effect.object.position.y += height * 0.5 + (options.yOffset ?? 0);
+    const bottom = options.bottom ?? 0.55;
+    effect.object.scale.set(bottom, height, bottom);
+    effect.material.color.set(color);
+    effect.material.opacity = options.opacity ?? 0.55;
+    effect.life = effect.maxLife = options.life ?? 0.45;
+    effect.baseOpacity = options.opacity ?? 0.55;
+    effect.shrink = options.shrink ?? 1.4;
+    return effect.object;
+  }
+
+  // —— Named multi-layer recipes (skill identity) ——
+
+  recipeSpinStorm(position, facing, theme, radius, pulseIndex = 0, finale = false) {
+    const h = 0.72 + pulseIndex * 0.32;
+    this.ring(position, theme.primary, radius * (0.78 + pulseIndex * 0.1), { life: 0.38, startScale: 0.3 });
+    this.slash(position, facing, finale ? theme.core : theme.primary, radius * 0.98, {
+      height: h, thickness: 0.07 + pulseIndex * 0.015, life: 0.3, spin: 5.5 + pulseIndex, opacity: 0.9,
+    });
+    this.slash(position, facing, theme.secondary, radius * 0.85, {
+      height: h + 0.35, thickness: 0.045, life: 0.22, spin: -4.2, angleOffset: 1.2, opacity: 0.65,
+    });
+    if (finale) {
+      this.slash(position, facing, theme.core, radius * 1.05, {
+        height: 1.4, thickness: 0.09, life: 0.28, spin: 7, angleOffset: -0.9, opacity: 0.85,
+      });
+      this.ring(position, theme.core, radius * 1.1, { life: 0.42, startScale: 0.12, height: 0.1, opacity: 0.7 });
+      this.dust(position, theme.dust, 16, 0.42);
+    }
+    this.burst(position.clone().add(new THREE.Vector3(0, 1, 0)), theme.primary, 12 + pulseIndex * 5, {
+      speed: 4.2 + pulseIndex, size: 0.28, life: 0.38, upward: 0.4,
+    });
+  }
+
+  recipeGroundWave(position, direction, theme, size = 3.4) {
+    this.slash(position, direction, theme.secondary, size, { height: 1, life: 0.34, thickness: 0.08, spin: 2.2 });
+    this.slash(position, direction, theme.primary, size * 1.1, {
+      height: 0.55, life: 0.28, thickness: 0.05, spin: -1.6, angleOffset: 0.4,
+    });
+    this.groundDecal(position, theme.accent, size * 0.55, { life: 0.55, opacity: 0.4, startScale: 0.2 });
+    this.dust(position, theme.dust, 12, 0.36);
+    this.burst(position.clone().add(new THREE.Vector3(0, 0.9, 0)).addScaledVector(direction, 1.2), theme.primary, 14, {
+      speed: 4, size: 0.26, life: 0.4, upward: 0.25,
+    });
+  }
+
+  recipeLeapImpact(position, direction, theme, radius) {
+    this.trail(position.clone().add(new THREE.Vector3(0, 1.2, 0)), theme.primary, 1.2, 0.45);
+    this.pillar(position, theme.secondary, 8.2, { life: 0.75, bottom: 1.3, opacity: 0.5 });
+    this.ring(position, theme.primary, radius, { life: 0.65, startScale: 0.08 });
+    this.ring(position, theme.core, radius * 0.55, { life: 0.35, startScale: 0.15, height: 0.12, opacity: 0.85 });
+    this.burst(position.clone().add(new THREE.Vector3(0, 0.9, 0)), theme.secondary, 30, {
+      speed: 6.4, upward: 0.65, size: 0.4, life: 0.85,
+    });
+    this.dust(position, theme.dust, 22, 0.5);
+    // Facing dust cone
+    const cone = position.clone().addScaledVector(direction, 1.4);
+    this.dust(cone, theme.dust, 14, 0.44);
+    this.impact(position.clone().add(new THREE.Vector3(0, 1.1, 0)), theme.primary, 'heavy', { direction });
+  }
+
+  recipeStarBlade(point, theme, index = 0) {
+    const dir = new THREE.Vector3(Math.cos(index * 1.1), 0, Math.sin(index * 1.1));
+    this.slash(point, dir, index % 2 ? theme.accent : theme.secondary, 2.6, {
+      height: 1.15, thickness: 0.07, life: 0.32, spin: 4.5 + index * 0.3, opacity: 0.9,
+    });
+    this.slash(point, dir, theme.core, 2.1, {
+      height: 0.85, thickness: 0.04, life: 0.2, spin: -3.2, angleOffset: 0.9, opacity: 0.7,
+    });
+    this.pillar(point, index % 2 ? theme.accent : theme.secondary, 5.4, { life: 0.42, bottom: 0.45, opacity: 0.4 });
+    this.burst(point.clone().add(new THREE.Vector3(0, 1, 0)), theme.primary, 14, {
+      speed: 5, size: 0.28, life: 0.5, upward: 0.55,
+    });
+    this.ring(point, theme.secondary, 1.6, { life: 0.3, startScale: 0.2, opacity: 0.55 });
+  }
+
+  recipeStarFinale(center, theme, radius) {
+    this.ring(center, theme.core, radius, { life: 0.8, startScale: 0.05 });
+    this.ring(center, theme.primary, radius * 0.7, { life: 0.5, startScale: 0.1, height: 0.1 });
+    this.pillar(center, theme.secondary, 7.8, { life: 0.58, bottom: 1.15, opacity: 0.55 });
+    this.burst(center.clone().add(new THREE.Vector3(0, 1.2, 0)), theme.primary, 36, {
+      speed: 7, size: 0.36, life: 0.7, upward: 0.7,
+    });
+    this.impact(center.clone().add(new THREE.Vector3(0, 1.2, 0)), theme.primary, 'finisher');
+  }
+
+  recipeFireOrb(muzzle, direction, theme) {
+    this.slash(muzzle, direction, theme.secondary, 2.9, { height: 0.95, life: 0.28, thickness: 0.08, spin: 2 });
+    this.burst(muzzle.clone().add(new THREE.Vector3(0, 1.1, 0)).addScaledVector(direction, 0.6), theme.primary, 16, {
+      speed: 3.8, size: 0.28, life: 0.36, upward: 0.35,
+    });
+    this.trail(muzzle.clone().add(new THREE.Vector3(0, 1.15, 0)).addScaledVector(direction, 0.8), theme.core, 0.55, 0.2);
+  }
+
+  recipeFireBlast(at, theme, radius) {
+    this.ring(at, theme.primary, radius, { life: 0.48, startScale: 0.1 });
+    this.ring(at, theme.core, radius * 0.55, { life: 0.28, startScale: 0.2, height: 0.1, opacity: 0.85 });
+    this.burst(at.clone().add(new THREE.Vector3(0, 0.9, 0)), theme.secondary, 28, {
+      speed: 6.2, size: 0.36, life: 0.55, upward: 0.5,
+    });
+    this.burst(at.clone().add(new THREE.Vector3(0, 0.7, 0)), theme.core, 14, {
+      speed: 4, size: 0.22, life: 0.4, upward: 0.8,
+    });
+    this.groundDecal(at, theme.accent, radius * 0.85, { life: 0.9, opacity: 0.45, startScale: 0.15 });
+    this.dust(at, theme.dust, 14, 0.4);
+    this.impact(at.clone().add(new THREE.Vector3(0, 1, 0)), theme.primary, 'heavy');
+  }
+
+  recipeIceNova(position, theme, radius) {
+    this.ring(position, theme.primary, radius, { life: 0.58, startScale: 0.1 });
+    this.ring(position, theme.secondary, radius * 0.72, { life: 0.42, startScale: 0.18, height: 0.08 });
+    this.ring(position, theme.core, radius * 0.4, { life: 0.3, startScale: 0.25, height: 0.14, opacity: 0.7 });
+    this.burst(position.clone().add(new THREE.Vector3(0, 0.85, 0)), theme.primary, 26, {
+      speed: 5.4, size: 0.3, life: 0.55, upward: 0.12,
+    });
+    this.groundDecal(position, theme.accent, radius * 0.95, { life: 1.1, opacity: 0.42, startScale: 0.12 });
+    // Lattice shards
+    for (let i = 0; i < 6; i += 1) {
+      const ang = (i / 6) * Math.PI * 2;
+      const dir = new THREE.Vector3(Math.cos(ang), 0, Math.sin(ang));
+      this.slash(position, dir, i % 2 ? theme.secondary : theme.primary, radius * 0.55, {
+        height: 0.7 + (i % 3) * 0.15, life: 0.28, thickness: 0.04, spin: 2 + i * 0.4, opacity: 0.7,
+      });
+    }
+  }
+
+  recipeBlinkBurst(from, to, theme, radius) {
+    this.afterimage(from, theme.primary, { life: 0.38, opacity: 0.6, scale: 1.05 });
+    this.burst(from.clone().add(new THREE.Vector3(0, 1, 0)), theme.primary, 18, { speed: 4.2, size: 0.3, life: 0.42 });
+    this.ring(from, theme.accent, 2.4, { life: 0.32, startScale: 0.18 });
+    // Path trail samples
+    const mid = from.clone().lerp(to, 0.5).add(new THREE.Vector3(0, 1.1, 0));
+    this.trail(mid, theme.secondary, 0.7, 0.28);
+    this.afterimage(to, theme.secondary, { life: 0.28, opacity: 0.45, scale: 0.95 });
+    this.pillar(to, theme.core, 7.6, { life: 0.68, bottom: 1.15, opacity: 0.48 });
+    this.ring(to, theme.primary, radius, { life: 0.6, startScale: 0.08 });
+    this.burst(to.clone().add(new THREE.Vector3(0, 1, 0)), theme.secondary, 28, {
+      speed: 6, upward: 0.55, size: 0.36, life: 0.78,
+    });
+    this.impact(to.clone().add(new THREE.Vector3(0, 1.1, 0)), theme.primary, 'heavy');
+  }
+
+  recipeMeteorDrop(point, theme, fallHeight = 8) {
+    const sky = point.clone().add(new THREE.Vector3(0, fallHeight, 0));
+    this.verticalBeam(point, theme.secondary, fallHeight * 0.92, { life: 0.38, bottom: 0.35, opacity: 0.55 });
+    this.trail(sky, theme.core, 0.55, 0.35);
+    this.trail(point.clone().add(new THREE.Vector3(0, fallHeight * 0.45, 0)), theme.primary, 0.7, 0.28);
+    this.pillar(point, theme.accent, 7.2, { life: 0.52, bottom: 0.85, opacity: 0.5 });
+    this.burst(point.clone().add(new THREE.Vector3(0, 0.9, 0)), theme.primary, 18, {
+      speed: 5.5, size: 0.34, life: 0.58, upward: 0.45,
+    });
+    this.ring(point, theme.secondary, 2.4, { life: 0.38, startScale: 0.12 });
+    this.groundDecal(point, theme.accent, 2.1, { life: 0.95, opacity: 0.5, startScale: 0.15 });
+    this.dust(point, theme.dust, 12, 0.42);
+  }
+
+  recipeMeteorFinale(center, theme, radius) {
+    this.ring(center, theme.core, radius, { life: 0.85, startScale: 0.05 });
+    this.pillar(center, theme.secondary, 8.5, { life: 0.65, bottom: 1.2, opacity: 0.58 });
+    this.verticalBeam(center, theme.primary, 10, { life: 0.5, bottom: 0.8, opacity: 0.45 });
+    this.burst(center.clone().add(new THREE.Vector3(0, 1.2, 0)), theme.primary, 40, {
+      speed: 7.2, size: 0.4, life: 0.75, upward: 0.65,
+    });
+    this.groundDecal(center, theme.accent, radius * 0.75, { life: 1.2, opacity: 0.48, startScale: 0.08 });
+    this.impact(center.clone().add(new THREE.Vector3(0, 1.2, 0)), theme.primary, 'finisher');
+  }
+
   update(delta) {
     for (const effect of this.particles.active()) {
       effect.life -= delta; const t = Math.max(0, effect.life / effect.maxLife); const p = effect.geometry.attributes.position.array;
@@ -258,16 +498,46 @@ export class Effects {
       effect.life -= delta; const t = Math.max(0, effect.life / effect.maxLife); effect.object.scale.multiplyScalar(1 + delta * 2.2); effect.material.opacity = t * .3;
       if (effect.life <= 0) this.trails.release(effect);
     }
+    for (const effect of this.decals.active()) {
+      effect.life -= delta;
+      const t = Math.max(0, effect.life / effect.maxLife);
+      const progress = 1 - t;
+      const scale = effect.targetScale * (0.35 + progress * 0.65);
+      effect.object.scale.setScalar(scale);
+      effect.material.opacity = t * t * effect.baseOpacity;
+      if (effect.life <= 0) this.decals.release(effect);
+    }
+    for (const effect of this.ghosts.active()) {
+      effect.life -= delta;
+      const t = Math.max(0, effect.life / effect.maxLife);
+      effect.object.position.y += (effect.rise ?? 0.5) * delta;
+      effect.object.scale.multiplyScalar(1 + delta * 0.8);
+      effect.material.opacity = t * effect.baseOpacity;
+      if (effect.life <= 0) this.ghosts.release(effect);
+    }
+    for (const effect of this.beams.active()) {
+      effect.life -= delta;
+      const t = Math.max(0, effect.life / effect.maxLife);
+      effect.object.scale.x *= 1 - delta * (effect.shrink ?? 1.2) * 0.35;
+      effect.object.scale.z = effect.object.scale.x;
+      effect.material.opacity = Math.sin(t * Math.PI) * effect.baseOpacity;
+      if (effect.life <= 0) this.beams.release(effect);
+    }
   }
 
   clear() {
-    for (const pool of [this.particles, this.slashes, this.rings, this.pillars, this.trails]) for (const effect of pool.active()) pool.release(effect);
+    for (const pool of [this.particles, this.slashes, this.rings, this.pillars, this.trails, this.decals, this.ghosts, this.beams]) {
+      for (const effect of pool.active()) pool.release(effect);
+    }
   }
 
   dispose() {
     this.clear();
-    for (const pool of [this.particles, this.slashes, this.rings, this.pillars, this.trails]) {
-      for (const item of pool.items) { if (item.geometry && item.geometry !== this.shared.slash) item.geometry.dispose?.(); item.material?.dispose?.(); }
+    for (const pool of [this.particles, this.slashes, this.rings, this.pillars, this.trails, this.decals, this.ghosts, this.beams]) {
+      for (const item of pool.items) {
+        if (item.geometry && !Object.values(this.shared).includes(item.geometry)) item.geometry.dispose?.();
+        item.material?.dispose?.();
+      }
     }
     for (const geometry of Object.values(this.shared)) geometry.dispose();
     this.texture.dispose(); this.scene.remove(this.root);

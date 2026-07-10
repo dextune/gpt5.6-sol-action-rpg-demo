@@ -65,12 +65,38 @@ Wizard starter: **Apprentice Focus** (`relic`).
 
 Hit detection `range` is independent of mesh length.
 
-## Animation clip names (all hero classes)
+## Animation clip names
 
-`idle`, `run`, `sprint`, `attack_1`–`attack_4`, `dodge`, `hit`, `death`,  
+**Shared locomotion / reaction:**  
+`idle`, `run`, `sprint`, `dodge`, `hit`, `death`
+
+**Knight (aerin):**  
+`attack_1`–`attack_7`,  
 `skill_whirlwind`, `skill_crescent`, `skill_skyfall`, `skill_starburst`
 
-Do not rename without updating Player / Combat callers.
+**Wizard:**  
+`attack_1`–`attack_4`, `cast_1`–`cast_4`,  
+`skill_fireball`, `skill_frost_nova`, `skill_blink`, `skill_meteor`  
+(also still embeds knight skill clips for fallback / shared bake)
+
+Wizard actives must **not** alias knight skill clip names in `SKILLS.anim`.  
+Do not rename without updating Player / Combat / `assets.json` animationMap.
+
+### Bake (after adding clips)
+
+```bash
+node tools/assets/generate_assets.mjs --heroes-only
+# or --aerin-only / --wizard-only
+node tests/integrity.mjs
+```
+
+Extend `heroAnimations()` in `tools/assets/generate_assets.mjs`. Shared skeleton; add class-specific skill/cast clips for spectacle identity.  
+Runtime: `Player.trySkill` has limited anim fallbacks if a clip is missing — still bake unique names for shipping quality.
+
+### Motion + combat sync
+
+- Skills with `timeline.hits` fire combat phases via `CharacterAnimationController.scheduleNormalized`.  
+- See [combat.md](./combat.md) cast flow and [plan/skill-motion-spectacle.md](./plan/skill-motion-spectacle.md).
 
 ## Outlines
 

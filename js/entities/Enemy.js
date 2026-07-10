@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { DEFENSE_CONFIG, GAME_CONFIG } from '../config.js';
 import { clamp, rand, uid } from '../core/Utils.js';
+import { applyStatus, statusMoveMul, tickStatuses } from '../data/skillCombat.js';
 import { setMaterialHitPulse } from '../graphics/StylizedMaterial.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
@@ -70,6 +71,8 @@ export class Enemy {
     this.strafeSign = Math.random() < .5 ? -1 : 1;
     this.lastHitAt = -999;
     this.enraged = false;
+    /** @type {Record<string, { id: string, remaining: number, power?: number, dps?: number, tick?: number, tickAcc?: number }>} */
+    this.statuses = {};
 
     this.#setHealthBar(1);
   }
@@ -91,6 +94,8 @@ export class Enemy {
       this.#updateDeath(delta, game);
       return;
     }
+
+    this.#tickStatuses(delta, game);
 
     const player = game.player;
     const toPlayer = TMP_A.copy(player.position).sub(this.position);
@@ -221,8 +226,52 @@ export class Enemy {
     game.combat.enemyMelee(this, { power, wide: this.boss || this.elite });
   }
 
+  applyStatus(id, opts = {}, game = null) {
+    this.statuses = applyStatus(this.statuses, id, opts);
+    if (game?.effects) {
+      if (id === 'slow') {
+        game.effects.trail(this.position.clone().add(new THREE.Vector3(0, 1, 0)), 0x7ad8ff, 0.4, 0.4);
+        game.effects.groundDecal?.(this.position, 0xa8ecff, this.radius * 1.6, { life: 0.5, opacity: 0.35 });
+      } else if (id === 'burn') {
+        game.effects.trail(this.position.clone().add(new THREE.Vector3(0, 1, 0)), 0xff7a42, 0.38, 0.35);
+      } else if (id === 'expose') {
+        game.effects.trail(this.position.clone().add(new THREE.Vector3(0, 1.2, 0)), 0xc6f1ff, 0.3, 0.3);
+      }
+    }
+  }
+
+  #tickStatuses(delta, game) {
+    const result = tickStatuses(this.statuses, delta);
+    this.statuses = result.statuses;
+    if (result.burnDamage > 0 && this.alive) {
+      const amount = Math.max(1, Math.round(result.burnDamage * Math.max(8, this.maxHp * 0.02)));
+      // Direct burn tick — bypass short i-frames so multi-hit DoT lands.
+      const prevInvuln = this.invulnerable;
+      this.invulnerable = 0;
+      const dmg = this.takeDamage(amount, game, { multiHit: true, knockback: 0 });
+      this.invulnerable = Math.min(prevInvuln, this.invulnerable);
+      if (dmg.amount > 0) {
+        game.ui?.floatText?.(
+          this.position.clone().add(new THREE.Vector3(0, this.refs.modelHeight * 0.55, 0)),
+          `${dmg.amount}`,
+          'damage',
+        );
+        game.effects?.trail?.(this.position.clone().add(new THREE.Vector3(0, 1, 0)), 0xff9040, 0.28, 0.22);
+      }
+    }
+    if (this.statuses.burn && Math.random() < delta * 4) {
+      game.effects?.burst?.(this.position.clone().add(new THREE.Vector3(0, 0.9, 0)), 0xff7a42, 3, {
+        speed: 1.6, size: 0.16, life: 0.28, upward: 0.5,
+      });
+    }
+    if (this.statuses.slow && Math.random() < delta * 3) {
+      game.effects?.trail?.(this.position.clone().add(new THREE.Vector3(0, 0.7, 0)), 0xa8ecff, 0.18, 0.2);
+    }
+  }
+
   #move(direction, delta, factor, world) {
-    const desired = TMP_B.copy(direction).normalize().multiplyScalar(this.speed * factor);
+    const slowMul = statusMoveMul(this.statuses);
+    const desired = TMP_B.copy(direction).normalize().multiplyScalar(this.speed * factor * slowMul);
     this.velocity.lerp(desired, 1 - Math.exp(-7.5 * delta));
     this.position.addScaledVector(this.velocity, delta);
     world.resolvePosition(this.position, this.radius);
@@ -266,7 +315,11 @@ export class Enemy {
     const speed = this.velocity.length();
     this.animation.setLocomotion(speed, { sprint: speed > this.speed * 1.12 });
     this.animation.update(delta, { distance: playerDistance, visible: this.mesh.visible });
-    setMaterialHitPulse(this.mesh, this.hitTimer > 0 ? Math.min(1, this.hitTimer / .15) : 0);
+    const statusPulse = this.statuses.burn ? 0.35 : this.statuses.slow ? 0.2 : 0;
+    setMaterialHitPulse(this.mesh, Math.max(
+      this.hitTimer > 0 ? Math.min(1, this.hitTimer / .15) : 0,
+      statusPulse,
+    ));
     const targetYaw = Math.atan2(this.facing.x, this.facing.z);
     let difference = targetYaw - this.mesh.rotation.y;
     difference = Math.atan2(Math.sin(difference), Math.cos(difference));

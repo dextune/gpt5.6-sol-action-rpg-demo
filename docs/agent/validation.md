@@ -3,7 +3,8 @@
 ## Commands
 
 ```bash
-node tests/integrity.mjs          # full suite (runs import-integrity at the end)
+node tests/integrity.mjs          # full suite (skill-combat + import-integrity nested)
+node tests/skill-combat.mjs       # skill params, themes, skillPower, status pure paths
 node tests/import-integrity.mjs   # import/export + class/combat simulations
 npm test                          # same as integrity.mjs
 npm run test:imports              # import-integrity only
@@ -11,10 +12,11 @@ npm run test:imports              # import-integrity only
 
 Run after changes to:
 
-- `js/data/content.js`, `js/config.js`  
+- `js/data/content.js`, `js/data/skillCombat.js`, `js/data/fxThemes.js`, `js/config.js`  
 - imports in any `js/**/*.js`  
 - hero/weapon paths or `assets/manifests/assets.json`  
-- `CombatSystem` skill handlers  
+- `CombatSystem` skill handlers / `Effects` recipes  
+- skill SFX banks  
 
 ## What `import-integrity.mjs` catches
 
@@ -35,6 +37,18 @@ import required: SKILLS in js/core/Game.js
 Game.js imports content symbol SKILLS
 ```
 
+## What `skill-combat.mjs` covers
+
+| Check | Why |
+|-------|-----|
+| Every active has `combat` / `theme` / `sfx` / `recipe` / `anim` | Spectacle identity bar |
+| Wizard anims not knight skill aliases | Motion diversity |
+| `skillDamage` + `resolveSkillHitRaw` skillPower once | No double/under apply |
+| Crescent projectile path vs fireball baked path | `skillPowerApplied` flag |
+| Frost/fire statuses present | slow / burn identity |
+| Starburst ≠ meteor pattern | No palette-only twin |
+| `Game.setQuality` → effects LOD | Particle budgets |
+
 ## What `integrity.mjs` still covers
 
 - Relative module path existence  
@@ -42,8 +56,8 @@ Game.js imports content symbol SKILLS
 - Save version  
 - Defense UI hooks  
 - Hero wizard GLB paths, class select UI  
-- Audio sample paths  
-- Nested import-integrity  
+- Audio sample paths (including themed skill banks)  
+- Nested **skill-combat** + import-integrity  
 
 ## Agent workflow after a class PR
 

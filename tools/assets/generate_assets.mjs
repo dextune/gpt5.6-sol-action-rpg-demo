@@ -521,6 +521,25 @@ function heroAnimations(skeletonInfo) {
       F(.42, { pelvis: [0, .48, .05], spine: [-.1, .35, 0], chest: [-.08, 1.25, .45], right_upper_arm: [.15, 1.5, .95], right_lower_arm: [.28, 0, .8], left_upper_arm: [-.65, -.4, .18], cape_root: [.82, .28, 0] }),
       F(.82, { pelvis: [0, 0, 0], spine: [0, 0, 0], chest: [0, 0, 0], right_upper_arm: [.03, 0, -.08], right_lower_arm: [0, 0, 0], left_upper_arm: [.03, 0, .08], cape_root: [.12, 0, 0] }),
     ]],
+    // Extended chain — spin / cross / thrust variants for high-level combos
+    ['attack_5', .72, [
+      F(0, { pelvis: [0, -.2, 0], chest: [0, -.5, -.12], right_upper_arm: [-.9, -.5, -.6], left_upper_arm: [.3, .2, .3] }),
+      F(.2, { pelvis: [0, 1.2, 0], spine: [0, 1.0, 0], chest: [-.1, 1.8, .1], right_upper_arm: [-.3, 1.6, .5], left_upper_arm: [-.4, -1.0, -.3], cape_root: [.7, .2, 0] }),
+      F(.42, { pelvis: [0, 2.4, 0], spine: [0, 2.0, 0], chest: [-.1, 2.8, -.15], right_upper_arm: [-.5, 2.4, -.6], left_upper_arm: [.4, 1.2, .4], cape_root: [.95, -.2, 0] }),
+      F(.72, { pelvis: [0, 0, 0], spine: [0, 0, 0], chest: [0, 0, 0], right_upper_arm: [.03, 0, -.08], left_upper_arm: [.03, 0, .08], cape_root: [.12, 0, 0] }),
+    ]],
+    ['attack_6', .7, [
+      F(0, { chest: [-.1, .4, .1], right_upper_arm: [-.5, .7, .4], left_upper_arm: [.2, -.2, .2] }),
+      F(.22, { pelvis: [0, -.4, 0], chest: [-.25, -.9, -.3], right_upper_arm: [-1.4, -1.1, -.9], left_upper_arm: [.5, .4, .4], cape_root: [.4, -.2, 0] }),
+      F(.4, { pelvis: [0, .35, 0], chest: [-.15, 1.1, .4], right_upper_arm: [.1, 1.4, .9], left_upper_arm: [-.5, -.3, .15], cape_root: [.75, .25, 0] }),
+      F(.7, { chest: [0, 0, 0], right_upper_arm: [.03, 0, -.08], left_upper_arm: [.03, 0, .08], cape_root: [.12, 0, 0] }),
+    ]],
+    ['attack_7', .88, [
+      F(0, { pelvis: [0, -.4, 0], spine: [-.2, 0, 0], chest: [-.3, -.7, -.25], right_upper_arm: [-1.2, -.9, -.85], left_upper_arm: [.7, .45, .5] }),
+      F(.28, { pelvis: [0, -.65, 0], spine: [-.35, -.15, 0], chest: [-.42, -1.15, -.4], right_upper_arm: [-1.55, -1.4, -1.05], cape_root: [.4, -.3, 0] }),
+      F(.48, { pelvis: [0, .55, .08], spine: [-.08, .4, 0], chest: [-.05, 1.4, .5], right_upper_arm: [.25, 1.65, 1.0], left_upper_arm: [-.75, -.45, .2], cape_root: [.9, .3, 0] }),
+      F(.88, { pelvis: [0, 0, 0], spine: [0, 0, 0], chest: [0, 0, 0], right_upper_arm: [.03, 0, -.08], left_upper_arm: [.03, 0, .08], cape_root: [.12, 0, 0] }),
+    ]],
   ];
   for (const [name, duration, frames] of attacks) clips.push(animationClip(name, duration, frames, skeletonInfo));
 
@@ -568,6 +587,58 @@ function heroAnimations(skeletonInfo) {
     F(.72, { pelvis: [.12, 0, 0], spine: [.1, 0, 0], chest: [.14, 0, 0], right_upper_arm: [-2.55, 0, -.35], left_upper_arm: [-2.55, 0, .35], right_lower_arm: [-.25, 0, 0], left_lower_arm: [-.25, 0, 0], cape_root: [1.0, 0, 0] }, { pelvis: [0, .14, 0] }),
     F(1.08, { pelvis: [-.25, 0, 0], spine: [-.18, 0, 0], chest: [-.2, 0, 0], right_upper_arm: [-.9, 1.6, -.5], left_upper_arm: [-.9, -1.6, .5], cape_root: [.85, .4, 0] }),
     F(1.45, { pelvis: [0, 0, 0], spine: [0, 0, 0], chest: [0, 0, 0], right_upper_arm: [.03, 0, -.08], left_upper_arm: [.03, 0, .08], cape_root: [.12, 0, 0] }),
+  ], skeletonInfo));
+
+  // Wizard-unique cast / skill clips (not aliases of knight skills)
+  clips.push(animationClip('cast_1', .55, [
+    F(0, { chest: [-.05, 0, 0], right_upper_arm: [-.4, 0, -.25], left_upper_arm: [-.35, 0, .25] }),
+    F(.18, { chest: [-.12, 0, 0], right_upper_arm: [-1.1, -.2, -.5], left_upper_arm: [-.5, .15, .35], right_lower_arm: [-.5, 0, -.2] }),
+    F(.32, { chest: [-.08, .15, .1], right_upper_arm: [-.55, .6, .45], left_upper_arm: [-.3, -.1, .2], right_lower_arm: [-.15, 0, .35] }),
+    F(.55, { chest: [0, 0, 0], right_upper_arm: [.03, 0, -.08], left_upper_arm: [.03, 0, .08], right_lower_arm: [0, 0, 0] }),
+  ], skeletonInfo));
+  clips.push(animationClip('cast_2', .58, [
+    F(0, { right_upper_arm: [-.3, .3, .2], left_upper_arm: [-.3, -.2, .2] }),
+    F(.2, { chest: [-.1, 0, 0], right_upper_arm: [-1.2, .4, .3], left_upper_arm: [-.8, -.3, .25] }),
+    F(.35, { chest: [-.05, .2, 0], right_upper_arm: [-.4, .9, .55], left_upper_arm: [-.25, .2, .3] }),
+    F(.58, { right_upper_arm: [.03, 0, -.08], left_upper_arm: [.03, 0, .08], chest: [0, 0, 0] }),
+  ], skeletonInfo));
+  clips.push(animationClip('cast_3', .62, [
+    F(0, { right_upper_arm: [-.6, 0, -.3], left_upper_arm: [-.6, 0, .3] }),
+    F(.22, { pelvis: [0, -.15, 0], right_upper_arm: [-1.4, 0, -.55], left_upper_arm: [-1.35, 0, .55] }),
+    F(.4, { chest: [.1, 0, 0], right_upper_arm: [-.7, .5, .2], left_upper_arm: [-.7, -.5, .2] }),
+    F(.62, { pelvis: [0, 0, 0], chest: [0, 0, 0], right_upper_arm: [.03, 0, -.08], left_upper_arm: [.03, 0, .08] }),
+  ], skeletonInfo));
+  clips.push(animationClip('cast_4', .75, [
+    F(0, { spine: [-.1, 0, 0], right_upper_arm: [-.8, 0, -.4], left_upper_arm: [-.8, 0, .4] }),
+    F(.28, { spine: [-.2, 0, 0], chest: [-.15, 0, 0], right_upper_arm: [-1.8, 0, -.6], left_upper_arm: [-1.8, 0, .6] }, { pelvis: [0, .1, 0] }),
+    F(.48, { spine: [.05, 0, 0], right_upper_arm: [-.5, .8, .3], left_upper_arm: [-.5, -.8, .3] }),
+    F(.75, { spine: [0, 0, 0], chest: [0, 0, 0], right_upper_arm: [.03, 0, -.08], left_upper_arm: [.03, 0, .08] }, { pelvis: [0, 0, 0] }),
+  ], skeletonInfo));
+  clips.push(animationClip('skill_fireball', .95, [
+    F(0, { chest: [-.08, 0, 0], right_upper_arm: [-.7, -.2, -.4], left_upper_arm: [-.3, .15, .25] }),
+    F(.28, { pelvis: [0, -.2, 0], chest: [-.2, -.3, -.1], right_upper_arm: [-1.5, -.6, -.75], right_lower_arm: [-.7, 0, -.4], cape_root: [.35, -.1, 0] }),
+    F(.48, { pelvis: [0, .15, 0], chest: [-.05, .5, .2], right_upper_arm: [-.2, 1.1, .7], right_lower_arm: [.1, 0, .55], left_upper_arm: [-.4, -.2, .15], cape_root: [.55, .15, 0] }),
+    F(.95, { pelvis: [0, 0, 0], chest: [0, 0, 0], right_upper_arm: [.03, 0, -.08], right_lower_arm: [0, 0, 0], left_upper_arm: [.03, 0, .08], cape_root: [.12, 0, 0] }),
+  ], skeletonInfo));
+  clips.push(animationClip('skill_frost_nova', 1.0, [
+    F(0, { right_upper_arm: [-.5, 0, -.3], left_upper_arm: [-.5, 0, .3] }),
+    F(.25, { pelvis: [0, -.25, 0], chest: [-.15, 0, 0], right_upper_arm: [-1.2, .4, -.2], left_upper_arm: [-1.2, -.4, .2] }),
+    F(.48, { pelvis: [0, .1, 0], chest: [.08, 0, 0], right_upper_arm: [-.35, 1.0, .55], left_upper_arm: [-.35, -1.0, .55], cape_root: [.5, 0, 0] }),
+    F(1.0, { pelvis: [0, 0, 0], chest: [0, 0, 0], right_upper_arm: [.03, 0, -.08], left_upper_arm: [.03, 0, .08], cape_root: [.12, 0, 0] }),
+  ], skeletonInfo));
+  clips.push(animationClip('skill_blink', 1.1, [
+    F(0, { pelvis: [-.1, 0, 0], chest: [-.15, 0, 0], right_upper_arm: [-.5, 0, -.25], left_upper_arm: [-.5, 0, .25] }),
+    F(.28, { pelvis: [-.55, 0, 0], spine: [-.25, 0, 0], right_upper_arm: [-1.3, 0, -.5], left_upper_arm: [-1.3, 0, .5], cape_root: [.7, 0, 0] }, { root: [0, .4, 0] }),
+    F(.52, { pelvis: [.1, 0, 0], spine: [.08, 0, 0], right_upper_arm: [-.2, .4, .2], left_upper_arm: [-.2, -.4, .2] }, { root: [0, 1.2, .15] }),
+    F(.78, { pelvis: [-.2, 0, 0], right_upper_arm: [-.8, 0, -.2], left_upper_arm: [-.8, 0, .2], cape_root: [.45, 0, 0] }, { root: [0, .05, .3] }),
+    F(1.1, { pelvis: [0, 0, 0], spine: [0, 0, 0], chest: [0, 0, 0], right_upper_arm: [.03, 0, -.08], left_upper_arm: [.03, 0, .08], cape_root: [.12, 0, 0] }, { root: [0, 0, 0] }),
+  ], skeletonInfo));
+  clips.push(animationClip('skill_meteor', 1.5, [
+    F(0, { chest: [-.12, 0, 0], right_upper_arm: [-.6, 0, -.35], left_upper_arm: [-.6, 0, .35] }),
+    F(.4, { pelvis: [-.3, 0, 0], spine: [-.22, 0, 0], right_upper_arm: [-1.7, 0, -.7], left_upper_arm: [-1.7, 0, .7], cape_root: [.65, 0, 0] }, { pelvis: [0, -.08, 0] }),
+    F(.85, { pelvis: [.08, 0, 0], spine: [.08, 0, 0], right_upper_arm: [-2.2, .3, -.2], left_upper_arm: [-2.2, -.3, .2], cape_root: [.95, 0, 0] }, { pelvis: [0, .12, 0] }),
+    F(1.2, { right_upper_arm: [-1.0, 1.2, -.4], left_upper_arm: [-1.0, -1.2, .4], cape_root: [.8, .25, 0] }),
+    F(1.5, { pelvis: [0, 0, 0], spine: [0, 0, 0], chest: [0, 0, 0], right_upper_arm: [.03, 0, -.08], left_upper_arm: [.03, 0, .08], cape_root: [.12, 0, 0] }),
   ], skeletonInfo));
   return clips;
 }

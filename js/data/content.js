@@ -165,33 +165,87 @@ export const AFFIXES = Object.freeze([
  * Active skills need `effect` (CombatSystem handler id), `anim` (clip name in GLB), `castTime`.
  * Passive skills use `effect` multipliers applied per rank in Player getters.
  */
+/**
+ * Active skill combat fields:
+ * - combat: balance (arrays = [base, perRank])
+ * - theme / sfx / recipe: presentation identity
+ * - timeline.hits: normalized anim cues (0–1) for pose-synced phases
+ * - anim: GLB clip name (wizard clips are unique — not knight aliases)
+ */
 export const SKILLS = Object.freeze({
-  // —— Hunter actives ——
+  // —— Knight actives ——
   whirlwind: {
     id: 'whirlwind', classId: 'aerin', name: 'Whirlwind Slash', key: 'Q', unlockLevel: 3, maxRank: 5, mp: 18, cooldown: 5.5,
-    castTime: .3, anim: 'skill_whirlwind', effect: 'whirlwind',
+    castTime: .42, anim: 'skill_whirlwind', effect: 'whirlwind',
+    theme: 'windsteel', sfx: 'skill_blade', recipe: 'spinStorm',
+    timeline: Object.freeze({ hits: Object.freeze([0.22, 0.48, 0.74]) }),
+    combat: Object.freeze({
+      mult: Object.freeze([0.46, 0.055]),
+      radius: Object.freeze([4.1, 0.18]),
+      hits: 3,
+      knockbackPulse: 1.2,
+      knockbackFinale: 4.8,
+      invuln: 0.34,
+      criticalBonus: 0.03,
+    }),
     description: 'Cuts and knocks back nearby enemies in a flurry.',
-    rankText: rank => `Damage ${Math.round(125 + rank * 18)}% · Range ${4.1 + rank * .18}`,
+    rankText: rank => `Damage ${Math.round((0.46 + rank * 0.055) * 100)}% ×3 · Range ${(4.1 + rank * 0.18).toFixed(1)}`,
   },
   crescent: {
     id: 'crescent', classId: 'aerin', name: 'Crescent Blade', key: 'E', unlockLevel: 6, maxRank: 5, mp: 22, cooldown: 6.8,
-    castTime: .3, anim: 'skill_crescent', effect: 'crescent',
+    castTime: .36, anim: 'skill_crescent', effect: 'crescent',
+    theme: 'bladewave', sfx: 'skill_blade', recipe: 'groundWave',
+    timeline: Object.freeze({ hits: Object.freeze([0.38]) }),
+    combat: Object.freeze({
+      mult: Object.freeze([1.5, 0.22]),
+      speed: Object.freeze([16.5, 0.5]),
+      pierce: Object.freeze([3, 1]),
+      radius: 1.25,
+      knockback: 4.2,
+      status: Object.freeze({ id: 'expose', duration: 2.4, power: 0.18 }),
+    }),
     description: 'Fires a piercing blade that rends the ground.',
-    rankText: rank => `Damage ${Math.round(150 + rank * 22)}% · Pierce ${3 + rank}`,
+    rankText: rank => `Damage ${Math.round((1.5 + rank * 0.22) * 100)}% · Pierce ${3 + rank}`,
   },
   skyfall: {
     id: 'skyfall', classId: 'aerin', name: 'Skyfall', key: 'R', unlockLevel: 10, maxRank: 5, mp: 30, cooldown: 9.5,
-    castTime: .5, anim: 'skill_skyfall', effect: 'skyfall',
+    castTime: .55, anim: 'skill_skyfall', effect: 'skyfall',
+    theme: 'skyice', sfx: 'skill_leap', recipe: 'leapImpact',
+    combat: Object.freeze({
+      mult: Object.freeze([1.85, 0.28]),
+      radius: Object.freeze([4.5, 0.22]),
+      leap: 10.5,
+      telegraph: 0.46,
+      knockback: 7.2,
+      armorPierce: 0.25,
+      criticalBonus: 0.06,
+      invuln: 0.55,
+    }),
     description: 'Leaps forward along facing and unleashes a shockwave.',
-    rankText: rank => `Damage ${Math.round(185 + rank * 28)}% · Radius ${4.5 + rank * .22}`,
+    rankText: rank => `Damage ${Math.round((1.85 + rank * 0.28) * 100)}% · Radius ${(4.5 + rank * 0.22).toFixed(1)}`,
   },
   starburst: {
     id: 'starburst', classId: 'aerin', name: 'Starburst', key: 'C', unlockLevel: 16, maxRank: 5, mp: 42, cooldown: 15,
     castTime: .72, anim: 'skill_starburst', effect: 'starburst',
+    theme: 'starlight', sfx: 'skill_star', recipe: 'starRain',
+    combat: Object.freeze({
+      mult: Object.freeze([0.63, 0.06]),
+      finaleMult: Object.freeze([0.95, 0.1]),
+      hits: Object.freeze([6, 1]),
+      hitRadius: Object.freeze([1.8, 0.08]),
+      telegraph: 0.28,
+      aim: 9.5,
+      finaleRadius: 5.8,
+      knockback: 2.5,
+      finaleKnockback: 6.2,
+      armorPierce: 0.2,
+      finaleArmorPierce: 0.35,
+      pattern: 'star',
+    }),
     description: 'Summons many starlight blades ahead to purge a wide area.',
-    rankText: rank => `Damage ${Math.round(230 + rank * 34)}% · Hits ${6 + rank}`,
+    rankText: rank => `Damage ${Math.round((0.63 + rank * 0.06) * 100)}% · Blades ${6 + rank}`,
   },
-  // —— Hunter passives ——
+  // —— Knight passives ——
   might: {
     id: 'might', classId: 'aerin', name: 'Beast Might', passive: true, unlockLevel: 2, maxRank: 10,
     effect: { attack: .03 },
@@ -215,27 +269,77 @@ export const SKILLS = Object.freeze({
   // —— Wizard actives ——
   fireball: {
     id: 'fireball', classId: 'wizard', name: 'Fireball', key: 'Q', unlockLevel: 3, maxRank: 5, mp: 20, cooldown: 5.2,
-    castTime: .34, anim: 'skill_crescent', effect: 'fireball',
+    castTime: .38, anim: 'skill_fireball', effect: 'fireball',
+    theme: 'ember', sfx: 'skill_fire', recipe: 'fireOrb',
+    timeline: Object.freeze({ hits: Object.freeze([0.36]) }),
+    combat: Object.freeze({
+      mult: Object.freeze([1.55, 0.24]),
+      blastMult: Object.freeze([0.55, 0.08]),
+      blastRadius: Object.freeze([2.4, 0.12]),
+      speed: Object.freeze([13.5, 0.35]),
+      radius: 1.15,
+      knockback: 4.5,
+      scale: 1.45,
+      status: Object.freeze({ id: 'burn', duration: 2.2, dps: 0.12, tick: 0.45, power: 1 }),
+    }),
     description: 'Hurls a searing orb that explodes on impact.',
-    rankText: rank => `Damage ${Math.round(155 + rank * 24)}% · Blast ${2.4 + rank * .12}`,
+    rankText: rank => `Damage ${Math.round((1.55 + rank * 0.24) * 100)}% · Blast ${(2.4 + rank * 0.12).toFixed(1)}`,
   },
   frost_nova: {
     id: 'frost_nova', classId: 'wizard', name: 'Frost Nova', key: 'E', unlockLevel: 6, maxRank: 5, mp: 24, cooldown: 7.2,
-    castTime: .32, anim: 'skill_whirlwind', effect: 'frost_nova',
-    description: 'Freezes the ground in a ring and shoves foes outward.',
-    rankText: rank => `Damage ${Math.round(120 + rank * 16)}% · Radius ${4.4 + rank * .2}`,
+    castTime: .36, anim: 'skill_frost_nova', effect: 'frost_nova',
+    theme: 'frost', sfx: 'skill_ice', recipe: 'iceNova',
+    timeline: Object.freeze({ hits: Object.freeze([0.28]) }),
+    combat: Object.freeze({
+      mult: Object.freeze([1.2, 0.16]),
+      radius: Object.freeze([4.4, 0.2]),
+      knockback: 5.4,
+      invuln: 0.28,
+      criticalBonus: 0.04,
+      status: Object.freeze({ id: 'slow', duration: 2.6, power: 0.42 }),
+    }),
+    description: 'Freezes the ground in a ring and slows foes outward.',
+    rankText: rank => `Damage ${Math.round((1.2 + rank * 0.16) * 100)}% · Radius ${(4.4 + rank * 0.2).toFixed(1)} · Slow`,
   },
   arcane_blink: {
     id: 'arcane_blink', classId: 'wizard', name: 'Arcane Blink', key: 'R', unlockLevel: 10, maxRank: 5, mp: 28, cooldown: 9.2,
-    castTime: .48, anim: 'skill_skyfall', effect: 'arcane_blink',
+    castTime: .48, anim: 'skill_blink', effect: 'arcane_blink',
+    theme: 'arcane', sfx: 'skill_arcane', recipe: 'blinkBurst',
+    combat: Object.freeze({
+      mult: Object.freeze([1.7, 0.26]),
+      radius: Object.freeze([4.2, 0.2]),
+      leap: 11,
+      telegraph: 0.42,
+      knockback: 6.8,
+      armorPierce: 0.22,
+      criticalBonus: 0.05,
+      invuln: 0.55,
+    }),
     description: 'Teleport forward along facing and detonate a mana shock.',
-    rankText: rank => `Damage ${Math.round(170 + rank * 26)}% · Radius ${4.2 + rank * .2}`,
+    rankText: rank => `Damage ${Math.round((1.7 + rank * 0.26) * 100)}% · Radius ${(4.2 + rank * 0.2).toFixed(1)}`,
   },
   meteor_storm: {
     id: 'meteor_storm', classId: 'wizard', name: 'Meteor Storm', key: 'C', unlockLevel: 16, maxRank: 5, mp: 46, cooldown: 15.5,
-    castTime: .76, anim: 'skill_starburst', effect: 'meteor_storm',
-    description: 'Calls a barrage of meteors onto the field ahead.',
-    rankText: rank => `Damage ${Math.round(220 + rank * 32)}% · Meteors ${6 + rank}`,
+    castTime: .76, anim: 'skill_meteor', effect: 'meteor_storm',
+    theme: 'meteor', sfx: 'skill_fire', recipe: 'meteorDrop',
+    combat: Object.freeze({
+      mult: Object.freeze([0.6, 0.055]),
+      finaleMult: Object.freeze([0.9, 0.1]),
+      hits: Object.freeze([6, 1]),
+      hitRadius: Object.freeze([1.9, 0.07]),
+      telegraph: 0.26,
+      aim: 10,
+      fallHeight: 8.5,
+      finaleRadius: 5.6,
+      knockback: 2.8,
+      finaleKnockback: 6.4,
+      armorPierce: 0.18,
+      finaleArmorPierce: 0.3,
+      pattern: 'fallCone',
+      status: Object.freeze({ id: 'burn', duration: 1.4, dps: 0.08, tick: 0.5, power: 1 }),
+    }),
+    description: 'Calls a barrage of falling meteors onto the field ahead.',
+    rankText: rank => `Damage ${Math.round((0.6 + rank * 0.055) * 100)}% · Meteors ${6 + rank}`,
   },
   // —— Wizard passives ——
   arcane_might: {
