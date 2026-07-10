@@ -6,13 +6,11 @@ A browser-based 3D action RPG focused on **monster hunting → XP/gold → gear 
 
 ## Screenshots
 
-| Gameplay Trailer |
-|---|
-| <video src="screenshots/00.mp4" controls muted loop style="max-width:100%"></video> |
+![Title Screen](screenshots/01.png)
 
-| Title Screen | Combat — Approaching | Combat — Striking |
-|---|---|---|
-| ![Title Screen](screenshots/01.png) | ![Combat 1](screenshots/02.png) | ![Combat 2](screenshots/03.png) |
+![Combat 1](screenshots/02.png)
+
+![Combat 2](screenshots/03.png)
 
 ## Quick Start
 
