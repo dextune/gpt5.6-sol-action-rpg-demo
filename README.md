@@ -1,10 +1,14 @@
 # GPT-5.6: Sol / Action RPG DEMO
 
+**[▶ Play the demo](https://gpt-rpg.dextune.com)** — try it live at [https://gpt-rpg.dextune.com](https://gpt-rpg.dextune.com).
+
 > Crafted via [ChatGPT](https://chatgpt.com) using the **GPT-5.6-SOL** model — an AI-native game built entirely through conversational agent workflows.
 
 A browser-based 3D action RPG — hunt, farm, upgrade, ascend world tiers. Zero CDN, fully local. Built with AI agents; customize everything via agent prompts to fit your taste.
 
 ## Screenshots
+
+![Thumbnail](screenshots/00.png)
 
 ![Title Screen](screenshots/01.png)
 
