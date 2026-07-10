@@ -25,3 +25,6 @@ wrangler.jsonc
 Thumbs.db
 .vscode/
 .idea/
+
+# Large GLB models — exceed Cloudflare 25 MiB limit (6.5 MB each)
+assets/models/hero/*.glb
