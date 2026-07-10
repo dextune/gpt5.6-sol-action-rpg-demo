@@ -19,7 +19,8 @@ Detailed guides are in **`docs/`** — hub: [docs/README.md](./docs/README.md). 
 - **Hit ≠ mesh** — blade length (`WEAPON_*`) and hit `range` are separate. Often both must be aligned.
 - **Frozen objects** — edit `Object.freeze` tables by changing fields / adding entries (keep structure).
 - **Save** — do not change `saveKey`/`saveVersion` casually. On schema add, merge load defaults.
-- **Commit/push** — only when the user asks.
+- **Git finalization** — never automatically commit or push after completing work. Commit or push only when the user explicitly asks.
+- **Documentation language** — every file under `docs/` must be written in English. Keep player-facing UI strings in Korean.
 - **UI language** — keep player-facing strings in a Korean tone.
 - **Debug** — `window.__SOL_ARPG_DEMO__`, F3 HUD. Cheats should be guarded by `?debug=1`.
 
@@ -30,6 +31,7 @@ Detailed guides are in **`docs/`** — hub: [docs/README.md](./docs/README.md). 
 | Numbers only | quick-edit-recipes, config-and-tuning |
 | Add monster/zone/skill | content-data, extension-playbooks |
 | Hit / effects | combat, graphics-vfx |
+| Sound / audio | audio, combat, assets |
 | Character / blade visuals | characters-visual |
 | Performance | config-and-tuning, graphics-vfx, world |
 | Run / save | save-and-run |

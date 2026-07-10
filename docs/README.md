@@ -17,6 +17,7 @@ Guides for small and large agents to safely modify the **GPT-5.6: Sol / Action R
 | [config-and-tuning.md](./config-and-tuning.md) | `GAME_CONFIG` / `PLAYER_CONFIG` / quality presets |
 | [content-data.md](./content-data.md) | zones · monsters · equipment · skills + curve design |
 | [combat.md](./combat.md) | basic attack · skills · damage · hit/visual separation |
+| [audio.md](./audio.md) | Web Audio SFX, sample playback, mixing, and combat timing |
 | [characters-visual.md](./characters-visual.md) | hero/weapon visuals, animation palette |
 | [monster-visual.md](./monster-visual.md) | monster color/form/elite detail, fallback builders |
 | [graphics-vfx.md](./graphics-vfx.md) | render pipeline, effect API |
