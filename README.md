@@ -2,7 +2,7 @@
 
 > Crafted via [ChatGPT](https://chatgpt.com) using the **GPT-5.6-SOL** model — an AI-native game built entirely through conversational agent workflows.
 
-A browser-based 3D action RPG focused on **monster hunting → XP/gold → gear farming → skill upgrades → elite/zone boss challenges → world tier ascension**, with no story progression. Runs locally with zero external CDN dependencies.
+A browser-based 3D action RPG — hunt, farm, upgrade, ascend world tiers. Zero CDN, fully local. Built with AI agents; customize everything via agent prompts to fit your taste.
 
 ## Screenshots
 
@@ -127,4 +127,8 @@ The Python texture tools require Pillow and NumPy.
 
 ## License
 
-For third-party components other than the project's own original game code and generated assets, see `THIRD_PARTY_NOTICES.md` and `THIRD_PARTY_LICENSES/`.
+This project's own game code, assets, and content are free to download, modify, and distribute.
+
+**Three.js** (r160) is used under the **MIT License** — Copyright © 2010–2023 Three.js Authors. Free to use, modify, and distribute.
+
+For details, see `THIRD_PARTY_NOTICES.md` and `THIRD_PARTY_LICENSES/`.
