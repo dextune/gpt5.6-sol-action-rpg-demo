@@ -1,7 +1,8 @@
 # Plan · Multi-Class Heroes + Wizard GLB
 
-**Status:** implemented (V1 visual multi-class + wizard GLB)  
-**Feasibility:** **Yes** — new class looks are supported by the existing bake → manifest → factory pipeline.  
+**Status:** implemented (multi-class architecture + full wizard combat kit + facing-aligned attacks + import-integrity)  
+**Agent guides:** [../agent/README.md](../agent/README.md)  
+**Feasibility:** **Yes** — class registry, per-class skills/handlers, bake pipeline.  
 **Constraint:** Keep Hunt / Defense isolation, shared combat geometry contracts, and local-only assets (`vendor/` untouched).
 
 ---

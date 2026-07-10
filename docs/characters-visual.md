@@ -6,7 +6,7 @@ Playable looks are data-driven via `HERO_CLASSES` in `js/data/content.js`.
 
 | Class id | Model key | Default name | Notes |
 |----------|-----------|--------------|--------|
-| `aerin` | `hero.aerin` | Kai | Default hunter; runtime rogue hood kit |
+| `aerin` | `hero.aerin` | Gareth | Default **knight** — plate armor, open helm, crimson crest (baked) |
 | `wizard` | `hero.wizard` | Lyra | Baked hat + long hair; arcane palette |
 
 **Add a class:**

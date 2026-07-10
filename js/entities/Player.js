@@ -254,7 +254,7 @@ export class Player {
     this.position.addScaledVector(this.velocity, delta);
     this.position.addScaledVector(this.knockback, delta);
     world.resolvePosition(this.position, .48);
-    // Snap yaw hard during attacks so the cut faces the aim point.
+    // Snap yaw hard during attacks so the cut faces body facing / move dir.
     const yawSnap = this.attackAnim > 0 ? 1 - Math.exp(-28 * delta) : 1;
     const targetYaw = Math.atan2(this.facing.x, this.facing.z);
     if (this.attackAnim > 0) {
@@ -306,26 +306,46 @@ export class Player {
     this.mesh.rotation.y = Math.atan2(this.facing.x, this.facing.z);
   }
 
+  /**
+   * Basic-attack chain length grows with level (melee/knight especially).
+   * Magic keeps a stable 4-step orb combo.
+   */
+  get basicComboLength() {
+    const style = getHeroClass(this.classId).attackStyle ?? 'melee';
+    if (style === 'magic') return 4;
+    // Lv1–3: 3 · 4–7: 4 · 8–12: 5 · 13–19: 6 · 20+: 7
+    if (this.level >= 20) return 7;
+    if (this.level >= 13) return 6;
+    if (this.level >= 8) return 5;
+    if (this.level >= 4) return 4;
+    return 3;
+  }
+
   tryAttack(game) {
     if (this.attackCooldown > 0 || this.isDashing || this.castTimer > 0 || !this.alive) return false;
     this.alignCombatFacing();
-    this.comboIndex = this.comboWindow > 0 ? (this.comboIndex + 1) % 4 : 0;
-    const finisher = this.comboIndex === 3;
-    this.comboWindow = finisher ? .48 : .7;
+    const comboLength = this.basicComboLength;
+    this.comboIndex = this.comboWindow > 0 ? (this.comboIndex + 1) % comboLength : 0;
+    const finisher = this.comboIndex === comboLength - 1;
+    this.comboWindow = finisher ? .52 + comboLength * .02 : .72;
     // Snappier chain — finisher hangs a hair longer for weight.
-    this.attackCooldown = ((finisher ? .42 : .26) + this.comboIndex * .018) / this.attackSpeed;
-    this.attackAnimDuration = ((finisher ? .32 : .18) + this.comboIndex * .012) / Math.min(1.7, this.attackSpeed);
+    this.attackCooldown = ((finisher ? .44 : .25) + this.comboIndex * .016) / this.attackSpeed;
+    this.attackAnimDuration = ((finisher ? .34 : .17) + this.comboIndex * .01) / Math.min(1.7, this.attackSpeed);
     this.attackAnim = this.attackAnimDuration;
-    this.attackLunge = finisher ? .1 : .07;
+    this.attackLunge = finisher ? .12 : .07;
     // Mild step-in only — strong lunge made the follow camera jerk with the hero.
-    const lunge = (finisher ? 2.2 : 1.4 + this.comboIndex * .25) * Math.min(1.15, this.attackSpeed);
+    const lunge = (finisher ? 2.4 : 1.35 + this.comboIndex * .22) * Math.min(1.15, this.attackSpeed);
     this.velocity.addScaledVector(this.facing, lunge * .35);
-    const timeScale = Math.min(2.15, this.attackSpeed * (finisher ? 1.05 : 1.35));
-    this.animation.playOneShot(`attack_${this.comboIndex + 1}`, {
+    const timeScale = Math.min(2.15, this.attackSpeed * (finisher ? 1.02 : 1.35));
+    // Only 4 attack clips exist; late combo steps reuse 3/4 with more combat VFX.
+    const animSlot = this.comboIndex < 4
+      ? this.comboIndex + 1
+      : (this.comboIndex % 2 === 0 ? 3 : 4);
+    this.animation.playOneShot(`attack_${animSlot}`, {
       fade: .04, fadeOut: finisher ? .12 : .07, timeScale, fallback: 'idle',
     });
-    game.audio.swing(this.comboIndex);
-    game.combat.playerAttack(this, this.comboIndex);
+    game.audio.swing(Math.min(3, this.comboIndex));
+    game.combat.playerAttack(this, this.comboIndex, comboLength);
     return true;
   }
 

@@ -292,13 +292,15 @@ export class Game {
     if (TMP_MOVE.lengthSq() > 1) TMP_MOVE.normalize();
     this.player.setMoveDirection(TMP_MOVE);
 
-    if (this.input.isMouseDown(0) || this.input.isDown('KeyJ')) this.player.tryAttack(this);
-    if (this.input.consumeMouse(2) || this.input.consume('Space')) this.player.tryDash(this);
+    // Combat is keyboard-only. Mouse is reserved for UI (menus, inventory, buttons).
+    if (this.input.isDown('KeyJ')) this.player.tryAttack(this);
+    if (this.input.consume('Space')) this.player.tryDash(this);
     this.#tryClassSkillKeys();
     if (this.input.consumeAny('Digit1', 'Numpad1')) this.player.usePotion(this);
 
     const cameraDirection = (this.input.isDown('KeyX') ? 1 : 0) - (this.input.isDown('KeyZ') ? 1 : 0);
     this.cameraYaw += cameraDirection * delta * 1.25;
+    // Optional camera orbit with middle mouse — not used for attack/aim.
     if (this.input.isMouseDown(1)) {
       const pointerDelta = this.input.consumePointerDelta();
       this.cameraYaw -= pointerDelta.x * .0055;

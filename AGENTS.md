@@ -2,7 +2,8 @@
 
 Three.js browser action RPG (hunting · farming · skills · world tiers). **No CDN** — Three uses `vendor/` local only.
 
-Detailed guides are in **`docs/`** — hub: [docs/README.md](./docs/README.md). Short edits: [docs/quick-edit-recipes.md](./docs/quick-edit-recipes.md). Large features: [docs/extension-playbooks.md](./docs/extension-playbooks.md).
+Detailed guides are in **`docs/`** — hub: [docs/README.md](./docs/README.md). Short edits: [docs/quick-edit-recipes.md](./docs/quick-edit-recipes.md). Large features: [docs/extension-playbooks.md](./docs/extension-playbooks.md).  
+**Hero classes / multi-class:** [docs/agent/README.md](./docs/agent/README.md) (add class playbook, wizard reference, facing, validation).
 
 ## Essentials
 
@@ -20,8 +21,8 @@ Detailed guides are in **`docs/`** — hub: [docs/README.md](./docs/README.md). 
 - **Frozen objects** — edit `Object.freeze` tables by changing fields / adding entries (keep structure).
 - **Save** — do not change `saveKey`/`saveVersion` casually. On schema add, merge load defaults.
 - **Git finalization** — never automatically commit or push after completing work. Commit or push only when the user explicitly asks.
-- **Documentation language** — every file under `docs/` must be written in English. Keep player-facing UI strings in Korean.
-- **UI language** — keep player-facing strings in a Korean tone.
+- **Documentation language** — every file under `docs/` must be written in English.
+- **UI language** — keep all player-facing UI strings, notifications, and HUD copy in **English**. Do not add Korean (or other non-English) player-facing text.
 - **Debug** — `window.__SOL_ARPG_DEMO__`, F3 HUD. Cheats should be guarded by `?debug=1`.
 
 ## Task → doc
@@ -33,6 +34,9 @@ Detailed guides are in **`docs/`** — hub: [docs/README.md](./docs/README.md). 
 | Hit / effects | combat, graphics-vfx |
 | Sound / audio | audio, combat, assets |
 | Character / blade visuals | characters-visual |
+| **Add hero class / job** | **[agent/README.md](./docs/agent/README.md)**, agent/add-hero-class |
+| Multi-class architecture | agent/multi-class-architecture |
+| Combat facing (move aim) | agent/combat-facing |
 | Performance | config-and-tuning, graphics-vfx, world |
 | Run / save | save-and-run |
 | Full list | [docs/README.md](./docs/README.md) |

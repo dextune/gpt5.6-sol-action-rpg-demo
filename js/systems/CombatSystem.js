@@ -30,10 +30,10 @@ export class CombatSystem {
     };
   }
 
-  playerAttack(player, combo) {
+  playerAttack(player, combo, comboLength = 4) {
     const style = getHeroClass(player.classId).attackStyle ?? 'melee';
-    if (style === 'magic') this.#magicAttack(player, combo);
-    else this.#meleeAttack(player, combo);
+    if (style === 'magic') this.#magicAttack(player, combo, comboLength);
+    else this.#meleeAttack(player, combo, comboLength);
   }
 
   /** Ground aim locked to facing — not mouse — so skills match movement direction. */
@@ -50,58 +50,76 @@ export class CombatSystem {
     return dir.normalize();
   }
 
-  #meleeAttack(player, combo) {
+  #meleeAttack(player, combo, comboLength = 4) {
     const direction = this.#facingDir(player);
-    const finisher = combo === 3;
+    const last = Math.max(0, comboLength - 1);
+    const finisher = combo >= last;
     const color = player.weapon?.rarityColor ?? 0xeef8ff;
-    this.game.effects.dust(player.position, 0xd7dbc4, finisher ? 12 : 6 + combo, finisher ? .4 : .28);
+    // Level + chain depth push dust/trail read for heavier knight swings.
+    const levelBoost = clamp((player.level - 1) * .04, 0, .8);
+    const chain = combo / Math.max(1, last);
+    this.game.effects.dust(player.position, 0xd7dbc4, finisher ? 14 + combo : 6 + combo * 2, finisher ? .42 : .28);
     this.game.effects.trail(
       player.position.clone().add(new THREE.Vector3(0, 1.05, 0)).addScaledVector(direction, .55),
-      color, finisher ? .62 : .36, finisher ? .22 : .12,
+      color, finisher ? .7 : .34 + chain * .2, finisher ? .24 : .12,
     );
 
-    const delay = finisher ? .072 : .022 + combo * .006;
-    this.#delay(delay, () => {
-      if (!player.alive) return;
-      const range = (finisher ? 3.35 : 2.85) + combo * .18;
-      const arc = finisher ? Math.PI * 1.08 : Math.PI * (.62 + combo * .04);
-      const multiplier = [0.9, 1.0, 1.12, 1.55][combo] ?? .9;
-      const hitOrigin = player.position.clone().addScaledVector(direction, .35);
+    // High-level finishers and late chain steps land as multi-pulse hits for impact.
+    const pulses = finisher
+      ? 1 + Math.min(3, Math.floor((comboLength - 3) / 1.5) + Math.floor(player.level / 10))
+      : combo >= 3 ? 1 + Math.min(1, Math.floor(player.level / 12)) : 1;
+    const baseMult = (.88 + combo * .14 + levelBoost * .12) * (finisher ? 1.35 + (comboLength - 3) * .08 : 1);
 
-      this.game.effects.swingArc(hitOrigin, direction, color, range * (finisher ? 1.32 : 1.18), {
-        heavy: finisher || combo >= 2,
-        height: finisher ? 1.25 : 1.05,
-        spin: combo % 2 ? -2.8 : 2.6,
-        angleOffset: combo % 2 ? .55 : -.48,
-      });
-      if (finisher) {
-        this.game.effects.ring(player.position, color, 3.2, { life: .34, startScale: .12, height: .1, opacity: .7 });
-        this.game.effects.ring(player.position, 0xffffff, 2.0, { life: .2, startScale: .2, height: .14, opacity: .85 });
-        this.game.effects.pillar(
-          player.position.clone().addScaledVector(direction, 1.1),
-          color, 4.8, { life: .36, bottom: .7, opacity: .45 },
-        );
-        this.game.effects.burst(
-          player.position.clone().add(new THREE.Vector3(0, 1, 0)).addScaledVector(direction, 1.25),
-          color, 22, { speed: 6.2, size: .34, life: .45, upward: .3 },
-        );
-        this.game.effects.dust(player.position, 0xc9c8b4, 16, .45);
-      }
+    for (let pulse = 0; pulse < pulses; pulse += 1) {
+      const delay = (finisher ? .06 : .02 + combo * .005) + pulse * (finisher ? .07 : .05);
+      this.#delay(delay, () => {
+        if (!player.alive) return;
+        const range = (finisher ? 3.45 : 2.85) + combo * .16 + levelBoost * .25;
+        const arc = finisher ? Math.PI * (1.05 + chain * .12) : Math.PI * (.58 + combo * .05);
+        const hitOrigin = player.position.clone().addScaledVector(direction, .35 + pulse * .08);
+        const pulseDamage = player.attackPower * baseMult * (pulses > 1 ? (.72 + pulse * .12) : 1);
 
-      this.#hitEnemiesInCone(hitOrigin, direction, range, arc, player.attackPower * multiplier, {
-        knockback: finisher ? 6.4 : 2.2 + combo * .55,
-        criticalBonus: finisher ? .12 : combo * .02,
-        combo,
-        finisher,
+        this.game.effects.swingArc(hitOrigin, direction, color, range * (finisher ? 1.35 : 1.15), {
+          heavy: finisher || combo >= 2,
+          height: finisher ? 1.3 : 1.02,
+          spin: (combo + pulse) % 2 ? -3.1 : 2.9,
+          angleOffset: (combo + pulse) % 2 ? .58 : -.5,
+        });
+        if (finisher && pulse === 0) {
+          this.game.effects.ring(player.position, color, 3.4 + comboLength * .12, { life: .36, startScale: .12, height: .1, opacity: .75 });
+          this.game.effects.ring(player.position, 0xffffff, 2.2, { life: .22, startScale: .2, height: .14, opacity: .88 });
+          this.game.effects.pillar(
+            player.position.clone().addScaledVector(direction, 1.15),
+            color, 5.2 + comboLength * .15, { life: .4, bottom: .75, opacity: .5 },
+          );
+          this.game.effects.burst(
+            player.position.clone().add(new THREE.Vector3(0, 1, 0)).addScaledVector(direction, 1.3),
+            color, 24 + comboLength * 2, { speed: 6.5, size: .36, life: .48, upward: .32 },
+          );
+          this.game.effects.dust(player.position, 0xc9c8b4, 18, .48);
+        } else if (combo >= 2 && pulse === 0) {
+          this.game.effects.burst(
+            player.position.clone().add(new THREE.Vector3(0, 1, 0)).addScaledVector(direction, .9),
+            color, 8 + combo * 2, { speed: 3.8, size: .24, life: .32, upward: .2 },
+          );
+        }
+
+        this.#hitEnemiesInCone(hitOrigin, direction, range, arc, pulseDamage, {
+          knockback: finisher ? 6.8 + comboLength * .15 : 2.1 + combo * .5,
+          criticalBonus: finisher ? .12 + levelBoost * .04 : combo * .02,
+          combo,
+          finisher: finisher && pulse === pulses - 1,
+          multiHit: pulses > 1,
+        });
       });
-    });
+    }
   }
 
   /** Staff basic attack — ranged mana bolts (combo builds into a multi-orb finisher). */
-  #magicAttack(player, combo) {
+  #magicAttack(player, combo, comboLength = 4) {
     // Capture facing at cast time so delayed bolts don't inherit a later turn/mouse aim.
     const direction = this.#facingDir(player);
-    const finisher = combo === 3;
+    const finisher = combo >= Math.max(0, comboLength - 1);
     const color = player.weapon?.rarityColor ?? 0xc8b4ff;
     const origin = player.position.clone().add(new THREE.Vector3(0, 1.15, 0)).addScaledVector(direction, .7);
     this.game.effects.trail(origin, color, finisher ? .7 : .4, .16);

@@ -574,23 +574,25 @@ function heroAnimations(skeletonInfo) {
 
 /** Shared hero bake profiles — add a profile + export path for each new class. */
 const HERO_BAKE_PROFILES = Object.freeze({
+  // Masculine plate knight — steel armor, crimson tabard, short crop, open helm.
   aerin: Object.freeze({
-    name: 'Aerin_Hero_Rig',
-    skin: 0xe9a87e,
-    cloth: 0x275f72,
-    leather: 0x59392e,
-    cape: 0x8f3148,
-    hair: 0x25425a,
-    eye: 0x172435,
-    eyeWhite: 0xfff6df,
-    brow: 0x56392f,
-    mouth: 0x8c4f50,
-    trim: 0xd6ad62,
-    belt: 0x3e2a24,
-    buckle: 0xd8b362,
-    outline: 0x14232f,
-    hairStyle: 'aerin',
-    headGear: 'none',
+    name: 'Knight_Hero_Rig',
+    skin: 0xd4a07a,
+    cloth: 0x7a8fa3,
+    leather: 0x2a303c,
+    cape: 0x8b1a28,
+    hair: 0x2a1f18,
+    eye: 0x2a4060,
+    eyeWhite: 0xfff4e8,
+    brow: 0x1a1410,
+    mouth: 0x6a4038,
+    trim: 0xd4b05a,
+    belt: 0x1c1814,
+    buckle: 0xe0c878,
+    outline: 0x0e1218,
+    hairStyle: 'knight',
+    headGear: 'helm',
+    bodyStyle: 'knight',
   }),
   wizard: Object.freeze({
     name: 'Wizard_Hero_Rig',
@@ -609,6 +611,7 @@ const HERO_BAKE_PROFILES = Object.freeze({
     outline: 0x121428,
     hairStyle: 'wizard',
     headGear: 'hat',
+    bodyStyle: 'default',
   }),
 });
 
@@ -623,6 +626,16 @@ function heroHairParts(style) {
       p => sdfEllipsoid(p, V3(.14, .22, .22), V3(.24, .14, .16)),
       p => sdfEllipsoid(p, V3(-.14, .22, .22), V3(.24, .14, .16)),
       p => sdfEllipsoid(p, V3(0, .02, .28), V3(.22, .1, .12)),
+    ];
+  }
+  if (style === 'knight') {
+    // Short military crop — dense, low profile, masculine.
+    return [
+      p => sdfEllipsoid(p, V3(0, .12, -.06), V3(.48, .28, .42)),
+      p => sdfEllipsoid(p, V3(0, .06, -.22), V3(.4, .22, .28)),
+      p => sdfEllipsoid(p, V3(.16, .08, .08), V3(.18, .14, .2)),
+      p => sdfEllipsoid(p, V3(-.16, .08, .08), V3(.18, .14, .2)),
+      p => sdfCapsule(p, V3(0, .02, -.28), V3(0, -.12, -.32), .14, .08),
     ];
   }
   return [
@@ -676,6 +689,113 @@ function attachWizardHat(headBone, profile) {
   return hatRoot;
 }
 
+/** Open-faced great helm + crest for a bold knight silhouette. */
+function attachKnightHelm(headBone, profile) {
+  const root = new THREE.Group();
+  root.name = 'knight_helm';
+  const steel = material('hero_cloth', profile.cloth, .38, .72);
+  const dark = material('hero_leather', profile.leather, .55, .45);
+  const gold = material('hero_trim', profile.trim, .4, .8);
+  const plumeMat = material('hero_cape', profile.cape, .85, 0);
+
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(.44, 20, 16, 0, Math.PI * 2, 0, Math.PI * .62), steel);
+  dome.name = 'knight_helm_dome';
+  dome.position.set(0, .14, -.02);
+  dome.scale.set(1.05, 1.12, 1.08);
+  dome.castShadow = true;
+  root.add(dome);
+
+  const brow = new THREE.Mesh(new RoundedBoxGeometry(.72, .1, .22, 2, .03), dark);
+  brow.position.set(0, .08, .28);
+  root.add(brow);
+
+  // Open face window — dark recess (face still readable underneath).
+  const visor = new THREE.Mesh(new RoundedBoxGeometry(.5, .18, .08, 2, .02), dark);
+  visor.position.set(0, -.02, .36);
+  root.add(visor);
+
+  const cheekL = new THREE.Mesh(new RoundedBoxGeometry(.12, .28, .18, 2, .03), steel);
+  cheekL.position.set(.28, -.08, .22);
+  root.add(cheekL);
+  const cheekR = cheekL.clone();
+  cheekR.position.x = -.28;
+  root.add(cheekR);
+
+  const jaw = new THREE.Mesh(new THREE.CylinderGeometry(.22, .28, .16, 12), steel);
+  jaw.position.set(0, -.22, .12);
+  jaw.rotation.x = .15;
+  root.add(jaw);
+
+  const crest = new THREE.Mesh(new THREE.BoxGeometry(.06, .22, .5), gold);
+  crest.position.set(0, .42, -.06);
+  root.add(crest);
+
+  const plume = new THREE.Mesh(new THREE.ConeGeometry(.12, .7, 8), plumeMat);
+  plume.position.set(0, .78, -.18);
+  plume.rotation.x = .35;
+  plume.castShadow = true;
+  root.add(plume);
+  const plumeTip = new THREE.Mesh(new THREE.SphereGeometry(.08, 10, 8), plumeMat);
+  plumeTip.position.set(0, 1.12, -.32);
+  root.add(plumeTip);
+
+  root.position.set(0, .04, 0);
+  headBone.add(root);
+  return root;
+}
+
+/** Pauldrons, breastplate, greave bands — knight bulk on shared skeleton. */
+function attachKnightArmor(skeletonInfo, profile) {
+  const steel = material('hero_cloth', profile.cloth, .36, .75);
+  const dark = material('hero_leather', profile.leather, .55, .4);
+  const gold = material('hero_trim', profile.trim, .38, .82);
+  const chest = skeletonInfo.bones.get('chest');
+  const pelvis = skeletonInfo.bones.get('pelvis');
+
+  const breast = new THREE.Mesh(new RoundedBoxGeometry(.72, .7, .28, 3, .06), steel);
+  breast.name = 'knight_breastplate';
+  breast.position.set(0, .08, .16);
+  breast.castShadow = true;
+  chest.add(breast);
+
+  const ridge = new THREE.Mesh(new RoundedBoxGeometry(.12, .55, .08, 2, .02), gold);
+  ridge.position.set(0, .1, .32);
+  chest.add(ridge);
+
+  for (const side of [-1, 1]) {
+    const pauldron = new THREE.Mesh(new THREE.SphereGeometry(.28, 14, 12, 0, Math.PI * 2, 0, Math.PI * .72), steel);
+    pauldron.name = side > 0 ? 'knight_pauldron_L' : 'knight_pauldron_R';
+    pauldron.position.set(side * .52, .28, 0);
+    pauldron.scale.set(1.15, .85, 1.05);
+    pauldron.castShadow = true;
+    chest.add(pauldron);
+    const spike = new THREE.Mesh(new THREE.ConeGeometry(.08, .22, 6), dark);
+    spike.position.set(side * .62, .42, 0);
+    spike.rotation.z = side * -.7;
+    chest.add(spike);
+  }
+
+  const gorget = new THREE.Mesh(new THREE.TorusGeometry(.32, .07, 8, 20), steel);
+  gorget.rotation.x = Math.PI / 2;
+  gorget.position.set(0, .32, .04);
+  chest.add(gorget);
+
+  const fauld = new THREE.Mesh(new THREE.CylinderGeometry(.38, .48, .28, 12, 1, true), dark);
+  fauld.position.set(0, -.08, 0);
+  pelvis.add(fauld);
+
+  const tabard = new THREE.Mesh(new RoundedBoxGeometry(.42, .55, .06, 2, .02), material('hero_cape', profile.cape, .88, 0));
+  tabard.position.set(0, -.05, .22);
+  pelvis.add(tabard);
+
+  const crossV = new THREE.Mesh(new THREE.BoxGeometry(.06, .28, .04), gold);
+  crossV.position.set(0, .02, .26);
+  pelvis.add(crossV);
+  const crossH = new THREE.Mesh(new THREE.BoxGeometry(.2, .06, .04), gold);
+  crossH.position.set(0, .02, .26);
+  pelvis.add(crossH);
+}
+
 function createHero(resolution = 52, profileId = 'aerin') {
   const profile = HERO_BAKE_PROFILES[profileId] ?? HERO_BAKE_PROFILES.aerin;
   const group = new THREE.Group();
@@ -690,20 +810,27 @@ function createHero(resolution = 52, profileId = 'aerin') {
   const body = heroBodyGeometry(resolution);
   const { rules, selector } = heroSkinRules(skeletonInfo);
   applySkinWeights(body, skeletonInfo, rules, selector);
+  const isKnight = profile.bodyStyle === 'knight';
   const classify = p => {
     const hands = Math.abs(p.x) > .58 && p.y > .93 && p.y < 1.43;
     const face = p.y > 2.34;
     const boots = p.y < .66;
     const gloves = Math.abs(p.x) > .54 && p.y < 1.58;
     const belt = p.y > 1.18 && p.y < 1.37 && Math.abs(p.x) < .52;
+    // Knight: armor reads on torso/legs; only face + hands stay skin.
+    if (isKnight) {
+      if (face || hands) return 0;
+      if (boots || gloves || belt || p.y < 1.5) return 2;
+      return 1;
+    }
     if (face || hands) return 0;
     if (boots || gloves || belt) return 2;
     return 1;
   };
   const mats = [
     material('hero_skin', profile.skin, .72, 0),
-    material('hero_cloth', profile.cloth, .84, 0),
-    material('hero_leather', profile.leather, .62, 0),
+    material('hero_cloth', profile.cloth, isKnight ? .38 : .84, isKnight ? .72 : 0),
+    material('hero_leather', profile.leather, isKnight ? .48 : .62, isKnight ? .35 : 0),
   ];
   for (let i = 0; i < 3; i += 1) {
     const geometry = subsetGeometry(body, classify, i);
@@ -721,16 +848,16 @@ function createHero(resolution = 52, profileId = 'aerin') {
   const headBone = skeletonInfo.bones.get('head');
   const eyeMat = material('hero_eye', profile.eye, .35, 0, profile.eye, profileId === 'wizard' ? .25 : 0);
   const eyeWhite = material('hero_eye_white', profile.eyeWhite, .45, 0);
-  const eyeGeo = new THREE.CircleGeometry(.105, 24);
+  const eyeGeo = new THREE.CircleGeometry(isKnight ? .09 : .105, 24);
   addSurfaceDetail(group, headBone, 'eye_white_L', eyeGeo, eyeWhite, [.185, .10, .425], [0, 0, 0], [1.12, 1.35, 1]);
   addSurfaceDetail(group, headBone, 'eye_white_R', eyeGeo, eyeWhite, [-.185, .10, .425], [0, 0, 0], [1.12, 1.35, 1]);
   addSurfaceDetail(group, headBone, 'eye_L', eyeGeo, eyeMat, [.185, .10, .437], [0, 0, 0], [.5, .72, 1]);
   addSurfaceDetail(group, headBone, 'eye_R', eyeGeo, eyeMat, [-.185, .10, .437], [0, 0, 0], [.5, .72, 1]);
-  const browGeo = new THREE.BoxGeometry(.18, .025, .018);
-  const browL = addSurfaceDetail(group, headBone, 'brow_L', browGeo, material('hero_brow', profile.brow, .9, 0), [.185, .245, .44], [0, 0, -.12]);
-  const browR = addSurfaceDetail(group, headBone, 'brow_R', browGeo, browL.material, [-.185, .245, .44], [0, 0, .12]);
+  const browGeo = new THREE.BoxGeometry(isKnight ? .16 : .18, isKnight ? .035 : .025, .018);
+  const browL = addSurfaceDetail(group, headBone, 'brow_L', browGeo, material('hero_brow', profile.brow, .9, 0), [.185, .245, .44], [0, 0, isKnight ? -.2 : -.12]);
+  const browR = addSurfaceDetail(group, headBone, 'brow_R', browGeo, browL.material, [-.185, .245, .44], [0, 0, isKnight ? .2 : .12]);
   void browR;
-  const mouthCurve = new THREE.QuadraticBezierCurve3(V3(-.11, -.06, .447), V3(0, -.11, .457), V3(.11, -.06, .447));
+  const mouthCurve = new THREE.QuadraticBezierCurve3(V3(-.11, -.06, .447), V3(0, isKnight ? -.08 : -.11, .457), V3(.11, -.06, .447));
   addSurfaceDetail(group, headBone, 'mouth', new THREE.TubeGeometry(mouthCurve, 12, .012, 5, false), material('hero_mouth', profile.mouth, .72, 0), [0, 0, 0]);
 
   const hairParts = heroHairParts(profile.hairStyle);
@@ -742,13 +869,18 @@ function createHero(resolution = 52, profileId = 'aerin') {
   skeletonInfo.bones.get('hair_root').add(hair);
 
   if (profile.headGear === 'hat') attachWizardHat(headBone, profile);
+  if (profile.headGear === 'helm') attachKnightHelm(headBone, profile);
 
-  const collar = new THREE.Mesh(new THREE.TorusGeometry(.39, .055, 8, 36), material('hero_trim', profile.trim, .42, .72));
-  collar.name = 'hero_collar';
-  collar.rotation.x = Math.PI / 2;
-  collar.scale.z = .72;
-  collar.position.set(0, .27, .015);
-  skeletonInfo.bones.get('chest').add(collar);
+  if (isKnight) {
+    attachKnightArmor(skeletonInfo, profile);
+  } else {
+    const collar = new THREE.Mesh(new THREE.TorusGeometry(.39, .055, 8, 36), material('hero_trim', profile.trim, .42, .72));
+    collar.name = 'hero_collar';
+    collar.rotation.x = Math.PI / 2;
+    collar.scale.z = .72;
+    collar.position.set(0, .27, .015);
+    skeletonInfo.bones.get('chest').add(collar);
+  }
   const belt = new THREE.Mesh(new THREE.TorusGeometry(.43, .055, 8, 40), material('hero_belt', profile.belt, .7, .05));
   belt.name = 'hero_belt';
   belt.rotation.x = Math.PI / 2;
@@ -1353,8 +1485,9 @@ async function exportHeroClass(classId, fileStem) {
 
 async function main() {
   const args = new Set(process.argv.slice(2));
-  const heroesOnly = args.has('--heroes-only') || args.has('--wizard-only');
+  const aerinOnly = args.has('--aerin-only') || args.has('--knight-only');
   const wizardOnly = args.has('--wizard-only');
+  const heroesOnly = args.has('--heroes-only') || wizardOnly || aerinOnly;
   const staffOnly = args.has('--staff-only');
 
   await mkdir(resolve(ASSETS, 'models/hero'), { recursive: true });
@@ -1371,7 +1504,9 @@ async function main() {
     await mkdir(resolve(ASSETS, 'models/environment'), { recursive: true });
   }
 
-  if (wizardOnly) {
+  if (aerinOnly) {
+    await exportHeroClass('aerin', 'aerin');
+  } else if (wizardOnly) {
     await exportHeroClass('wizard', 'wizard');
   } else if (!args.has('--no-heroes')) {
     await exportHeroClass('aerin', 'aerin');

@@ -5,17 +5,21 @@
 | Input | Action (Game) |
 |-------|---------------|
 | WASD / arrows | move (camera-relative) |
-| Left click / J | basic attack |
-| Right click / Space | dash |
-| Q E R C | skills |
+| **J** | basic attack (**keyboard only**) |
+| **Space** | dash (**keyboard only**) |
+| Q E R C | skills (class actives) |
 | 1 | potion |
 | I K Tab Esc | panels |
 | Z X | camera yaw |
-| Middle-button drag | yaw |
+| Middle-button drag | camera yaw (optional) |
 | Wheel | zoom (`cameraMin`–`cameraMax`) |
+| **Mouse left** | **UI only** (menus, inventory, buttons) — not combat |
 | F3 | debug HUD |
 
-Aiming: mouse NDC → `Raycaster` → ground plane → `aimPoint`.
+**Combat is keyboard-only.** Do not bind LMB/RMB to attack or dodge.
+
+Attack direction: movement keys / body facing (`alignCombatFacing`).  
+`aimPoint` may still track the cursor for legacy reticle code but **must not** drive player combat aim.
 
 ## UI `js/ui/UI.js` + `index.html` + `css/game.css`
 

@@ -19,6 +19,7 @@ Guides for small and large agents to safely modify the **GPT-5.6: Sol / Action R
 | [combat.md](./combat.md) | basic attack · skills · damage · hit/visual separation |
 | [audio.md](./audio.md) | Web Audio SFX, sample playback, mixing, and combat timing |
 | [characters-visual.md](./characters-visual.md) | hero/weapon visuals, animation palette |
+| [agent/README.md](./agent/README.md) | **agent pack: multi-class heroes, add-class playbook, wizard reference** |
 | [monster-visual.md](./monster-visual.md) | monster color/form/elite detail, fallback builders |
 | [graphics-vfx.md](./graphics-vfx.md) | render pipeline, effect API |
 | [world.md](./world.md) | terrain, zone detection, vegetation, decoration |

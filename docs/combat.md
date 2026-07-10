@@ -9,19 +9,19 @@
 | `js/entities/Enemy.js` | AI, hit reaction, stagger, knockback |
 | `js/graphics/Effects.js` | Visual effect pool API |
 | `js/core/AudioManager.js` | swing / hit / skill SFX |
-| `js/core/Game.js` | input → `tryAttack`, **shake/hitStop no-op** |
+| `js/core/Game.js` | keyboard input → `tryAttack` (**J only**, no mouse), **shake/hitStop no-op** |
 
 ## Player basic attack flow
 
 ```
-Input (click / J)
+Keyboard J only (not mouse)
   → Player.tryAttack(game)
-      faceToward(aimPoint)
-      comboIndex 0..3
+      alignCombatFacing()   // move keys / body facing — not mouse
+      comboIndex 0..(basicComboLength-1)  // level-scaled for melee
       animation attack_1..4
       audio.swing
-      combat.playerAttack(player, combo)
-  → delayed hit frame
+      combat.playerAttack(player, combo, comboLength)
+  → delayed hit frame(s)
       swingArc VFX
       #hitEnemiesInCone
       #damageEnemy → enemy.takeDamage

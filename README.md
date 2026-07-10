@@ -63,19 +63,18 @@ tests/integrity.mjs     module, content, save, local dependency validation
 | Action | Key |
 |---|---|
 | Move | `WASD` or arrow keys |
-| 4-hit basic attack | Left mouse click or `J` |
-| Invincible dodge | Right mouse click or `Space` |
-| Whirlwind spin slash | `Q` · Lv.3 |
-| Crescent blade wave | `E` · Lv.6 |
-| Skyfall dive | `R` · Lv.10 |
-| Starburst | `C` · Lv.16 |
+| Basic attack (level-scaled combo) | `J` only |
+| Invincible dodge | `Space` only |
+| Class skills | `Q` · `E` · `R` · `C` (unlock by level) |
 | Healing potion | `1` |
 | Equipment / Skills / Hunt log | `I` / `K` / `Tab` |
 | System menu | `Esc` |
 | Camera rotate / zoom | `Z`, `X`, middle-button drag / wheel |
+| UI (menus, inventory, buttons) | Mouse click |
 | Developer stats HUD | `F3` |
 
-Mouse position is the aim point for attacks and skills.
+**Combat is keyboard-only.** Attack direction follows movement keys / body facing — not the mouse.  
+The mouse is for UI only (title buttons, inventory, skills panel, etc.).
 
 ## Graphics quality
 

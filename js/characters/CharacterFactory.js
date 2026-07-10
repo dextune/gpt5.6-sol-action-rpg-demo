@@ -10,24 +10,25 @@ function ensureUv2(geometry) {
 
 /** Per-look runtime palette + head kit. Add a kit when adding a new class. */
 const CLASS_LOOKS = Object.freeze({
+  // Steel knight — plate cloth role, dark iron leather, crimson accents. Helm baked in GLB.
   aerin: Object.freeze({
     palette: Object.freeze({
-      skin: 0xf4cdb4,
-      cloth: 0x4b3a7a,
-      clothDark: 0x2e2350,
-      leather: 0x241a2e,
-      hair: 0x6a4f9c,
-      hairDark: 0x4a376f,
-      metal: 0x9fb2c4,
-      eye: 0x49e0c4,
-      outline: 0x141020,
-      shadowTintCloth: 0x5a2208,
-      shadowTintHair: 0x6a4810,
-      rimHair: 0xffe6a0,
-      rimSkin: 0xffd8b8,
+      skin: 0xd4a07a,
+      cloth: 0x8a9db0,
+      clothDark: 0x3a4658,
+      leather: 0x1e2430,
+      hair: 0x2a1f18,
+      hairDark: 0x1a1410,
+      metal: 0xd4b86a,
+      eye: 0x2a4568,
+      outline: 0x0c1018,
+      shadowTintCloth: 0x1a2438,
+      shadowTintHair: 0x1a1010,
+      rimHair: 0xc8b090,
+      rimSkin: 0xffd0b0,
     }),
-    headKit: 'rogue',
-    scale: .94,
+    headKit: 'none',
+    scale: .96,
   }),
   wizard: Object.freeze({
     palette: Object.freeze({

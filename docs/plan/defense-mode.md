@@ -247,7 +247,7 @@ Balance only via this table after playtest — not by editing Hunt spawn rates.
 
 - Wave chip: `WAVE N`  
 - Optional: remaining enemies  
-- Prep toast: Korean, e.g. wave rising / enemies stronger  
+- Prep toast: English, e.g. wave rising / enemies stronger  
 - Hide or de-emphasize contract panel while `data-mode="defense"`
 
 ### Death / result
@@ -370,5 +370,5 @@ Balance only via this table after playtest — not by editing Hunt spawn rates.
 1. Read this plan + [systems.md](../systems.md) + [save-and-run.md](../save-and-run.md) before coding.  
 2. Land Step 1 with Hunt regression first.  
 3. Keep diffs small; no drive-by Hunt refactors.  
-4. Docs under `docs/` stay English; player strings Korean.  
+4. Docs under `docs/` stay English; all player-facing strings English.  
 5. Do not auto-commit unless the user asks.
