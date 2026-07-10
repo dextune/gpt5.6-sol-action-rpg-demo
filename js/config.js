@@ -23,6 +23,27 @@ export const GAME_CONFIG = Object.freeze({
   respawnPosition: [0, 0, 6],
 });
 
+export const DEFENSE_CONFIG = Object.freeze({
+  prepSeconds: 3,
+  baseCount: 6,
+  countPerTwoWaves: 1,
+  maxCount: 28,
+  hpPerWave: 0.12,
+  dmgPerWave: 0.08,
+  levelBonusPerWave: 0.35,
+  eliteStartWave: 4,
+  eliteChanceBase: 0.05,
+  eliteChancePerWave: 0.012,
+  miniBossEvery: 5,
+  clearXpBase: 40,
+  clearXpPerWave: 18,
+  clearGoldBase: 12,
+  clearGoldPerWave: 6,
+  gearEveryWaves: 3,
+  spawnInner: 10,
+  spawnOuter: 22,
+});
+
 export const PLAYER_CONFIG = Object.freeze({
   baseHp: 140,
   baseMp: 80,

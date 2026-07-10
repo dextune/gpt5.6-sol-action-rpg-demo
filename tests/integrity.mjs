@@ -82,6 +82,10 @@ const externalRefs = [...html.matchAll(/(?:src|href)=[\"'](https?:\/\/[^\"']+)/g
 ok(externalRefs.length === 0, 'no external network dependency');
 ok(allFiles.includes(join(root, 'vendor/three.module.min.js')), 'local Three.js file exists');
 ok(allFiles.includes(join(root, 'THIRD_PARTY_LICENSES/three-LICENSE.txt')), 'Three.js license exists');
+ok(html.includes('id="defense-btn"'), 'title Defense mode button');
+ok(html.includes('id="defense-wave-panel"'), 'defense wave HUD panel');
+ok(Boolean(config.DEFENSE_CONFIG), 'DEFENSE_CONFIG exported');
+ok(allFiles.includes(join(root, 'js/systems/DefenseSystem.js')), 'DefenseSystem module exists');
 
 const manifest = JSON.parse(await readFile(join(root, 'assets/manifests/assets.json'), 'utf8'));
 if (manifest.audio && typeof manifest.audio === 'object') {

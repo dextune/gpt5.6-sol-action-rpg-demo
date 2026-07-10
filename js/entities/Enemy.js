@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { GAME_CONFIG } from '../config.js';
+import { DEFENSE_CONFIG, GAME_CONFIG } from '../config.js';
 import { clamp, rand, uid } from '../core/Utils.js';
 import { setMaterialHitPulse } from '../graphics/StylizedMaterial.js';
 
@@ -32,9 +32,15 @@ export class Enemy {
     const eliteHp = this.elite ? 2.45 : 1;
     const eliteDamage = this.elite ? 1.32 : 1;
     const eliteDefense = this.elite ? 1.28 : 1;
-    this.maxHp = Math.round(data.hp * levelScale * tierScale * eliteHp);
+    // Wave mult only when Defense (or other callers) pass a positive options.wave.
+    // Hunt spawns omit wave → multipliers stay 1 (byte-for-byte with prior Hunt math).
+    const wave = Math.max(0, Number(options.wave) || 0);
+    const waveHp = wave > 0 ? 1 + (wave - 1) * DEFENSE_CONFIG.hpPerWave : 1;
+    const waveDmg = wave > 0 ? 1 + (wave - 1) * DEFENSE_CONFIG.dmgPerWave : 1;
+    this.defenseWave = wave > 0 || Boolean(options.defenseWave);
+    this.maxHp = Math.round(data.hp * levelScale * tierScale * eliteHp * waveHp);
     this.hp = this.maxHp;
-    this.damage = data.damage * (1 + extraLevels * .055) * Math.sqrt(tierScale) * eliteDamage;
+    this.damage = data.damage * (1 + extraLevels * .055) * Math.sqrt(tierScale) * eliteDamage * waveDmg;
     this.defense = data.defense * (1 + extraLevels * .045) * eliteDefense;
     this.speed = data.speed * (this.elite ? 1.08 : 1);
     this.attackRange = data.range;
@@ -90,8 +96,10 @@ export class Enemy {
     const toPlayer = TMP_A.copy(player.position).sub(this.position);
     toPlayer.y = 0;
     const distance = toPlayer.length();
-    const playerSafe = Math.hypot(player.position.x, player.position.z) < GAME_CONFIG.campRadius;
-    const engaged = player.alive && !playerSafe && (distance < this.aggroRadius || this.boss || this.hitTimer > 0);
+    // Hunt hub is a safe zone; Defense arena is not — waves must always engage.
+    const playerSafe = game.mode !== 'defense'
+      && Math.hypot(player.position.x, player.position.z) < GAME_CONFIG.campRadius;
+    const engaged = player.alive && !playerSafe && (distance < this.aggroRadius || this.boss || this.hitTimer > 0 || this.defenseWave);
 
     if (engaged) {
       this.#combatAI(delta, game, toPlayer, distance);

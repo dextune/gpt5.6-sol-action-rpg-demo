@@ -42,9 +42,10 @@ export class UI {
     this.lastZoneId = null;
     this.elements = {};
     for (const id of [
-      'loading-screen', 'loading-text', 'loading-bar', 'title-screen', 'new-game-btn', 'continue-btn', 'continue-meta',
+      'loading-screen', 'loading-text', 'loading-bar', 'title-screen', 'new-game-btn', 'defense-btn', 'continue-btn', 'continue-meta',
       'hud', 'player-name', 'portrait-level', 'hunter-title', 'hp-fill', 'hp-text', 'mp-fill', 'mp-text', 'xp-fill', 'xp-text',
-      'world-tier', 'zone-name', 'zone-subtitle', 'kill-count', 'streak-count', 'elite-count', 'boss-count',
+      'world-tier', 'zone-name', 'zone-subtitle', 'defense-wave-panel', 'defense-wave-label', 'defense-wave-remaining',
+      'kill-count', 'streak-count', 'elite-count', 'boss-count',
       'boss-charge-text', 'boss-charge-fill', 'contract-title', 'contract-fill', 'contract-progress',
       'boss-hud', 'boss-name', 'boss-level', 'boss-health-fill', 'gold-count', 'essence-count', 'bag-count', 'potion-count',
       'minimap', 'minimap-zone', 'notifications', 'float-layer', 'aim-reticle', 'zone-toast',
@@ -61,6 +62,10 @@ export class UI {
     this.elements['new-game-btn'].addEventListener('click', async () => {
       await this.game.audio.unlock();
       this.game.newGame();
+    });
+    this.elements['defense-btn']?.addEventListener('click', async () => {
+      await this.game.audio.unlock();
+      if (typeof this.game.startDefense === 'function') this.game.startDefense();
     });
     this.elements['continue-btn'].addEventListener('click', async () => {
       if (this.elements['continue-btn'].disabled) return;
@@ -87,11 +92,13 @@ export class UI {
   }
 
   showTitle() {
+    document.body.dataset.mode = 'title';
     this.elements['loading-screen'].classList.remove('active');
     this.elements['title-screen'].classList.add('active');
     this.elements.hud.classList.add('hidden');
     this.elements['panel-layer'].classList.add('hidden');
     this.elements['death-screen'].classList.add('hidden');
+    this.elements['defense-wave-panel']?.classList.add('hidden');
     const save = this.game.save.load();
     this.elements['continue-btn'].disabled = !save;
     this.elements['continue-meta'].textContent = save
@@ -100,9 +107,12 @@ export class UI {
   }
 
   showHUD() {
+    const mode = this.game.mode === 'defense' ? 'defense' : 'hunt';
+    document.body.dataset.mode = mode;
     this.elements['title-screen'].classList.remove('active');
     this.elements.hud.classList.remove('hidden');
     this.elements['death-screen'].classList.add('hidden');
+    this.elements['defense-wave-panel']?.classList.toggle('hidden', mode !== 'defense');
     this.lastZoneId = null;
     this.update(1);
   }
@@ -130,36 +140,55 @@ export class UI {
     const player = this.game.player;
     const hunt = this.game.hunt;
     const zone = this.game.world.currentZone;
+    const isDefense = this.game.mode === 'defense';
+    const defenseHud = this.game.defense?.hud;
     this.elements['player-name'].textContent = player.name;
     this.elements['portrait-level'].textContent = player.level;
-    this.elements['hunter-title'].textContent = hunt.hunterTitle;
+    this.elements['hunter-title'].textContent = isDefense ? '웨이브 생존' : hunt.hunterTitle;
     this.elements['hp-fill'].style.width = `${player.healthRatio * 100}%`;
     this.elements['hp-text'].textContent = `${Math.ceil(player.hp)} / ${player.maxHp}`;
     this.elements['mp-fill'].style.width = `${player.manaRatio * 100}%`;
     this.elements['mp-text'].textContent = `${Math.floor(player.mp)} / ${player.maxMp}`;
     this.elements['xp-fill'].style.width = `${clamp(player.xp / player.xpNeeded, 0, 1) * 100}%`;
     this.elements['xp-text'].textContent = `${Math.floor(player.xp)} / ${player.xpNeeded}`;
-    this.elements['world-tier'].textContent = `WORLD TIER ${hunt.worldTier}`;
+    if (isDefense) {
+      const wave = defenseHud?.wave ?? 1;
+      const remaining = defenseHud?.remaining ?? 0;
+      this.elements['world-tier'].textContent = `WAVE ${wave}`;
+      if (this.elements['defense-wave-label']) this.elements['defense-wave-label'].textContent = `WAVE ${wave}`;
+      if (this.elements['defense-wave-remaining']) {
+        this.elements['defense-wave-remaining'].textContent = `${remaining} left`;
+      }
+      this.elements['contract-title'].textContent = '웨이브 생존';
+      this.elements['contract-progress'].textContent = `${remaining} remaining`;
+      this.elements['contract-fill'].style.width = '0%';
+      const defenseKills = defenseHud?.kills ?? defenseHud?.totalKills;
+      this.elements['kill-count'].textContent = (defenseKills ?? hunt.totalKills ?? 0).toLocaleString('en-US');
+      this.elements['streak-count'].textContent = defenseHud?.streak ?? 0;
+      this.elements['elite-count'].textContent = defenseHud?.elitesKilled ?? 0;
+      this.elements['boss-count'].textContent = defenseHud?.bossesKilled ?? 0;
+    } else {
+      this.elements['world-tier'].textContent = `WORLD TIER ${hunt.worldTier}`;
+      this.elements['kill-count'].textContent = hunt.totalKills.toLocaleString('en-US');
+      this.elements['streak-count'].textContent = hunt.streak;
+      this.elements['elite-count'].textContent = hunt.elitesKilled;
+      this.elements['boss-count'].textContent = hunt.bossesKilled;
+      const contract = hunt.contract;
+      if (contract) {
+        this.elements['contract-title'].textContent = contract.label;
+        this.elements['contract-progress'].textContent = `${Math.floor(contract.progress)} / ${contract.target}`;
+        this.elements['contract-fill'].style.width = `${clamp(contract.progress / contract.target, 0, 1) * 100}%`;
+      }
+    }
     this.elements['zone-name'].textContent = zone.name;
-    this.elements['zone-subtitle'].textContent = zone.subtitle;
+    this.elements['zone-subtitle'].textContent = isDefense ? '방어 전장' : zone.subtitle;
     this.elements['minimap-zone'].textContent = zone.name;
-    this.elements['kill-count'].textContent = hunt.totalKills.toLocaleString('en-US');
-    this.elements['streak-count'].textContent = hunt.streak;
-    this.elements['elite-count'].textContent = hunt.elitesKilled;
-    this.elements['boss-count'].textContent = hunt.bossesKilled;
     this.elements['boss-charge-text'].textContent = `${Math.floor(hunt.bossCharge)}%`;
     this.elements['boss-charge-fill'].style.width = `${hunt.bossCharge}%`;
     this.elements['gold-count'].textContent = player.gold.toLocaleString('en-US');
     this.elements['essence-count'].textContent = player.essence.toLocaleString('en-US');
     this.elements['bag-count'].textContent = `${player.inventory.length} / ${PLAYER_CONFIG.inventoryLimit}`;
     this.elements['potion-count'].textContent = player.potions;
-
-    const contract = hunt.contract;
-    if (contract) {
-      this.elements['contract-title'].textContent = contract.label;
-      this.elements['contract-progress'].textContent = `${Math.floor(contract.progress)} / ${contract.target}`;
-      this.elements['contract-fill'].style.width = `${clamp(contract.progress / contract.target, 0, 1) * 100}%`;
-    }
 
     this.#updateAbility('dash', player.cooldownRatio('dash'), player.dashCooldown);
     this.#updateAbility('potion', player.cooldownRatio('potion'), player.potionCooldown);
@@ -535,6 +564,21 @@ export class UI {
   showDeath() {
     this.elements['death-screen'].classList.remove('hidden');
     this.elements['death-timer-fill'].style.width = '100%';
+    const root = this.elements['death-screen']?.querySelector('div');
+    if (!root) return;
+    const title = root.querySelector('h2');
+    const copy = root.querySelector('p');
+    const eyebrow = root.querySelector('span');
+    if (this.game.mode === 'defense') {
+      const wave = this.game.defense?.hud?.wave ?? this.game.defense?.wave ?? 1;
+      if (eyebrow) eyebrow.textContent = 'DEFENSE FAILED';
+      if (title) title.textContent = `웨이브 ${wave}에서 쓰러졌습니다`;
+      if (copy) copy.textContent = '방어 런이 종료됩니다. 타이틀로 돌아갑니다.';
+    } else {
+      if (eyebrow) eyebrow.textContent = 'HUNTER DOWN';
+      if (title) title.textContent = 'The hunt is not over';
+      if (copy) copy.textContent = "Regroup at the camp's guardian stone.";
+    }
   }
 
   setDeathProgress(ratio) {

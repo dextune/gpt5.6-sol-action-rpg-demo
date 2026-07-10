@@ -50,6 +50,7 @@
         </div>
         <div class="title-actions">
           <button id="new-game-btn" class="primary-button"><span>New Hunt</span><kbd>ENTER</kbd></button>
+          <button id="defense-btn" class="secondary-button" type="button"><span>Defense</span><small>Wave survival</small></button>
           <button id="continue-btn" class="secondary-button"><span>Continue</span><small id="continue-meta">No save data</small></button>
         </div>
         <details class="controls-card">
@@ -75,6 +76,12 @@
         <span id="world-tier">WORLD TIER 1</span>
         <strong id="zone-name">Emerald Meadow</strong>
         <small id="zone-subtitle">Hunting Grounds Where the Wind Stays</small>
+      </div>
+
+      <div id="defense-wave-panel" class="defense-wave-panel hidden" aria-live="polite">
+        <small>DEFENSE</small>
+        <strong id="defense-wave-label">WAVE 1</strong>
+        <span id="defense-wave-remaining">0 left</span>
       </div>
 
       <aside class="hunt-card glass-panel">

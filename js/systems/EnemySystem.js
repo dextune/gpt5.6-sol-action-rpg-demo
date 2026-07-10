@@ -29,12 +29,18 @@ export class EnemySystem {
     this.spawnTimer -= delta;
     this.separationTimer -= delta;
 
+    const defenseMode = this.game.mode === 'defense';
+
     for (let i = this.enemies.length - 1; i >= 0; i -= 1) {
       const enemy = this.enemies[i];
       enemy.update(delta, this.game);
       const distance = enemy.position.distanceTo(this.game.player.position);
       const stale = this.game.elapsed - enemy.lastHitAt > 8;
-      if (!enemy.boss && enemy.alive && distance > GAME_CONFIG.despawnRadius && stale) enemy.forceRemove();
+      // Never stale-despawn wave-tagged enemies (or anything in Defense) — soft-lock guard.
+      const skipDespawn = defenseMode || enemy.defenseWave;
+      if (!enemy.boss && enemy.alive && distance > GAME_CONFIG.despawnRadius && stale && !skipDespawn) {
+        enemy.forceRemove();
+      }
       if (enemy.removable) this.enemies.splice(i, 1);
     }
 
@@ -43,7 +49,8 @@ export class EnemySystem {
       this.#separateCrowds();
     }
 
-    if (this.spawnTimer <= 0 && this.game.state === 'playing' && this.game.player.alive) {
+    // Continuous field spawn is Hunt-only. Defense uses DefenseSystem.spawnWave.
+    if (!defenseMode && this.spawnTimer <= 0 && this.game.state === 'playing' && this.game.player.alive) {
       this.spawnTimer = this.livingCount < 10 ? .07 : .26;
       const target = clamp(GAME_CONFIG.targetEnemies + Math.floor(this.game.player.level / 8), 32, GAME_CONFIG.maxEnemies);
       if (this.livingCount < target) this.#spawnOne();

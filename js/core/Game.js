@@ -18,6 +18,7 @@ import { CombatSystem } from '../systems/CombatSystem.js';
 import { EnemySystem } from '../systems/EnemySystem.js';
 import { LootSystem } from '../systems/LootSystem.js';
 import { HuntSystem } from '../systems/HuntSystem.js';
+import { DefenseSystem } from '../systems/DefenseSystem.js';
 import { UI } from '../ui/UI.js';
 
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
@@ -54,6 +55,9 @@ export class Game {
     this.ui = new UI(this);
 
     this.state = 'loading';
+    /** @type {'hunt' | 'defense'} */
+    this.mode = 'hunt';
+    this.defenseMeta = { bestWave: 0, runs: 0, lastWave: 0 };
     this.elapsed = 0;
     this.playTime = 0;
     this.delta = 0;
@@ -120,16 +124,19 @@ export class Game {
     await new Promise(resolve => requestAnimationFrame(resolve));
     this.player = new Player(this.scene, this.characterFactory, this.quality);
     this.hunt = new HuntSystem(this);
+    this.defense = new DefenseSystem(this);
     this.combat = new CombatSystem(this);
     this.loot = new LootSystem(this);
     this.enemies = new EnemySystem(this, this.monsterFactory, this.quality);
     this.world.resolvePosition(this.player.position, .48);
     this.#snapCamera();
+    this.#loadDefenseMeta();
 
     this.renderer.compile(this.scene, this.camera);
     this.ui.setLoading(1, 'High-quality hunting ground ready');
     await new Promise(resolve => setTimeout(resolve, 180));
     this.state = 'title';
+    this.mode = 'hunt';
     this.ui.showTitle();
     this.ui.setDebugVisible(this.debugVisible);
     this.startLoop();
@@ -219,7 +226,8 @@ export class Game {
     this.#updateDeferred(delta);
 
     this.player.update(delta, this);
-    this.hunt.update(delta);
+    if (this.mode === 'defense') this.defense.update(delta);
+    else this.hunt.update(delta);
     this.enemies.update(delta);
     this.combat.update(delta);
     this.loot.update(delta);
@@ -227,11 +235,14 @@ export class Game {
     this.world.update(delta, this);
 
     if (!this.player.alive) this.handlePlayerDeath();
-    this.autoSaveTimer -= delta;
-    if (this.autoSaveTimer <= 0 || this.saveRequested) {
-      this.saveGame(false);
-      this.autoSaveTimer = GAME_CONFIG.autoSaveSeconds;
-      this.saveRequested = false;
+    // Hunt only: never autosave Defense run into Hunt continue blob.
+    if (this.mode === 'hunt') {
+      this.autoSaveTimer -= delta;
+      if (this.autoSaveTimer <= 0 || this.saveRequested) {
+        this.saveGame(false);
+        this.autoSaveTimer = GAME_CONFIG.autoSaveSeconds;
+        this.saveRequested = false;
+      }
     }
   }
 
@@ -250,7 +261,10 @@ export class Game {
     this.enemies.update(delta * .35);
     this.combat.update(delta);
     this.loot.update(delta);
-    if (this.deathTimer <= 0) this.#respawn();
+    if (this.deathTimer <= 0) {
+      if (this.mode === 'defense') this.#endDefenseRun();
+      else this.#respawn();
+    }
   }
 
   #handleMenus() {
@@ -374,6 +388,8 @@ export class Game {
 
   newGame() {
     this.#clearRun();
+    this.mode = 'hunt';
+    this.defense.reset();
     this.player.reset();
     this.hunt.reset();
     this.playTime = 0;
@@ -389,15 +405,43 @@ export class Game {
     this.requestSave();
   }
 
+  /** Endless wave arena — separate entry from Hunt; does not write Hunt continue saves mid-run. */
+  startDefense() {
+    this.#clearRun();
+    this.mode = 'defense';
+    this.defense.reset();
+    this.player.reset();
+    this.hunt.reset();
+    this.playTime = 0;
+    this.autoSaveTimer = GAME_CONFIG.autoSaveSeconds;
+    this.cameraYaw = .55;
+    this.cameraDistance = GAME_CONFIG.cameraDistance;
+    this.player.position.set(...GAME_CONFIG.respawnPosition);
+    this.world.resolvePosition(this.player.position, .48);
+    this.state = 'playing';
+    this.ui.showHUD();
+    this.#snapCamera();
+    this.defense.start();
+    const best = this.defenseMeta?.bestWave ?? 0;
+    this.ui.notify(
+      best > 0 ? `디펜스 모드 · 최고 웨이브 ${best}` : '디펜스 모드 · 웨이브 생존',
+      'contract',
+      4.2,
+    );
+  }
+
   continueGame() {
     const data = this.save.load();
-    if (!data) {
+    if (!data?.player) {
       this.newGame();
       return;
     }
     this.#clearRun();
+    this.mode = 'hunt';
+    this.defense.reset();
     this.player.load(data.player, this.world);
     this.hunt.load(data.hunt);
+    if (data.defenseMeta) this.#mergeDefenseMeta(data.defenseMeta, false);
     this.playTime = Math.max(0, Number(data.playTime) || 0);
     this.cameraYaw = Number(data.cameraYaw) || .55;
     this.cameraDistance = clamp(Number(data.cameraDistance) || GAME_CONFIG.cameraDistance, GAME_CONFIG.cameraMinDistance, GAME_CONFIG.cameraMaxDistance);
@@ -427,8 +471,19 @@ export class Game {
   }
 
   returnToTitle() {
-    if (this.state !== 'title') this.saveGame(false);
+    if (this.state !== 'title') {
+      if (this.mode === 'defense') {
+        // Abandon mid-run from pause menu; death path already persisted in #endDefenseRun.
+        if (this.defense?.phase !== 'failed' && this.defense?.phase !== 'idle') {
+          this.#persistDefenseMeta(true);
+        }
+      } else {
+        this.saveGame(false);
+      }
+    }
     this.#clearRun();
+    this.mode = 'hunt';
+    this.defense.reset();
     this.player.reset();
     this.world.resolvePosition(this.player.position, .48);
     this.state = 'title';
@@ -438,11 +493,27 @@ export class Game {
   handlePlayerDeath() {
     if (this.state === 'dead') return;
     this.state = 'dead';
-    this.deathTimer = this.deathDuration;
+    this.deathTimer = this.mode === 'defense' ? 2.8 : this.deathDuration;
     this.player.setMoveDirection(TMP_MOVE.set(0, 0, 0));
+    if (this.mode === 'defense') this.defense.fail();
+    else this.saveGame(false);
     this.ui.showDeath();
     this.combat.clear();
-    this.saveGame(false);
+  }
+
+  #endDefenseRun() {
+    this.#persistDefenseMeta(true);
+    const wave = Math.max(1, this.defense?.bestWaveThisRun || this.defense?.wave || 1);
+    const best = this.defenseMeta?.bestWave ?? wave;
+    this.ui.notify(`디펜스 종료 · 도달 웨이브 ${wave} · 최고 ${best}`, 'danger', 4.5);
+    this.#clearRun();
+    this.mode = 'hunt';
+    this.defense.reset();
+    this.player.reset();
+    this.world.resolvePosition(this.player.position, .48);
+    this.state = 'title';
+    this.ui.hideDeath();
+    this.ui.showTitle();
   }
 
   #respawn() {
@@ -468,7 +539,8 @@ export class Game {
     const [minGold, maxGold] = enemy.goldRange;
     const goldRaw = randInt(minGold, maxGold) * (enemy.elite ? 2.2 : 1) * (enemy.boss ? 5 : 1);
     const gold = this.player.addGold(goldRaw);
-    this.hunt.onKill(enemy);
+    if (this.mode === 'defense') this.defense.onKill(enemy);
+    else this.hunt.onKill(enemy);
     this.loot.dropFromEnemy(enemy);
 
     const position = enemy.position.clone().add(new THREE.Vector3(0, Math.max(.7, enemy.refs.modelHeight * .45), 0));
@@ -482,7 +554,6 @@ export class Game {
       this.effects.pillar(enemy.position, enemy.data.accent, 14, { life: 1.55, bottom: 2.2 });
       this.effects.ring(enemy.position, enemy.data.accent, 10, { life: 1.4, startScale: .06 });
       this.ui.notify(`Boss defeated · ${enemy.data.name}`, 'boss', 5);
-
     }
 
     for (const level of xpResult.levelUps) {
@@ -494,14 +565,17 @@ export class Game {
         if (!skill.passive && skill.unlockLevel === level) this.ui.notify(`New skill unlocked · ${skill.name} [${skill.key}]`, 'level', 4.2);
       }
     }
-    this.requestSave();
+    if (this.mode === 'hunt') this.requestSave();
   }
 
   requestSave() {
+    if (this.mode === 'defense') return;
     this.saveRequested = true;
   }
 
   saveGame(showFailure = false) {
+    // Never serialize a Defense run as Hunt continue progress.
+    if (this.mode === 'defense') return false;
     if (!this.player || !this.hunt || this.state === 'title' || this.state === 'loading') return false;
     const success = this.save.save({
       player: this.player.serialize(),
@@ -509,9 +583,53 @@ export class Game {
       playTime: this.playTime,
       cameraYaw: this.cameraYaw,
       cameraDistance: this.cameraDistance,
+      defenseMeta: this.defenseMeta,
     });
     if (!success && showFailure) this.ui.notify('Could not access browser storage.', 'danger');
     return success;
+  }
+
+  #loadDefenseMeta() {
+    const data = this.save.load();
+    if (data?.defenseMeta) this.#mergeDefenseMeta(data.defenseMeta, false);
+  }
+
+  #mergeDefenseMeta(meta = {}, incrementRuns = false) {
+    const bestWave = Math.max(0, Number(this.defenseMeta.bestWave) || 0, Number(meta.bestWave) || 0);
+    const lastWave = Math.max(0, Number(meta.lastWave) || 0, Number(this.defenseMeta.lastWave) || 0);
+    const runs = Math.max(0, Number(this.defenseMeta.runs) || 0, Number(meta.runs) || 0)
+      + (incrementRuns ? 0 : 0);
+    this.defenseMeta = {
+      bestWave,
+      lastWave,
+      runs: incrementRuns ? runs + 1 : runs,
+    };
+  }
+
+  /** Update best-wave meta without writing Defense player into Hunt blob. */
+  #persistDefenseMeta(incrementRuns = false) {
+    const run = this.defense?.serializeMeta?.() ?? { bestWave: 0, lastWave: 0 };
+    const next = {
+      bestWave: Math.max(
+        Number(this.defenseMeta.bestWave) || 0,
+        Number(run.bestWave) || 0,
+        Number(run.lastWave) || 0,
+      ),
+      lastWave: Math.max(Number(run.lastWave) || 0, Number(run.bestWave) || 0),
+      runs: (Number(this.defenseMeta.runs) || 0) + (incrementRuns ? 1 : 0),
+    };
+    this.defenseMeta = next;
+
+    const existing = this.save.load();
+    if (!existing?.player) return false;
+    return this.save.save({
+      player: existing.player,
+      hunt: existing.hunt,
+      playTime: existing.playTime,
+      cameraYaw: existing.cameraYaw,
+      cameraDistance: existing.cameraDistance,
+      defenseMeta: next,
+    });
   }
 
   shake(_amount = .2, _duration = .2) {

@@ -28,6 +28,7 @@ Guides for small and large agents to safely modify the **GPT-5.6: Sol / Action R
 | [save-and-run.md](./save-and-run.md) | run, save, validate |
 | [quick-edit-recipes.md](./quick-edit-recipes.md) | short request → file mapping |
 | [extension-playbooks.md](./extension-playbooks.md) | **applied: zone/skill/theme/performance E2E** |
+| [plan/defense-mode.md](./plan/defense-mode.md) | **plan: Defense mode (waves) — must not regress Hunt** |
 
 ## Agent working rules (summary)
 
