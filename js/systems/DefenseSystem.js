@@ -145,14 +145,14 @@ export class DefenseSystem {
           this.game.audio?.boss?.();
           this.game.effects?.pillar?.(position, bossData.accent, 10, { life: 1.1, bottom: 1.6 });
           this.game.effects?.ring?.(position, bossData.accent, 6, { life: .9, startScale: .06 });
-          this.game.ui?.notify?.(`웨이브 ${wave} 보스 · ${bossData.name}`, 'boss', 3.6);
+          this.game.ui?.notify?.(`Wave ${wave} boss · ${bossData.name}`, 'boss', 3.6);
         }
       }
     }
 
     this.lastSpawned = spawned;
     if (spawned > 0) {
-      this.game.ui?.notify?.(`웨이브 ${wave} · 적 ${spawned}체 출현`, 'contract', 2.8);
+      this.game.ui?.notify?.(`Wave ${wave} · ${spawned} enemies appear`, 'contract', 2.8);
     }
     return spawned;
   }
@@ -180,7 +180,7 @@ export class DefenseSystem {
     this.phase = 'prep';
     this.prepTimer = DEFENSE_CONFIG.prepSeconds;
     this.clearTimer = 0;
-    this.game.ui?.notify?.(`웨이브 ${this.wave} 준비…`, 'contract', 2.2);
+    this.game.ui?.notify?.(`Wave ${this.wave} prep…`, 'contract', 2.2);
   }
 
   #onWaveClear() {
@@ -200,9 +200,9 @@ export class DefenseSystem {
     }
 
     const leveled = Array.isArray(xpResult?.levelUps) && xpResult.levelUps.length > 0;
-    const levelNote = leveled ? ` · 레벨업!` : '';
+    const levelNote = leveled ? ` · Level up!` : '';
     this.game.ui?.notify?.(
-      `웨이브 ${cleared} 클리어 · XP +${xpResult?.amount ?? xp} · ${goldGained}G${levelNote}`,
+      `Wave ${cleared} clear · XP +${xpResult?.amount ?? xp} · ${goldGained}G${levelNote}`,
       'level',
       3.4,
     );
@@ -225,8 +225,8 @@ export class DefenseSystem {
     const result = player.addGear?.(gear);
 
     if (result?.added) {
-      const equipNote = result.equipped ? ' 장착' : ' 획득';
-      this.game.ui?.notify?.(`방어 보상 · ${gear.name}${equipNote}`, 'contract', 3.6);
+      const equipNote = result.equipped ? ' equipped' : ' acquired';
+      this.game.ui?.notify?.(`Defense reward · ${gear.name}${equipNote}`, 'contract', 3.6);
       if (gear.rarity === 'legendary') this.game.audio?.legendary?.();
       return;
     }
@@ -237,7 +237,7 @@ export class DefenseSystem {
     dropPos.x += Math.cos(angle) * 1.8;
     dropPos.z += Math.sin(angle) * 1.8;
     loot.spawnGear?.(gear, dropPos);
-    this.game.ui?.notify?.(`방어 보상 · ${gear.name} 드롭`, 'contract', 3.6);
+    this.game.ui?.notify?.(`Defense reward · ${gear.name} dropped`, 'contract', 3.6);
   }
 
   #zoneForWave(wave) {

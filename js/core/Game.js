@@ -424,7 +424,7 @@ export class Game {
     this.defense.start();
     const best = this.defenseMeta?.bestWave ?? 0;
     this.ui.notify(
-      best > 0 ? `디펜스 모드 · 최고 웨이브 ${best}` : '디펜스 모드 · 웨이브 생존',
+      best > 0 ? `Defense mode · Best wave ${best}` : 'Defense mode · Wave survival',
       'contract',
       4.2,
     );
@@ -505,7 +505,7 @@ export class Game {
     this.#persistDefenseMeta(true);
     const wave = Math.max(1, this.defense?.bestWaveThisRun || this.defense?.wave || 1);
     const best = this.defenseMeta?.bestWave ?? wave;
-    this.ui.notify(`디펜스 종료 · 도달 웨이브 ${wave} · 최고 ${best}`, 'danger', 4.5);
+    this.ui.notify(`Defense ended · Wave ${wave} · Best ${best}`, 'danger', 4.5);
     this.#clearRun();
     this.mode = 'hunt';
     this.defense.reset();

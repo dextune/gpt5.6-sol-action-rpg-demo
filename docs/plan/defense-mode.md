@@ -17,7 +17,7 @@ Non-goal: rewrite Hunt, shared progression bleed, mid-run Hunt save corruption.
 | Death | Hub revive + gold penalty | **Run ends** → summary → title (or retry Defense) |
 | Save | Full autosave (`player` + `hunt`) | **Meta only** (best wave); no Hunt blob overwrite |
 
-Player-facing UI tone: Korean notifications; button may stay `Defense` with a short subtitle (matches existing title mix).
+Player-facing UI tone: English notifications and HUD copy; button stays `Defense` with a short subtitle.
 
 ---
 

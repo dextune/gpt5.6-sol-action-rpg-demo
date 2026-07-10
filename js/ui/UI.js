@@ -144,7 +144,7 @@ export class UI {
     const defenseHud = this.game.defense?.hud;
     this.elements['player-name'].textContent = player.name;
     this.elements['portrait-level'].textContent = player.level;
-    this.elements['hunter-title'].textContent = isDefense ? '웨이브 생존' : hunt.hunterTitle;
+    this.elements['hunter-title'].textContent = isDefense ? 'Wave Survival' : hunt.hunterTitle;
     this.elements['hp-fill'].style.width = `${player.healthRatio * 100}%`;
     this.elements['hp-text'].textContent = `${Math.ceil(player.hp)} / ${player.maxHp}`;
     this.elements['mp-fill'].style.width = `${player.manaRatio * 100}%`;
@@ -159,7 +159,7 @@ export class UI {
       if (this.elements['defense-wave-remaining']) {
         this.elements['defense-wave-remaining'].textContent = `${remaining} left`;
       }
-      this.elements['contract-title'].textContent = '웨이브 생존';
+      this.elements['contract-title'].textContent = 'Wave Survival';
       this.elements['contract-progress'].textContent = `${remaining} remaining`;
       this.elements['contract-fill'].style.width = '0%';
       const defenseKills = defenseHud?.kills ?? defenseHud?.totalKills;
@@ -181,7 +181,7 @@ export class UI {
       }
     }
     this.elements['zone-name'].textContent = zone.name;
-    this.elements['zone-subtitle'].textContent = isDefense ? '방어 전장' : zone.subtitle;
+    this.elements['zone-subtitle'].textContent = isDefense ? 'Defense Arena' : zone.subtitle;
     this.elements['minimap-zone'].textContent = zone.name;
     this.elements['boss-charge-text'].textContent = `${Math.floor(hunt.bossCharge)}%`;
     this.elements['boss-charge-fill'].style.width = `${hunt.bossCharge}%`;
@@ -572,8 +572,8 @@ export class UI {
     if (this.game.mode === 'defense') {
       const wave = this.game.defense?.hud?.wave ?? this.game.defense?.wave ?? 1;
       if (eyebrow) eyebrow.textContent = 'DEFENSE FAILED';
-      if (title) title.textContent = `웨이브 ${wave}에서 쓰러졌습니다`;
-      if (copy) copy.textContent = '방어 런이 종료됩니다. 타이틀로 돌아갑니다.';
+      if (title) title.textContent = `You fell on wave ${wave}`;
+      if (copy) copy.textContent = 'The defense run is over. Returning to title.';
     } else {
       if (eyebrow) eyebrow.textContent = 'HUNTER DOWN';
       if (title) title.textContent = 'The hunt is not over';
