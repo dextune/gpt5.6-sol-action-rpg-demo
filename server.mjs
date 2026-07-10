@@ -20,6 +20,9 @@ const mime = {
   '.wasm': 'application/wasm',
   '.bin': 'application/octet-stream',
   '.txt': 'text/plain; charset=utf-8',
+  '.wav': 'audio/wav',
+  '.ogg': 'audio/ogg',
+  '.mp3': 'audio/mpeg',
 };
 
 function safePath(requestUrl) {

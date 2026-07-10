@@ -83,6 +83,18 @@ ok(externalRefs.length === 0, 'no external network dependency');
 ok(allFiles.includes(join(root, 'vendor/three.module.min.js')), 'local Three.js file exists');
 ok(allFiles.includes(join(root, 'THIRD_PARTY_LICENSES/three-LICENSE.txt')), 'Three.js license exists');
 
+const manifest = JSON.parse(await readFile(join(root, 'assets/manifests/assets.json'), 'utf8'));
+if (manifest.audio && typeof manifest.audio === 'object') {
+  for (const [key, entry] of Object.entries(manifest.audio)) {
+    const urls = Array.isArray(entry?.urls) ? entry.urls : entry?.url ? [entry.url] : [];
+    ok(urls.length > 0, `audio bank has paths: ${key}`);
+    for (const url of urls) {
+      const relative = url.replace(/^\.\//, '');
+      ok(allFiles.includes(join(root, relative)), `audio sample exists: ${relative}`);
+    }
+  }
+}
+
 if (failures.length) {
   console.error(`\n${failures.length} validation failure(s):`);
   failures.forEach(message => console.error(`- ${message}`));

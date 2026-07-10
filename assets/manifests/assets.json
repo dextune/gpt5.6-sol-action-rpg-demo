@@ -707,5 +707,45 @@
         1
       ]
     }
+  },
+  "audio": {
+    "swing_0": { "urls": ["./assets/audio/combat/swing_0.wav", "./assets/audio/combat/swing_a.wav"] },
+    "swing_1": { "urls": ["./assets/audio/combat/swing_1.wav", "./assets/audio/combat/swing_b.wav"] },
+    "swing_2": { "urls": ["./assets/audio/combat/swing_2.wav", "./assets/audio/combat/swing_a.wav"] },
+    "swing_3": { "urls": ["./assets/audio/combat/swing_3.wav", "./assets/audio/combat/swing_b.wav"] },
+    "swing_extra": { "urls": ["./assets/audio/combat/swing_a.wav", "./assets/audio/combat/swing_b.wav"] },
+    "hit_light": {
+      "urls": [
+        "./assets/audio/combat/hit_light_0.wav",
+        "./assets/audio/combat/hit_light_1.wav",
+        "./assets/audio/combat/hit_light_2.wav"
+      ]
+    },
+    "hit_heavy": {
+      "urls": [
+        "./assets/audio/combat/hit_heavy_0.wav",
+        "./assets/audio/combat/hit_heavy_1.wav"
+      ]
+    },
+    "hit_crit": {
+      "urls": [
+        "./assets/audio/combat/hit_crit_0.wav",
+        "./assets/audio/combat/hit_crit_1.wav"
+      ]
+    },
+    "hit_finisher": {
+      "urls": [
+        "./assets/audio/combat/hit_finisher_0.wav",
+        "./assets/audio/combat/hit_finisher_1.wav"
+      ]
+    },
+    "ui_click": { "urls": ["./assets/audio/combat/ui_click.wav"] },
+    "dash": { "urls": ["./assets/audio/combat/dash_0.wav", "./assets/audio/combat/dash_1.wav"] },
+    "skill": { "urls": ["./assets/audio/combat/skill_0.wav"] },
+    "hurt": { "urls": ["./assets/audio/combat/hurt_0.wav", "./assets/audio/combat/hurt_1.wav"] },
+    "pickup": { "urls": ["./assets/audio/combat/pickup_0.wav", "./assets/audio/combat/pickup_1.wav"] },
+    "level": { "urls": ["./assets/audio/combat/level_0.wav"] },
+    "boss": { "urls": ["./assets/audio/combat/boss_0.wav"] },
+    "legendary": { "urls": ["./assets/audio/combat/legendary_0.wav"] }
   }
 }
