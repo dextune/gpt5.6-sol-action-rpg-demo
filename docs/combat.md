@@ -111,7 +111,7 @@ Register effects on `this.skillHandlers[effectId]`.
 | whirlwind | aerin | `spinStorm` | windsteel | skill_blade | anim timeline 3 pulses |
 | crescent | aerin | `groundWave` | bladewave | skill_blade | pierce wave; **expose** |
 | skyfall | aerin | `leapImpact` | skyice | skill_leap | facing leap + land AoE |
-| starburst | aerin | `starRain` | starlight | skill_star | **star** radial blades |
+| starburst | aerin | `starBlade` + finale | starlight | skill_star | **star** radial blades |
 | fireball | wizard | `fireOrb` + blast | ember | skill_fire | projectile; **burn** |
 | frost_nova | wizard | `iceNova` | frost | skill_ice | ring; **slow** |
 | arcane_blink | wizard | `blinkBurst` | arcane | skill_arcane | afterimage teleport |

@@ -57,6 +57,9 @@ export const PLAYER_CONFIG = Object.freeze({
   dashDuration: 0.22,
   dashCooldown: 0.92,
   potionHealRatio: 0.42,
+  potionCooldown: 2,
+  // Fraction of defense subtracted from incoming damage.
+  defenseSoak: 0.46,
   inventoryLimit: 48,
 });
 

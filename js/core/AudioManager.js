@@ -363,6 +363,10 @@ export class AudioManager {
       meteor: 'skill_fire',
       frost: 'skill_ice',
       arcane: 'skill_arcane',
+      venom: 'skill_blade',
+      nightsteel: 'skill_blade',
+      shadow: 'skill_arcane',
+      wrath: 'skill_blade',
     };
     return map[themeOrKey] ?? (String(themeOrKey).startsWith('skill_') ? themeOrKey : 'skill');
   }

@@ -1,0 +1,150 @@
+/**
+ * Desktop + mobile visual smoke coverage for every playable class and Defense.
+ *
+ * Starts the local server on 127.0.0.1:8777 unless BASE_URL is supplied.
+ * Screenshots are written outside the repository by default.
+ *
+ * Usage: node tests/class-mode-visual-smoke.mjs
+ */
+import { chromium, devices } from 'playwright';
+import { spawn } from 'node:child_process';
+import { mkdirSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const base = process.env.BASE_URL || 'http://127.0.0.1:8777';
+const outDir = process.env.OUT_DIR || `/tmp/sol-arpg-class-visual-smoke-${Date.now()}`;
+const classes = ['aerin', 'wizard', 'rogue'];
+const failures = [];
+const consoleErrors = [];
+let server;
+
+mkdirSync(outDir, { recursive: true });
+
+function sleep(ms) {
+  return new Promise(resolveSleep => setTimeout(resolveSleep, ms));
+}
+
+async function waitForServer(timeout = 30000) {
+  const started = Date.now();
+  while (Date.now() - started < timeout) {
+    try {
+      if ((await fetch(base)).ok) return;
+    } catch { /* retry */ }
+    await sleep(250);
+  }
+  throw new Error(`Server did not respond at ${base}`);
+}
+
+function recordConsole(page, label) {
+  page.on('console', message => {
+    if (message.type() === 'error') consoleErrors.push(`${label}: ${message.text()}`);
+  });
+  page.on('pageerror', error => consoleErrors.push(`${label}: ${error.message}`));
+}
+
+async function waitForTitle(page) {
+  await page.waitForFunction(() => document.querySelector('#title-screen.active'), { timeout: 60000 });
+}
+
+async function assertVisible(page, selector, message) {
+  const visible = await page.locator(selector).isVisible().catch(() => false);
+  if (!visible) failures.push(message);
+}
+
+async function launchMode(page, classId, mode, imageName) {
+  await page.goto(`${base}/?autostart=0&quality=medium&class=${classId}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await waitForTitle(page);
+  await page.locator(`[data-class-id="${classId}"]`).click();
+  const selected = await page.locator(`[data-class-id="${classId}"]`).getAttribute('aria-pressed');
+  if (selected !== 'true') failures.push(`${mode}/${classId}: title selection did not persist`);
+  await page.locator(mode === 'defense' ? '#defense-btn' : '#new-game-btn').click();
+  await assertVisible(page, '#hud:not(.hidden)', `${mode}/${classId}: HUD did not appear`);
+  await page.waitForFunction(({ wantedClass, wantedMode }) => {
+    const game = window.__SOL_ARPG_DEMO__;
+    return game?.state === 'playing' && game?.mode === wantedMode && game?.player?.classId === wantedClass;
+  }, { wantedClass: classId, wantedMode: mode }, { timeout: 30000 }).catch(() => {
+    failures.push(`${mode}/${classId}: game state/class did not initialize`);
+  });
+  if (mode === 'defense') await assertVisible(page, '#defense-wave-panel:not(.hidden)', `${mode}/${classId}: wave panel did not appear`);
+  await sleep(850);
+  await page.screenshot({ path: resolve(outDir, imageName), fullPage: false });
+}
+
+async function desktopSmoke(browser) {
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
+  recordConsole(page, 'desktop');
+  for (const classId of classes) await launchMode(page, classId, 'hunt', `desktop-${classId}-hunt.png`);
+  await launchMode(page, 'rogue', 'defense', 'desktop-rogue-defense.png');
+  await page.close();
+}
+
+async function mobileSmoke(browser) {
+  const device = devices['iPhone 13 Mini'] || devices['iPhone 13'];
+  const context = await browser.newContext({ ...device, locale: 'en-US' });
+  const page = await context.newPage();
+  recordConsole(page, 'mobile');
+  for (const classId of classes) {
+    await launchMode(page, classId, 'hunt', `mobile-${classId}-hunt.png`);
+    await page.evaluate(() => {
+      document.body.classList.add('touch-ui');
+      window.__SOL_ARPG_DEMO__?.touchControls?.setEnabled(true);
+    });
+    const layout = await page.evaluate(() => {
+      const rect = selector => {
+        const element = document.querySelector(selector);
+        if (!element || element.classList.contains('hidden') || getComputedStyle(element).display === 'none') return null;
+        const box = element.getBoundingClientRect();
+        return { x: box.x, y: box.y, width: box.width, height: box.height };
+      };
+      return {
+        viewport: { width: innerWidth, height: innerHeight },
+        player: rect('.player-card'), currency: rect('.resource-pills'),
+        stick: rect('#touch-stick-zone'), ability: rect('.ability-bar'), menu: rect('#touch-menu-btn'), minimap: rect('.minimap-shell'),
+      };
+    });
+    for (const [name, box] of Object.entries(layout)) {
+      if (name === 'viewport' || !box) continue;
+      const inside = box.x >= -4 && box.y >= -4
+        && box.x + box.width <= layout.viewport.width + 4 && box.y + box.height <= layout.viewport.height + 4;
+      if (!inside) failures.push(`mobile/${classId}: ${name} is outside the viewport`);
+    }
+    if (!layout.stick || !layout.ability || !layout.menu || !layout.minimap || !layout.player || !layout.currency) failures.push(`mobile/${classId}: required touch HUD element is missing`);
+    if (layout.player && layout.currency) {
+      const overlap = layout.player.x < layout.currency.x + layout.currency.width
+        && layout.player.x + layout.player.width > layout.currency.x
+        && layout.player.y < layout.currency.y + layout.currency.height
+        && layout.player.y + layout.player.height > layout.currency.y;
+      if (overlap) failures.push(`mobile/${classId}: player card overlaps currency`);
+    }
+    await page.screenshot({ path: resolve(outDir, `mobile-${classId}-touch-hud.png`), fullPage: false });
+  }
+  await launchMode(page, 'rogue', 'defense', 'mobile-rogue-defense.png');
+  await page.evaluate(() => document.body.classList.add('touch-ui'));
+  await page.screenshot({ path: resolve(outDir, 'mobile-rogue-defense-touch.png'), fullPage: false });
+  await context.close();
+}
+
+try {
+  if (!process.env.BASE_URL) {
+    server = spawn('node', ['server.mjs'], { cwd: root, env: { ...process.env, HOST: '127.0.0.1', PORT: '8777' }, stdio: 'pipe' });
+  }
+  await waitForServer();
+  const browser = await chromium.launch({ headless: true });
+  await desktopSmoke(browser);
+  await mobileSmoke(browser);
+  await browser.close();
+} catch (error) {
+  failures.push(error?.stack || String(error));
+} finally {
+  server?.kill();
+}
+
+if (consoleErrors.length) failures.push(`console errors:\n${consoleErrors.join('\n')}`);
+if (failures.length) {
+  console.error(`Visual smoke failed (${failures.length}):\n- ${failures.join('\n- ')}`);
+  process.exitCode = 1;
+} else {
+  console.log(`Visual smoke passed: 3 desktop hunts, desktop Defense, 3 mobile hunts, mobile Defense. Screenshots: ${outDir}`);
+}

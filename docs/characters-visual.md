@@ -8,6 +8,7 @@ Playable looks are data-driven via `HERO_CLASSES` in `js/data/content.js`.
 |----------|-----------|--------------|--------|
 | `aerin` | `hero.aerin` | Gareth | Default **knight** — plate armor, open helm, crimson crest (baked) |
 | `wizard` | `hero.wizard` | Lyra | Baked hat + long hair; arcane palette |
+| `rogue` | `hero.rogue` | Vex | Runtime hood head kit (`headKit: 'rogue'`); dark leather + mint accents; dagger + Focus energy combo |
 
 **Add a class:**
 
@@ -86,11 +87,12 @@ Do not rename without updating Player / Combat / `assets.json` animationMap.
 
 ```bash
 node tools/assets/generate_assets.mjs --heroes-only
-# or --aerin-only / --wizard-only
+# or --aerin-only / --wizard-only / --rogue-only (weapons: --staff-only / --dagger-only)
 node tests/integrity.mjs
 ```
 
-Extend `heroAnimations()` in `tools/assets/generate_assets.mjs`. Shared skeleton; add class-specific skill/cast clips for spectacle identity.  
+Extend `heroAnimations()` in `tools/assets/generate_assets.mjs`. Shared skeleton; add class-specific skill/cast clips for spectacle identity.
+Each GLB only ships shared locomotion/reaction clips plus its own class combat clips — register new clips in `HERO_CLASS_CLIPS` so they survive the per-class filter.
 Runtime: `Player.trySkill` has limited anim fallbacks if a clip is missing — still bake unique names for shipping quality.
 
 ### Motion + combat sync

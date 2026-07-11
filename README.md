@@ -1,8 +1,11 @@
 # GPT-5.6: Sol / Action RPG DEMO
 
-**[▶ Play the demo](https://gpt-rpg.dextune.com)** — try it live at [https://gpt-rpg.dextune.com](https://gpt-rpg.dextune.com).
+> **Official Live Demo · Sol / Action RPG**
+>
+> Enter the current public build at **[gpt-rpg.dextune.com](https://gpt-rpg.dextune.com)**.
+> Hunt, master your class, and push through ascending world tiers in the browser.
 
-> Crafted via [ChatGPT](https://chatgpt.com) using the **GPT-5.6-SOL** model — an AI-native game built entirely through conversational agent workflows.
+> Developed with [ChatGPT](https://chatgpt.com) using **GPT-5.6-SOL** — an AI-native game built through conversational agent workflows.
 
 A browser-based 3D action RPG — hunt, farm, upgrade, ascend world tiers. Zero CDN, fully local. Built with AI agents; customize everything via agent prompts to fit your taste.
 
@@ -19,11 +22,8 @@ A browser-based 3D action RPG — hunt, farm, upgrade, ascend world tiers. Zero 
 ## Quick Start
 
 ```bash
-# Option A — Node.js
-node server.mjs        # then open http://127.0.0.1:8080
-
-# Option B — Python
-python -m http.server 8080 --bind 127.0.0.1
+# Node.js
+node server.mjs        # then open http://127.0.0.1:8777
 ```
 
 Do not open `index.html` directly (ES modules + GLB require a local server). Change port via `PORT=3000 node server.mjs`.
@@ -38,7 +38,7 @@ Do not open `index.html` directly (ES modules + GLB require a local server). Cha
 | **Lighting** | Warm directional sun + sky hemisphere, contact shadows, per-zone fog |
 | **Terrain** | Procedural layered PBR terrain (fbm heightmap, texture blending) |
 | **Environment** | Instanced vegetation, biome-specific decorations, water planes |
-| **Audio** | WebAudio synthesis — hit/swing/skill/pickup/boss SFX, no sample files |
+| **Audio** | Local WebAudio sample banks — hit, swing, skill, pickup, and boss SFX |
 | **UI** | DOM-based HUD with floating damage text, minimap, skill cooldowns |
 | **Save** | `localStorage` auto-save with versioned schema |
 | **Server** | Lightweight Node.js (`server.mjs`) or Python `http.server` |
@@ -81,9 +81,9 @@ The mouse is for UI only (title buttons, inventory, skills panel, etc.).
 Default quality is `high` and can be changed in the system menu. It can also be set via a URL query.
 
 ```text
-http://127.0.0.1:8080/?quality=high
-http://127.0.0.1:8080/?quality=medium
-http://127.0.0.1:8080/?quality=low
+http://127.0.0.1:8777/?quality=high
+http://127.0.0.1:8777/?quality=medium
+http://127.0.0.1:8777/?quality=low
 ```
 
 - Local GLB assets and SkeletonUtils-based skeletal cloning
@@ -102,8 +102,8 @@ http://127.0.0.1:8080/?quality=low
 - 6 ecological zones
 - 42 monster types and 6 zone bosses
 - Common · high · rare · hero · legendary equipment
-- 8 weapons, 6 armors, 6 charms
-- 4 active skills and 4 passive skills
+- 13 weapons, 6 armors, 6 charms
+- 3 playable classes with 12 active skills and 15 passives
 - Elite units, kill streaks, random hunt contracts, boss appearance gauge
 - Infinite world tiers, auto-save, continue, hub respawn
 
@@ -111,9 +111,10 @@ http://127.0.0.1:8080/?quality=low
 
 ```bash
 node tests/integrity.mjs
+node tests/class-mode-visual-smoke.mjs
 ```
 
-It checks module paths, content counts, boss mappings, save data, HUD slots, local Three.js, and license files.
+The validation suite checks module paths, content, boss mappings, save data, HUD slots, local Three.js, and license files. The visual smoke suite verifies desktop and mobile Hunt/Defense flows for every class.
 
 ## Regenerate assets
 

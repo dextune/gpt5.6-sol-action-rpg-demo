@@ -51,8 +51,9 @@ export function resolveSkillHitRaw(rawDamage, options = {}) {
   const skillPowerApplied = Boolean(options.skillPowerApplied);
   const skillPower = Number(options.skillPower) || 1;
   const critical = Boolean(options.critical);
+  const critMultiplier = Number(options.critMultiplier) || 1.85;
   const skillMul = skill && !skillPowerApplied ? skillPower : 1;
-  return (Number(rawDamage) || 0) * (critical ? 1.85 : 1) * skillMul;
+  return (Number(rawDamage) || 0) * (critical ? critMultiplier : 1) * skillMul;
 }
 
 /**
@@ -77,13 +78,13 @@ export function applyStatus(current, id, opts = {}) {
 }
 
 /**
- * Advance statuses by delta. Returns { statuses, burnDamage, expired[] }.
- * burnDamage is total DoT to apply this frame (caller multiplies / rounds).
+ * Advance statuses by delta. Returns { statuses, dotDamage, expired[] }.
+ * dotDamage is the frame's total damage-over-time (burn, bleed, …) — caller multiplies / rounds.
  */
 export function tickStatuses(statuses, delta) {
   const next = {};
   const expired = [];
-  let burnDamage = 0;
+  let dotDamage = 0;
   for (const [id, st] of Object.entries(statuses || {})) {
     const remaining = (st.remaining ?? 0) - delta;
     if (remaining <= 0) {
@@ -91,17 +92,17 @@ export function tickStatuses(statuses, delta) {
       continue;
     }
     const copy = { ...st, remaining };
-    if (id === 'burn' && (copy.dps ?? 0) > 0) {
+    if ((id === 'burn' || id === 'bleed') && (copy.dps ?? 0) > 0) {
       copy.tickAcc = (copy.tickAcc ?? 0) + delta;
       const interval = Math.max(0.12, copy.tick ?? 0.5);
       while (copy.tickAcc >= interval) {
         copy.tickAcc -= interval;
-        burnDamage += copy.dps * interval;
+        dotDamage += copy.dps * interval;
       }
     }
     next[id] = copy;
   }
-  return { statuses: next, burnDamage, expired };
+  return { statuses: next, dotDamage, expired };
 }
 
 /** Movement multiplier from active statuses (slow stacks as strongest). */

@@ -460,6 +460,74 @@ export class Effects {
     this.dust(point, theme.dust, 12, 0.42);
   }
 
+  recipeFangRush(position, direction, theme, range, hitIndex = 0, finale = false) {
+    const side = hitIndex % 2 ? 1 : -1;
+    this.slash(position, direction, finale ? theme.core : theme.primary, range * 1.15, {
+      height: 0.95 + hitIndex * 0.12, thickness: 0.05, life: 0.2, spin: side * 6.5, angleOffset: side * 0.45, opacity: 0.92,
+    });
+    this.slash(position, direction, theme.secondary, range * 0.9, {
+      height: 0.8, thickness: 0.035, life: 0.16, spin: side * -4.8, angleOffset: side * -0.3, opacity: 0.7,
+    });
+    this.burst(position.clone().add(new THREE.Vector3(0, 1, 0)).addScaledVector(direction, 0.9), theme.primary, 10 + hitIndex * 4, {
+      speed: 4.6, size: 0.22, life: 0.3, upward: 0.3,
+    });
+    this.trail(position.clone().add(new THREE.Vector3(0, 1.05, 0)).addScaledVector(direction, 0.6), theme.accent, 0.4, 0.14);
+    if (finale) {
+      this.ring(position.clone().addScaledVector(direction, 1), theme.accent, range * 0.7, { life: 0.28, startScale: 0.25, height: 0.1, opacity: 0.6 });
+      this.dust(position, theme.dust, 8, 0.3);
+    }
+  }
+
+  recipeDaggerFan(position, direction, theme) {
+    this.slash(position, direction, theme.primary, 2.4, { height: 1, life: 0.24, thickness: 0.06, spin: 3.4 });
+    this.slash(position, direction, theme.secondary, 2, { height: 0.85, life: 0.18, thickness: 0.04, spin: -2.6, angleOffset: 0.5, opacity: 0.7 });
+    this.groundDecal(position.clone().addScaledVector(direction, 1), theme.accent, 1.6, { life: 0.4, opacity: 0.35, startScale: 0.25 });
+    this.burst(position.clone().add(new THREE.Vector3(0, 1.1, 0)).addScaledVector(direction, 0.8), theme.core, 14, {
+      speed: 5.2, size: 0.2, life: 0.3, upward: 0.2,
+    });
+  }
+
+  recipeShadowDash(from, to, direction, theme) {
+    this.afterimage(from, theme.primary, { life: 0.4, opacity: 0.6, scale: 1 });
+    this.ring(from, theme.accent, 1.8, { life: 0.3, startScale: 0.2, opacity: 0.6 });
+    // Path afterimages — the rogue flickers along the cut line.
+    const steps = 3;
+    for (let i = 1; i <= steps; i += 1) {
+      const at = from.clone().lerp(to, i / (steps + 1));
+      this.afterimage(at, i % 2 ? theme.secondary : theme.primary, { life: 0.3 + i * 0.04, opacity: 0.45, scale: 0.95 });
+      this.trail(at.clone().add(new THREE.Vector3(0, 1.05, 0)), theme.primary, 0.5, 0.2);
+    }
+    this.slash(from.clone().lerp(to, 0.5), direction, theme.core, from.distanceTo(to) * 0.55, {
+      height: 1.05, thickness: 0.05, life: 0.26, spin: 0.6, opacity: 0.85,
+    });
+    this.burst(to.clone().add(new THREE.Vector3(0, 1, 0)), theme.secondary, 20, { speed: 5.4, size: 0.28, life: 0.45, upward: 0.4 });
+    this.ring(to, theme.primary, 2.6, { life: 0.42, startScale: 0.1 });
+    this.dust(to, theme.dust, 12, 0.36);
+    this.impact(to.clone().add(new THREE.Vector3(0, 1.05, 0)), theme.primary, 'heavy', { direction });
+  }
+
+  recipeLotusFlurry(position, theme, radius, index = 0, finale = false) {
+    const dir = new THREE.Vector3(Math.cos(index * 2.4), 0, Math.sin(index * 2.4));
+    if (finale) {
+      this.ring(position, theme.core, radius, { life: 0.5, startScale: 0.08 });
+      this.ring(position, theme.primary, radius * 0.65, { life: 0.36, startScale: 0.15, height: 0.12, opacity: 0.8 });
+      this.pillar(position, theme.secondary, 5.8, { life: 0.45, bottom: 0.8, opacity: 0.45 });
+      this.burst(position.clone().add(new THREE.Vector3(0, 1, 0)), theme.primary, 30, {
+        speed: 6.4, size: 0.3, life: 0.6, upward: 0.5,
+      });
+      this.impact(position.clone().add(new THREE.Vector3(0, 1.1, 0)), theme.primary, 'finisher');
+      this.dust(position, theme.dust, 14, 0.4);
+      return;
+    }
+    this.slash(position, dir, index % 2 ? theme.secondary : theme.primary, radius * 0.95, {
+      height: 0.65 + (index % 3) * 0.28, thickness: 0.04, life: 0.18, spin: (index % 2 ? -1 : 1) * (6 + index * 0.4), opacity: 0.85,
+    });
+    if (index % 2 === 0) {
+      this.burst(position.clone().add(new THREE.Vector3(0, 1, 0)), theme.accent, 8, { speed: 4.4, size: 0.2, life: 0.26, upward: 0.35 });
+    }
+    if (index % 3 === 0) this.ring(position, theme.accent, radius * 0.5, { life: 0.22, startScale: 0.3, height: 0.08, opacity: 0.5 });
+  }
+
   recipeMeteorFinale(center, theme, radius) {
     this.ring(center, theme.core, radius, { life: 0.85, startScale: 0.05 });
     this.pillar(center, theme.secondary, 8.5, { life: 0.65, bottom: 1.2, opacity: 0.58 });

@@ -473,7 +473,21 @@ function createCapeGeometry(skeletonInfo) {
   return geometry;
 }
 
-function heroAnimations(skeletonInfo) {
+const HERO_MELEE_ATTACK_CLIPS = Object.freeze([
+  'attack_1', 'attack_2', 'attack_3', 'attack_4', 'attack_5', 'attack_6', 'attack_7',
+]);
+
+/** Combat clips owned by each class — shared locomotion/reaction clips stay in every GLB. */
+const HERO_CLASS_CLIPS = Object.freeze({
+  aerin: Object.freeze([...HERO_MELEE_ATTACK_CLIPS, 'skill_whirlwind', 'skill_crescent', 'skill_skyfall', 'skill_starburst']),
+  wizard: Object.freeze(['attack_1', 'attack_2', 'attack_3', 'attack_4', 'cast_1', 'cast_2', 'cast_3', 'cast_4', 'skill_fireball', 'skill_frost_nova', 'skill_blink', 'skill_meteor']),
+  rogue: Object.freeze([...HERO_MELEE_ATTACK_CLIPS, 'skill_twin_fang', 'skill_fan_knives', 'skill_shadowstep', 'skill_death_lotus']),
+});
+const HERO_SHARED_CLIPS = Object.freeze([
+  'idle', 'run', 'sprint', 'dodge', 'hit', 'death',
+]);
+
+function heroAnimations(skeletonInfo, profileId = null) {
   const F = (time, rotations = {}, positions = {}, scales = {}) => ({ time, rotations, positions, scales });
   const clips = [];
   clips.push(animationClip('idle', 1.6, [
@@ -640,6 +654,41 @@ function heroAnimations(skeletonInfo) {
     F(1.2, { right_upper_arm: [-1.0, 1.2, -.4], left_upper_arm: [-1.0, -1.2, .4], cape_root: [.8, .25, 0] }),
     F(1.5, { pelvis: [0, 0, 0], spine: [0, 0, 0], chest: [0, 0, 0], right_upper_arm: [.03, 0, -.08], left_upper_arm: [.03, 0, .08], cape_root: [.12, 0, 0] }),
   ], skeletonInfo));
+  // Rogue-unique dagger clips (not aliases of knight/wizard skills)
+  clips.push(animationClip('skill_twin_fang', .7, [
+    F(0, { pelvis: [0, -.15, 0], chest: [-.1, -.3, -.08], right_upper_arm: [-.6, -.4, -.4], right_lower_arm: [-.55, 0, -.3], left_upper_arm: [.2, .2, .25] }),
+    F(.16, { pelvis: [0, .2, 0], chest: [-.05, .45, .15], right_upper_arm: [-.3, .9, .55], right_lower_arm: [-.05, 0, .5], left_upper_arm: [-.35, -.25, .1], cape_root: [.4, .12, 0] }),
+    F(.32, { pelvis: [0, -.25, 0], chest: [-.12, -.5, -.14], right_upper_arm: [-.4, -.6, -.3], left_upper_arm: [-.9, .5, .6], left_lower_arm: [-.3, 0, .45], cape_root: [.5, -.14, 0] }),
+    F(.48, { pelvis: [0, .3, 0], chest: [-.05, .55, .18], left_upper_arm: [-.25, -.95, .5], left_lower_arm: [.05, 0, .35], right_upper_arm: [.15, .3, -.2], cape_root: [.6, .16, 0] }),
+    F(.7, { pelvis: [0, 0, 0], chest: [0, 0, 0], right_upper_arm: [.03, 0, -.08], right_lower_arm: [0, 0, 0], left_upper_arm: [.03, 0, .08], left_lower_arm: [0, 0, 0], cape_root: [.12, 0, 0] }),
+  ], skeletonInfo));
+  clips.push(animationClip('skill_fan_knives', .8, [
+    F(0, { chest: [-.08, 0, 0], right_upper_arm: [-.5, -.5, -.5], left_upper_arm: [-.5, .5, .5], right_lower_arm: [-.6, 0, -.3], left_lower_arm: [-.6, 0, .3] }),
+    F(.22, { pelvis: [0, -.28, 0], chest: [-.22, 0, 0], right_upper_arm: [-1.1, -.7, -.7], left_upper_arm: [-1.1, .7, .7], right_lower_arm: [-.85, 0, -.5], left_lower_arm: [-.85, 0, .5], cape_root: [.35, 0, 0] }),
+    F(.4, { pelvis: [0, .15, 0], chest: [.1, 0, 0], right_upper_arm: [-.35, 1.1, .7], left_upper_arm: [-.35, -1.1, .7], right_lower_arm: [.05, 0, .4], left_lower_arm: [.05, 0, -.4], cape_root: [.65, 0, 0] }),
+    F(.8, { pelvis: [0, 0, 0], chest: [0, 0, 0], right_upper_arm: [.03, 0, -.08], left_upper_arm: [.03, 0, .08], right_lower_arm: [0, 0, 0], left_lower_arm: [0, 0, 0], cape_root: [.12, 0, 0] }),
+  ], skeletonInfo));
+  clips.push(animationClip('skill_shadowstep', 1.0, [
+    F(0, { pelvis: [-.12, 0, 0], chest: [-.18, 0, 0], right_upper_arm: [-.45, 0, -.3], left_upper_arm: [-.45, 0, .3] }),
+    F(.24, { pelvis: [-.55, 0, 0], spine: [-.3, 0, 0], chest: [-.4, 0, 0], right_upper_arm: [-1.1, 0, -.6], left_upper_arm: [-1.1, 0, .6], cape_root: [.9, 0, 0] }, { pelvis: [0, -.18, 0] }),
+    F(.5, { pelvis: [-.35, .4, 0], spine: [-.18, .3, 0], chest: [-.25, .5, .1], right_upper_arm: [-.3, .8, .4], left_upper_arm: [-1.3, -.4, .3], cape_root: [1.1, .2, 0] }, { root: [0, .15, .4] }),
+    F(.74, { pelvis: [-.1, -.3, 0], chest: [-.1, -.45, -.1], right_upper_arm: [-.8, -.7, -.5], left_upper_arm: [.3, .3, .3], cape_root: [.6, -.2, 0] }, { root: [0, 0, .2] }),
+    F(1.0, { pelvis: [0, 0, 0], spine: [0, 0, 0], chest: [0, 0, 0], right_upper_arm: [.03, 0, -.08], left_upper_arm: [.03, 0, .08], cape_root: [.12, 0, 0] }, { root: [0, 0, 0] }),
+  ], skeletonInfo));
+  clips.push(animationClip('skill_death_lotus', 1.3, [
+    F(0, { chest: [-.1, -.4, -.1], right_upper_arm: [-.7, -.5, -.5], left_upper_arm: [-.7, .5, .5] }),
+    F(.24, { pelvis: [0, 1.4, 0], spine: [0, 1.1, 0], chest: [-.08, 1.7, .1], right_upper_arm: [-.35, 1.4, .5], left_upper_arm: [-.35, -1.4, .5], cape_root: [.8, .25, 0] }, { pelvis: [0, .06, 0] }),
+    F(.5, { pelvis: [0, 2.9, 0], spine: [0, 2.2, 0], chest: [-.08, 3.3, -.1], right_upper_arm: [-.5, 2.8, -.5], left_upper_arm: [-.5, .2, .5], cape_root: [1.05, -.2, 0] }, { pelvis: [0, .12, 0] }),
+    F(.78, { pelvis: [0, 4.6, 0], spine: [0, 3.4, 0], chest: [-.08, 5, .12], right_upper_arm: [-.3, 4.4, .55], left_upper_arm: [-.3, 1.6, .45], cape_root: [1.2, .3, 0] }, { pelvis: [0, .05, 0] }),
+    F(1.02, { pelvis: [0, 6.28, 0], spine: [0, 4.4, 0], chest: [-.15, 6.6, -.12], right_upper_arm: [-.9, 5.6, -.6], left_upper_arm: [-.9, 3, .6], cape_root: [.9, -.25, 0] }, { pelvis: [0, -.08, 0] }),
+    F(1.3, { pelvis: [0, 0, 0], spine: [0, 0, 0], chest: [0, 0, 0], right_upper_arm: [.03, 0, -.08], left_upper_arm: [.03, 0, .08], cape_root: [.12, 0, 0] }),
+  ], skeletonInfo));
+
+  // Per-class clip subset — keeps each hero GLB lean instead of shipping every job's kit.
+  if (profileId && HERO_CLASS_CLIPS[profileId]) {
+    const keep = new Set([...HERO_SHARED_CLIPS, ...HERO_CLASS_CLIPS[profileId]]);
+    return clips.filter(clip => keep.has(clip.name));
+  }
   return clips;
 }
 
@@ -682,6 +731,26 @@ const HERO_BAKE_PROFILES = Object.freeze({
     outline: 0x121428,
     hairStyle: 'wizard',
     headGear: 'hat',
+    bodyStyle: 'default',
+  }),
+  // Night rogue — dark leather wrap, mint eyes; hood is a runtime head kit, so keep hair a low crop.
+  rogue: Object.freeze({
+    name: 'Rogue_Hero_Rig',
+    skin: 0xdca27e,
+    cloth: 0x3c4e5a,
+    leather: 0x1a222c,
+    cape: 0x28323e,
+    hair: 0x3aa890,
+    eye: 0x2bd1b4,
+    eyeWhite: 0xfdf6e8,
+    brow: 0x1c3830,
+    mouth: 0x7a4a44,
+    trim: 0x9ad8c8,
+    belt: 0x14181e,
+    buckle: 0xb8e8d8,
+    outline: 0x0a0e14,
+    hairStyle: 'knight',
+    headGear: 'none',
     bodyStyle: 'default',
   }),
 });
@@ -975,7 +1044,7 @@ function createHero(resolution = 52, profileId = 'aerin') {
 
   const socket = skeletonInfo.bones.get('weapon_socket');
   socket.userData.socket = 'weapon';
-  const animations = heroAnimations(skeletonInfo);
+  const animations = heroAnimations(skeletonInfo, profileId);
   group.userData.animationMap = Object.fromEntries(animations.map(clip => [clip.name, clip.name]));
   return { group, animations };
 }
@@ -989,6 +1058,7 @@ function bladeShape(kind, length, width) {
     greatsword: [[-.22, 0], [-width, length * .14], [-width * .92, length * .77], [0, length], [width * .92, length * .77], [width, length * .14], [.22, 0]],
     leaf: [[-.12, 0], [-width * .42, length * .18], [-width, length * .55], [-width * .42, length * .84], [0, length], [width * .42, length * .84], [width, length * .55], [width * .42, length * .18], [.12, 0]],
     katana: [[-.07, 0], [-width * .5, length * .18], [-width * .4, length * .86], [-width * .12, length], [width * .32, length * .9], [width * .42, length * .18], [.07, 0]],
+    dagger: [[-.09, 0], [-width, length * .16], [-width * .68, length * .52], [-width * .3, length * .84], [0, length], [width * .55, length * .7], [width * .8, length * .3], [.09, 0]],
     relic: [[-.16, 0], [-width * .72, length * .2], [-width, length * .62], [-width * .36, length * .82], [0, length], [width * .36, length * .82], [width, length * .62], [width * .72, length * .2], [.16, 0]],
   }[kind] ?? [];
   shape.moveTo(points[0][0], points[0][1]);
@@ -1006,6 +1076,7 @@ function createWeapon(kind) {
     leaf: { length: 1.58, width: .24 },
     katana: { length: 1.72, width: .14 },
     relic: { length: 1.76, width: .25 },
+    dagger: { length: .98, width: .15 },
   }[kind];
   const group = new THREE.Group();
   group.name = `weapon_${kind}`;
@@ -1558,8 +1629,10 @@ async function main() {
   const args = new Set(process.argv.slice(2));
   const aerinOnly = args.has('--aerin-only') || args.has('--knight-only');
   const wizardOnly = args.has('--wizard-only');
-  const heroesOnly = args.has('--heroes-only') || wizardOnly || aerinOnly;
+  const rogueOnly = args.has('--rogue-only');
+  const heroesOnly = args.has('--heroes-only') || wizardOnly || aerinOnly || rogueOnly;
   const staffOnly = args.has('--staff-only');
+  const daggerOnly = args.has('--dagger-only');
 
   await mkdir(resolve(ASSETS, 'models/hero'), { recursive: true });
   await mkdir(resolve(ASSETS, 'models/props'), { recursive: true });
@@ -1567,6 +1640,12 @@ async function main() {
   if (staffOnly) {
     await exportGLB(createWeapon('staff'), resolve(ASSETS, 'models/props/weapon_staff.glb'));
     console.log('Staff weapon generation complete.');
+    return;
+  }
+
+  if (daggerOnly) {
+    await exportGLB(createWeapon('dagger'), resolve(ASSETS, 'models/props/weapon_dagger.glb'));
+    console.log('Dagger weapon generation complete.');
     return;
   }
 
@@ -1579,9 +1658,12 @@ async function main() {
     await exportHeroClass('aerin', 'aerin');
   } else if (wizardOnly) {
     await exportHeroClass('wizard', 'wizard');
+  } else if (rogueOnly) {
+    await exportHeroClass('rogue', 'rogue');
   } else if (!args.has('--no-heroes')) {
     await exportHeroClass('aerin', 'aerin');
     await exportHeroClass('wizard', 'wizard');
+    await exportHeroClass('rogue', 'rogue');
   }
 
   if (heroesOnly) {
@@ -1589,7 +1671,7 @@ async function main() {
     return;
   }
 
-  for (const kind of ['sword', 'saber', 'greatsword', 'leaf', 'katana', 'relic', 'staff']) {
+  for (const kind of ['sword', 'saber', 'greatsword', 'leaf', 'katana', 'relic', 'staff', 'dagger']) {
     await exportGLB(createWeapon(kind), resolve(ASSETS, `models/props/weapon_${kind}.glb`));
   }
 

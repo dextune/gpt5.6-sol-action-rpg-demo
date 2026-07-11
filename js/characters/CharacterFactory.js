@@ -50,6 +50,26 @@ const CLASS_LOOKS = Object.freeze({
     headKit: 'none',
     scale: .94,
   }),
+  // Night rogue — dark leather wrap, mint accents; hood comes from the runtime head kit.
+  rogue: Object.freeze({
+    palette: Object.freeze({
+      skin: 0xdea482,
+      cloth: 0x3c4e5a,
+      clothDark: 0x222c38,
+      leather: 0x161c24,
+      hair: 0x9ef0d8,
+      hairDark: 0x3aa890,
+      metal: 0xb8c4c8,
+      eye: 0x35e0b8,
+      outline: 0x0a0e14,
+      shadowTintCloth: 0x14202c,
+      shadowTintHair: 0x1c4a40,
+      rimHair: 0xd8fff2,
+      rimSkin: 0xffd0b0,
+    }),
+    headKit: 'rogue',
+    scale: .92,
+  }),
 });
 
 // ~70% of previous overlong blades, with thicker girth for a solid blade read.
@@ -61,6 +81,7 @@ const WEAPON_LENGTH = Object.freeze({
   leaf: 1.08,
   relic: 1.25,
   staff: 1.35,
+  dagger: .78,
 });
 const WEAPON_GIRTH = Object.freeze({
   sword: 1.22,
@@ -70,6 +91,7 @@ const WEAPON_GIRTH = Object.freeze({
   leaf: 1.15,
   relic: 1.25,
   staff: .95,
+  dagger: 1,
 });
 
 function resolveLook(lookId) {

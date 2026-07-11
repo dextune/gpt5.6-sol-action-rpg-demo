@@ -67,6 +67,38 @@ export const FX_THEMES = Object.freeze({
     dust: 0xa05030,
     accent: 0xff9040,
   }),
+  venom: Object.freeze({
+    id: 'venom',
+    primary: 0x5ff0c0,
+    secondary: 0xb8ffe4,
+    core: 0xeafff6,
+    dust: 0x9ad8c0,
+    accent: 0x2bd1b4,
+  }),
+  nightsteel: Object.freeze({
+    id: 'nightsteel',
+    primary: 0xa8c8d8,
+    secondary: 0xe0f4fc,
+    core: 0xffffff,
+    dust: 0x8898a8,
+    accent: 0x6aa8c8,
+  }),
+  shadow: Object.freeze({
+    id: 'shadow',
+    primary: 0x7a6cff,
+    secondary: 0xc4b8ff,
+    core: 0xf0eaff,
+    dust: 0x554a78,
+    accent: 0x4a3aa8,
+  }),
+  wrath: Object.freeze({
+    id: 'wrath',
+    primary: 0xff6a55,
+    secondary: 0xffc9a0,
+    core: 0xfff0d8,
+    dust: 0xa05040,
+    accent: 0xffb84d,
+  }),
 });
 
 export function getFxTheme(themeId) {

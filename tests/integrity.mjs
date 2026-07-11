@@ -43,14 +43,23 @@ ok(enemies.length === 42, '42 monster types');
 ok(bosses.length === 6, '6 zone bosses');
 ok(shapes.size === 22, '22 monster body shapes');
 ok(Object.keys(content.RARITIES).length === 5, '5 equipment rarities');
-ok(Object.keys(content.WEAPON_BASES).length === 11, '11 weapon bases');
-ok(Object.keys(content.ARMOR_BASES).length === 6, '6 armor bases');
-ok(Object.keys(content.CHARM_BASES).length === 6, '6 charm bases');
-ok(content.AFFIXES.length === 10, '10 random equipment affixes');
-ok(Object.keys(content.SKILLS).length === 16, '16 active/passive skills (2 classes)');
+// Structural content checks — no magic totals; adding a class/base must not break these.
+ok(Object.values(content.WEAPON_BASES).every(base => base.model && base.power > 0 && base.speed > 0), 'weapon bases valid (model/power/speed)');
+ok(Object.keys(content.ARMOR_BASES).length >= 6, 'armor bases present');
+ok(Object.keys(content.CHARM_BASES).length >= 6, 'charm bases present');
+ok(content.AFFIXES.length >= 10, 'random equipment affixes present');
+ok(Object.values(content.SKILLS).every(skill => content.HERO_CLASSES[skill.classId]), 'every skill belongs to a valid class');
+for (const [classId, def] of Object.entries(content.HERO_CLASSES)) {
+  ok(def.activeSkills.length === 4, `class ${classId} has exactly 4 actives`);
+  ok(def.passiveSkills.length >= 4, `class ${classId} has 4+ passives`);
+}
+ok(content.HERO_CLASSES.rogue.activeSkills.includes('twin_fang'), 'rogue has twin_fang');
+ok(content.HERO_CLASSES.rogue.attackStyle === 'melee', 'rogue attackStyle melee');
+ok(Boolean(content.HERO_CLASSES.rogue.energy), 'rogue Focus resource defined');
+ok((content.HERO_CLASSES.rogue.meleeProfile?.rangeMult ?? 1) < 1, 'rogue short melee reach');
 ok(content.HERO_CLASSES.wizard.activeSkills.includes('fireball'), 'wizard has fireball');
 ok(content.HERO_CLASSES.wizard.attackStyle === 'magic', 'wizard attackStyle magic');
-ok(content.HERO_CLASSES.aerin.attackStyle === 'melee', 'hunter attackStyle melee');
+ok(content.HERO_CLASSES.aerin.attackStyle === 'melee', 'knight (aerin) attackStyle melee');
 ok(config.GAME_CONFIG.maxEnemies >= 42, 'max concurrent enemies setting');
 ok(config.GAME_CONFIG.saveVersion === 4, 'save data version 4');
 
@@ -97,11 +106,19 @@ ok(content.DEFAULT_HERO_CLASS_ID === 'aerin', 'default hero class aerin');
 ok(typeof content.resolveHeroClassId === 'function' && content.resolveHeroClassId('nope') === 'aerin', 'resolveHeroClassId fallback');
 ok(allFiles.includes(join(root, 'assets/models/hero/wizard_lod0.glb')), 'wizard lod0 glb exists');
 ok(allFiles.includes(join(root, 'assets/models/hero/wizard_lod1.glb')), 'wizard lod1 glb exists');
+ok(html.includes('data-class-id="rogue"'), 'title rogue class card');
+ok(html.includes('id="energy-bar"'), 'HUD energy gauge');
+ok(Boolean(content.HERO_CLASSES?.rogue), 'HERO_CLASSES rogue');
+ok(allFiles.includes(join(root, 'assets/models/hero/rogue_lod0.glb')), 'rogue lod0 glb exists');
+ok(allFiles.includes(join(root, 'assets/models/hero/rogue_lod1.glb')), 'rogue lod1 glb exists');
+ok(allFiles.includes(join(root, 'assets/models/props/weapon_dagger.glb')), 'dagger weapon glb exists');
 
 const manifest = JSON.parse(await readFile(join(root, 'assets/manifests/assets.json'), 'utf8'));
 ok(Boolean(manifest.models?.['hero.wizard']), 'manifest hero.wizard');
 ok(Boolean(manifest.models?.['hero.aerin']), 'manifest hero.aerin');
 ok(Boolean(manifest.models?.['weapon.staff']), 'manifest weapon.staff');
+ok(Boolean(manifest.models?.['hero.rogue']), 'manifest hero.rogue');
+ok(Boolean(manifest.models?.['weapon.dagger']), 'manifest weapon.dagger');
 if (manifest.audio && typeof manifest.audio === 'object') {
   for (const [key, entry] of Object.entries(manifest.audio)) {
     const urls = Array.isArray(entry?.urls) ? entry.urls : entry?.url ? [entry.url] : [];

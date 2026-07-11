@@ -1,6 +1,6 @@
 # Agent guides — hero classes & multi-class system
 
-English-only playbooks for AI agents and humans who extend **playable hero classes** (hunter, wizard, future jobs).
+English-only playbooks for AI agents and humans who extend **playable hero classes** (knight `aerin`, wizard, rogue, future jobs).
 
 These guides document the architecture and the work done to introduce multi-class heroes, a full wizard combat kit, facing-aligned combat, and import-integrity guards.
 
@@ -41,9 +41,23 @@ These guides document the architecture and the work done to introduce multi-clas
 |-----------|------|-------|--------------|---------|
 | `aerin` | Iron knight (default) | `hero.aerin` | `melee` | Knight Longsword (`sword`) — plate helm GLB |
 | `wizard` | Arcane caster | `hero.wizard` | `magic` | Apprentice Staff (`staff`) |
+| `rogue` | Night fang — short-reach crit flurry | `hero.rogue` | `melee` | Fledgling Dagger (`dagger`) — runtime hood kit |
 
 Melee basic-attack combo length grows with player level (3→7); clips `attack_1`–`attack_7` when baked.  
 Wizard basics use `cast_1`–`cast_4`. See [combat-facing.md](./combat-facing.md) and Player `basicComboLength`.
+
+Class mechanics are data on the `HERO_CLASSES` row (see [../plan/character-improvements.md](../plan/character-improvements.md)):
+
+- **Basic attack** — `getClassBasicAttack(classId)` merges style defaults with `meleeProfile` / `basicAttack`
+  overrides (`rangeMult`/`arcMult`/`flurry`, melee range/mult curves, magic `bolts`/`comboMults`).
+- **Energy resource (Focus/Rage)** — `energy: { label, effect, max, perHit, perCrit, perDamageTaken?, … }`.
+  Full gauge (Lv3+) turns the next attack click into the class burst dispatched via
+  `CombatSystem.energyHandlers[energy.effect]` (rogue `dagger_rush`, knight `wrath_slam`). Serialized in saves.
+- **Stat mods** — `baseStatMods` supports `attack`/`mp`/`skillPower` plus `hp`/`defense` multipliers (rogue glass cannon).
+- **Passive keys** — `Player.passiveEffects` aggregates `attack/hp/defense/skillPower/mpRegen/mpFlat/luck/gold`
+  plus `crit`, `haste`, `execute` (knight low-HP bonus), `dotPower` (DoT scale), `statusCrit` (crit vs bleeding/slowed).
+- **Loot** — `weaponBias: { preferred: [models], mult, otherMult }` weights weapon-base drops.
+- **Cap overflow** — attack speed past 1.75 accelerates energy gain; crit past 0.65 becomes crit damage.
 
 Default when save/UI omit class: `DEFAULT_HERO_CLASS_ID = 'aerin'`.
 

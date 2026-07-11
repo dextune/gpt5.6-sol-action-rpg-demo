@@ -5,11 +5,9 @@
 ```bash
 # Node.js (recommended)
 node server.mjs
-# → http://127.0.0.1:8080
+# → http://127.0.0.1:8777
 
-# Python 3
-python -m http.server 8080 --bind 127.0.0.1
-# Windows: py -m http.server 8080 --bind 127.0.0.1
+# Do not use file://. The Node server supplies the intended asset MIME types.
 
 # Port change
 PORT=3000 node server.mjs
@@ -20,7 +18,7 @@ Query params:
 - `?quality=low|medium|high`
 - `?debug=1` (show debug HUD on start)
 - `?autostart=1` (auto start new game after title)
-- `?class=aerin|wizard` (pre-select title class)
+- `?class=aerin|wizard|rogue` (pre-select title class)
 
 `server.mjs` uses `safePath` which accounts for Windows path separators. Watch for 403 when modifying the path guard.
 
@@ -42,6 +40,7 @@ When changing save schema:
 ```bash
 node tests/integrity.mjs          # full suite (includes import-integrity)
 node tests/import-integrity.mjs   # import/export + class/combat simulation only
+node tests/class-mode-visual-smoke.mjs  # desktop + mobile class/Defense visual smoke
 # or: npm test
 ```
 

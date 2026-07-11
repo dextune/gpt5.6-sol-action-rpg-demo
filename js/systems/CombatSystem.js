@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { SKILLS, getHeroClass } from '../data/content.js';
+import { SKILLS, getClassBasicAttack, getHeroClass } from '../data/content.js';
 import { getFxTheme } from '../data/fxThemes.js';
 import { resolveSkillHitRaw, skillCombatAtRank, skillDamage } from '../data/skillCombat.js';
 import { clamp, rand } from '../core/Utils.js';
@@ -29,6 +29,15 @@ export class CombatSystem {
       frost_nova: (p, r, phase) => this.#frostNova(p, r, phase),
       arcane_blink: (p, r) => this.#arcaneBlink(p, r),
       meteor_storm: (p, r) => this.#meteorStorm(p, r),
+      twin_fang: (p, r, phase) => this.#twinFang(p, r, phase),
+      fan_of_knives: (p, r, phase) => this.#fanOfKnives(p, r, phase),
+      shadowstep: (p, r) => this.#shadowstep(p, r),
+      death_lotus: (p, r) => this.#deathLotus(p, r),
+    };
+    /** Energy (Focus/Rage) burst id → handler(player, def) → { duration, anim, sfx, floatText } */
+    this.energyHandlers = {
+      dagger_rush: (p, def) => this.#daggerRushBurst(p, def),
+      wrath_slam: (p, def) => this.#wrathSlamBurst(p, def),
     };
   }
 
@@ -65,6 +74,10 @@ export class CombatSystem {
 
   #meleeAttack(player, combo, comboLength = 4) {
     const direction = this.#facingDir(player);
+    // Class basic-attack profile — reach/damage/flurry are data, not code.
+    const profile = getClassBasicAttack(player.classId);
+    const rangeMult = profile.rangeMult;
+    const arcMult = profile.arcMult;
     const last = Math.max(0, comboLength - 1);
     const finisher = combo >= last;
     const color = player.weapon?.rarityColor ?? 0xeef8ff;
@@ -78,17 +91,21 @@ export class CombatSystem {
     );
 
     // High-level finishers and late chain steps land as multi-pulse hits for impact.
-    const pulses = finisher
+    let pulses = finisher
       ? 1 + Math.min(3, Math.floor((comboLength - 3) / 1.5) + Math.floor(player.level / 10))
       : combo >= 3 ? 1 + Math.min(1, Math.floor(player.level / 12)) : 1;
-    const baseMult = (.88 + combo * .14 + levelBoost * .12) * (finisher ? 1.35 + (comboLength - 3) * .08 : 1);
+    // Flurry classes (rogue): every click bursts into multiple rapid strikes.
+    const flurry = Math.max(1, Math.round(profile.flurry));
+    if (flurry > 1) pulses = Math.max(pulses, flurry + (finisher ? 1 : 0));
+    const baseMult = (profile.mult + combo * profile.multPerCombo + levelBoost * .12)
+      * (finisher ? profile.finisherMult + (comboLength - 3) * .08 : 1);
 
     for (let pulse = 0; pulse < pulses; pulse += 1) {
       const delay = (finisher ? .06 : .02 + combo * .005) + pulse * (finisher ? .07 : .05);
       this.#delay(delay, () => {
         if (!player.alive) return;
-        const range = (finisher ? 3.45 : 2.85) + combo * .16 + levelBoost * .25;
-        const arc = finisher ? Math.PI * (1.05 + chain * .12) : Math.PI * (.58 + combo * .05);
+        const range = ((finisher ? profile.finisherRange : profile.range) + combo * profile.rangePerCombo + levelBoost * .25) * rangeMult;
+        const arc = (finisher ? Math.PI * (1.05 + chain * .12) : Math.PI * (.58 + combo * .05)) * arcMult;
         const hitOrigin = player.position.clone().addScaledVector(direction, .35 + pulse * .08);
         const pulseDamage = player.attackPower * baseMult * (pulses > 1 ? (.72 + pulse * .12) : 1);
 
@@ -132,6 +149,7 @@ export class CombatSystem {
   #magicAttack(player, combo, comboLength = 4) {
     // Capture facing at cast time so delayed bolts don't inherit a later turn/mouse aim.
     const direction = this.#facingDir(player);
+    const profile = getClassBasicAttack(player.classId);
     const finisher = combo >= Math.max(0, comboLength - 1);
     const theme = getFxTheme('arcane');
     const color = player.weapon?.rarityColor ?? theme.primary;
@@ -144,8 +162,8 @@ export class CombatSystem {
       height: 1.05, life: 0.22, thickness: 0.05, spin: 1.8, opacity: 0.55,
     });
 
-    const bolts = finisher ? 5 : 1;
-    const baseDamage = player.attackPower * ([.95, 1.05, 1.15, 1.45][combo] ?? 1) * player.skillPower;
+    const bolts = finisher ? profile.bolts : 1;
+    const baseDamage = player.attackPower * (profile.comboMults[combo] ?? 1) * player.skillPower;
     const baseYaw = Math.atan2(direction.x, direction.z);
     for (let i = 0; i < bolts; i += 1) {
       this.#delay(finisher ? i * .05 : .03, () => {
@@ -489,6 +507,215 @@ export class CombatSystem {
     });
   }
 
+  /** Dispatch a class energy burst from a full Focus/Rage gauge. Returns presentation hints for Player. */
+  releaseEnergyBurst(player, def) {
+    const handler = this.energyHandlers[def?.effect ?? 'dagger_rush'];
+    return handler ? handler(player, def ?? {}) : null;
+  }
+
+  /** Rogue Focus burst — level-scaled dagger rush released by a single attack click. */
+  #daggerRushBurst(player, def) {
+    const hits = player.energyComboHits;
+    const theme = getFxTheme('venom');
+    const interval = def.comboInterval ?? .085;
+    const range = def.comboRange ?? 3.1;
+    for (let i = 0; i < hits; i += 1) {
+      const finale = i === hits - 1;
+      this.#delay(.04 + i * interval, () => {
+        if (!player.alive) return;
+        const direction = this.#facingDir(player);
+        // Micro-lunge per strike keeps the rush surging into the pack.
+        player.velocity.addScaledVector(direction, finale ? 2.4 : 1.2);
+        this.game.effects.recipeFangRush(player.position, direction, theme, range * (finale ? 1.3 : 1), i, finale);
+        if (finale) {
+          this.game.effects.ring(player.position, theme.core, 3.8, { life: .4, startScale: .15, height: .12, opacity: .8 });
+          this.game.effects.pillar(player.position.clone().addScaledVector(direction, 1.1), theme.primary, 4.6, { life: .34, bottom: .6, opacity: .45 });
+          this.game.effects.burst(
+            player.position.clone().add(new THREE.Vector3(0, 1, 0)).addScaledVector(direction, 1.2),
+            theme.secondary, 26, { speed: 6.8, size: .3, life: .5, upward: .35 },
+          );
+          this.game.effects.dust(player.position, theme.dust, 16, .44);
+        }
+        const origin = player.position.clone().addScaledVector(direction, .35);
+        this.#hitEnemiesInCone(origin, direction, range * (finale ? 1.3 : 1), (def.comboArc ?? 1.5) * (finale ? 1.35 : 1),
+          player.attackPower * (def.comboMult ?? .62) * (finale ? 1.6 : 1), {
+            knockback: finale ? 5.5 : 1.4,
+            criticalBonus: def.comboCritBonus ?? .25,
+            multiHit: true,
+            finisher: finale,
+            energyCombo: true,
+          });
+        this.game.audio.swing(Math.min(3, i % 4));
+      });
+    }
+    return {
+      duration: interval * hits + .32,
+      anim: 'skill_death_lotus',
+      sfx: 'skill_blade',
+      floatText: `COMBO ×${hits}`,
+    };
+  }
+
+  /** Knight Rage burst — a single Wrath Slam heavy crush in front of the knight. */
+  #wrathSlamBurst(player, def) {
+    const theme = getFxTheme('wrath');
+    const radius = def.slamRadius ?? 4.6;
+    this.#delay(.16, () => {
+      if (!player.alive) return;
+      const direction = this.#facingDir(player);
+      const center = player.position.clone().addScaledVector(direction, radius * .55);
+      center.y = this.game.world.heightAt(center.x, center.z);
+      player.velocity.addScaledVector(direction, 2.6);
+      this.game.effects.ring(center, theme.primary, radius, { life: .5, startScale: .1 });
+      this.game.effects.ring(center, theme.core, radius * .55, { life: .3, startScale: .18, height: .12, opacity: .85 });
+      this.game.effects.pillar(center, theme.secondary, 6.5, { life: .5, bottom: 1, opacity: .5 });
+      this.game.effects.slash(player.position, direction, theme.primary, radius * 1.05, {
+        height: 1.35, thickness: .09, life: .3, spin: 3.4, opacity: .9,
+      });
+      this.game.effects.burst(center.clone().add(new THREE.Vector3(0, 1, 0)), theme.secondary, 30, {
+        speed: 6.6, size: .36, life: .6, upward: .5,
+      });
+      this.game.effects.dust(center, theme.dust, 20, .5);
+      this.game.effects.impact(center.clone().add(new THREE.Vector3(0, 1.1, 0)), theme.primary, 'finisher', { direction });
+      this.#hitEnemiesInRadius(center, radius, player.attackPower * (def.slamMult ?? 2.6), {
+        knockback: def.slamKnockback ?? 7.5,
+        armorPierce: def.slamArmorPierce ?? .3,
+        criticalBonus: def.slamCritBonus ?? .12,
+        finisher: true,
+        energyCombo: true,
+      });
+    });
+    return { duration: .6, anim: 'skill_skyfall', sfx: 'skill_leap', floatText: 'WRATH!' };
+  }
+
+  #twinFangStab(player, rank, hitIndex) {
+    const { combat, theme } = this.#skillBundle('twin_fang', rank);
+    const direction = this.#facingDir(player);
+    const hits = Math.max(1, Math.round(combat.hits ?? 2));
+    const finale = hitIndex >= hits - 1;
+    const origin = player.position.clone().addScaledVector(direction, .3);
+    this.game.effects.recipeFangRush(player.position, direction, theme, combat.range, hitIndex, finale);
+    this.#hitEnemiesInCone(origin, direction, combat.range, combat.arc ?? 1.15, skillDamage(player.attackPower, combat), {
+      knockback: combat.knockback ?? 1.6,
+      criticalBonus: combat.criticalBonus ?? 0.15,
+      multiHit: true,
+      skill: true,
+      status: finale ? combat.status ?? null : null,
+    });
+  }
+
+  #twinFang(player, rank, phase = null) {
+    const { combat } = this.#skillBundle('twin_fang', rank);
+    const hits = Math.max(1, Math.round(combat.hits ?? 2));
+    if (phase != null && phase !== 'full') {
+      if (!player.alive) return;
+      this.#twinFangStab(player, rank, Number(phase) || 0);
+      return;
+    }
+    // Fallback absolute delays if anim timeline not used
+    for (let hit = 0; hit < hits; hit += 1) {
+      this.#delay(0.05 + hit * 0.12, () => {
+        if (!player.alive) return;
+        this.#twinFangStab(player, rank, hit);
+      });
+    }
+  }
+
+  #fanOfKnives(player, rank, phase = null) {
+    const fire = () => {
+      if (!player.alive) return;
+      const { combat, theme } = this.#skillBundle('fan_of_knives', rank);
+      const direction = this.#facingDir(player);
+      this.game.effects.recipeDaggerFan(player.position, direction, theme);
+      const knives = Math.max(1, Math.round(combat.knives ?? 5));
+      const baseYaw = Math.atan2(direction.x, direction.z);
+      const spread = combat.spread ?? 0.16;
+      for (let i = 0; i < knives; i += 1) {
+        const yaw = baseYaw + (i - (knives - 1) / 2) * spread;
+        const dir = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
+        const start = player.position.clone().add(new THREE.Vector3(0, 1.1, 0)).addScaledVector(dir, .6);
+        this.#spawnFriendlyOrb(start, dir, {
+          color: i % 2 ? theme.secondary : theme.primary,
+          damage: skillDamage(player.attackPower, combat),
+          speed: combat.speed,
+          radius: combat.radius ?? 0.85,
+          life: combat.life ?? 0.62, // short flight — daggers stay close-range
+          pierce: Math.round(combat.pierce ?? 1),
+          knockback: combat.knockback ?? 2.4,
+          skill: true,
+          scale: 0.72,
+          statusOnHit: combat.status ?? null,
+        });
+      }
+    };
+    if (phase != null && phase !== 'full') fire();
+    else fire();
+  }
+
+  #shadowstep(player, rank) {
+    const { combat, theme } = this.#skillBundle('shadowstep', rank);
+    const direction = this.#facingDir(player);
+    const from = player.position.clone();
+    const target = this.#aimAlongFacing(player, combat.dash ?? 7.5);
+    player.position.copy(target);
+    this.game.world.resolvePosition(player.position, 0.48);
+    player.invulnerable = Math.max(player.invulnerable, combat.invuln ?? 0.5);
+    const to = player.position.clone();
+    this.game.effects.recipeShadowDash(from, to, direction, theme);
+    // Carve every enemy near the dash segment.
+    const path = TMP_B.copy(to).sub(from).setY(0);
+    const pathLength = Math.max(0.001, path.length());
+    const pathDir = TMP_C.copy(path).normalize();
+    const halfWidth = (combat.width ?? 2.2) * 0.5;
+    const raw = skillDamage(player.attackPower, combat);
+    for (const enemy of this.game.enemies.enemies) {
+      if (!enemy.alive) continue;
+      const offset = TMP_A.copy(enemy.position).sub(from).setY(0);
+      const along = clamp(offset.dot(pathDir), 0, pathLength);
+      const lateral = offset.addScaledVector(pathDir, -along).length();
+      if (lateral > halfWidth + enemy.radius) continue;
+      const side = enemy.position.clone().sub(from).setY(0).addScaledVector(pathDir, -along);
+      const knockDir = side.lengthSq() > .001 ? side.normalize() : pathDir.clone();
+      this.#damageEnemy(enemy, raw, {
+        direction: knockDir,
+        knockback: combat.knockback ?? 2.2,
+        armorPierce: combat.armorPierce ?? 0.3,
+        criticalBonus: combat.criticalBonus ?? 0.18,
+        skill: true,
+      });
+    }
+  }
+
+  #deathLotus(player, rank) {
+    const { combat, theme } = this.#skillBundle('death_lotus', rank);
+    const hits = Math.max(1, Math.round(combat.hits ?? 8));
+    const radius = combat.radius;
+    player.invulnerable = Math.max(player.invulnerable, combat.invuln ?? 0.6);
+    for (let i = 0; i < hits; i += 1) {
+      this.#delay(0.05 + i * 0.09, () => {
+        if (!player.alive) return;
+        this.game.effects.recipeLotusFlurry(player.position, theme, radius, i, false);
+        this.#hitEnemiesInRadius(player.position, radius, skillDamage(player.attackPower, combat), {
+          knockback: combat.knockback ?? 1.2,
+          criticalBonus: combat.criticalBonus ?? 0.22,
+          multiHit: true,
+          skill: true,
+        });
+      });
+    }
+    this.#delay(0.14 + hits * 0.09, () => {
+      if (!player.alive) return;
+      this.game.effects.recipeLotusFlurry(player.position, theme, combat.finaleRadius ?? 3.9, hits, true);
+      this.#hitEnemiesInRadius(player.position, combat.finaleRadius ?? 3.9, skillDamage(player.attackPower, combat, 'finaleMult'), {
+        knockback: combat.finaleKnockback ?? 5,
+        criticalBonus: combat.criticalBonus ?? 0.22,
+        multiHit: true,
+        skill: true,
+        status: combat.status ?? null,
+      });
+    });
+  }
+
   enemyMelee(enemy, options = {}) {
     const delay = enemy.boss ? .58 : enemy.elite ? .46 : .38;
     const radius = enemy.attackRange + enemy.radius + .55;
@@ -722,19 +949,29 @@ export class CombatSystem {
 
   #damageEnemy(enemy, rawDamage, options = {}) {
     const player = this.game.player;
-    const critical = Math.random() < clamp(player.critChance + (options.criticalBonus ?? 0), 0, .8);
+    // Status synergy: slowed enemies are easier to crit (all classes);
+    // rogue Opportunist adds crit vs bleeding/slowed prey.
+    const statusAfflicted = enemy.statuses?.slow?.remaining > 0 || enemy.statuses?.bleed?.remaining > 0;
+    const slowCritBonus = enemy.statuses?.slow?.remaining > 0 ? 0.04 : 0;
+    const opportunistBonus = statusAfflicted ? player.passiveEffects.statusCrit : 0;
+    const critical = Math.random() < clamp(player.critChance + (options.criticalBonus ?? 0) + slowCritBonus + opportunistBonus, 0, .8);
     const finisher = Boolean(options.finisher);
     let armorPierce = options.armorPierce ?? 0;
     if (enemy.statuses?.expose?.remaining > 0) {
       armorPierce = Math.min(0.85, armorPierce + (enemy.statuses.expose.power ?? 0.15));
     }
     // skillPower applied exactly once here unless skillPowerApplied (baked projectile damage).
-    const damage = resolveSkillHitRaw(rawDamage, {
+    let damage = resolveSkillHitRaw(rawDamage, {
       skill: options.skill,
       skillPowerApplied: options.skillPowerApplied,
       skillPower: player.skillPower,
       critical,
+      critMultiplier: player.critMultiplier,
     });
+    // Knight Executioner: bonus damage vs enemies below 30% health.
+    if (player.passiveEffects.execute > 0 && enemy.hp / Math.max(1, enemy.maxHp) < .3) {
+      damage *= 1 + player.passiveEffects.execute;
+    }
     const result = enemy.takeDamage(damage, this.game, {
       direction: options.direction,
       knockback: (options.knockback ?? 2) * (critical ? 1.25 : 1),
@@ -743,6 +980,11 @@ export class CombatSystem {
     });
     if (result.amount <= 0) return;
     if (options.status) this.#applyHitStatus(enemy, options.status);
+    // Focus builds only on landed rogue basic-attack hits, not skills or the combo itself.
+    const energyDef = getHeroClass(player.classId).energy;
+    if (energyDef && !options.skill && !options.energyCombo) {
+      player.gainEnergy((energyDef.perHit ?? 0) + (critical ? energyDef.perCrit ?? 0 : 0));
+    }
     const hitPoint = enemy.position.clone().add(new THREE.Vector3(0, enemy.refs.modelHeight * .48, 0));
     const weaponColor = player.weapon?.rarityColor ?? 0xeef8ff;
     const intensity = critical ? 'critical' : finisher ? 'finisher' : options.skill ? 'heavy' : 'light';
@@ -755,6 +997,8 @@ export class CombatSystem {
       this.game.effects.trail(hitPoint, 0x7ad8ff, 0.35, 0.35);
     } else if (options.status?.id === 'burn') {
       this.game.effects.trail(hitPoint, 0xff7a42, 0.32, 0.3);
+    } else if (options.status?.id === 'bleed') {
+      this.game.effects.trail(hitPoint, 0x4de8b8, 0.3, 0.28);
     }
 
     this.game.ui.floatText(hitPoint, `${critical ? 'CRIT ' : ''}${result.amount}`, critical ? 'critical' : 'damage');

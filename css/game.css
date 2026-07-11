@@ -52,9 +52,9 @@ button { color: inherit; }
 .feature-runes b { color: var(--gold); font-size: 18px; }
 .class-select {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 10px;
-  width: min(440px, 86vw);
+  width: min(560px, 86vw);
   margin: 0 0 12px;
 }
 .class-card {
@@ -111,6 +111,12 @@ body.touch-ui .controls-mobile { display: flex; }
 .resource-bar b { position: absolute; inset: 0; display: grid; place-items: center; font-size: 9px; letter-spacing: .04em; text-shadow: 0 1px 2px #000; }
 .hp-bar span { background: linear-gradient(90deg, #ba334d, #ff6578 55%, #ff9d8c); }
 .mp-bar span { background: linear-gradient(90deg, #367dbf, #5ccae9 62%, #91e9ff); }
+.energy-bar span { background: linear-gradient(90deg, #1f9e84, #3fe0ba 58%, #a8ffe8); }
+.energy-bar.is-ready { border-color: rgba(63, 224, 186, .85); box-shadow: inset 0 2px 5px rgba(0,0,0,.4), 0 0 9px rgba(63, 224, 186, .55); }
+.energy-bar.is-ready span { animation: energy-ready-pulse .6s ease-in-out infinite alternate; }
+.energy-bar.is-rage span { background: linear-gradient(90deg, #a83a2c, #ff6a55 58%, #ffc9a0); }
+.energy-bar.is-rage.is-ready { border-color: rgba(255, 106, 85, .85); box-shadow: inset 0 2px 5px rgba(0,0,0,.4), 0 0 9px rgba(255, 106, 85, .55); }
+@keyframes energy-ready-pulse { from { filter: brightness(1); } to { filter: brightness(1.45); } }
 .xp-row { display: grid; grid-template-columns: 27px 1fr auto; gap: 6px; align-items: center; margin: 7px 1px 0; font-size: 8px; color: #9eb7b4; }
 .xp-row > div { height: 4px; background: rgba(2,10,15,.75); border-radius: 4px; overflow: hidden; }
 .xp-row i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--gold), #fff3ab); box-shadow: 0 0 7px var(--gold); }
@@ -772,14 +778,14 @@ body.touch-ui .ability-slot.cooling::before {
   }
   body.touch-ui .player-card .portrait { display: none; }
   body.touch-ui .resource-pills {
-    top: max(50px, calc(env(safe-area-inset-top, 0px) + 44px));
+    top: max(78px, calc(env(safe-area-inset-top, 0px) + 72px));
     max-width: 48vw;
   }
   /* Sit under HP strip so it never collides with name card / minimap */
   body.touch-ui .zone-ribbon {
     left: max(6px, env(safe-area-inset-left, 0px));
     right: auto;
-    top: max(72px, calc(env(safe-area-inset-top, 0px) + 66px));
+    top: max(102px, calc(env(safe-area-inset-top, 0px) + 96px));
     transform: none;
     max-width: 44vw;
     text-align: left;
@@ -787,7 +793,7 @@ body.touch-ui .ability-slot.cooling::before {
   }
   body.touch-ui .zone-ribbon strong { font-size: 10px; }
   body.touch-ui .resource-pills {
-    top: max(50px, calc(env(safe-area-inset-top, 0px) + 44px));
+    top: max(78px, calc(env(safe-area-inset-top, 0px) + 72px));
   }
   body.touch-ui .minimap-shell {
     width: 80px;

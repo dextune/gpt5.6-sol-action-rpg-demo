@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { PLAYER_CONFIG } from '../config.js';
 import {
-  AFFIXES, ARMOR_BASES, CHARM_BASES, RARITIES, WEAPON_BASES,
+  AFFIXES, ARMOR_BASES, CHARM_BASES, RARITIES, WEAPON_BASES, getHeroClass,
 } from '../data/content.js';
 import { chance, clamp, pick, rand, randInt, uid, weightedPick } from '../core/Utils.js';
 import { createLootMesh } from '../graphics/ModelFactory.js';
@@ -13,6 +13,7 @@ const BASE_LEVELS = Object.freeze({
   field_blade: 1, moon_saber: 5, stone_cleaver: 9, thorn_edge: 12,
   sun_fang: 18, glacier_brand: 27, ember_katana: 36, astral_oath: 50,
   oak_staff: 1, crystal_rod: 14, void_scepter: 40,
+  night_fang: 1, viper_kris: 30,
   hide_vest: 1, leaf_mail: 8, dune_plate: 16, frost_coat: 25, forge_shell: 36, starweave: 49,
   fang_charm: 1, breeze_knot: 6, heart_seed: 12, coin_eye: 19, scholar_rune: 28, eclipse_shard: 48,
 });
@@ -43,6 +44,18 @@ export class LootSystem {
     return rarity;
   }
 
+  /** Weighted weapon-base pick using the class's weaponBias (falls back to uniform). */
+  #pickWeaponBase(pool) {
+    const bias = getHeroClass(this.game.player?.classId)?.weaponBias;
+    if (!bias?.preferred?.length) return pick(pool);
+    const preferredMult = bias.mult ?? 2.2;
+    const otherMult = bias.otherMult ?? .6;
+    return weightedPick(pool.map(base => ({
+      id: base,
+      weight: bias.preferred.includes(base.model) ? preferredMult : otherMult,
+    })));
+  }
+
   generateGear(level = this.game.player.level, options = {}) {
     const itemLevel = Math.max(1, Math.round(level + randInt(-2, 2)));
     const rarity = options.rarity ?? this.rollRarity(options);
@@ -52,7 +65,9 @@ export class LootSystem {
     ]);
     const bases = slot === 'weapon' ? WEAPON_BASES : slot === 'armor' ? ARMOR_BASES : CHARM_BASES;
     const eligible = Object.values(bases).filter(base => (BASE_LEVELS[base.id] ?? 1) <= itemLevel + 4);
-    const base = pick(eligible.length ? eligible : Object.values(bases));
+    const pool = eligible.length ? eligible : Object.values(bases);
+    // Weapons lean toward the player's class identity (daggers for rogue, staves for wizard, …).
+    const base = slot === 'weapon' ? this.#pickWeaponBase(pool) : pick(pool);
     const multiplier = rarityData.multiplier * (1 + itemLevel * .014);
     const item = {
       id: uid('gear'), baseId: base.id, slot, name: base.name, rarity,

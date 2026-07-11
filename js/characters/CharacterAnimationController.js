@@ -40,6 +40,9 @@ export class CharacterAnimationController {
       action.timeScale = timeScale;
       return action;
     }
+    // Replacing an active one-shot (e.g. hit reaction over a skill cast) must not
+    // silently drop scheduled timeline events — MP/cooldown were already spent.
+    if (this.oneShot && this.oneShot.action !== action) this.#flushEvents(this.oneShot.action);
     action.enabled = true;
     action.setEffectiveTimeScale(timeScale);
     action.setEffectiveWeight(1);
@@ -89,6 +92,16 @@ export class CharacterAnimationController {
     this.events = this.events.filter(event => event.key !== key);
   }
 
+  /** Fire and clear any unfired events bound to an interrupted one-shot action. */
+  #flushEvents(action) {
+    const pending = this.events.filter(event => event.action === action && !event.fired);
+    this.events = this.events.filter(event => event.action !== action);
+    for (const event of pending) {
+      event.fired = true;
+      try { event.callback?.(); } catch (error) { console.error('Animation event failed:', error); }
+    }
+  }
+
   update(delta, options = {}) {
     if (this.disposed) return;
     const distance = options.distance ?? 0;
@@ -115,7 +128,8 @@ export class CharacterAnimationController {
         const fade = this.oneShot.fadeOut;
         const completedAction = this.oneShot.action;
         this.oneShot = null;
-        this.events = this.events.filter(event => event.action !== completedAction);
+        // Late-cue events (e.g. normalized .98 under tick throttling) still fire on completion.
+        this.#flushEvents(completedAction);
         if (fallback) this.play(fallback, { fade, loop: true, restart: false });
       }
     }

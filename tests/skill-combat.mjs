@@ -41,13 +41,20 @@ const tick1 = tickStatuses(st, 0.5);
 ok(tick1.statuses.slow.remaining === 1.5, 'tickStatuses reduces remaining');
 st = applyStatus({}, 'burn', { duration: 1.0, dps: 10, tick: 0.5 });
 const burnTick = tickStatuses(st, 0.5);
-ok(burnTick.burnDamage > 0, 'burn produces damage on tick');
+ok(burnTick.dotDamage > 0, 'burn produces damage on tick');
 const expired = tickStatuses(st, 5);
 ok(!expired.statuses.burn && expired.expired.includes('burn'), 'burn expires');
 
 // —— All actives have combat + presentation identity ——
 const actives = Object.values(content.SKILLS).filter(s => !s.passive);
-ok(actives.length === 8, '8 active skills');
+ok(actives.length === Object.keys(content.HERO_CLASSES).length * 4, 'every class contributes 4 actives');
+
+// Every declared recipe must exist as an Effects.recipe<PascalCase> method (label-code drift guard).
+const effectsSrc = await (await import('node:fs/promises')).readFile(join(root, 'js/graphics/Effects.js'), 'utf8');
+for (const skill of actives) {
+  const method = `recipe${skill.recipe[0].toUpperCase()}${skill.recipe.slice(1)}`;
+  ok(effectsSrc.includes(`${method}(`), `${skill.id} recipe '${skill.recipe}' maps to Effects.${method}`);
+}
 
 const recipes = new Set();
 const themes = new Set();
@@ -84,11 +91,22 @@ ok(starburst.combat.pattern === 'star', 'starburst pattern star');
 ok(meteor.combat.pattern === 'fallCone', 'meteor pattern fallCone');
 ok(starburst.anim !== meteor.anim, 'starburst and meteor different anim clips');
 
-// Wizard anims must not alias knight skill clips
+// Wizard/rogue anims must not alias knight skill clips
 const wizardActives = actives.filter(s => s.classId === 'wizard');
 for (const skill of wizardActives) {
   ok(!KNIGHT_SKILL_CLIPS.includes(skill.anim), `wizard ${skill.id} anim is not knight alias (${skill.anim})`);
 }
+const rogueActives = actives.filter(s => s.classId === 'rogue');
+ok(rogueActives.length === 4, 'rogue has 4 actives');
+for (const skill of rogueActives) {
+  ok(!KNIGHT_SKILL_CLIPS.includes(skill.anim), `rogue ${skill.id} anim is not knight alias (${skill.anim})`);
+}
+
+// Rogue identity: bleed status + crit bonuses on every active
+ok(content.SKILLS.twin_fang.combat.status?.id === 'bleed', 'twin_fang applies bleed');
+ok(rogueActives.every(s => (s.combat.criticalBonus ?? 0) > 0 || s.id === 'fan_of_knives'), 'rogue actives carry crit bonuses');
+const bleedSt = applyStatus({}, 'bleed', { duration: 1.0, dps: 8, tick: 0.4 });
+ok(tickStatuses(bleedSt, 0.4).dotDamage > 0, 'bleed produces damage on tick');
 
 // Anim timeline on at least whirlwind
 ok(skillUsesAnimTimeline(content.SKILLS.whirlwind), 'whirlwind uses anim timeline');

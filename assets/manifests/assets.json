@@ -50,14 +50,37 @@
         "dodge": "dodge",
         "hit": "hit",
         "death": "death",
-        "skill_whirlwind": "skill_whirlwind",
-        "skill_crescent": "skill_crescent",
-        "skill_skyfall": "skill_skyfall",
-        "skill_starburst": "skill_starburst",
         "skill_fireball": "skill_fireball",
         "skill_frost_nova": "skill_frost_nova",
         "skill_blink": "skill_blink",
         "skill_meteor": "skill_meteor"
+      }
+    },
+    "hero.rogue": {
+      "type": "character",
+      "lods": {
+        "high": "./assets/models/hero/rogue_lod0.glb",
+        "medium": "./assets/models/hero/rogue_lod1.glb",
+        "low": "./assets/models/hero/rogue_lod1.glb"
+      },
+      "animationMap": {
+        "idle": "idle",
+        "run": "run",
+        "sprint": "sprint",
+        "attack_1": "attack_1",
+        "attack_2": "attack_2",
+        "attack_3": "attack_3",
+        "attack_4": "attack_4",
+        "attack_5": "attack_5",
+        "attack_6": "attack_6",
+        "attack_7": "attack_7",
+        "dodge": "dodge",
+        "hit": "hit",
+        "death": "death",
+        "skill_twin_fang": "skill_twin_fang",
+        "skill_fan_knives": "skill_fan_knives",
+        "skill_shadowstep": "skill_shadowstep",
+        "skill_death_lotus": "skill_death_lotus"
       }
     },
     "monster.slime": {
@@ -183,6 +206,10 @@
     "weapon.staff": {
       "type": "prop",
       "url": "./assets/models/props/weapon_staff.glb"
+    },
+    "weapon.dagger": {
+      "type": "prop",
+      "url": "./assets/models/props/weapon_dagger.glb"
     }
   },
   "textures": {

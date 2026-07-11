@@ -92,6 +92,7 @@ export class Player {
     this.attackAnimDuration = .28;
     this.comboIndex = 0;
     this.comboWindow = 0;
+    this.energy = 0;
     this.dashTimer = 0;
     this.dashCooldown = 0;
     this.potionCooldown = 0;
@@ -108,6 +109,7 @@ export class Player {
     this.facing.set(0, 0, 1);
     this.animation.play('idle', { fade: 0, loop: true, restart: true });
     setMaterialHitPulse(this.mesh, 0);
+    this.invalidateStats();
     this.#updateWeaponVisual();
   }
 
@@ -119,7 +121,14 @@ export class Player {
   get isDashing() { return this.dashTimer > 0; }
   get potionCount() { return this.potions; }
 
+  /** Drop cached stat aggregates — call on equip / skill upgrade / class change / load. */
+  invalidateStats() {
+    this._equipmentStatsCache = null;
+    this._passiveEffectsCache = null;
+  }
+
   get equipmentStats() {
+    if (this._equipmentStatsCache) return this._equipmentStatsCache;
     const stats = Object.fromEntries(NUMERIC_GEAR_STATS.map(key => [key, 0]));
     let weaponSpeed = 1;
     for (const item of [this.weapon, this.armor, this.charm]) {
@@ -128,13 +137,16 @@ export class Player {
       if (item.slot === 'weapon') weaponSpeed = Number(item.speed) || 1;
     }
     stats.weaponSpeed = weaponSpeed;
+    this._equipmentStatsCache = stats;
     return stats;
   }
 
   /** Aggregate passive effect ranks for the current class tree. */
   get passiveEffects() {
+    if (this._passiveEffectsCache) return this._passiveEffectsCache;
     const out = {
       attack: 0, hp: 0, defense: 0, skillPower: 0, mpRegen: 0, mpFlat: 0, luck: 0, gold: 0,
+      crit: 0, haste: 0, execute: 0, dotPower: 0, statusCrit: 0,
     };
     for (const id of getClassSkillIds(this.classId)) {
       const skill = SKILLS[id];
@@ -143,6 +155,7 @@ export class Player {
       const effect = skill.effect ?? {};
       for (const key of Object.keys(out)) out[key] += (Number(effect[key]) || 0) * rank;
     }
+    this._passiveEffectsCache = out;
     return out;
   }
 
@@ -152,8 +165,9 @@ export class Player {
 
   get maxHp() {
     const stats = this.equipmentStats;
+    const mods = this.classMods;
     const passive = 1 + this.passiveEffects.hp;
-    return Math.round((PLAYER_CONFIG.baseHp + (this.level - 1) * 12 + stats.hp) * passive);
+    return Math.round((PLAYER_CONFIG.baseHp * (mods.hp ?? 1) + (this.level - 1) * 12 + stats.hp) * passive);
   }
   get maxMp() {
     const mods = this.classMods;
@@ -168,10 +182,23 @@ export class Player {
   }
   get defense() {
     const stats = this.equipmentStats;
-    return (PLAYER_CONFIG.baseDefense + this.level * .82 + stats.defense) * (1 + this.passiveEffects.defense);
+    const mods = this.classMods;
+    return (PLAYER_CONFIG.baseDefense * (mods.defense ?? 1) + this.level * .82 + stats.defense) * (1 + this.passiveEffects.defense);
   }
-  get critChance() { return clamp(PLAYER_CONFIG.baseCrit + this.equipmentStats.crit, 0, .65); }
-  get attackSpeed() { return clamp(this.equipmentStats.weaponSpeed * (1 + this.equipmentStats.haste), .65, 1.75); }
+  get critChance() { return clamp(PLAYER_CONFIG.baseCrit + this.equipmentStats.crit + this.passiveEffects.crit, 0, .65); }
+  /** Crit chance past the 0.65 cap converts to crit damage instead of being wasted. */
+  get critOverflow() {
+    const raw = PLAYER_CONFIG.baseCrit + this.equipmentStats.crit + this.passiveEffects.crit;
+    return Math.max(0, raw - .65);
+  }
+  get critMultiplier() { return 1.85 + this.critOverflow * 1.5; }
+  get attackSpeed() { return clamp(this.equipmentStats.weaponSpeed * (1 + this.equipmentStats.haste + this.passiveEffects.haste), .65, 1.75); }
+  /** Attack speed past the 1.75 cap accelerates Focus/Rage gain instead. */
+  get attackSpeedOverflow() {
+    const raw = this.equipmentStats.weaponSpeed * (1 + this.equipmentStats.haste + this.passiveEffects.haste);
+    return Math.max(0, raw - 1.75);
+  }
+  get energyGainMul() { return 1 + this.attackSpeedOverflow * 2; }
   get moveSpeed() { return PLAYER_CONFIG.moveSpeed + this.equipmentStats.moveSpeed; }
   get skillPower() {
     const mods = this.classMods;
@@ -183,6 +210,27 @@ export class Player {
   get luck() { return this.equipmentStats.luck + this.passiveEffects.luck; }
   get healthRatio() { return clamp(this.hp / Math.max(1, this.maxHp), 0, 1); }
   get manaRatio() { return clamp(this.mp / Math.max(1, this.maxMp), 0, 1); }
+
+  /** Focus — rogue class energy resource definition; null for classes without one. */
+  get energyDef() { return getHeroClass(this.classId).energy ?? null; }
+  get maxEnergy() { return this.energyDef?.max ?? 0; }
+  get energyRatio() { return this.maxEnergy > 0 ? clamp(this.energy / this.maxEnergy, 0, 1) : 0; }
+  get energyComboReady() {
+    const def = this.energyDef;
+    return Boolean(def && this.level >= def.comboUnlockLevel && this.energy >= def.max);
+  }
+  /** Combo length grows with level past the unlock (rush-type energy effects only). */
+  get energyComboHits() {
+    const def = this.energyDef;
+    if (!def?.comboBaseHits) return 0;
+    const bonus = Math.floor(Math.max(0, this.level - def.comboUnlockLevel) / def.comboHitsPerLevels);
+    return Math.min(def.comboMaxHits, def.comboBaseHits + bonus);
+  }
+
+  gainEnergy(amount) {
+    if (!this.energyDef || !this.alive) return;
+    this.energy = clamp(this.energy + amount * this.energyGainMul, 0, this.maxEnergy);
+  }
 
   getItem(itemId) {
     if (!itemId) return null;
@@ -323,6 +371,10 @@ export class Player {
 
   tryAttack(game) {
     if (this.attackCooldown > 0 || this.isDashing || this.castTimer > 0 || !this.alive) return false;
+    if (this.energyComboReady) {
+      this.#releaseEnergyCombo(game);
+      return true;
+    }
     this.alignCombatFacing();
     const comboLength = this.basicComboLength;
     this.comboIndex = this.comboWindow > 0 ? (this.comboIndex + 1) % comboLength : 0;
@@ -364,6 +416,28 @@ export class Player {
     return true;
   }
 
+  /** A full Focus/Rage gauge releases the class energy burst on the next attack click. */
+  #releaseEnergyCombo(game) {
+    const def = this.energyDef;
+    this.energy = 0;
+    this.alignCombatFacing();
+    this.comboIndex = 0;
+    this.comboWindow = 0;
+    const result = game.combat.releaseEnergyBurst(this, def) ?? {};
+    const duration = result.duration ?? .5;
+    this.attackCooldown = duration * .85;
+    this.attackAnimDuration = duration;
+    this.attackAnim = duration;
+    this.attackLunge = .1;
+    let anim = result.anim ?? 'attack_3';
+    if (!this.animation.has(anim)) anim = this.animation.has('skill_whirlwind') ? 'skill_whirlwind' : 'attack_3';
+    this.animation.playOneShot(anim, { fade: .05, fadeOut: .1, timeScale: Math.max(1.1, 1.3 / duration), fallback: 'idle' });
+    game.audio.skill(result.sfx ?? 'skill_blade');
+    if (result.floatText) {
+      game.ui.floatText(this.position.clone().add(new THREE.Vector3(0, 2.1, 0)), result.floatText, 'critical');
+    }
+  }
+
   tryDash(game) {
     if (this.dashCooldown > 0 || this.isDashing || !this.alive) return false;
     this.dashDirection.copy(this.moveDirection.lengthSq() > .01 ? this.moveDirection : this.facing).normalize();
@@ -395,19 +469,11 @@ export class Player {
     this.attackAnimDuration = this.castTimer;
     this.attackAnim = this.castTimer;
     let anim = skill.anim ?? `skill_${skillId}`;
-    // Graceful fallback if unique wizard clip not yet in GLB.
+    // Graceful data-driven fallback if the unique clip is not in the GLB.
     if (!this.animation.has(anim)) {
-      const fallbacks = {
-        skill_fireball: 'skill_crescent',
-        skill_frost_nova: 'skill_whirlwind',
-        skill_blink: 'skill_skyfall',
-        skill_meteor: 'skill_starburst',
-        cast_1: 'attack_1',
-        cast_2: 'attack_2',
-        cast_3: 'attack_3',
-        cast_4: 'attack_4',
-      };
-      anim = fallbacks[anim] ?? (this.animation.has('skill_whirlwind') ? 'skill_whirlwind' : 'idle');
+      anim = skill.animFallback && this.animation.has(skill.animFallback)
+        ? skill.animFallback
+        : this.animation.has('skill_whirlwind') ? 'skill_whirlwind' : 'idle';
     }
     this.animation.playOneShot(anim, {
       fade: .09, fadeOut: .13,
@@ -436,7 +502,7 @@ export class Player {
   usePotion(game) {
     if (this.potionCooldown > 0 || this.potions <= 0 || this.hp >= this.maxHp || !this.alive) return false;
     this.potions -= 1;
-    this.potionCooldown = 2;
+    this.potionCooldown = PLAYER_CONFIG.potionCooldown;
     const amount = Math.round(this.maxHp * PLAYER_CONFIG.potionHealRatio);
     this.heal(amount);
     game.effects.ring(this.position, 0x6bf0a0, 2.8, { life: .55 });
@@ -448,8 +514,10 @@ export class Player {
 
   takeDamage(rawAmount, knockback = null) {
     if (this.invulnerable > 0 || !this.alive) return 0;
-    const amount = Math.max(1, Math.round(rawAmount - this.defense * .46));
+    const amount = Math.max(1, Math.round(rawAmount - this.defense * PLAYER_CONFIG.defenseSoak));
     this.hp = Math.max(0, this.hp - amount);
+    // Rage-style resources charge from taking hits.
+    if (amount > 0 && this.energyDef?.perDamageTaken) this.gainEnergy(this.energyDef.perDamageTaken);
     this.invulnerable = .46;
     this.hitTimer = .19;
     if (knockback) this.knockback.add(knockback);
@@ -518,6 +586,7 @@ export class Player {
     const item = this.getItem(itemId);
     if (!item || !['weapon', 'armor', 'charm'].includes(item.slot)) return false;
     this.equipped[item.slot] = item.id;
+    this.invalidateStats();
     this.hp = Math.min(this.hp, this.maxHp);
     this.mp = Math.min(this.mp, this.maxMp);
     if (item.slot === 'weapon') this.#updateWeaponVisual();
@@ -542,13 +611,14 @@ export class Player {
     if (current >= skill.maxRank) return false;
     this.skills[skillId] = current + 1;
     this.skillPoints -= 1;
+    this.invalidateStats();
     this.hp = Math.min(this.hp, this.maxHp);
     return true;
   }
 
   cooldownRatio(skillId) {
     if (skillId === 'dash') return this.dashCooldown / PLAYER_CONFIG.dashCooldown;
-    if (skillId === 'potion') return this.potionCooldown / 2;
+    if (skillId === 'potion') return this.potionCooldown / PLAYER_CONFIG.potionCooldown;
     const skill = SKILLS[skillId];
     return skill ? this.skillCooldowns[skillId] / skill.cooldown : 0;
   }
@@ -578,6 +648,7 @@ export class Player {
       maxPotions: this.maxPotions,
       hp: this.hp,
       mp: this.mp,
+      energy: this.energy,
       position: [this.position.x, this.position.y, this.position.z],
     };
   }
@@ -613,8 +684,10 @@ export class Player {
     const position = Array.isArray(state.position) ? state.position : [0, 0, 6];
     this.position.set(Number(position[0]) || 0, 0, Number(position[2]) || 6);
     if (world) world.resolvePosition(this.position, .48);
+    this.invalidateStats();
     this.hp = clamp(Number(state.hp) || this.maxHp, 1, this.maxHp);
     this.mp = clamp(Number(state.mp) || this.maxMp, 0, this.maxMp);
+    this.energy = clamp(Number(state.energy) || 0, 0, this.maxEnergy);
     this.alive = true;
     this.#updateWeaponVisual();
   }

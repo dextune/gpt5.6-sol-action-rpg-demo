@@ -48,6 +48,7 @@ export class UI {
     for (const id of [
       'loading-screen', 'loading-text', 'loading-bar', 'title-screen', 'class-select', 'new-game-btn', 'defense-btn', 'continue-btn', 'continue-meta',
       'hud', 'player-name', 'portrait-level', 'hunter-title', 'hp-fill', 'hp-text', 'mp-fill', 'mp-text', 'xp-fill', 'xp-text',
+      'energy-bar', 'energy-fill', 'energy-text',
       'world-tier', 'zone-name', 'zone-subtitle', 'defense-wave-panel', 'defense-wave-label', 'defense-wave-remaining',
       'kill-count', 'streak-count', 'elite-count', 'boss-count',
       'boss-charge-text', 'boss-charge-fill', 'contract-title', 'contract-fill', 'contract-progress',
@@ -179,6 +180,20 @@ export class UI {
     this.elements['mp-text'].textContent = `${Math.floor(player.mp)} / ${player.maxMp}`;
     this.elements['xp-fill'].style.width = `${clamp(player.xp / player.xpNeeded, 0, 1) * 100}%`;
     this.elements['xp-text'].textContent = `${Math.floor(player.xp)} / ${player.xpNeeded}`;
+    // Class energy gauge (Focus/Rage) — only classes with an energy resource show it.
+    if (this.elements['energy-bar']) {
+      const energyDef = player.energyDef;
+      this.elements['energy-bar'].classList.toggle('hidden', !energyDef);
+      if (energyDef) {
+        const label = energyDef.label ?? 'Energy';
+        this.elements['energy-fill'].style.width = `${player.energyRatio * 100}%`;
+        this.elements['energy-bar'].classList.toggle('is-ready', player.energyComboReady);
+        this.elements['energy-bar'].classList.toggle('is-rage', label === 'Rage');
+        this.elements['energy-text'].textContent = player.energyComboReady
+          ? (player.energyComboHits > 0 ? `COMBO READY ×${player.energyComboHits}` : `${label.toUpperCase()} READY`)
+          : `${label} ${Math.floor(player.energy)} / ${player.maxEnergy}`;
+      }
+    }
     if (isDefense) {
       const wave = defenseHud?.wave ?? 1;
       const remaining = defenseHud?.remaining ?? 0;

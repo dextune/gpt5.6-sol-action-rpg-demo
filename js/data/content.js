@@ -124,6 +124,8 @@ export const WEAPON_BASES = Object.freeze({
   glacier_brand: { id: 'glacier_brand', name: 'Glacier Brand', model: 'greatsword', power: 17, speed: 0.88, crit: 0.02, color: 0xbaf3ff },
   ember_katana: { id: 'ember_katana', name: 'Ember Katana', model: 'katana', power: 14, speed: 1.18, crit: 0.06, color: 0xff7a50 },
   astral_oath: { id: 'astral_oath', name: 'Astral Oath', model: 'relic', power: 18, speed: 1.06, crit: 0.065, color: 0xd9b4ff },
+  night_fang: { id: 'night_fang', name: 'Nightfang Dagger', model: 'dagger', power: 8, speed: 1.42, crit: 0.085, color: 0xa8f0dc },
+  viper_kris: { id: 'viper_kris', name: 'Viper Kris', model: 'dagger', power: 15, speed: 1.38, crit: 0.095, color: 0x7de5b8 },
   oak_staff: { id: 'oak_staff', name: 'Oak Staff', model: 'staff', power: 9, speed: 1.05, crit: 0.03, skillPower: 0.05, color: 0xc4a878 },
   crystal_rod: { id: 'crystal_rod', name: 'Crystal Rod', model: 'staff', power: 12, speed: 1.08, crit: 0.04, skillPower: 0.08, color: 0xb8d4ff },
   void_scepter: { id: 'void_scepter', name: 'Void Scepter', model: 'staff', power: 16, speed: 1.02, crit: 0.05, skillPower: 0.12, color: 0xd9b4ff },
@@ -227,7 +229,7 @@ export const SKILLS = Object.freeze({
   starburst: {
     id: 'starburst', classId: 'aerin', name: 'Starburst', key: 'C', unlockLevel: 16, maxRank: 5, mp: 42, cooldown: 15,
     castTime: .72, anim: 'skill_starburst', effect: 'starburst',
-    theme: 'starlight', sfx: 'skill_star', recipe: 'starRain',
+    theme: 'starlight', sfx: 'skill_star', recipe: 'starBlade',
     combat: Object.freeze({
       mult: Object.freeze([0.63, 0.06]),
       finaleMult: Object.freeze([0.95, 0.1]),
@@ -266,10 +268,16 @@ export const SKILLS = Object.freeze({
     effect: { luck: .025, gold: .03 },
     description: 'Increases rare-gear and gold drop chance.', rankText: rank => `Luck +${rank * 2.5}% · Gold +${rank * 3}%`,
   },
+  executioner: {
+    id: 'executioner', classId: 'aerin', name: 'Executioner', passive: true, unlockLevel: 12, maxRank: 5,
+    effect: { execute: .04 },
+    description: 'Deals bonus damage to enemies below 30% health.',
+    rankText: rank => `Damage +${rank * 4}% vs enemies under 30% HP`,
+  },
   // —— Wizard actives ——
   fireball: {
     id: 'fireball', classId: 'wizard', name: 'Fireball', key: 'Q', unlockLevel: 3, maxRank: 5, mp: 20, cooldown: 5.2,
-    castTime: .38, anim: 'skill_fireball', effect: 'fireball',
+    castTime: .38, anim: 'skill_fireball', animFallback: 'skill_crescent', effect: 'fireball',
     theme: 'ember', sfx: 'skill_fire', recipe: 'fireOrb',
     timeline: Object.freeze({ hits: Object.freeze([0.36]) }),
     combat: Object.freeze({
@@ -287,7 +295,7 @@ export const SKILLS = Object.freeze({
   },
   frost_nova: {
     id: 'frost_nova', classId: 'wizard', name: 'Frost Nova', key: 'E', unlockLevel: 6, maxRank: 5, mp: 24, cooldown: 7.2,
-    castTime: .36, anim: 'skill_frost_nova', effect: 'frost_nova',
+    castTime: .36, anim: 'skill_frost_nova', animFallback: 'skill_whirlwind', effect: 'frost_nova',
     theme: 'frost', sfx: 'skill_ice', recipe: 'iceNova',
     timeline: Object.freeze({ hits: Object.freeze([0.28]) }),
     combat: Object.freeze({
@@ -303,7 +311,7 @@ export const SKILLS = Object.freeze({
   },
   arcane_blink: {
     id: 'arcane_blink', classId: 'wizard', name: 'Arcane Blink', key: 'R', unlockLevel: 10, maxRank: 5, mp: 28, cooldown: 9.2,
-    castTime: .48, anim: 'skill_blink', effect: 'arcane_blink',
+    castTime: .48, anim: 'skill_blink', animFallback: 'skill_skyfall', effect: 'arcane_blink',
     theme: 'arcane', sfx: 'skill_arcane', recipe: 'blinkBurst',
     combat: Object.freeze({
       mult: Object.freeze([1.7, 0.26]),
@@ -320,7 +328,7 @@ export const SKILLS = Object.freeze({
   },
   meteor_storm: {
     id: 'meteor_storm', classId: 'wizard', name: 'Meteor Storm', key: 'C', unlockLevel: 16, maxRank: 5, mp: 46, cooldown: 15.5,
-    castTime: .76, anim: 'skill_meteor', effect: 'meteor_storm',
+    castTime: .76, anim: 'skill_meteor', animFallback: 'skill_starburst', effect: 'meteor_storm',
     theme: 'meteor', sfx: 'skill_fire', recipe: 'meteorDrop',
     combat: Object.freeze({
       mult: Object.freeze([0.6, 0.055]),
@@ -366,6 +374,116 @@ export const SKILLS = Object.freeze({
     description: 'Fate bends slightly toward the caster.',
     rankText: rank => `Luck +${rank * 3}% · Gold +${rank * 3}%`,
   },
+  pyromancer: {
+    id: 'pyromancer', classId: 'wizard', name: 'Pyromancer', passive: true, unlockLevel: 12, maxRank: 5,
+    effect: { dotPower: .08 },
+    description: 'Burns (and all damage-over-time) tick harder.',
+    rankText: rank => `DoT damage +${rank * 8}%`,
+  },
+  // —— Rogue actives —— short reach · high tempo · critical focus
+  twin_fang: {
+    id: 'twin_fang', classId: 'rogue', name: 'Twin Fang', key: 'Q', unlockLevel: 3, maxRank: 5, mp: 14, cooldown: 4.2,
+    castTime: .3, anim: 'skill_twin_fang', animFallback: 'attack_2', effect: 'twin_fang',
+    theme: 'venom', sfx: 'skill_blade', recipe: 'fangRush',
+    timeline: Object.freeze({ hits: Object.freeze([0.22, 0.52]) }),
+    combat: Object.freeze({
+      mult: Object.freeze([0.72, 0.09]),
+      range: Object.freeze([2.3, 0.08]),
+      hits: 2,
+      arc: 1.15,
+      knockback: 1.6,
+      criticalBonus: 0.15,
+      status: Object.freeze({ id: 'bleed', duration: 2.6, dps: 0.1, tick: 0.4, power: 1 }),
+    }),
+    description: 'Two lightning-fast dagger stabs that rend the target open.',
+    rankText: rank => `Damage ${Math.round((0.72 + rank * 0.09) * 100)}% ×2 · Crit +15% · Bleed`,
+  },
+  fan_of_knives: {
+    id: 'fan_of_knives', classId: 'rogue', name: 'Fan of Knives', key: 'E', unlockLevel: 5, maxRank: 5, mp: 20, cooldown: 6.4,
+    castTime: .32, anim: 'skill_fan_knives', animFallback: 'skill_crescent', effect: 'fan_of_knives',
+    theme: 'nightsteel', sfx: 'skill_blade', recipe: 'daggerFan',
+    timeline: Object.freeze({ hits: Object.freeze([0.34]) }),
+    combat: Object.freeze({
+      mult: Object.freeze([0.55, 0.07]),
+      knives: Object.freeze([5, 1]),
+      speed: Object.freeze([17, 0.4]),
+      spread: 0.16,
+      radius: 0.85,
+      life: 0.62,
+      pierce: 1,
+      knockback: 2.4,
+      criticalBonus: 0.08,
+      status: Object.freeze({ id: 'bleed', duration: 2, dps: 0.07, tick: 0.45, power: 1 }),
+    }),
+    description: 'Flings a fan of short-range knives that shred everything ahead.',
+    rankText: rank => `Damage ${Math.round((0.55 + rank * 0.07) * 100)}% · Knives ${5 + rank}`,
+  },
+  shadowstep: {
+    id: 'shadowstep', classId: 'rogue', name: 'Shadowstep', key: 'R', unlockLevel: 9, maxRank: 5, mp: 26, cooldown: 8.6,
+    castTime: .42, anim: 'skill_shadowstep', animFallback: 'dodge', effect: 'shadowstep',
+    theme: 'shadow', sfx: 'skill_arcane', recipe: 'shadowDash',
+    combat: Object.freeze({
+      mult: Object.freeze([1.55, 0.24]),
+      dash: Object.freeze([7.5, 0.28]),
+      width: 2.2,
+      knockback: 2.2,
+      armorPierce: 0.3,
+      criticalBonus: 0.18,
+      invuln: 0.5,
+    }),
+    description: 'Blinks through enemies along facing, carving everything on the path.',
+    rankText: rank => `Damage ${Math.round((1.55 + rank * 0.24) * 100)}% · Dash ${(7.5 + rank * 0.28).toFixed(1)} · Crit +18%`,
+  },
+  death_lotus: {
+    id: 'death_lotus', classId: 'rogue', name: 'Death Lotus', key: 'C', unlockLevel: 14, maxRank: 5, mp: 38, cooldown: 14,
+    castTime: .6, anim: 'skill_death_lotus', animFallback: 'skill_whirlwind', effect: 'death_lotus',
+    theme: 'shadow', sfx: 'skill_blade', recipe: 'lotusFlurry',
+    combat: Object.freeze({
+      mult: Object.freeze([0.42, 0.05]),
+      finaleMult: Object.freeze([1.1, 0.12]),
+      hits: Object.freeze([8, 1]),
+      radius: Object.freeze([3, 0.14]),
+      finaleRadius: 3.9,
+      knockback: 1.2,
+      finaleKnockback: 5,
+      criticalBonus: 0.22,
+      invuln: 0.6,
+      status: Object.freeze({ id: 'bleed', duration: 3, dps: 0.09, tick: 0.4, power: 1 }),
+    }),
+    description: 'A whirling close-range blade flurry where every cut can crit.',
+    rankText: rank => `Damage ${Math.round((0.42 + rank * 0.05) * 100)}% ×${8 + rank} · Crit +22%`,
+  },
+  // —— Rogue passives ——
+  keen_edge: {
+    id: 'keen_edge', classId: 'rogue', name: 'Keen Edge', passive: true, unlockLevel: 2, maxRank: 10,
+    effect: { crit: .01, attack: .015 },
+    description: 'Hones every blade toward the vitals.',
+    rankText: rank => `Crit +${rank}% · Attack +${rank * 1.5}%`,
+  },
+  swift_hands: {
+    id: 'swift_hands', classId: 'rogue', name: 'Swift Hands', passive: true, unlockLevel: 2, maxRank: 10,
+    effect: { haste: .012 },
+    description: 'Trains dagger tempo beyond mortal speed.',
+    rankText: rank => `Attack Speed +${(rank * 1.2).toFixed(1)}%`,
+  },
+  shadow_veil: {
+    id: 'shadow_veil', classId: 'rogue', name: 'Shadow Veil', passive: true, unlockLevel: 5, maxRank: 10,
+    effect: { hp: .025, defense: .02, mpRegen: .04, mpFlat: 2 },
+    description: 'Wraps the body in gloom that dulls incoming blows.',
+    rankText: rank => `HP +${rank * 2.5}% · Defense +${rank * 2}% · MP Regen +${rank * 4}%`,
+  },
+  plunder: {
+    id: 'plunder', classId: 'rogue', name: 'Plunder', passive: true, unlockLevel: 8, maxRank: 10,
+    effect: { luck: .03, gold: .04 },
+    description: 'A thief’s eye for rare spoils and coin.',
+    rankText: rank => `Luck +${rank * 3}% · Gold +${rank * 4}%`,
+  },
+  opportunist: {
+    id: 'opportunist', classId: 'rogue', name: 'Opportunist', passive: true, unlockLevel: 12, maxRank: 5,
+    effect: { statusCrit: .015 },
+    description: 'Strikes at weakness — extra crit chance against bleeding or slowed prey.',
+    rankText: rank => `Crit +${(rank * 1.5).toFixed(1)}% vs bleeding/slowed`,
+  },
 });
 
 export const HUNT_TITLES = Object.freeze([
@@ -401,8 +519,26 @@ export const HERO_CLASSES = Object.freeze({
     skillPanelTitle: 'Knight Arts & Oath Instincts',
     attackLabel: 'Strike',
     activeSkills: Object.freeze(['whirlwind', 'crescent', 'skyfall', 'starburst']),
-    passiveSkills: Object.freeze(['might', 'vitality', 'focus', 'fortune']),
+    passiveSkills: Object.freeze(['might', 'vitality', 'focus', 'fortune', 'executioner']),
     baseStatMods: Object.freeze({ attack: 1.06, mp: 0.95, skillPower: 0 }),
+    // Loot leans toward heavy blades for the knight.
+    weaponBias: Object.freeze({ preferred: Object.freeze(['sword', 'greatsword', 'saber', 'katana', 'leaf', 'relic']), mult: 1.6, otherMult: .5 }),
+    // Rage charges mostly from damage taken and landed hits; the full gauge
+    // (Lv3+) turns the next attack click into a Wrath Slam heavy crush.
+    energy: Object.freeze({
+      label: 'Rage',
+      effect: 'wrath_slam',
+      max: 100,
+      perHit: 4,
+      perCrit: 2,
+      perDamageTaken: 9,
+      comboUnlockLevel: 3,
+      slamMult: 2.6,
+      slamRadius: 4.6,
+      slamKnockback: 7.5,
+      slamArmorPierce: .3,
+      slamCritBonus: .12,
+    }),
     starterWeapon: Object.freeze({
       id: 'starter-field-blade',
       baseId: 'field_blade',
@@ -430,8 +566,10 @@ export const HERO_CLASSES = Object.freeze({
     skillPanelTitle: 'Arcane Arts & Mana Lore',
     attackLabel: 'Cast',
     activeSkills: Object.freeze(['fireball', 'frost_nova', 'arcane_blink', 'meteor_storm']),
-    passiveSkills: Object.freeze(['arcane_might', 'mana_ward', 'mana_font', 'star_luck']),
+    passiveSkills: Object.freeze(['arcane_might', 'mana_ward', 'mana_font', 'star_luck', 'pyromancer']),
     baseStatMods: Object.freeze({ attack: .92, mp: 1.28, skillPower: .08 }),
+    // Loot leans toward staves for the wizard.
+    weaponBias: Object.freeze({ preferred: Object.freeze(['staff']), mult: 2.6, otherMult: .55 }),
     starterWeapon: Object.freeze({
       id: 'starter-apprentice-staff',
       baseId: 'oak_staff',
@@ -449,11 +587,90 @@ export const HERO_CLASSES = Object.freeze({
       locked: true,
     }),
   }),
+  rogue: Object.freeze({
+    id: 'rogue',
+    name: 'Vex',
+    title: 'Night Fang',
+    blurb: 'Twin daggers · crit flurry',
+    modelKey: 'hero.rogue',
+    lookId: 'rogue',
+    attackStyle: 'melee',
+    skillPanelTitle: 'Shadow Arts & Killer Instinct',
+    attackLabel: 'Slash',
+    activeSkills: Object.freeze(['twin_fang', 'fan_of_knives', 'shadowstep', 'death_lotus']),
+    passiveSkills: Object.freeze(['keen_edge', 'swift_hands', 'shadow_veil', 'plunder', 'opportunist']),
+    // Glass cannon: hits harder than the knight but folds faster.
+    baseStatMods: Object.freeze({ attack: 1.12, mp: 1.05, skillPower: 0, hp: .82, defense: .85 }),
+    // Loot leans toward daggers and light sabers for the rogue.
+    weaponBias: Object.freeze({ preferred: Object.freeze(['dagger', 'saber']), mult: 2.4, otherMult: .55 }),
+    // Short-reach fast blades: each click bursts into a 2-hit flurry (human click rate is the cap, not the blades).
+    meleeProfile: Object.freeze({ rangeMult: .78, arcMult: 1.05, flurry: 2 }),
+    // Focus charges on landed basic hits; when full, the next attack unleashes a level-scaled combo rush.
+    energy: Object.freeze({
+      label: 'Energy',
+      effect: 'dagger_rush',
+      max: 100,
+      perHit: 7,
+      perCrit: 4,
+      comboUnlockLevel: 3,
+      comboBaseHits: 4,
+      comboHitsPerLevels: 4,
+      comboMaxHits: 12,
+      comboMult: .62,
+      comboRange: 3.1,
+      comboArc: 1.5,
+      comboCritBonus: .25,
+      comboInterval: .085,
+    }),
+    starterWeapon: Object.freeze({
+      id: 'starter-night-dagger',
+      baseId: 'night_fang',
+      slot: 'weapon',
+      name: 'Fledgling Dagger',
+      rarity: 'common',
+      level: 1,
+      itemLevel: 1,
+      power: 8,
+      speed: 1.4,
+      crit: .07,
+      model: 'dagger',
+      color: 0x9fe8d8,
+      locked: true,
+    }),
+  }),
 });
 
 export function resolveHeroClassId(classId) {
   if (classId && HERO_CLASSES[classId]) return classId;
   return DEFAULT_HERO_CLASS_ID;
+}
+
+/**
+ * Basic-attack tuning defaults (knight-calibrated — values unchanged from the
+ * original hardcoded CombatSystem constants). Classes override via `meleeProfile`
+ * (legacy name) or `basicAttack` on their HERO_CLASSES row.
+ */
+const MELEE_BASIC_DEFAULTS = Object.freeze({
+  rangeMult: 1,
+  arcMult: 1,
+  flurry: 1,          // strikes per attack click
+  range: 2.85,
+  finisherRange: 3.45,
+  rangePerCombo: .16,
+  mult: .88,
+  multPerCombo: .14,
+  finisherMult: 1.35,
+});
+const MAGIC_BASIC_DEFAULTS = Object.freeze({
+  bolts: 5,           // finisher volley size
+  comboMults: Object.freeze([.95, 1.05, 1.15, 1.45]),
+});
+
+/** Merged basic-attack profile for a class (style defaults + class overrides). */
+export function getClassBasicAttack(classId) {
+  const def = getHeroClass(classId);
+  const base = def.attackStyle === 'magic' ? MAGIC_BASIC_DEFAULTS : MELEE_BASIC_DEFAULTS;
+  return { ...base, ...(def.meleeProfile ?? {}), ...(def.basicAttack ?? {}) };
 }
 
 export function getHeroClass(classId) {

@@ -234,6 +234,8 @@ export class Enemy {
         game.effects.groundDecal?.(this.position, 0xa8ecff, this.radius * 1.6, { life: 0.5, opacity: 0.35 });
       } else if (id === 'burn') {
         game.effects.trail(this.position.clone().add(new THREE.Vector3(0, 1, 0)), 0xff7a42, 0.38, 0.35);
+      } else if (id === 'bleed') {
+        game.effects.trail(this.position.clone().add(new THREE.Vector3(0, 1, 0)), 0x4de8b8, 0.34, 0.3);
       } else if (id === 'expose') {
         game.effects.trail(this.position.clone().add(new THREE.Vector3(0, 1.2, 0)), 0xc6f1ff, 0.3, 0.3);
       }
@@ -243,9 +245,10 @@ export class Enemy {
   #tickStatuses(delta, game) {
     const result = tickStatuses(this.statuses, delta);
     this.statuses = result.statuses;
-    if (result.burnDamage > 0 && this.alive) {
-      const amount = Math.max(1, Math.round(result.burnDamage * Math.max(8, this.maxHp * 0.02)));
-      // Direct burn tick — bypass short i-frames so multi-hit DoT lands.
+    if (result.dotDamage > 0 && this.alive) {
+      const dotPower = 1 + (game?.player?.passiveEffects?.dotPower ?? 0);
+      const amount = Math.max(1, Math.round(result.dotDamage * dotPower * Math.max(8, this.maxHp * 0.02)));
+      // Direct DoT tick (burn/bleed) — bypass short i-frames so multi-hit DoT lands.
       const prevInvuln = this.invulnerable;
       this.invulnerable = 0;
       const dmg = this.takeDamage(amount, game, { multiHit: true, knockback: 0 });
