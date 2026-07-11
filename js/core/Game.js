@@ -83,6 +83,7 @@ export class Game {
 
     this.#resize();
     window.addEventListener('resize', () => this.#resize());
+    window.visualViewport?.addEventListener('resize', () => this.#resize());
     window.addEventListener('keydown', event => {
       if (event.code === 'F3') {
         event.preventDefault();

@@ -49,13 +49,15 @@ export class Input {
     });
 
     canvas.tabIndex = 0;
-    canvas.addEventListener('pointermove', event => this.#onCanvasPointerMove(event));
+    canvas.addEventListener('pointermove', event => this.#onCanvasPointerMove(event), { passive: false });
     canvas.addEventListener('pointerdown', event => {
       this.#updatePointer(event);
       this.mouseDown.add(event.button);
       this.mousePressed.add(event.button);
       canvas.focus();
       if (event.pointerType === 'touch') {
+        // Keep pinch / drag inside the game. Safari otherwise may zoom the page mid-combat.
+        event.preventDefault();
         this.activeTouches.set(event.pointerId, { x: event.clientX, y: event.clientY });
         if (this.activeTouches.size === 1) {
           this.lookPointerId = event.pointerId;
@@ -67,7 +69,7 @@ export class Input {
         }
         try { canvas.setPointerCapture(event.pointerId); } catch { /* ignore */ }
       }
-    });
+    }, { passive: false });
     window.addEventListener('pointerup', event => {
       this.mouseDown.delete(event.button);
       this.#onCanvasPointerEnd(event);
@@ -78,6 +80,12 @@ export class Input {
       this.wheel += Math.sign(event.deltaY);
       event.preventDefault();
     }, { passive: false });
+    // iOS Safari's legacy gesture events can bypass touch-action on a canvas.
+    const preventNativeZoom = event => event.preventDefault();
+    document.addEventListener('gesturestart', preventNativeZoom, { passive: false });
+    document.addEventListener('gesturechange', preventNativeZoom, { passive: false });
+    document.addEventListener('gestureend', preventNativeZoom, { passive: false });
+    document.addEventListener('dblclick', preventNativeZoom, { passive: false });
   }
 
   #touchDistance() {
@@ -91,6 +99,7 @@ export class Input {
   #onCanvasPointerMove(event) {
     this.#updatePointer(event);
     if (event.pointerType === 'touch' && this.activeTouches.has(event.pointerId)) {
+      event.preventDefault();
       this.activeTouches.set(event.pointerId, { x: event.clientX, y: event.clientY });
       if (this.activeTouches.size >= 2) {
         const dist = this.#touchDistance();

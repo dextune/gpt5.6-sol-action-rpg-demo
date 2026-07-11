@@ -53,6 +53,27 @@ async function assertVisible(page, selector, message) {
   if (!visible) failures.push(message);
 }
 
+async function assertGameEntered(page, classId, mode, label) {
+  await assertVisible(page, '#hud:not(.hidden)', `${label}: HUD did not appear`);
+  await page.waitForFunction(({ wantedClass, wantedMode }) => {
+    const game = window.__SOL_ARPG_DEMO__;
+    return game?.state === 'playing' && game?.mode === wantedMode && game?.player?.classId === wantedClass;
+  }, { wantedClass: classId, wantedMode: mode }, { timeout: 30000 }).catch(() => {
+    failures.push(`${label}: game state/class did not initialize`);
+  });
+  const overlays = await page.evaluate(() => ({
+    title: getComputedStyle(document.getElementById('title-screen')).display !== 'none',
+    loading: getComputedStyle(document.getElementById('loading-screen')).display !== 'none',
+    panel: getComputedStyle(document.getElementById('panel-layer')).display !== 'none',
+  }));
+  if (overlays.title || overlays.loading || overlays.panel) {
+    failures.push(`${label}: stale overlay remains (${JSON.stringify(overlays)})`);
+  }
+  const viewportScale = await page.evaluate(() => window.visualViewport?.scale ?? 1);
+  if (Math.abs(viewportScale - 1) > .001) failures.push(`${label}: page viewport is zoomed (${viewportScale})`);
+  if (mode === 'defense') await assertVisible(page, '#defense-wave-panel:not(.hidden)', `${label}: wave panel did not appear`);
+}
+
 async function launchMode(page, classId, mode, imageName, { touch = false } = {}) {
   await page.goto(`${base}/?autostart=0&quality=medium&class=${classId}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
   await waitForTitle(page);
@@ -66,15 +87,23 @@ async function launchMode(page, classId, mode, imageName, { touch = false } = {}
   });
   await page.screenshot({ path: resolve(outDir, imageName.replace('.png', '-title.png')), fullPage: false });
   await page.locator(mode === 'defense' ? '#defense-btn' : '#new-game-btn').click();
-  await assertVisible(page, '#hud:not(.hidden)', `${mode}/${classId}: HUD did not appear`);
-  await page.waitForFunction(({ wantedClass, wantedMode }) => {
-    const game = window.__SOL_ARPG_DEMO__;
-    return game?.state === 'playing' && game?.mode === wantedMode && game?.player?.classId === wantedClass;
-  }, { wantedClass: classId, wantedMode: mode }, { timeout: 30000 }).catch(() => {
-    failures.push(`${mode}/${classId}: game state/class did not initialize`);
-  });
-  if (mode === 'defense') await assertVisible(page, '#defense-wave-panel:not(.hidden)', `${mode}/${classId}: wave panel did not appear`);
+  await assertGameEntered(page, classId, mode, `${mode}/${classId}`);
   await sleep(850);
+  await page.screenshot({ path: resolve(outDir, imageName), fullPage: false });
+}
+
+async function continueSmoke(page, classId, imageName, { touch = false } = {}) {
+  await page.evaluate(() => {
+    const game = window.__SOL_ARPG_DEMO__;
+    game?.saveGame();
+    game?.returnToTitle();
+  });
+  await waitForTitle(page);
+  const continueButton = page.locator('#continue-btn');
+  if (await continueButton.isDisabled()) failures.push(`continue/${classId}: button remained disabled after saving a Hunt`);
+  else if (touch) await continueButton.tap();
+  else await continueButton.click();
+  await assertGameEntered(page, classId, 'hunt', `continue/${classId}`);
   await page.screenshot({ path: resolve(outDir, imageName), fullPage: false });
 }
 
@@ -82,7 +111,8 @@ async function desktopSmoke(browser) {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
   recordConsole(page, 'desktop');
   for (const classId of classes) await launchMode(page, classId, 'hunt', `desktop-${classId}-hunt.png`);
-  await launchMode(page, 'rogue', 'defense', 'desktop-rogue-defense.png');
+  await continueSmoke(page, 'rogue', 'desktop-rogue-continue.png');
+  for (const classId of classes) await launchMode(page, classId, 'defense', `desktop-${classId}-defense.png`);
   await page.close();
 }
 
@@ -131,6 +161,7 @@ async function mobileSmoke(browser) {
     }
     await page.screenshot({ path: resolve(outDir, `mobile-${classId}-touch-hud.png`), fullPage: false });
   }
+  await continueSmoke(page, 'rogue', 'mobile-rogue-continue.png', { touch: true });
   await launchMode(page, 'rogue', 'defense', 'mobile-rogue-defense.png', { touch: true });
   await page.evaluate(() => document.body.classList.add('touch-ui'));
   await page.screenshot({ path: resolve(outDir, 'mobile-rogue-defense-touch.png'), fullPage: false });
@@ -157,5 +188,5 @@ if (failures.length) {
   console.error(`Visual smoke failed (${failures.length}):\n- ${failures.join('\n- ')}`);
   process.exitCode = 1;
 } else {
-  console.log(`Visual smoke passed: 3 desktop hunts, desktop Defense, 3 mobile hunts, mobile Defense. Screenshots: ${outDir}`);
+  console.log(`Visual smoke passed: desktop 3 Hunts + 3 Defense runs + Continue; mobile 3 Hunts + Rogue Defense + Continue. Screenshots: ${outDir}`);
 }

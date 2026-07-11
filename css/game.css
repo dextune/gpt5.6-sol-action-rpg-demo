@@ -875,7 +875,7 @@ body.touch-ui .ability-slot.cooling::before {
 }
 
 /* Title / panels on phones */
-body.touch-ui .title-screen {
+body.touch-ui .title-screen.active {
   display: flex;
   flex-direction: column;
   align-items: stretch;
