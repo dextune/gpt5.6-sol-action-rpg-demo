@@ -875,11 +875,27 @@ body.touch-ui .ability-slot.cooling::before {
 }
 
 /* Title / panels on phones */
+body.touch-ui .title-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  overflow-y: auto;
+  padding: max(32px, calc(env(safe-area-inset-top, 0px) + 26px)) 0 max(22px, calc(env(safe-area-inset-bottom, 0px) + 16px));
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
 body.touch-ui .title-content {
+  width: auto;
   margin-left: max(4vw, env(safe-area-inset-left, 0px));
   margin-right: max(4vw, env(safe-area-inset-right, 0px));
-  padding-bottom: max(24px, env(safe-area-inset-bottom, 0px));
   max-width: min(520px, 94vw);
+}
+body.touch-ui .title-screen footer {
+  position: static;
+  margin: 14px auto 0;
+  padding: 0 16px;
+  text-align: center;
 }
 body.touch-ui .title-actions {
   flex-direction: column;
@@ -901,6 +917,8 @@ body.touch-ui .class-card {
   min-height: 56px;
   flex: 1;
   padding: 10px 12px;
+  pointer-events: auto;
+  touch-action: manipulation;
 }
 body.touch-ui .title-copy br { display: none; }
 body.touch-ui .feature-runes { gap: 8px; font-size: 10px; flex-wrap: wrap; justify-content: center; }

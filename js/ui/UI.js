@@ -85,9 +85,25 @@ export class UI {
       this.game.continueGame();
     });
     this.classCards.forEach(card => {
-      card.addEventListener('click', () => {
+      let suppressClickUntil = 0;
+      const selectClass = () => {
         this.selectedClassId = resolveHeroClassId(card.dataset.classId);
         this.#syncClassSelect();
+        this.game.previewHeroClass?.(this.selectedClassId);
+      };
+      // iOS reliably reports pointer events even when the browser does not synthesize a click.
+      card.addEventListener('pointerup', event => {
+        if (event.pointerType !== 'touch') return;
+        event.preventDefault();
+        suppressClickUntil = performance.now() + 500;
+        selectClass();
+      }, { passive: false });
+      card.addEventListener('click', event => {
+        if (performance.now() < suppressClickUntil) {
+          event.preventDefault();
+          return;
+        }
+        selectClass();
       });
     });
     this.elements['panel-close'].addEventListener('click', () => this.closePanel());

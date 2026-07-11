@@ -53,12 +53,18 @@ async function assertVisible(page, selector, message) {
   if (!visible) failures.push(message);
 }
 
-async function launchMode(page, classId, mode, imageName) {
+async function launchMode(page, classId, mode, imageName, { touch = false } = {}) {
   await page.goto(`${base}/?autostart=0&quality=medium&class=${classId}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
   await waitForTitle(page);
-  await page.locator(`[data-class-id="${classId}"]`).click();
-  const selected = await page.locator(`[data-class-id="${classId}"]`).getAttribute('aria-pressed');
+  const card = page.locator(`[data-class-id="${classId}"]`);
+  if (touch) await card.tap();
+  else await card.click();
+  const selected = await card.getAttribute('aria-pressed');
   if (selected !== 'true') failures.push(`${mode}/${classId}: title selection did not persist`);
+  await page.waitForFunction(wantedClass => window.__SOL_ARPG_DEMO__?.player?.classId === wantedClass, classId, { timeout: 30000 }).catch(() => {
+    failures.push(`${mode}/${classId}: title character preview did not update`);
+  });
+  await page.screenshot({ path: resolve(outDir, imageName.replace('.png', '-title.png')), fullPage: false });
   await page.locator(mode === 'defense' ? '#defense-btn' : '#new-game-btn').click();
   await assertVisible(page, '#hud:not(.hidden)', `${mode}/${classId}: HUD did not appear`);
   await page.waitForFunction(({ wantedClass, wantedMode }) => {
@@ -85,8 +91,13 @@ async function mobileSmoke(browser) {
   const context = await browser.newContext({ ...device, locale: 'en-US' });
   const page = await context.newPage();
   recordConsole(page, 'mobile');
+  await page.goto(`${base}/?autostart=0&quality=medium&class=aerin`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await waitForTitle(page);
+  const titleTop = await page.locator('.title-content').boundingBox();
+  if (!titleTop || titleTop.y < 24) failures.push(`mobile/title: content begins too close to the top edge (${titleTop?.y ?? 'missing'}px)`);
+  await page.screenshot({ path: resolve(outDir, 'mobile-title-top.png'), fullPage: false });
   for (const classId of classes) {
-    await launchMode(page, classId, 'hunt', `mobile-${classId}-hunt.png`);
+    await launchMode(page, classId, 'hunt', `mobile-${classId}-hunt.png`, { touch: true });
     await page.evaluate(() => {
       document.body.classList.add('touch-ui');
       window.__SOL_ARPG_DEMO__?.touchControls?.setEnabled(true);
@@ -120,7 +131,7 @@ async function mobileSmoke(browser) {
     }
     await page.screenshot({ path: resolve(outDir, `mobile-${classId}-touch-hud.png`), fullPage: false });
   }
-  await launchMode(page, 'rogue', 'defense', 'mobile-rogue-defense.png');
+  await launchMode(page, 'rogue', 'defense', 'mobile-rogue-defense.png', { touch: true });
   await page.evaluate(() => document.body.classList.add('touch-ui'));
   await page.screenshot({ path: resolve(outDir, 'mobile-rogue-defense-touch.png'), fullPage: false });
   await context.close();

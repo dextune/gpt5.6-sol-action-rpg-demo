@@ -219,6 +219,12 @@ export class Game {
     this.aimPoint.copy(this.player.position).addScaledVector(this.player.facing, 3);
   }
 
+  /** Replace the title-screen character without resetting an active Hunt or Defense run. */
+  previewHeroClass(classId) {
+    if (this.state !== 'title' || !this.player) return this.player?.classId;
+    return this.player.setClass(classId, { keepTransform: true });
+  }
+
   #updatePlaying(delta) {
     this.playTime += delta;
     this.#handleMenus();
