@@ -439,7 +439,7 @@ export class Game {
     this.state = 'playing';
     this.ui.showHUD();
     this.#snapCamera();
-    this.enemies.populate(28);
+    this.enemies.populate(52);
     const heroName = this.player.name;
     this.ui.notify(`Hunt started · ${heroName} enters the field.`, 'contract', 4.5);
     // Immediate localStorage write so Continue is available even if the tab closes early.
@@ -558,7 +558,7 @@ export class Game {
       if (this.ui) this.ui.selectedClassId = this.player.classId;
       this.ui.showHUD();
       this.#snapCamera();
-      this.enemies.populate(28);
+      this.enemies.populate(52);
       // Re-write current schema so Continue stays durable after version upgrades.
       this.saveGame(false);
       this.ui.notify(
@@ -651,7 +651,7 @@ export class Game {
     this.state = 'playing';
     this.ui.hideDeath();
     this.#snapCamera();
-    this.enemies.populate(22);
+    this.enemies.populate(40);
     this.ui.notify(penalty > 0 ? `Revived at hub · Repair cost ${penalty}G` : 'Revived at hub.', 'danger', 3.8);
     this.requestSave();
   }

@@ -121,15 +121,16 @@ export class DefenseSystem {
       const data = ENEMY_TYPES[typeId];
       if (!data) continue;
 
-      const level = Math.max(
-        data.level,
-        player.level + Math.floor((wave - 1) * cfg.levelBonusPerWave),
-      );
       let eliteChance = cfg.eliteChanceBase + (wave - cfg.eliteStartWave) * cfg.eliteChancePerWave;
       if (mut?.id === 'frenzy') eliteChance += 0.1;
       const elite = wave >= cfg.eliteStartWave
         && chance(clamp(eliteChance, 0, cfg.eliteChanceCap ?? 0.48));
       const eliteAffix = elite ? this.game.enemies.rollEliteAffix() : null;
+      // ~65% fodder on wave grunts; elites/bosses never fodder.
+      const fodder = !elite && !data.boss && Math.random() < 0.65;
+      // Slightly less level pressure per body at higher roster counts.
+      const levelPressure = Math.max(0, Math.floor((wave - 1) * cfg.levelBonusPerWave * 0.85));
+      const adjustedLevel = Math.max(data.level, player.level + levelPressure);
 
       const position = this.game.world.randomSpawnAround(
         player.position,
@@ -137,9 +138,10 @@ export class DefenseSystem {
         cfg.spawnOuter,
       );
       const enemy = this.game.enemies.spawn(data, position, {
-        level,
+        level: adjustedLevel,
         elite,
         eliteAffix,
+        fodder,
         wave,
         defenseWave: true,
       });
