@@ -317,13 +317,13 @@ export class UI {
       }
       const defenseKills = defenseHud?.kills ?? defenseHud?.totalKills;
       this.elements['kill-count'].textContent = (defenseKills ?? hunt.totalKills ?? 0).toLocaleString('en-US');
-      this.elements['streak-count'].textContent = defenseHud?.streak ?? 0;
+      this.elements['streak-count'].textContent = this.game.killChain ?? defenseHud?.streak ?? 0;
       this.elements['elite-count'].textContent = defenseHud?.elitesKilled ?? 0;
       this.elements['boss-count'].textContent = defenseHud?.bossesKilled ?? 0;
     } else {
       this.elements['world-tier'].textContent = `WORLD TIER ${hunt.worldTier}`;
       this.elements['kill-count'].textContent = hunt.totalKills.toLocaleString('en-US');
-      this.elements['streak-count'].textContent = hunt.streak;
+      this.elements['streak-count'].textContent = this.game.killChain ?? hunt.streak;
       this.elements['elite-count'].textContent = hunt.elitesKilled;
       this.elements['boss-count'].textContent = hunt.bossesKilled;
       const contract = hunt.contract;
@@ -540,7 +540,7 @@ export class UI {
     element.style.left = `${(point.x * .5 + .5) * window.innerWidth + jitterX}px`;
     element.style.top = `${(-point.y * .5 + .5) * window.innerHeight + jitterY}px`;
     this.elements['float-layer'].appendChild(element);
-    setTimeout(() => element.remove(), type === 'critical' ? 920 : 760);
+    setTimeout(() => element.remove(), (type === 'critical' || type === 'overkill' || type === 'multikill') ? 920 : 760);
   }
 
   zoneEntered(zone) {

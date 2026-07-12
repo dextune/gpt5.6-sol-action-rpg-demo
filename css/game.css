@@ -377,6 +377,8 @@ body[data-mode="defense"] .boss-charge {
 .float-text { position: absolute; left: 0; top: 0; font-weight: 900; font-size: 16px; letter-spacing: .02em; text-shadow: -1px -1px 0 #17212b, 1px -1px 0 #17212b, -1px 1px 0 #17212b, 1px 1px 0 #17212b, 0 3px 8px #000; animation: float-up .72s cubic-bezier(.2,.85,.25,1) forwards; white-space: nowrap; pointer-events: none; }
 .float-text.damage { color: #f7f4e7; }
 .float-text.critical { color: #ffe06b; font-size: 26px; animation-name: float-crit; text-shadow: -1px -1px 0 #3a2a08, 1px -1px 0 #3a2a08, -1px 1px 0 #3a2a08, 1px 1px 0 #3a2a08, 0 0 14px rgba(255,200,60,.75), 0 4px 10px #000; }
+.float-text.overkill { color: #ff9a3c; font-size: 28px; animation-name: float-crit; letter-spacing: .06em; text-shadow: -1px -1px 0 #3a1808, 1px -1px 0 #3a1808, -1px 1px 0 #3a1808, 1px 1px 0 #3a1808, 0 0 16px rgba(255,120,40,.8), 0 4px 10px #000; }
+.float-text.multikill { color: #ffd27a; font-size: 30px; animation-name: float-crit; letter-spacing: .08em; text-shadow: -1px -1px 0 #3a2a08, 1px -1px 0 #3a2a08, -1px 1px 0 #3a2a08, 1px 1px 0 #3a2a08, 0 0 18px rgba(255,180,60,.85), 0 4px 12px #000; }
 .float-text.hurt { color: #ff7584; }
 .float-text.heal { color: #7dffaf; }
 @keyframes float-up { from { opacity: 0; transform: translate(-50%, -20%) scale(.55); } 12% { opacity: 1; transform: translate(-50%, -48%) scale(1.18); } 28% { transform: translate(-50%, -58%) scale(1); } to { opacity: 0; transform: translate(-50%, -150%) scale(.88); } }

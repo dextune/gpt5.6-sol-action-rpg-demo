@@ -17,6 +17,7 @@ import { Effects } from '../graphics/Effects.js';
 import { CombatSystem } from '../systems/CombatSystem.js';
 import { EnemySystem } from '../systems/EnemySystem.js';
 import { LootSystem } from '../systems/LootSystem.js';
+import { XpGemSystem } from '../systems/XpGemSystem.js';
 import { HuntSystem } from '../systems/HuntSystem.js';
 import { DefenseSystem } from '../systems/DefenseSystem.js';
 import { UI } from '../ui/UI.js';
@@ -133,7 +134,15 @@ export class Game {
     this.defense = new DefenseSystem(this);
     this.combat = new CombatSystem(this);
     this.loot = new LootSystem(this);
+    this.xpGems = new XpGemSystem(this);
     this.enemies = new EnemySystem(this, this.monsterFactory, this.quality);
+    this.killChain = 0;
+    this.killChainTimer = 0;
+    this.killChainInterval = 2.5;
+    this._chainMilestones = new Set();
+    this.multikillBuffer = [];
+    this.multikillTimer = 0;
+    this.multikillWindow = 0.35;
     this.world.resolvePosition(this.player.position, .48);
     this.#snapCamera();
     this.#loadDefenseMeta();
@@ -243,6 +252,8 @@ export class Game {
     this.enemies.update(delta);
     this.combat.update(delta);
     this.loot.update(delta);
+    this.xpGems?.update(delta);
+    this.#updateKillFeedback(delta);
     this.effects.update(delta);
     this.world.update(delta, this);
 
@@ -273,6 +284,7 @@ export class Game {
     // Soft residual sim only — combat was cleared on death; avoid re-spawning attack FX.
     this.enemies.update(delta * .35);
     this.loot.update(delta);
+    this.xpGems?.update(delta);
     if (this.deathTimer <= 0) {
       if (this.mode === 'defense') this.#endDefenseRun();
       else this.#respawn();
@@ -580,8 +592,15 @@ export class Game {
     this.combat?.clear();
     this.enemies?.clear();
     this.loot?.clear();
+    this.xpGems?.clear();
     this.effects?.clear();
     this.deferred.length = 0;
+    this.killChain = 0;
+    this.killChainTimer = 0;
+    this._chainMilestones?.clear?.();
+    this.multikillBuffer = [];
+    this.multikillTimer = 0;
+    this.#applyKillChainMods(false);
     this.ui.hideDeath();
     this.saveRequested = false;
   }
@@ -648,6 +667,12 @@ export class Game {
     this.player.restore();
     this.enemies.clear();
     this.combat.clear();
+    this.xpGems?.clear();
+    this.killChain = 0;
+    this.killChainTimer = 0;
+    this.multikillBuffer = [];
+    this.multikillTimer = 0;
+    this.#applyKillChainMods(false);
     this.state = 'playing';
     this.ui.hideDeath();
     this.#snapCamera();
@@ -659,29 +684,40 @@ export class Game {
   onEnemyKilled(enemy) {
     if (enemy.deathHandled) return;
     enemy.deathHandled = true;
-    const xpResult = this.player.addXp(enemy.xpValue);
+
+    // Gold still grants immediately; XP is deferred to floor gems.
     const [minGold, maxGold] = enemy.goldRange;
     const goldRaw = randInt(minGold, maxGold) * (enemy.elite ? 2.2 : 1) * (enemy.boss ? 5 : 1);
     const gold = this.player.addGold(goldRaw);
     if (this.mode === 'defense') this.defense.onKill(enemy);
     else this.hunt.onKill(enemy);
     this.loot.dropFromEnemy(enemy);
+    this.xpGems?.spawnFromKill(enemy);
 
     const position = enemy.position.clone().add(new THREE.Vector3(0, Math.max(.7, enemy.refs.modelHeight * .45), 0));
-    const defensePop = this.mode === 'defense' ? 1.35 : 1;
-    const burstCount = Math.round((enemy.boss ? 46 : enemy.elite ? 22 : 12) * defensePop);
-    this.effects.burst(position, enemy.boss ? enemy.data.accent : enemy.elite ? 0xffd66b : 0xeaf7d7, burstCount, {
-      speed: (enemy.boss ? 7.5 : 4.4) * (this.mode === 'defense' ? 1.12 : 1),
-      size: (enemy.boss ? .55 : .3) * (this.mode === 'defense' ? 1.1 : 1),
-      life: enemy.boss ? 1.2 : .62,
-    });
-    if (this.mode === 'defense' && (enemy.elite || enemy.boss)) {
-      this.effects.ring(enemy.position, enemy.data.accent ?? 0xffd36d, enemy.boss ? 7 : 3.4, {
-        life: enemy.boss ? 1.1 : .55, startScale: .08,
-      });
-    }
-    this.ui.floatText(position, `+${xpResult.amount} EXP · +${gold}G`, 'heal');
+    if (gold > 0) this.ui.floatText(position, `+${gold}G`, 'heal');
 
+    // Kill chain (2.5s window) — shared HUD counter for hunt + defense.
+    if (this.killChainTimer > 0) this.killChain += 1;
+    else this.killChain = 1;
+    this.killChainTimer = this.killChainInterval;
+    this.#applyKillChainMods(this.killChain >= 10);
+    this.#checkChainMilestones();
+
+    // Multikill buffer: suppress individual death bursts until window resolves.
+    this.multikillBuffer.push({
+      position: position.clone(),
+      ground: enemy.position.clone(),
+      accent: enemy.data?.accent ?? 0xeaf7d7,
+      elite: enemy.elite,
+      boss: enemy.boss,
+      color: enemy.boss ? (enemy.data?.accent ?? 0xffd66b) : enemy.elite ? 0xffd66b : 0xeaf7d7,
+    });
+    this.multikillTimer = this.multikillWindow;
+
+    if (enemy.overkill) {
+      this.ui.floatText(position.clone().add(new THREE.Vector3(0, 0.4, 0)), 'OVERKILL', 'overkill');
+    }
     if (enemy.elite) this.ui.notify(`Elite slain · ${enemy.data.name}`, 'uncommon', 2.8);
     if (enemy.boss) {
       this.effects.pillar(enemy.position, enemy.data.accent, 14, { life: 1.55, bottom: 2.2 });
@@ -689,7 +725,12 @@ export class Game {
       this.ui.notify(`Boss defeated · ${enemy.data.name}`, 'boss', 5);
     }
 
-    for (const level of xpResult.levelUps) {
+    if (this.mode === 'hunt') this.requestSave();
+  }
+
+  /** Level-ups from XP gem collection (mirrors former onEnemyKilled XP path). */
+  onXpLevelUps(levelUps = []) {
+    for (const level of levelUps) {
       this.audio.levelUp();
       this.effects.pillar(this.player.position, 0xffe38a, 8, { life: .9, bottom: 1.25 });
       this.effects.ring(this.player.position, 0xffe38a, 5.5, { life: .85, startScale: .05 });
@@ -701,7 +742,102 @@ export class Game {
         }
       }
     }
-    if (this.mode === 'hunt') this.requestSave();
+    if (this.mode === 'hunt' && levelUps.length) this.requestSave();
+  }
+
+  #updateKillFeedback(delta) {
+    if (this.killChainTimer > 0) {
+      this.killChainTimer -= delta;
+      if (this.killChainTimer <= 0) {
+        this.killChain = 0;
+        this._chainMilestones?.clear?.();
+        this.#applyKillChainMods(false);
+      }
+    }
+    if (this.multikillTimer > 0) {
+      this.multikillTimer -= delta;
+      if (this.multikillTimer <= 0) this.#flushMultikill();
+    }
+  }
+
+  #flushMultikill() {
+    const kills = this.multikillBuffer;
+    this.multikillBuffer = [];
+    this.multikillTimer = 0;
+    if (!kills.length) return;
+
+    const defensePop = this.mode === 'defense' ? 1.35 : 1;
+    if (kills.length >= 3) {
+      const centroid = new THREE.Vector3();
+      for (const k of kills) centroid.add(k.ground);
+      centroid.multiplyScalar(1 / kills.length);
+      const label = kills.length >= 6 ? 'MASSACRE!' : kills.length >= 4 ? 'QUAD!' : 'TRIPLE!';
+      this.effects.starburst(centroid.clone().add(new THREE.Vector3(0, 1.1, 0)), 0xffe38a, 4.2 + kills.length * 0.15, {
+        life: 0.35, opacity: 0.9,
+      });
+      this.effects.ring(centroid, 0xffd66b, 4.5 + kills.length * 0.35, {
+        life: 0.55, startScale: 0.08, opacity: 0.9,
+      });
+      this.effects.ring(centroid, 0xfff2c4, 2.8 + kills.length * 0.2, {
+        life: 0.32, startScale: 0.15, height: 0.08, opacity: 0.75,
+      });
+      this.effects.burst(centroid.clone().add(new THREE.Vector3(0, 1, 0)), 0xffe38a, Math.round(28 * defensePop + kills.length * 4), {
+        speed: 6.5, size: 0.38, life: 0.75, upward: 0.55,
+      });
+      this.ui.floatText(centroid.clone().add(new THREE.Vector3(0, 1.6, 0)), label, 'multikill');
+      this.audio?.killSting?.(this.killChain);
+      // Still show light elite/boss accent pops at each site without full individual bursts.
+      for (const k of kills) {
+        if (k.boss || k.elite) {
+          this.effects.burst(k.position, k.color, k.boss ? 18 : 10, {
+            speed: 4, size: 0.28, life: 0.5,
+          });
+        }
+      }
+      return;
+    }
+
+    for (const k of kills) this.#individualKillBurst(k, defensePop);
+  }
+
+  #individualKillBurst(k, defensePop = 1) {
+    const burstCount = Math.round((k.boss ? 46 : k.elite ? 22 : 12) * defensePop);
+    this.effects.burst(k.position, k.color, burstCount, {
+      speed: (k.boss ? 7.5 : 4.4) * (this.mode === 'defense' ? 1.12 : 1),
+      size: (k.boss ? .55 : .3) * (this.mode === 'defense' ? 1.1 : 1),
+      life: k.boss ? 1.2 : .62,
+    });
+    if (this.mode === 'defense' && (k.elite || k.boss)) {
+      this.effects.ring(k.ground, k.accent ?? 0xffd36d, k.boss ? 7 : 3.4, {
+        life: k.boss ? 1.1 : .55, startScale: .08,
+      });
+    }
+  }
+
+  #checkChainMilestones() {
+    const chain = this.killChain;
+    for (const mark of [25, 50, 100]) {
+      if (chain >= mark && !this._chainMilestones.has(mark)) {
+        this._chainMilestones.add(mark);
+        this.ui.notify(`${mark} KILL CHAIN!`, mark >= 100 ? 'boss' : 'level', 3.6);
+        this.audio?.killSting?.(mark);
+        this.effects?.ring?.(this.player.position, 0xffe38a, 3.5 + mark * 0.02, {
+          life: 0.55, startScale: 0.1,
+        });
+      }
+    }
+  }
+
+  #applyKillChainMods(active) {
+    const mods = this.player?.runMods;
+    if (!mods) return;
+    if (active) {
+      mods.moveSpeed = 0.06;
+      mods.killChainXp = 0.10;
+    } else {
+      mods.moveSpeed = 0;
+      mods.killChainXp = 0;
+    }
   }
 
   requestSave() {
