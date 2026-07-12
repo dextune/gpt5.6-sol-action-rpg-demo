@@ -1262,10 +1262,14 @@ export class CombatSystem {
     const weaponColor = player.weapon?.rarityColor ?? 0xeef8ff;
     const intensity = critical ? 'critical' : finisher ? 'finisher' : options.skill ? 'heavy' : 'light';
 
-    // Flashy contact VFX only — no camera shake.
+    // Flashy contact VFX only — no camera shake. Defense slightly amps impact pop.
+    const defenseHit = this.game.mode === 'defense';
     this.game.effects.impact(hitPoint, critical ? 0xffe47a : weaponColor, intensity, {
       direction: options.direction,
     });
+    if (defenseHit && (critical || finisher || options.skill)) {
+      this.game.effects.trail(hitPoint, critical ? 0xffe47a : weaponColor, critical ? 0.42 : 0.3, 0.32);
+    }
     if (options.status?.id === 'slow') {
       this.game.effects.trail(hitPoint, 0x7ad8ff, 0.35, 0.35);
     } else if (options.status?.id === 'burn') {
@@ -1361,6 +1365,11 @@ export class CombatSystem {
   #updateTelegraphs(delta) {
     for (let i = this.telegraphs.length - 1; i >= 0; i -= 1) {
       const warning = this.telegraphs[i];
+      // Nested clear() (e.g. player death mid-callback) can empty the list mid-loop.
+      if (!warning || warning.time == null || !warning.duration) {
+        if (i >= 0 && i < this.telegraphs.length) this.telegraphs.splice(i, 1);
+        continue;
+      }
       warning.time += delta;
       const t = clamp(warning.time / warning.duration, 0, 1);
       if (warning.follows?.alive) {
@@ -1371,23 +1380,30 @@ export class CombatSystem {
         warning.ring.scale.setScalar(.88 + Math.sin(t * Math.PI * 10) * .045);
         warning.ringMaterial.opacity = .38 + t * .55;
         warning.fillMaterial.opacity = (.06 + t * .16) * (.82 + Math.sin(t * Math.PI * 7) * .18);
-      } else {
+      } else if (warning.fillMaterial) {
         warning.fillMaterial.opacity = .1 + t * .35 + Math.sin(t * Math.PI * 9) * .05;
       }
       if (t < 1) continue;
-      this.game.scene.remove(warning.group);
+      if (warning.group) this.game.scene.remove(warning.group);
       warning.ringGeometry?.dispose(); warning.fillGeometry?.dispose();
       warning.ringMaterial?.dispose(); warning.fillMaterial?.dispose();
-      this.telegraphs.splice(i, 1);
+      // Only splice if this slot still holds the same entry (clear() may have wiped the array).
+      if (this.telegraphs[i] === warning) this.telegraphs.splice(i, 1);
       try { warning.callback?.(); } catch (error) { console.error('Telegraph callback failed:', error); }
+      // Nested clear() emptied the queue — stop iterating stale indices.
+      if (this._clearing || i > this.telegraphs.length) return;
     }
   }
 
   #updateCharges(delta) {
     for (let i = this.charges.length - 1; i >= 0; i -= 1) {
       const charge = this.charges[i];
+      if (!charge) {
+        if (i >= 0 && i < this.charges.length) this.charges.splice(i, 1);
+        continue;
+      }
       const enemy = charge.enemy;
-      if (!enemy.alive) { this.charges.splice(i, 1); continue; }
+      if (!enemy?.alive) { this.charges.splice(i, 1); continue; }
       charge.time += delta;
       const t = clamp(charge.time / charge.duration, 0, 1);
       const eased = t * t * (3 - 2 * t);
@@ -1398,12 +1414,14 @@ export class CombatSystem {
       if (!charge.hit && enemy.position.distanceTo(this.game.player.position) < enemy.radius + .9) {
         charge.hit = true;
         this.#damagePlayer(charge.damage, charge.direction, enemy.boss ? 12 : 8);
+        // Death mid-hit can clear() charges — abandon this pass.
+        if (this._clearing || this.charges[i] !== charge) return;
       }
       if (t >= 1) {
         enemy.state = 'idle';
         enemy.stateTimer = 0;
         this.game.effects.ring(enemy.position, enemy.data.accent, enemy.radius * 2.1, { life: .35 });
-        this.charges.splice(i, 1);
+        if (this.charges[i] === charge) this.charges.splice(i, 1);
       }
     }
   }

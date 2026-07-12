@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { PLAYER_CONFIG } from '../config.js';
+import { PLAYER_CONFIG, defenseRarityFloor } from '../config.js';
 import {
   AFFIXES, ARMOR_BASES, CHARM_BASES, RARITIES, WEAPON_BASES, getHeroClass,
 } from '../data/content.js';
@@ -71,7 +71,9 @@ export class LootSystem {
     const pool = eligible.length ? eligible : Object.values(bases);
     // Weapons lean toward the player's class identity (daggers for rogue, staves for wizard, …).
     const base = slot === 'weapon' ? this.#pickWeaponBase(pool) : pick(pool);
-    const multiplier = rarityData.multiplier * (1 + itemLevel * .014);
+    // Defense climb can pass powerScale so late-wave drip stays competitive to wave 200.
+    const powerScale = Math.max(1, Number(options.powerScale) || 1);
+    const multiplier = rarityData.multiplier * (1 + itemLevel * .014) * powerScale;
     const item = {
       id: uid('gear'), baseId: base.id, slot, name: base.name, rarity,
       rarityColor: rarityData.color, level: Math.max(1, itemLevel - 3), itemLevel,
@@ -92,7 +94,9 @@ export class LootSystem {
       for (const key of STAT_KEYS) {
         const value = base[key] ?? 0;
         if (!value) continue;
-        item[key] += ['power', 'defense', 'hp'].includes(key) ? value * (1 + itemLevel * .055) * rarityData.multiplier : value * rarityData.multiplier;
+        item[key] += ['power', 'defense', 'hp'].includes(key)
+          ? value * (1 + itemLevel * .055) * rarityData.multiplier * powerScale
+          : value * rarityData.multiplier * Math.min(1.35, powerScale);
       }
     }
 
@@ -102,8 +106,12 @@ export class LootSystem {
       const index = randInt(0, available.length - 1);
       const affix = available.splice(index, 1)[0];
       let value = rand(affix.min, affix.max) + itemLevel * affix.perLevel;
-      if (['power', 'defense', 'hp'].includes(affix.stat)) value = Math.round(value * rarityData.multiplier);
-      else value *= 1 + (rarityData.multiplier - 1) * .45;
+      if (['power', 'defense', 'hp'].includes(affix.stat)) {
+        value = Math.round(value * rarityData.multiplier * powerScale);
+      } else {
+        value *= 1 + (rarityData.multiplier - 1) * .45;
+        value *= Math.min(1.25, powerScale);
+      }
       item[affix.stat] = (item[affix.stat] ?? 0) + value;
       item.affixes.push({ id: affix.id, name: affix.prefix, stat: affix.stat, value });
     }
@@ -130,16 +138,35 @@ export class LootSystem {
   dropFromEnemy(enemy) {
     const drops = [];
     const level = enemy.level;
-    const gearChance = enemy.boss ? 1 : enemy.elite ? .78 : clamp(.105 + this.game.player.luck * .42 + this.game.hunt.worldTier * .006, .105, .34);
-    const gearCount = enemy.boss ? 3 : chance(gearChance) ? 1 : 0;
+    const defense = this.game.mode === 'defense';
+    const wave = defense ? Math.max(1, Number(enemy.wave ?? this.game.defense?.wave) || 1) : 0;
+    const luck = this.game.player.luck;
+    const tier = defense ? 0 : this.game.hunt.worldTier * .006;
+    // Defense drops more often and floors rarity by wave so deep climbs stay gear-fed.
+    const gearChance = enemy.boss ? 1 : enemy.elite
+      ? (defense ? .88 : .78)
+      : clamp((defense ? .16 : .105) + luck * .42 + tier + (defense ? wave * .0012 : 0), defense ? .16 : .105, defense ? .48 : .34);
+    const gearCount = enemy.boss ? (defense ? 2 : 3) : chance(gearChance) ? 1 : 0;
     for (let i = 0; i < gearCount; i += 1) {
-      const floor = enemy.boss ? (i === 0 ? 'epic' : 'rare') : enemy.elite ? 'uncommon' : 'common';
-      const item = this.generateGear(level, { boss: enemy.boss, elite: enemy.elite, floor });
+      let floor = enemy.boss ? (i === 0 ? 'epic' : 'rare') : enemy.elite ? 'uncommon' : 'common';
+      if (defense) {
+        const waveFloor = defenseRarityFloor(wave);
+        if (RARITY_ORDER.indexOf(waveFloor) > RARITY_ORDER.indexOf(floor)) floor = waveFloor;
+      }
+      const powerScale = defense ? 1 + wave * 0.0085 : 1;
+      const itemLevel = defense ? level + Math.floor(wave * 0.35) : level;
+      const item = this.generateGear(itemLevel, {
+        boss: enemy.boss,
+        elite: enemy.elite,
+        floor,
+        powerScale,
+        defenseWave: defense ? wave : 0,
+      });
       const offset = new THREE.Vector3(rand(-1.2, 1.2), 0, rand(-1.2, 1.2));
       drops.push(this.spawnGear(item, enemy.position.clone().add(offset)));
     }
 
-    const potionChance = this.game.player.potions < 2 ? .18 : .055;
+    const potionChance = this.game.player.potions < 2 ? .18 : (defense ? .09 : .055);
     if (chance(potionChance + (enemy.elite ? .08 : 0) + (enemy.boss ? .25 : 0))) {
       drops.push(this.spawnConsumable('potion', enemy.position.clone().add(new THREE.Vector3(rand(-.8, .8), 0, rand(-.8, .8)))));
     }

@@ -108,6 +108,8 @@ export class Player {
     this.hitTimer = 0;
     this.runTime = 0;
     this.attackLunge = 0;
+    // Defense-only run multipliers (always 1 / 0 in Hunt). Cleared every reset.
+    this.runMods = { attack: 1, defense: 1, skillPower: 0, haste: 0, xp: 0 };
     this.mesh.position.set(0, 0, 6);
     this.mesh.rotation.set(0, 0, 0);
     this.mesh.scale.copy(this.normalScale);
@@ -185,12 +187,14 @@ export class Player {
     const stats = this.equipmentStats;
     const mods = this.classMods;
     const passive = 1 + this.passiveEffects.attack;
-    return (PLAYER_CONFIG.baseAttack * (mods.attack ?? 1) + this.level * 2.15 + stats.power) * passive;
+    const run = this.runMods?.attack ?? 1;
+    return (PLAYER_CONFIG.baseAttack * (mods.attack ?? 1) + this.level * 2.15 + stats.power) * passive * run;
   }
   get defense() {
     const stats = this.equipmentStats;
     const mods = this.classMods;
-    return (PLAYER_CONFIG.baseDefense * (mods.defense ?? 1) + this.level * .82 + stats.defense) * (1 + this.passiveEffects.defense);
+    const run = this.runMods?.defense ?? 1;
+    return (PLAYER_CONFIG.baseDefense * (mods.defense ?? 1) + this.level * .82 + stats.defense) * (1 + this.passiveEffects.defense) * run;
   }
   get critChance() { return clamp(PLAYER_CONFIG.baseCrit + this.equipmentStats.crit + this.passiveEffects.crit, 0, .65); }
   /** Crit chance past the 0.65 cap converts to crit damage instead of being wasted. */
@@ -199,10 +203,14 @@ export class Player {
     return Math.max(0, raw - .65);
   }
   get critMultiplier() { return 1.85 + this.critOverflow * 1.5; }
-  get attackSpeed() { return clamp(this.equipmentStats.weaponSpeed * (1 + this.equipmentStats.haste + this.passiveEffects.haste), .65, 1.75); }
+  get attackSpeed() {
+    const runHaste = this.runMods?.haste ?? 0;
+    return clamp(this.equipmentStats.weaponSpeed * (1 + this.equipmentStats.haste + this.passiveEffects.haste + runHaste), .65, 1.75);
+  }
   /** Attack speed past the 1.75 cap accelerates Focus/Rage gain instead. */
   get attackSpeedOverflow() {
-    const raw = this.equipmentStats.weaponSpeed * (1 + this.equipmentStats.haste + this.passiveEffects.haste);
+    const runHaste = this.runMods?.haste ?? 0;
+    const raw = this.equipmentStats.weaponSpeed * (1 + this.equipmentStats.haste + this.passiveEffects.haste + runHaste);
     return Math.max(0, raw - 1.75);
   }
   get energyGainMul() { return 1 + this.attackSpeedOverflow * 2; }
@@ -211,10 +219,11 @@ export class Player {
   }
   get skillPower() {
     const mods = this.classMods;
-    return 1 + this.equipmentStats.skillPower + this.passiveEffects.skillPower + (mods.skillPower ?? 0);
+    const run = this.runMods?.skillPower ?? 0;
+    return 1 + this.equipmentStats.skillPower + this.passiveEffects.skillPower + (mods.skillPower ?? 0) + run;
   }
   get leech() { return clamp(this.equipmentStats.leech, 0, .12); }
-  get xpBonus() { return this.equipmentStats.xpBonus; }
+  get xpBonus() { return this.equipmentStats.xpBonus + (this.runMods?.xp ?? 0); }
   get goldBonus() { return this.equipmentStats.goldBonus + this.passiveEffects.gold; }
   get luck() { return this.equipmentStats.luck + this.passiveEffects.luck; }
   get healthRatio() { return clamp(this.hp / Math.max(1, this.maxHp), 0, 1); }

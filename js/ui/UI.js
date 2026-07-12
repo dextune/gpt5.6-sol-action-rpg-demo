@@ -298,17 +298,23 @@ export class UI {
     }
     if (isDefense) {
       const wave = defenseHud?.wave ?? 1;
+      const maxWave = defenseHud?.maxWave ?? 200;
       const remaining = defenseHud?.remaining ?? 0;
-      this.elements['world-tier'].textContent = `WAVE ${wave}`;
-      if (this.elements['defense-wave-label']) this.elements['defense-wave-label'].textContent = `WAVE ${wave}`;
+      this.elements['world-tier'].textContent = `WAVE ${wave}/${maxWave}`;
+      if (this.elements['defense-wave-label']) {
+        this.elements['defense-wave-label'].textContent = `WAVE ${wave} / ${maxWave}`;
+      }
       if (this.elements['defense-wave-remaining']) {
         this.elements['defense-wave-remaining'].textContent = `${remaining} left`;
       }
       const mutLabel = this.game.defense?.hud?.mutator;
       this.elements['contract-title'].textContent = mutLabel ? `Wave Survival · ${mutLabel}` : 'Wave Survival';
-      this.elements['contract-progress'].textContent = `${remaining} remaining`;
-      this.elements['contract-fill'].style.width = '0%';
-      if (this.elements['contract-hint']) this.elements['contract-hint'].textContent = 'Clear waves for gear rewards';
+      this.elements['contract-progress'].textContent = `${remaining} remaining · ${wave}/${maxWave}`;
+      const clearRatio = clamp(wave / Math.max(1, maxWave), 0, 1);
+      this.elements['contract-fill'].style.width = `${clearRatio * 100}%`;
+      if (this.elements['contract-hint']) {
+        this.elements['contract-hint'].textContent = 'Clear waves · gear & power shards scale up';
+      }
       const defenseKills = defenseHud?.kills ?? defenseHud?.totalKills;
       this.elements['kill-count'].textContent = (defenseKills ?? hunt.totalKills ?? 0).toLocaleString('en-US');
       this.elements['streak-count'].textContent = defenseHud?.streak ?? 0;

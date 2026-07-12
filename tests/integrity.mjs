@@ -98,6 +98,14 @@ ok(allFiles.includes(join(root, 'THIRD_PARTY_LICENSES/three-LICENSE.txt')), 'Thr
 ok(html.includes('id="defense-btn"'), 'title Defense mode button');
 ok(html.includes('id="defense-wave-panel"'), 'defense wave HUD panel');
 ok(Boolean(config.DEFENSE_CONFIG), 'DEFENSE_CONFIG exported');
+ok(config.DEFENSE_CONFIG.maxWave === 200, 'Defense maxWave is 200');
+ok(typeof config.defenseWaveHpMul === 'function', 'defenseWaveHpMul helper');
+ok(typeof config.defenseWaveDmgMul === 'function', 'defenseWaveDmgMul helper');
+ok(typeof config.defenseRarityFloor === 'function', 'defenseRarityFloor helper');
+ok(config.defenseWaveHpMul(1) === 1, 'wave 1 HP mult is 1');
+ok(config.defenseWaveHpMul(5) < 1.5, 'early wave HP mult stays soft');
+ok(config.defenseWaveHpMul(200) > config.defenseWaveHpMul(50), 'late wave HP scales up');
+ok(config.defenseRarityFloor(150) === 'legendary', 'deep wave gear floor legendary');
 ok(allFiles.includes(join(root, 'js/systems/DefenseSystem.js')), 'DefenseSystem module exists');
 ok(html.includes('id="class-select"'), 'title class select');
 ok(html.includes('data-class-id="wizard"'), 'title wizard class card');

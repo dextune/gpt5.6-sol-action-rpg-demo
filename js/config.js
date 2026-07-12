@@ -23,26 +23,98 @@ export const GAME_CONFIG = Object.freeze({
   respawnPosition: [0, 0, 6],
 });
 
+/**
+ * Defense mode tuning — endless climb capped at maxWave.
+ * Enemy curves stay soft early (waves 1–15) then ramp for the deep climb to 200.
+ * Hero runMods + gear floors are owned by DefenseSystem / LootSystem (Hunt untouched).
+ */
 export const DEFENSE_CONFIG = Object.freeze({
-  prepSeconds: 3,
-  baseCount: 6,
-  countPerTwoWaves: 1,
-  maxCount: 28,
-  hpPerWave: 0.12,
-  dmgPerWave: 0.08,
-  levelBonusPerWave: 0.35,
-  eliteStartWave: 4,
-  eliteChanceBase: 0.05,
-  eliteChancePerWave: 0.012,
+  maxWave: 200,
+  prepSeconds: 2.6,
+  // Roster density (gentler early, denser late).
+  baseCount: 5,
+  countPerThreeWaves: 1,
+  maxCount: 36,
+  // Linear soft terms (Enemy multiplies with #defenseWaveHp / #defenseWaveDmg).
+  hpPerWave: 0.055,
+  dmgPerWave: 0.032,
+  // Extra late-game ramp after softStartWave (keeps wave 200 dangerous).
+  hpLatePow: 1.28,
+  dmgLatePow: 1.18,
+  hpLateScale: 0.72,
+  dmgLateScale: 0.42,
+  lateDivisor: 48,
+  softStartWave: 12,
+  levelBonusPerWave: 0.28,
+  eliteStartWave: 5,
+  eliteChanceBase: 0.04,
+  eliteChancePerWave: 0.008,
+  eliteChanceCap: 0.48,
   miniBossEvery: 5,
-  clearXpBase: 40,
-  clearXpPerWave: 18,
-  clearGoldBase: 12,
-  clearGoldPerWave: 6,
-  gearEveryWaves: 3,
+  // Clear rewards — hero must outpace monsters.
+  clearXpBase: 70,
+  clearXpPerWave: 28,
+  clearGoldBase: 18,
+  clearGoldPerWave: 9,
+  gearEveryWaves: 2,
+  // Start-of-run hero pad (Defense only; applied in Game.startDefense).
+  startLevel: 3,
+  startPotions: 5,
+  startSkillPoints: 2,
+  startAttackMul: 1.18,
+  startDefenseMul: 1.14,
+  startSkillPower: 0.12,
+  // Per cleared wave runMods growth (compounded on player.runMods).
+  runAttackPerWave: 0.018,
+  runDefensePerWave: 0.012,
+  runSkillPowerPerWave: 0.014,
+  runHastePerWave: 0.004,
+  // Milestone power shards every N waves.
+  powerShardEvery: 5,
+  powerShardAttack: 0.055,
+  powerShardSkill: 0.05,
+  powerShardDefense: 0.04,
+  // Between-wave recovery.
+  clearHealRatio: 0.38,
+  clearMpRatio: 0.55,
+  // Gear item-level / stat scale vs wave.
+  gearLevelPerWave: 0.55,
+  gearPowerPerWave: 0.009,
   spawnInner: 10,
   spawnOuter: 22,
 });
+
+/** Defense-only HP multiplier for a wave index (1-based). Hunt never calls this. */
+export function defenseWaveHpMul(wave) {
+  const w = Math.max(0, Number(wave) || 0);
+  if (w <= 0) return 1;
+  const cfg = DEFENSE_CONFIG;
+  const linear = 1 + (w - 1) * cfg.hpPerWave;
+  const late = Math.pow(Math.max(0, w - cfg.softStartWave) / cfg.lateDivisor, cfg.hpLatePow) * cfg.hpLateScale;
+  return linear + late;
+}
+
+/** Defense-only damage multiplier for a wave index (1-based). */
+export function defenseWaveDmgMul(wave) {
+  const w = Math.max(0, Number(wave) || 0);
+  if (w <= 0) return 1;
+  const cfg = DEFENSE_CONFIG;
+  const linear = 1 + (w - 1) * cfg.dmgPerWave;
+  const late = Math.pow(Math.max(0, w - cfg.softStartWave) / cfg.lateDivisor, cfg.dmgLatePow) * cfg.dmgLateScale;
+  return linear + late;
+}
+
+/** Rarity floor for Defense gear drip / drops at a wave. */
+export function defenseRarityFloor(wave) {
+  const w = Math.max(1, Number(wave) || 1);
+  if (w >= 140) return 'legendary';
+  if (w >= 70) return 'epic';
+  if (w >= 35) return 'epic';
+  if (w >= 18) return 'rare';
+  if (w >= 8) return 'uncommon';
+  if (w >= 3) return 'uncommon';
+  return 'common';
+}
 
 export const PLAYER_CONFIG = Object.freeze({
   baseHp: 140,

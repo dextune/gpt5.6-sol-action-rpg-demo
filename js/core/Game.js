@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { GAME_CONFIG } from '../config.js';
+import { DEFENSE_CONFIG, GAME_CONFIG } from '../config.js';
 import { SKILLS, getClassActiveSkills, getClassSkillIds, skillKeyCode } from '../data/content.js';
 import { clamp, randInt } from './Utils.js';
 import { Input } from './Input.js';
@@ -453,6 +453,7 @@ export class Game {
     this.mode = 'defense';
     this.defense.reset();
     this.player.reset(classId);
+    this.#bootstrapDefenseHero();
     this.hunt.reset();
     this.playTime = 0;
     this.autoSaveTimer = GAME_CONFIG.autoSaveSeconds;
@@ -466,10 +467,67 @@ export class Game {
     this.defense.start();
     const best = this.defenseMeta?.bestWave ?? 0;
     this.ui.notify(
-      best > 0 ? `Defense mode · Best wave ${best}` : 'Defense mode · Wave survival',
+      best > 0
+        ? `Defense · Best ${best} · Climb to wave ${DEFENSE_CONFIG.maxWave}`
+        : `Defense · Survive to wave ${DEFENSE_CONFIG.maxWave}`,
       'contract',
       4.2,
     );
+  }
+
+  /**
+   * Defense-only opener: pad level, potions, skill points, and unlock early actives.
+   * Never called from Hunt paths.
+   */
+  #bootstrapDefenseHero() {
+    const cfg = DEFENSE_CONFIG;
+    const player = this.player;
+    const targetLevel = Math.max(1, cfg.startLevel ?? 3);
+    // Feed exact XP needed so unlockLevel actives auto-grant via addXp.
+    let guard = 40;
+    while (player.level < targetLevel && guard-- > 0) {
+      player.addXp(Math.max(1, player.xpNeeded - player.xp + 1));
+    }
+    player.skillPoints += Math.max(0, cfg.startSkillPoints ?? 0);
+    player.potions = Math.max(player.potions, cfg.startPotions ?? 5);
+    player.maxPotions = Math.max(player.maxPotions, 6);
+    // Starter uncommon kit so wave 1 is not naked-blade only.
+    if (this.loot?.generateGear) {
+      for (const slot of ['armor', 'charm']) {
+        const gear = this.loot.generateGear(player.level + 1, {
+          slot, floor: 'uncommon', powerScale: 1.08,
+        });
+        player.addGear?.(gear);
+      }
+      const weapon = this.loot.generateGear(player.level + 2, {
+        slot: 'weapon', floor: 'uncommon', powerScale: 1.12,
+      });
+      player.addGear?.(weapon);
+    }
+    player.hp = player.maxHp;
+    player.mp = player.maxMp;
+    player.energy = 40;
+    player.invalidateStats();
+  }
+
+  /** Wave 200 clear — end run with victory meta, return to title. */
+  handleDefenseVictory() {
+    if (this.mode !== 'defense') return;
+    this.#persistDefenseMeta(true);
+    const wave = DEFENSE_CONFIG.maxWave;
+    const best = Math.max(wave, this.defenseMeta?.bestWave ?? 0);
+    this.ui.notify(`Victory · Wave ${wave} conquered · Best ${best}`, 'legendary', 5.5);
+    this.effects?.pillar?.(this.player.position, 0xffc45c, 16, { life: 1.8, bottom: 2.4, opacity: .6 });
+    this.effects?.ring?.(this.player.position, 0xffe38a, 12, { life: 1.6, startScale: .05 });
+    this.audio?.legendary?.();
+    this.#clearRun();
+    this.mode = 'hunt';
+    this.defense.reset();
+    this.player.reset();
+    this.world.resolvePosition(this.player.position, .48);
+    this.state = 'title';
+    this.ui.hideDeath();
+    this.ui.showTitle();
   }
 
   continueGame() {
@@ -610,9 +668,18 @@ export class Game {
     this.loot.dropFromEnemy(enemy);
 
     const position = enemy.position.clone().add(new THREE.Vector3(0, Math.max(.7, enemy.refs.modelHeight * .45), 0));
-    this.effects.burst(position, enemy.boss ? enemy.data.accent : enemy.elite ? 0xffd66b : 0xeaf7d7, enemy.boss ? 46 : enemy.elite ? 22 : 12, {
-      speed: enemy.boss ? 7.5 : 4.4, size: enemy.boss ? .55 : .3, life: enemy.boss ? 1.2 : .62,
+    const defensePop = this.mode === 'defense' ? 1.35 : 1;
+    const burstCount = Math.round((enemy.boss ? 46 : enemy.elite ? 22 : 12) * defensePop);
+    this.effects.burst(position, enemy.boss ? enemy.data.accent : enemy.elite ? 0xffd66b : 0xeaf7d7, burstCount, {
+      speed: (enemy.boss ? 7.5 : 4.4) * (this.mode === 'defense' ? 1.12 : 1),
+      size: (enemy.boss ? .55 : .3) * (this.mode === 'defense' ? 1.1 : 1),
+      life: enemy.boss ? 1.2 : .62,
     });
+    if (this.mode === 'defense' && (enemy.elite || enemy.boss)) {
+      this.effects.ring(enemy.position, enemy.data.accent ?? 0xffd36d, enemy.boss ? 7 : 3.4, {
+        life: enemy.boss ? 1.1 : .55, startScale: .08,
+      });
+    }
     this.ui.floatText(position, `+${xpResult.amount} EXP · +${gold}G`, 'heal');
 
     if (enemy.elite) this.ui.notify(`Elite slain · ${enemy.data.name}`, 'uncommon', 2.8);

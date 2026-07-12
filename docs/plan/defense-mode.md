@@ -1,7 +1,7 @@
 # Plan · Defense Mode
 
-Status: **implemented (V1)** — title entry, wave FSM, scaling, death/meta save; Hunt isolation rules apply  
-Goal: title-screen **Defense** entry under **New Hunt** — endless wave climb with rising monster power and parallel hero growth.  
+Status: **implemented (V2 climb)** — title entry, wave FSM, scaling to **wave 200**, hero runMods + gear floors, death/meta save; Hunt isolation rules apply  
+Goal: title-screen **Defense** entry under **New Hunt** — wave climb to **200** with rising monster power, parallel hero growth (XP, skills, gear, power shards), flashy combat.  
 Non-goal: rewrite Hunt, shared progression bleed, mid-run Hunt save corruption.
 
 ---
@@ -204,30 +204,25 @@ Hero “must get stronger” is satisfied by XP + clear rewards + gear — not b
 ## 5. Config sketch
 
 ```js
-// js/config.js (or content.js) — Defense only
+// js/config.js — Defense only (V2 climb → maxWave 200)
 export const DEFENSE_CONFIG = Object.freeze({
-  prepSeconds: 3,
-  baseCount: 6,
-  countPerTwoWaves: 1,
-  maxCount: 28,
-  hpPerWave: 0.12,
-  dmgPerWave: 0.08,
-  levelBonusPerWave: 0.35,
-  eliteStartWave: 4,
-  eliteChanceBase: 0.05,
-  eliteChancePerWave: 0.012,
-  miniBossEvery: 5,
-  clearXpBase: 40,
-  clearXpPerWave: 18,
-  clearGoldBase: 12,
-  clearGoldPerWave: 6,
-  gearEveryWaves: 3,
+  maxWave: 200,
+  prepSeconds: 2.6,
+  baseCount: 5,
+  countPerThreeWaves: 1,
+  maxCount: 36,
+  hpPerWave: 0.055,       // soft linear; late ramp via defenseWaveHpMul()
+  dmgPerWave: 0.032,
+  // startLevel / runMods / power shards / gear floors — see live config
+  gearEveryWaves: 2,
   spawnInner: 10,
   spawnOuter: 22,
 });
+// Helpers: defenseWaveHpMul, defenseWaveDmgMul, defenseRarityFloor
 ```
 
 Balance only via this table after playtest — not by editing Hunt spawn rates.
+Hero runMods (`player.runMods`) and gear `powerScale` are Defense-run only and reset on title.
 
 ---
 
