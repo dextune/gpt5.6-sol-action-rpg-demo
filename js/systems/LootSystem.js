@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { PLAYER_CONFIG, defenseRarityFloor } from '../config.js';
+import { GEAR_ENHANCE, PLAYER_CONFIG, defenseRarityFloor } from '../config.js';
 import {
   AFFIXES, ARMOR_BASES, CHARM_BASES, RARITIES, WEAPON_BASES, getHeroClass,
 } from '../data/content.js';
@@ -8,6 +8,80 @@ import { createLootMesh } from '../graphics/ModelFactory.js';
 
 const RARITY_ORDER = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
 const STAT_KEYS = ['power', 'defense', 'hp', 'crit', 'haste', 'leech', 'xpBonus', 'goldBonus', 'skillPower', 'moveSpeed', 'luck'];
+const FLAT_ENHANCE_STATS = new Set(['power', 'defense', 'hp', 'moveSpeed']);
+
+/** Combat score used for auto-equip and inventory sort. */
+export function scoreGear(item) {
+  return Math.round(
+    (item.power ?? 0) * 1.65 + (item.defense ?? 0) * 1.3 + (item.hp ?? 0) * .105
+    + (item.crit ?? 0) * 320 + (item.haste ?? 0) * 235 + (item.leech ?? 0) * 520
+    + (item.xpBonus ?? 0) * 160 + (item.goldBonus ?? 0) * 120
+    + (item.skillPower ?? 0) * 250 + (item.moveSpeed ?? 0) * 36 + (item.luck ?? 0) * 220
+    + (item.itemLevel ?? 1) * 2.2
+    + (item.enhanceLevel ?? 0) * 6,
+  );
+}
+
+/** Snapshot base stats if missing (old saves treat current values as base at level 0). */
+export function ensureGearBaseStats(item) {
+  if (!item || item.baseStats) return item;
+  const base = {};
+  for (const key of STAT_KEYS) base[key] = Number(item[key]) || 0;
+  item.baseStats = base;
+  item.enhanceLevel = Math.max(0, Math.min(GEAR_ENHANCE.maxLevel, Number(item.enhanceLevel) || 0));
+  return item;
+}
+
+/** Recompute live stats from baseStats × enhanceLevel. */
+export function recomputeGearFromEnhance(item) {
+  if (!item) return item;
+  ensureGearBaseStats(item);
+  const level = Math.max(0, Math.min(GEAR_ENHANCE.maxLevel, Number(item.enhanceLevel) || 0));
+  item.enhanceLevel = level;
+  const flatMul = 1 + level * GEAR_ENHANCE.flatStep;
+  const pctMul = 1 + level * GEAR_ENHANCE.pctStep;
+  for (const key of STAT_KEYS) {
+    const base = Number(item.baseStats[key]) || 0;
+    if (!base) {
+      item[key] = 0;
+      continue;
+    }
+    const mul = FLAT_ENHANCE_STATS.has(key) ? flatMul : pctMul;
+    const raw = base * mul;
+    item[key] = ['power', 'defense', 'hp'].includes(key) ? Math.round(raw) : raw;
+  }
+  item.score = scoreGear(item);
+  return item;
+}
+
+/** Gold cost to attempt +1 enhance. */
+export function gearEnhanceCost(item) {
+  if (!item) return 0;
+  const level = Math.max(0, Number(item.enhanceLevel) || 0);
+  if (level >= GEAR_ENHANCE.maxLevel) return 0;
+  const rarityMul = GEAR_ENHANCE.rarityCost[item.rarity] ?? 1;
+  const iLv = Math.max(1, Number(item.itemLevel) || 1);
+  const tier = (level + 1) ** GEAR_ENHANCE.costLevelPow;
+  return Math.max(5, Math.round(
+    (GEAR_ENHANCE.costBase + iLv * GEAR_ENHANCE.costPerItemLevel) * rarityMul * tier,
+  ));
+}
+
+/** Success rate for the next enhance attempt (0–1). */
+export function gearEnhanceSuccessChance(item) {
+  if (!item) return 0;
+  const next = Math.max(0, Number(item.enhanceLevel) || 0) + 1;
+  if (next > GEAR_ENHANCE.maxLevel) return 0;
+  return GEAR_ENHANCE.successByTarget[next] ?? Math.max(0.12, 0.96 - next * 0.08);
+}
+
+/** Sell / salvage gold value. */
+export function gearSellValue(item) {
+  if (!item) return 0;
+  const rarity = RARITIES[item.rarity] ?? RARITIES.common;
+  const enhanceBonus = 1 + (Number(item.enhanceLevel) || 0) * 0.12;
+  return Math.max(2, Math.round((item.itemLevel + (item.score ?? 0) * .35) * rarity.salvage * enhanceBonus));
+}
 
 const BASE_LEVELS = Object.freeze({
   field_blade: 1, moon_saber: 5, stone_cleaver: 9, thorn_edge: 12,
@@ -121,18 +195,14 @@ export class LootSystem {
     item.power = Math.round(item.power ?? 0);
     item.defense = Math.round(item.defense ?? 0);
     item.hp = Math.round(item.hp ?? 0);
-    item.score = this.#score(item);
+    item.enhanceLevel = 0;
+    ensureGearBaseStats(item);
+    item.score = scoreGear(item);
     return item;
   }
 
   #score(item) {
-    return Math.round(
-      (item.power ?? 0) * 1.65 + (item.defense ?? 0) * 1.3 + (item.hp ?? 0) * .105
-      + (item.crit ?? 0) * 320 + (item.haste ?? 0) * 235 + (item.leech ?? 0) * 520
-      + (item.xpBonus ?? 0) * 160 + (item.goldBonus ?? 0) * 120
-      + (item.skillPower ?? 0) * 250 + (item.moveSpeed ?? 0) * 36 + (item.luck ?? 0) * 220
-      + (item.itemLevel ?? 1) * 2.2,
-    );
+    return scoreGear(item);
   }
 
   dropFromEnemy(enemy) {

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { PLAYER_CONFIG } from '../config.js';
+import { GEAR_ENHANCE, PLAYER_CONFIG } from '../config.js';
 import {
   DEFAULT_HERO_CLASS_ID, RARITIES, SKILLS,
   canClassUseWeapon, createClassStarterWeapon, createEmptySkillCooldowns, createEmptySkillRanks,
@@ -7,6 +7,9 @@ import {
 } from '../data/content.js';
 import { clamp, disposeObject } from '../core/Utils.js';
 import { setMaterialHitPulse } from '../graphics/StylizedMaterial.js';
+import {
+  ensureGearBaseStats, gearEnhanceCost, gearEnhanceSuccessChance, gearSellValue, recomputeGearFromEnhance,
+} from '../systems/LootSystem.js';
 
 const NUMERIC_GEAR_STATS = Object.freeze([
   'power', 'defense', 'hp', 'crit', 'haste', 'leech', 'xpBonus', 'goldBonus',
@@ -668,15 +671,94 @@ export class Player {
     this.equipped.weapon = best?.id ?? starter.id;
   }
 
-  salvage(itemId) {
+  /** Gold value if sold (0 if not sellable). */
+  sellValue(itemId) {
     const item = this.getItem(itemId);
     if (!item || item.locked || this.equipped[item.slot] === itemId) return 0;
-    const rarity = RARITIES[item.rarity] ?? RARITIES.common;
-    const value = Math.max(2, Math.round((item.itemLevel + (item.score ?? 0) * .35) * rarity.salvage));
+    return gearSellValue(item);
+  }
+
+  /**
+   * Sell one unequipped item for gold (+ essence on rare+).
+   * @returns {number} gold gained
+   */
+  sell(itemId) {
+    const item = this.getItem(itemId);
+    if (!item || item.locked || this.equipped[item.slot] === itemId) return 0;
+    const value = gearSellValue(item);
     this.inventory = this.inventory.filter(entry => entry.id !== itemId);
     this.gold += value;
     this.essence += item.rarity === 'epic' ? 2 : item.rarity === 'legendary' ? 5 : item.rarity === 'rare' ? 1 : 0;
     return value;
+  }
+
+  /** @deprecated Use sell() — kept for call-site compatibility. */
+  salvage(itemId) {
+    return this.sell(itemId);
+  }
+
+  /**
+   * Sell all unequipped, unlocked gear (optional rarity filter).
+   * @param {{ rarities?: string[] }} [options]
+   * @returns {{ count: number, gold: number }}
+   */
+  sellAllUnequipped(options = {}) {
+    const rarities = options.rarities ? new Set(options.rarities) : null;
+    const ids = this.inventory
+      .filter(item => {
+        if (item.locked) return false;
+        if (this.equipped[item.slot] === item.id) return false;
+        if (rarities && !rarities.has(item.rarity)) return false;
+        return true;
+      })
+      .map(item => item.id);
+    let gold = 0;
+    for (const id of ids) gold += this.sell(id);
+    return { count: ids.length, gold };
+  }
+
+  enhanceCost(itemId) {
+    const item = this.getItem(itemId);
+    if (!item) return 0;
+    return gearEnhanceCost(item);
+  }
+
+  enhanceChance(itemId) {
+    const item = this.getItem(itemId);
+    if (!item) return 0;
+    return gearEnhanceSuccessChance(item);
+  }
+
+  /**
+   * Spend gold to enhance gear. Success raises stats; failure drops 1 enhance level (min 0).
+   * @returns {{ ok: boolean, success?: boolean, reason?: string, cost?: number, level?: number, chance?: number }}
+   */
+  enhance(itemId) {
+    const item = this.getItem(itemId);
+    if (!item) return { ok: false, reason: 'missing' };
+    ensureGearBaseStats(item);
+    const level = Number(item.enhanceLevel) || 0;
+    if (level >= GEAR_ENHANCE.maxLevel) return { ok: false, reason: 'max', level };
+    const cost = gearEnhanceCost(item);
+    if (this.gold < cost) return { ok: false, reason: 'gold', cost, level };
+    const chanceRate = gearEnhanceSuccessChance(item);
+    this.gold -= cost;
+    const rolled = Math.random() < chanceRate;
+    if (rolled) {
+      item.enhanceLevel = level + 1;
+      recomputeGearFromEnhance(item);
+      this.invalidateStats();
+      this.hp = Math.min(this.hp, this.maxHp);
+      if (this.equipped[item.slot] === item.id && item.slot === 'weapon') this.#updateWeaponVisual();
+      return { ok: true, success: true, cost, level: item.enhanceLevel, chance: chanceRate };
+    }
+    // Fail: drop one enhance step (or stay at +0).
+    item.enhanceLevel = Math.max(0, level - 1);
+    recomputeGearFromEnhance(item);
+    this.invalidateStats();
+    this.hp = Math.min(this.hp, this.maxHp);
+    if (this.equipped[item.slot] === item.id && item.slot === 'weapon') this.#updateWeaponVisual();
+    return { ok: true, success: false, cost, level: item.enhanceLevel, chance: chanceRate };
   }
 
   upgradeSkill(skillId) {
@@ -764,7 +846,12 @@ export class Player {
       essence: this.essence,
       skillPoints: this.skillPoints,
       skills: { ...this.skills },
-      inventory: this.inventory.map(item => ({ ...item, affixes: [...(item.affixes ?? [])] })),
+      inventory: this.inventory.map(item => ({
+        ...item,
+        affixes: [...(item.affixes ?? [])],
+        baseStats: item.baseStats ? { ...item.baseStats } : undefined,
+        enhanceLevel: Number(item.enhanceLevel) || 0,
+      })),
       equipped: { ...this.equipped },
       potions: this.potions,
       maxPotions: this.maxPotions,
@@ -796,6 +883,26 @@ export class Player {
     const loadedInventory = Array.isArray(state.inventory) ? state.inventory.filter(item => item?.id && item?.slot) : [];
     if (!loadedInventory.some(item => item.id === starter.id)) loadedInventory.unshift(starter);
     this.inventory = loadedInventory.length ? loadedInventory.slice(0, PLAYER_CONFIG.inventoryLimit) : [starter];
+    for (const item of this.inventory) {
+      item.enhanceLevel = Math.max(0, Math.min(GEAR_ENHANCE.maxLevel, Number(item.enhanceLevel) || 0));
+      if (item.baseStats && typeof item.baseStats === 'object') {
+        recomputeGearFromEnhance(item);
+      } else {
+        ensureGearBaseStats(item);
+        // Old saves: current stats are the live values at enhance 0 (or unknown enhance).
+        // Treat them as already-enhanced display; back out base when enhanceLevel > 0.
+        if (item.enhanceLevel > 0) {
+          const flatMul = 1 + item.enhanceLevel * GEAR_ENHANCE.flatStep;
+          const pctMul = 1 + item.enhanceLevel * GEAR_ENHANCE.pctStep;
+          for (const key of NUMERIC_GEAR_STATS) {
+            const live = Number(item[key]) || 0;
+            const mul = (key === 'power' || key === 'defense' || key === 'hp' || key === 'moveSpeed') ? flatMul : pctMul;
+            item.baseStats[key] = mul > 0 ? live / mul : 0;
+          }
+          recomputeGearFromEnhance(item);
+        }
+      }
+    }
     this.equipped = { weapon: starter.id, armor: null, charm: null, ...(state.equipped ?? {}) };
     for (const slot of ['weapon', 'armor', 'charm']) {
       const item = this.getItem(this.equipped[slot]);

@@ -178,6 +178,39 @@ export const PLAYER_CONFIG = Object.freeze({
   inventoryLimit: 48,
 });
 
+/** Inventory gear enhance (sell gold → upgrade; fail drops 1 level). */
+export const GEAR_ENHANCE = Object.freeze({
+  maxLevel: 10,
+  /** Flat stats (power/defense/hp/moveSpeed) scale from base by this per level. */
+  flatStep: 0.08,
+  /** Percentage stats scale from base by this per level. */
+  pctStep: 0.05,
+  costBase: 28,
+  costPerItemLevel: 4,
+  /** Multiplier on cost: (enhanceLevel + 1) ** costLevelPow */
+  costLevelPow: 1.55,
+  rarityCost: Object.freeze({
+    common: 1,
+    uncommon: 1.25,
+    rare: 1.65,
+    epic: 2.2,
+    legendary: 3,
+  }),
+  /** Success chance when attempting to reach level `next` (1..maxLevel). */
+  successByTarget: Object.freeze({
+    1: 0.95,
+    2: 0.90,
+    3: 0.82,
+    4: 0.72,
+    5: 0.60,
+    6: 0.48,
+    7: 0.38,
+    8: 0.30,
+    9: 0.24,
+    10: 0.18,
+  }),
+});
+
 export const COLORS = Object.freeze({
   ink: 0x172130,
   gold: 0xffd36d,

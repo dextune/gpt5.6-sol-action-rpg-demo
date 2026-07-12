@@ -914,10 +914,17 @@ export function createClassStarterWeapon(classId = DEFAULT_HERO_CLASS_ID) {
   const def = getHeroClass(classId);
   const base = def.starterWeapon;
   const rarity = RARITIES[base.rarity] ?? RARITIES.common;
-  return {
+  const item = {
     defense: 0, hp: 0, haste: 0, leech: 0, xpBonus: 0, goldBonus: 0,
     skillPower: 0, moveSpeed: 0, luck: 0, score: 20, affixes: [],
+    enhanceLevel: 0, locked: false,
     ...base,
     rarityColor: rarity.color,
   };
+  const baseStats = {};
+  for (const key of ['power', 'defense', 'hp', 'crit', 'haste', 'leech', 'xpBonus', 'goldBonus', 'skillPower', 'moveSpeed', 'luck']) {
+    baseStats[key] = Number(item[key]) || 0;
+  }
+  item.baseStats = baseStats;
+  return item;
 }

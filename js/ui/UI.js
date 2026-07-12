@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { GAME_CONFIG, PLAYER_CONFIG } from '../config.js';
+import { GAME_CONFIG, GEAR_ENHANCE, PLAYER_CONFIG } from '../config.js';
+import { gearEnhanceCost, gearEnhanceSuccessChance, gearSellValue } from '../systems/LootSystem.js';
 import {
   DEFAULT_HERO_CLASS_ID, RARITIES, SKILLS, ZONES,
   getClassActiveSkills, getClassPassiveSkills, getHeroClass, resolveHeroClassId,
@@ -583,10 +584,13 @@ export class UI {
     const equipped = ['weapon', 'armor', 'charm'].map(slot => this.#equipmentSlot(slot)).join('');
     const list = player.inventory
       .filter(item => this.inventoryFilter === 'all' || item.slot === this.inventoryFilter)
-      .sort((a, b) => (RARITY_RANK[b.rarity] - RARITY_RANK[a.rarity]) || ((b.score ?? 0) - (a.score ?? 0)));
+      .sort((a, b) => ((b.enhanceLevel ?? 0) - (a.enhanceLevel ?? 0))
+        || (RARITY_RANK[b.rarity] - RARITY_RANK[a.rarity])
+        || ((b.score ?? 0) - (a.score ?? 0)));
     const cards = list.length ? list.map(item => this.#itemCard(item)).join('') : '<div class="empty-inventory">No loot of this type.</div>';
+    const sellableCount = player.inventory.filter(item => !item.locked && player.equipped[item.slot] !== item.id).length;
     this.elements['panel-content'].innerHTML = `
-      <div class="panel-grid">
+      <div class="panel-grid inventory-layout">
         <section class="equipment-column">
           <p class="section-label"><span>EQUIPPED</span><b>Power ${Math.round(player.attackPower + player.defense + player.maxHp * .08)}</b></p>
           ${equipped}
@@ -595,14 +599,19 @@ export class UI {
             <span>Health <b>${player.maxHp}</b></span><span>Crit <b>${(player.critChance * 100).toFixed(1)}%</b></span>
             <span>Atk Speed <b>${player.attackSpeed.toFixed(2)}</b></span><span>Skill Power <b>${Math.round(player.skillPower * 100)}%</b></span>
             <span>Lifesteal <b>${(player.leech * 100).toFixed(1)}%</b></span><span>Luck <b>${(player.luck * 100).toFixed(1)}%</b></span>
+            <span>Gold <b>${player.gold.toLocaleString('en-US')}</b></span><span>Bag <b>${player.inventory.length}/${PLAYER_CONFIG.inventoryLimit}</b></span>
           </div>
+          <p class="enhance-hint">Sell spare gear for gold, then <b>Enhance</b> keepers. Success raises stats; fail drops 1 level.</p>
         </section>
         <section class="inventory-column">
           <div class="inventory-toolbar">
-            <p class="section-label"><span>INVENTORY</span><b>${player.inventory.length} / ${PLAYER_CONFIG.inventoryLimit}</b></p>
-            <div>
-              ${['all', 'weapon', 'armor', 'charm'].map(id => `<button class="filter-button ${this.inventoryFilter === id ? 'active' : ''}" data-action="filter" data-filter="${id}">${{ all: 'All', weapon: 'Weapon', armor: 'Armor', charm: 'Charm' }[id]}</button>`).join('')}
-              <button class="small-button" data-action="salvage-low">Salvage Common/Uncommon</button>
+            <p class="section-label inventory-count"><span>INVENTORY</span><b>${player.inventory.length} / ${PLAYER_CONFIG.inventoryLimit}</b></p>
+            <div class="inventory-filters" role="group" aria-label="Filter gear">
+              ${['all', 'weapon', 'armor', 'charm'].map(id => `<button type="button" class="filter-button ${this.inventoryFilter === id ? 'active' : ''}" data-action="filter" data-filter="${id}">${{ all: 'All', weapon: 'Weapon', armor: 'Armor', charm: 'Charm' }[id]}</button>`).join('')}
+            </div>
+            <div class="inventory-bulk-actions" role="group" aria-label="Bulk sell">
+              <button type="button" class="small-button" data-action="sell-junk" title="Sell Common and Uncommon unequipped gear">Sell Junk</button>
+              <button type="button" class="small-button accent-button" data-action="sell-all" ${sellableCount ? '' : 'disabled'} title="Sell every unequipped item (keeps equipped)">Sell All${sellableCount ? ` · ${sellableCount}` : ''}</button>
             </div>
           </div>
           <div class="item-grid">${cards}</div>
@@ -614,26 +623,53 @@ export class UI {
     const labels = { weapon: 'Main Weapon', armor: 'Armor', charm: 'Hunt Charm' };
     const item = this.game.player.getItem(this.game.player.equipped[slot]);
     if (!item) return `<article class="equipment-slot"><small>${labels[slot]}</small><strong>Empty</strong><div class="item-stats"><span>Obtain gear from hunting.</span></div></article>`;
+    const plus = Number(item.enhanceLevel) || 0;
+    const plusLabel = plus > 0 ? ` · +${plus}` : '';
     return `<article class="equipment-slot" style="--rarity:${hexColor(item.rarityColor)}">
       <img class="equipment-icon" src="${itemIcon(item)}" alt="">
-      <small>${labels[slot]} · ${RARITIES[item.rarity].name}</small><span class="item-score">S ${item.score}</span>
-      <strong style="color:${hexColor(item.rarityColor)}">${escapeHtml(item.name)}</strong>
+      <small>${labels[slot]} · ${RARITIES[item.rarity].name}${plusLabel}</small><span class="item-score">S ${item.score}</span>
+      <strong style="color:${hexColor(item.rarityColor)}">${plus > 0 ? `+${plus} ` : ''}${escapeHtml(item.name)}</strong>
       <div class="item-stats">${this.#itemStats(item, 6)}</div>
     </article>`;
   }
 
   #itemCard(item) {
-    const equipped = this.game.player.equipped[item.slot] === item.id;
-    const canEquip = this.game.player.canEquipItem?.(item) ?? true;
-    const equipLabel = equipped ? 'Equipped' : canEquip ? 'Equip' : 'Wrong class';
-    return `<article class="item-card ${equipped ? 'equipped' : ''}${canEquip ? '' : ' wrong-class'}" style="--rarity:${hexColor(item.rarityColor)}">
+    const player = this.game.player;
+    const equipped = player.equipped[item.slot] === item.id;
+    const canEquip = player.canEquipItem?.(item) ?? true;
+    const equipLabel = equipped ? 'Equipped' : canEquip ? 'Equip' : 'Class';
+    const plus = Number(item.enhanceLevel) || 0;
+    const maxed = plus >= GEAR_ENHANCE.maxLevel;
+    const cost = gearEnhanceCost(item);
+    const chancePct = Math.round(gearEnhanceSuccessChance(item) * 100);
+    const sellVal = (!equipped && !item.locked) ? gearSellValue(item) : 0;
+    const canAfford = player.gold >= cost;
+    const enhanceDisabled = maxed || !canAfford;
+    const plusBadge = plus > 0 ? `<span class="enhance-badge">+${plus}</span>` : '';
+    const enhanceMeta = maxed
+      ? `<span class="meta-enhance maxed">+${plus} MAX</span>`
+      : `<span class="meta-enhance${canAfford ? '' : ' unaffordable'}">+${plus}→+${plus + 1} · ${cost.toLocaleString('en-US')}G · ${chancePct}%</span>`;
+    const sellMeta = equipped
+      ? '<span class="meta-sell muted">Equipped</span>'
+      : item.locked
+        ? '<span class="meta-sell muted">Locked</span>'
+        : `<span class="meta-sell">Sell ${sellVal.toLocaleString('en-US')}G</span>`;
+    const enhanceTitle = maxed
+      ? 'Already at max enhance'
+      : canAfford
+        ? `Spend ${cost}G. Success ${chancePct}%. Fail drops 1 level.`
+        : `Need ${cost}G (have ${player.gold})`;
+    return `<article class="item-card ${equipped ? 'equipped' : ''}${canEquip ? '' : ' wrong-class'}${plus > 0 ? ' enhanced' : ''}" style="--rarity:${hexColor(item.rarityColor)}">
       <img class="item-icon" src="${itemIcon(item)}" alt="">
-      <header><small>${RARITIES[item.rarity].name} · iLv.${item.itemLevel}</small><strong>${escapeHtml(item.name)}</strong></header>
+      <header><small>${RARITIES[item.rarity].name} · iLv.${item.itemLevel}${plus > 0 ? ` · +${plus}` : ''}</small><strong>${plus > 0 ? `+${plus} ` : ''}${escapeHtml(item.name)}</strong></header>
       <span class="item-score">S ${item.score}</span>
+      ${plusBadge}
       <div class="item-stats">${this.#itemStats(item, 6, { compare: !equipped })}</div>
+      <div class="item-meta" aria-hidden="true">${enhanceMeta}${sellMeta}</div>
       <div class="item-actions">
-        <button data-action="equip" data-item="${item.id}" ${equipped || !canEquip ? 'disabled' : ''}>${equipLabel}</button>
-        <button data-action="salvage" data-item="${item.id}" ${equipped || item.locked ? 'disabled' : ''}>Salvage</button>
+        <button type="button" data-action="equip" data-item="${item.id}" ${equipped || !canEquip ? 'disabled' : ''}>${equipLabel}</button>
+        <button type="button" data-action="enhance" data-item="${item.id}" ${enhanceDisabled ? 'disabled' : ''} title="${enhanceTitle}">Enhance</button>
+        <button type="button" data-action="sell" data-item="${item.id}" ${equipped || item.locked ? 'disabled' : ''} title="${sellVal ? `Sell for ${sellVal} gold` : 'Cannot sell'}">Sell</button>
       </div>
     </article>`;
   }
@@ -777,19 +813,55 @@ export class UI {
         this.game.requestSave();
         this.#renderInventory();
       }
-    } else if (action === 'salvage') {
-      const value = this.game.player.salvage(button.dataset.item);
+    } else if (action === 'sell' || action === 'salvage') {
+      const value = this.game.player.sell(button.dataset.item);
       if (value > 0) {
         this.game.audio.click();
-        this.notify(`Salvaged · +${value}G`, 'loot');
+        this.notify(`Sold · +${value}G`, 'loot');
         this.game.requestSave();
         this.#renderInventory();
       }
-    } else if (action === 'salvage-low') {
-      let total = 0;
-      const candidates = [...this.game.player.inventory].filter(item => ['common', 'uncommon'].includes(item.rarity) && !item.locked && this.game.player.equipped[item.slot] !== item.id);
-      candidates.forEach(item => { total += this.game.player.salvage(item.id); });
-      this.notify(candidates.length ? `${candidates.length} items salvaged · +${total}G` : 'No Common/Uncommon gear to salvage.', candidates.length ? 'loot' : 'danger');
+    } else if (action === 'sell-junk' || action === 'salvage-low') {
+      const result = this.game.player.sellAllUnequipped({ rarities: ['common', 'uncommon'] });
+      this.notify(
+        result.count ? `Sold ${result.count} junk · +${result.gold}G` : 'No Common/Uncommon gear to sell.',
+        result.count ? 'loot' : 'danger',
+      );
+      if (result.count) this.game.audio.click();
+      this.game.requestSave();
+      this.#renderInventory();
+    } else if (action === 'sell-all') {
+      const result = this.game.player.sellAllUnequipped();
+      this.notify(
+        result.count ? `Sold ${result.count} items · +${result.gold.toLocaleString('en-US')}G` : 'Nothing to sell (equipped gear is kept).',
+        result.count ? 'loot' : 'danger',
+      );
+      if (result.count) this.game.audio.click();
+      this.game.requestSave();
+      this.#renderInventory();
+    } else if (action === 'enhance') {
+      const item = this.game.player.getItem(button.dataset.item);
+      const name = item?.name ?? 'Gear';
+      const result = this.game.player.enhance(button.dataset.item);
+      if (!result.ok) {
+        if (result.reason === 'gold') this.notify(`Need ${result.cost}G to enhance.`, 'danger', 2.6);
+        else if (result.reason === 'max') this.notify('Already at max enhance (+10).', 'danger', 2.4);
+        else this.notify('Cannot enhance that item.', 'danger', 2.4);
+        return;
+      }
+      this.game.audio.click();
+      if (result.success) {
+        this.game.audio.levelUp?.();
+        this.notify(`Enhance success · ${name} → +${result.level}`, 'level', 3.2);
+      } else {
+        this.notify(
+          result.level > 0
+            ? `Enhance failed · ${name} dropped to +${result.level}`
+            : `Enhance failed · ${name} stays +0`,
+          'danger',
+          3.4,
+        );
+      }
       this.game.requestSave();
       this.#renderInventory();
     } else if (action === 'upgrade-skill') {
