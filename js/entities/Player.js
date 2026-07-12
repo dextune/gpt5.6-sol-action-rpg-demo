@@ -110,8 +110,9 @@ export class Player {
     this.hitTimer = 0;
     this.runTime = 0;
     this.attackLunge = 0;
-    // Defense-only run multipliers (always 1 / 0 in Hunt). Cleared every reset.
-    this.runMods = { attack: 1, defense: 1, skillPower: 0, haste: 0, xp: 0 };
+    // Run multipliers (Defense growth + temporary kill-chain bonuses). Cleared every reset.
+    this.runMods = { attack: 1, defense: 1, skillPower: 0, haste: 0, xp: 0, moveSpeed: 0, killChainXp: 0 };
+    this.pickupRadiusBase = 2.2;
     this.mesh.position.set(0, 0, 6);
     this.mesh.rotation.set(0, 0, 0);
     this.mesh.scale.copy(this.normalScale);
@@ -217,7 +218,14 @@ export class Player {
   }
   get energyGainMul() { return 1 + this.attackSpeedOverflow * 2; }
   get moveSpeed() {
-    return PLAYER_CONFIG.moveSpeed * (1 + this.passiveEffects.moveSpeed) + this.equipmentStats.moveSpeed;
+    const runMove = this.runMods?.moveSpeed ?? 0;
+    return PLAYER_CONFIG.moveSpeed * (1 + this.passiveEffects.moveSpeed + runMove) + this.equipmentStats.moveSpeed;
+  }
+  /** Magnet radius for XP gems (base + luck / run mods). */
+  get pickupRadius() {
+    const luck = this.luck ?? 0;
+    const run = this.runMods?.pickupRadius ?? 0;
+    return (this.pickupRadiusBase ?? 2.2) + luck * 0.5 + run;
   }
   get skillPower() {
     const mods = this.classMods;
@@ -225,7 +233,9 @@ export class Player {
     return 1 + this.equipmentStats.skillPower + this.passiveEffects.skillPower + (mods.skillPower ?? 0) + run;
   }
   get leech() { return clamp(this.equipmentStats.leech, 0, .12); }
-  get xpBonus() { return this.equipmentStats.xpBonus + (this.runMods?.xp ?? 0); }
+  get xpBonus() {
+    return this.equipmentStats.xpBonus + (this.runMods?.xp ?? 0) + (this.runMods?.killChainXp ?? 0);
+  }
   get goldBonus() { return this.equipmentStats.goldBonus + this.passiveEffects.gold; }
   get luck() { return this.equipmentStats.luck + this.passiveEffects.luck; }
   get healthRatio() { return clamp(this.hp / Math.max(1, this.maxHp), 0, 1); }

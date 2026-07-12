@@ -393,15 +393,36 @@ export class AudioManager {
     return map[themeOrKey] ?? (String(themeOrKey).startsWith('skill_') ? themeOrKey : 'skill');
   }
 
-  pickup(rarity = 'common') {
+  /**
+   * @param {string} [rarity]
+   * @param {{ rate?: number, volume?: number }} [options] rate overrides pitch (gem combo ramp).
+   */
+  pickup(rarity = 'common', options = {}) {
     const weight = { common: 0.75, uncommon: 0.85, rare: 0.95, epic: 1.05, legendary: 1.15 }[rarity] ?? 0.8;
+    const rate = options.rate ?? (0.92 + weight * 0.08 + Math.random() * 0.04);
+    const volume = (options.volume ?? 0.4) * weight;
     if (this.playSample('pickup', {
-      volume: 0.4 * weight,
-      rate: 0.92 + weight * 0.08 + Math.random() * 0.04,
+      volume,
+      rate,
       filter: 1400,
     })) return;
     this.#noise(0.05, 0.015 * weight, { type: 'lowpass', frequency: 700, decay: 1.5 });
-    this.#tone(90 * weight, 0.07, { type: 'triangle', volume: 0.028 * weight, end: 48, filter: 450 });
+    this.#tone(90 * weight * rate, 0.07, { type: 'triangle', volume: 0.028 * weight, end: 48 * rate, filter: 450 });
+  }
+
+  /** Kill-chain sting; reuses hit banks when dedicated samples are absent. */
+  killSting(chain = 1) {
+    const c = Math.max(1, chain | 0);
+    if (c >= 25) {
+      if (this.playSample('level', { volume: 0.45, rate: 1.05, filter: 1200 })) return;
+      this.#tone(120, 0.12, { type: 'triangle', volume: 0.04, end: 180, filter: 800 });
+      return;
+    }
+    if (c >= 10) {
+      this.hit(false, true);
+      return;
+    }
+    this.hit(false, false);
   }
 
   boss() {

@@ -533,18 +533,49 @@ export class Enemy {
     this.state = 'hit';
     this.stateTimer = Math.max(this.stateTimer, this.boss ? .06 : .16);
     this.#setHealthBar(this.healthRatio);
-    if (this.hp <= 0) this.#die(game, options.direction);
+    if (this.hp <= 0) {
+      const overkill = amount >= this.maxHp * 0.5
+        || Boolean(options.critical && options.finisher)
+        || Boolean(options.overkill);
+      this.#die(game, options.direction, { overkill, critical: options.critical, finisher: options.finisher });
+    }
     return { amount, killed: !this.alive };
   }
 
-  #die(game, direction = null) {
+  #die(game, direction = null, deathOpts = {}) {
     if (!this.alive) return;
     this.alive = false;
-    this.deathTimer = this.boss ? 1.45 : .78;
+    this.overkill = Boolean(deathOpts.overkill);
+    this.deathArchetype = this.#deathArchetype();
+    // Slime/colossus need a bit more stage time for signature collapse.
+    const baseDur = this.boss ? 1.45 : this.deathArchetype === 'colossus' ? 1.15 : this.deathArchetype === 'slime' ? 0.95 : .78;
+    this.deathTimer = baseDur;
+    this.deathDuration = baseDur;
+    this.deathVelY = 0;
+    this.deathBounced = false;
+    this.slimeBurstDone = false;
     this.refs.healthGroup.visible = false;
     this.velocity.set(0, 0, 0);
-    this.animation.playOneShot('death', { fade: .10, fadeOut: .18, timeScale: this.boss ? .82 : 1.06, fallback: null });
-    if (direction) this.knockback.addScaledVector(direction, this.boss ? 2.2 : 4.8);
+    this.animation.playOneShot('death', {
+      fade: .10,
+      fadeOut: .18,
+      timeScale: this.boss || this.deathArchetype === 'colossus' ? .72 : 1.06,
+      fallback: null,
+    });
+    if (direction) {
+      const force = this.overkill
+        ? (this.boss ? 5.5 : 9 + Math.random() * 3)
+        : (this.boss ? 2.2 : 4.8);
+      this.knockback.addScaledVector(direction, force);
+      // Random lateral spread so multikills don't stack perfectly.
+      if (this.overkill && !this.boss) {
+        this.knockback.x += (Math.random() - 0.5) * 3.5;
+        this.knockback.z += (Math.random() - 0.5) * 3.5;
+      }
+    }
+    if (this.overkill) {
+      this.deathVelY = this.boss ? 3.2 : 4 + Math.random() * 2;
+    }
     // Volatile elite: small death burst (capped vs player max HP).
     if (this.eliteAffix === 'volatile' && game.player?.alive) {
       const radius = 3.2;
@@ -575,17 +606,78 @@ export class Enemy {
     game.onEnemyKilled(this);
   }
 
+  #deathArchetype() {
+    const shape = String(this.data?.shape ?? '').toLowerCase();
+    const id = String(this.typeId ?? this.data?.id ?? '').toLowerCase();
+    if (shape === 'blob' || id.includes('slime') || id.includes('blob') || id.includes('jelly')) return 'slime';
+    if (shape === 'colossus' || id.includes('colossus') || this.boss && (this.data?.scale ?? 1) >= 1.6) return 'colossus';
+    return 'default';
+  }
+
   #updateDeath(delta, game) {
     this.deathTimer -= delta;
-    const duration = this.boss ? 1.45 : .78;
+    const duration = this.deathDuration || (this.boss ? 1.45 : .78);
     const t = clamp(this.deathTimer / duration, 0, 1);
+    const progress = 1 - t;
+
+    // Overkill launch: vertical parabola + single light bounce.
+    if (this.deathVelY !== 0 || this.overkill) {
+      this.deathVelY -= 18 * delta;
+      this.mesh.position.y += this.deathVelY * delta;
+      const groundY = 0;
+      if (this.mesh.position.y < groundY) {
+        this.mesh.position.y = groundY;
+        if (!this.deathBounced && this.deathVelY < -1.2) {
+          this.deathVelY *= -0.32;
+          this.deathBounced = true;
+          game.effects?.dust?.(this.position, 0xc4b89a, 8, 0.35);
+          game.effects?.burst?.(this.position.clone().add(new THREE.Vector3(0, 0.2, 0)), 0xd8c8a0, 6, {
+            speed: 2.2, size: 0.18, life: 0.35, upward: 0.2, gravity: 6,
+          });
+        } else {
+          this.deathVelY = 0;
+        }
+      }
+    }
+
     this.position.addScaledVector(this.knockback, delta);
     game.world.resolvePosition(this.position, this.radius);
     this.animation.update(delta, { distance: game.camera.position.distanceTo(this.position), visible: this.mesh.visible });
     setMaterialHitPulse(this.mesh, 0);
-    const collapse = this.boss ? THREE.MathUtils.lerp(.72, 1, t) : THREE.MathUtils.lerp(.22, 1, t);
-    this.mesh.scale.copy(this.normalScale).multiplyScalar(collapse);
-    this.mesh.position.y += (1 - t) * delta * (this.boss ? .25 : .55);
+
+    const arch = this.deathArchetype || 'default';
+    if (arch === 'slime') {
+      // Flatten then burst particles once near mid death.
+      const flatten = clamp(progress * 1.6, 0, 1);
+      const sx = THREE.MathUtils.lerp(1, 1.55, flatten);
+      const sy = THREE.MathUtils.lerp(1, 0.18, flatten);
+      const sz = THREE.MathUtils.lerp(1, 1.55, flatten);
+      this.mesh.scale.set(
+        this.normalScale.x * sx,
+        this.normalScale.y * sy,
+        this.normalScale.z * sz,
+      );
+      if (!this.slimeBurstDone && progress > 0.55) {
+        this.slimeBurstDone = true;
+        const color = this.data?.accent ?? this.data?.color ?? 0x63d58b;
+        game.effects?.burst?.(this.position.clone().add(new THREE.Vector3(0, 0.35, 0)), color, 14, {
+          speed: 4.5, size: 0.28, life: 0.55, upward: 0.55, gravity: 5,
+        });
+        game.effects?.burst?.(this.position.clone().add(new THREE.Vector3(0, 0.2, 0)), color, 8, {
+          speed: 2.8, size: 0.2, life: 0.7, upward: 0.15, gravity: 3, opacity: 0.55,
+        });
+      }
+    } else if (arch === 'colossus') {
+      // Slow sequential collapse.
+      const collapse = THREE.MathUtils.lerp(1, 0.35, Math.pow(progress, 0.65));
+      this.mesh.scale.copy(this.normalScale).multiplyScalar(collapse);
+      if (!this.overkill) this.mesh.position.y += delta * 0.12 * progress;
+    } else {
+      const collapse = this.boss ? THREE.MathUtils.lerp(.72, 1, t) : THREE.MathUtils.lerp(.22, 1, t);
+      this.mesh.scale.copy(this.normalScale).multiplyScalar(collapse);
+      if (!this.overkill) this.mesh.position.y += (1 - t) * delta * (this.boss ? .25 : .55);
+    }
+
     this.mesh.traverse(object => {
       const materials = Array.isArray(object.material) ? object.material : [object.material];
       for (const material of materials) {

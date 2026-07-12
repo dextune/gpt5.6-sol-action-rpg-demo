@@ -1309,6 +1309,8 @@ export class CombatSystem {
       knockback: (options.knockback ?? 2) * (critical ? 1.25 : 1),
       armorPierce,
       multiHit: options.multiHit,
+      critical,
+      finisher,
     });
     if (result.amount <= 0) return;
     if (options.status) this.#applyHitStatus(enemy, options.status);
