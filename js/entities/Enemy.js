@@ -83,6 +83,8 @@ export class Enemy {
     this.healthBarTimer = 0;
     /** Accumulator for half-rate far fodder animation. */
     this._animSkipAcc = 0;
+    /** Horizontal hit direction for directional squash (XZ). */
+    this.hitDir = new THREE.Vector3(0, 0, 1);
     this.invulnerable = 0;
     this.attackCooldown = rand(.35, 1.15);
     this.specialCooldown = rand(2.6, 5.2);
@@ -414,14 +416,28 @@ export class Enemy {
       this.hitTimer > 0 ? Math.min(1, this.hitTimer / .15) : 0,
       statusPulse,
     ));
-    // Squash-and-stretch flinch: fast lateral squash on contact, springy overshoot on recovery.
+    // Directional squash-and-stretch: bias lateral squash along hit axis (not uniform).
     if (this.hitTimer > 0 && this.alive) {
-      const ht = this.hitTimer / .28;
+      // Envelope over ~0.28s peak window; hitTimer may be capped higher for multi-hit.
+      const ht = Math.min(1, this.hitTimer / .28);
       const punch = Math.sin(ht * Math.PI) * (this.boss ? .05 : .13);
+      // Project hitDir into mesh-local XZ so left/right hits lean differently.
+      const yaw = this.mesh.rotation.y;
+      const cos = Math.cos(-yaw);
+      const sin = Math.sin(-yaw);
+      const lx = this.hitDir.x * cos - this.hitDir.z * sin;
+      const lz = this.hitDir.x * sin + this.hitDir.z * cos;
+      const ax = Math.abs(lx);
+      const az = Math.abs(lz);
+      // Compress along impact axis, expand on the perpendicular + slight Y squash.
+      const along = 1 - punch * 1.15;
+      const across = 1 + punch * .95;
+      const sx = ax >= az ? along : across;
+      const sz = az > ax ? along : across;
       this.mesh.scale.set(
-        this.normalScale.x * (1 + punch * .8),
-        this.normalScale.y * (1 - punch),
-        this.normalScale.z * (1 + punch * .8),
+        this.normalScale.x * sx,
+        this.normalScale.y * (1 - punch * .85),
+        this.normalScale.z * sz,
       );
     } else if (this.alive) {
       this.mesh.scale.lerp(this.normalScale, Math.min(1, delta * 14));
@@ -474,8 +490,17 @@ export class Enemy {
     const reduction = this.defense * .37 * (1 - armorPierce);
     const amount = Math.max(1, Math.round(incoming - reduction));
     this.hp = Math.max(0, this.hp - amount);
-    this.hitTimer = .28;
+    // Cap hitstun accumulation so multi-hit flurries cannot lock forever.
+    this.hitTimer = Math.min(0.4, this.hitTimer + 0.28);
     if (this.fodder) this.healthBarTimer = 2;
+    if (options.direction) {
+      const d = options.direction;
+      const lenSq = d.x * d.x + d.z * d.z;
+      if (lenSq > 1e-6) {
+        const inv = 1 / Math.sqrt(lenSq);
+        this.hitDir.set(d.x * inv, 0, d.z * inv);
+      }
+    }
     this.#playAnimation('hit', 1.35);
     this.invulnerable = options.multiHit ? .045 : .09;
     this.lastHitAt = game.elapsed;
