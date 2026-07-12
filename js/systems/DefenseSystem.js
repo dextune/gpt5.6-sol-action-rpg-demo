@@ -3,7 +3,7 @@ import {
   DEFENSE_CONFIG,
   defenseRarityFloor,
 } from '../config.js';
-import { ENEMY_TYPES, SKILLS, ZONE_BOSSES, ZONE_SPAWNS, getClassSkillIds } from '../data/content.js';
+import { ENEMY_TYPES, ZONE_BOSSES, ZONE_SPAWNS } from '../data/content.js';
 import { chance, clamp, weightedPick } from '../core/Utils.js';
 
 const TMP_UP = new THREE.Vector3(0, 1, 0);
@@ -362,44 +362,14 @@ export class DefenseSystem {
 
   /**
    * Prefer active combat skills first (spectacle), then passives.
-   * Keeps Defense flashy without requiring manual skill menu mid-wave.
+   * Shared helper lives on Player; Defense keeps notify flavor.
    */
   #autoSpendSkillPoints() {
     const player = this.game.player;
-    if (!player || player.skillPoints <= 0) return;
-    const ids = getClassSkillIds(player.classId);
-    const actives = [];
-    const passives = [];
-    for (const id of ids) {
-      const skill = SKILLS[id];
-      if (!skill) continue;
-      if (skill.passive) passives.push(id);
-      else actives.push(id);
-    }
-    // Unlock-ready actives first by unlockLevel, then passives.
-    const order = [
-      ...actives.sort((a, b) => (SKILLS[a].unlockLevel ?? 99) - (SKILLS[b].unlockLevel ?? 99)),
-      ...passives.sort((a, b) => (SKILLS[a].unlockLevel ?? 99) - (SKILLS[b].unlockLevel ?? 99)),
-    ];
-    let spent = 0;
-    let guard = 40;
-    while (player.skillPoints > 0 && guard-- > 0) {
-      let upgraded = false;
-      for (const id of order) {
-        const before = player.skillPoints;
-        if (player.upgradeSkill(id)) {
-          spent += 1;
-          upgraded = true;
-          const skill = SKILLS[id];
-          if (skill && !skill.passive && (player.skills[id] ?? 0) === 1) {
-            this.game.ui?.notify?.(`Skill ready · ${skill.name} [${skill.key}]`, 'level', 3.0);
-          }
-          break;
-        }
-        if (player.skillPoints !== before) break;
-      }
-      if (!upgraded) break;
-    }
+    if (!player?.autoSpendSkillPoints) return;
+    const spent = player.autoSpendSkillPoints({
+      onUnlock: (skill) => this.game.ui?.notify?.(`Skill ready · ${skill.name} [${skill.key}]`, 'level', 3.0),
+    });
     if (spent > 0) {
       this.game.ui?.notify?.(`Skills reinforced ×${spent}`, 'level', 2.6);
     }
