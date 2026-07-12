@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { DEFENSE_CONFIG, GAME_CONFIG } from '../config.js';
+import { DEFENSE_CONFIG, GAME_CONFIG, GROWTH_CONFIG } from '../config.js';
 import { SKILLS, getClassActiveSkills, getClassSkillIds, skillKeyCode } from '../data/content.js';
 import { clamp, randInt } from './Utils.js';
 import { Input } from './Input.js';
@@ -694,6 +694,9 @@ export class Game {
     this.loot.dropFromEnemy(enemy);
     this.xpGems?.spawnFromKill(enemy);
 
+    // Kill → skill uptime: CDR + MP (immediate, independent of XP gems).
+    this.#applyKillSkillRefund(enemy);
+
     const position = enemy.position.clone().add(new THREE.Vector3(0, Math.max(.7, enemy.refs.modelHeight * .45), 0));
     if (gold > 0) this.ui.floatText(position, `+${gold}G`, 'heal');
 
@@ -730,10 +733,9 @@ export class Game {
 
   /** Level-ups from XP gem collection (mirrors former onEnemyKilled XP path). */
   onXpLevelUps(levelUps = []) {
+    if (!levelUps.length) return;
     for (const level of levelUps) {
       this.audio.levelUp();
-      this.effects.pillar(this.player.position, 0xffe38a, 8, { life: .9, bottom: 1.25 });
-      this.effects.ring(this.player.position, 0xffe38a, 5.5, { life: .85, startScale: .05 });
       this.ui.notify(`LEVEL UP · Lv.${level} · Skill Point +1`, 'level', 4.4);
       for (const id of getClassSkillIds(this.player.classId)) {
         const skill = SKILLS[id];
@@ -741,8 +743,82 @@ export class Game {
           this.ui.notify(`New skill unlocked · ${skill.name} [${skill.key}]`, 'level', 4.2);
         }
       }
+      // Combat beat: nova + brief invuln (once per level gained).
+      this.#levelUpNova();
     }
-    if (this.mode === 'hunt' && levelUps.length) this.requestSave();
+    // Auto-spend SP so growth completes without opening the skill menu.
+    const spent = this.player.autoSpendSkillPoints({
+      onUnlock: (skill) => this.ui.notify(`Skill ready · ${skill.name} [${skill.key}]`, 'level', 3.0),
+    });
+    if (spent > 0) this.ui.notify(`Skills reinforced ×${spent}`, 'level', 2.6);
+    if (this.mode === 'hunt') this.requestSave();
+  }
+
+  /** Kill refund: reduce active skill CDs + restore MP by enemy tier. */
+  #applyKillSkillRefund(enemy) {
+    const cfg = GROWTH_CONFIG;
+    const player = this.player;
+    if (!player?.alive) return;
+    let cdr = cfg.killCdrFodder;
+    let mpGain = cfg.killMpFodder;
+    if (enemy.boss) {
+      cdr = cfg.killCdrBoss;
+      mpGain = cfg.killMpBoss;
+    } else if (enemy.elite) {
+      cdr = cfg.killCdrElite;
+      mpGain = cfg.killMpElite;
+    }
+    for (const skill of getClassActiveSkills(player.classId)) {
+      const id = skill.id;
+      const cd = player.skillCooldowns[id] ?? 0;
+      if (cd > 0) {
+        player.skillCooldowns[id] = Math.max(cfg.killCdrFloor, cd - cdr);
+      }
+    }
+    player.mp = Math.min(player.maxMp, player.mp + mpGain);
+  }
+
+  /**
+   * Level-up combat nova: knockback nearby foes, delete fodder, chunk elites/bosses.
+   * Presentation only uses mesh FX (no PointLights / camera shake).
+   */
+  #levelUpNova() {
+    const cfg = GROWTH_CONFIG;
+    const player = this.player;
+    if (!player) return;
+    const origin = player.position;
+    player.invulnerable = Math.max(player.invulnerable ?? 0, cfg.levelNovaInvuln);
+
+    this.effects.pillar(origin, 0xffe38a, 10, { life: 1.05, bottom: 1.45, opacity: 0.55 });
+    this.effects.ring(origin, 0xffe38a, cfg.levelNovaRadius + 0.8, { life: 0.9, startScale: 0.05, opacity: 0.92 });
+    this.effects.ring(origin, 0xfff2c4, cfg.levelNovaRadius * 0.55, {
+      life: 0.45, startScale: 0.12, height: 0.1, opacity: 0.8,
+    });
+    this.effects.burst(origin.clone().add(new THREE.Vector3(0, 1.05, 0)), 0xffd66b, 36, {
+      speed: 6.2, size: 0.36, life: 0.72, upward: 0.5,
+    });
+
+    const radius = cfg.levelNovaRadius;
+    const r2 = radius * radius;
+    const enemies = this.enemies?.enemies ?? [];
+    for (const enemy of enemies) {
+      if (!enemy.alive) continue;
+      const dx = enemy.position.x - origin.x;
+      const dz = enemy.position.z - origin.z;
+      if (dx * dx + dz * dz > r2) continue;
+      const dist = Math.hypot(dx, dz) || 0.001;
+      const dir = new THREE.Vector3(dx / dist, 0, dz / dist);
+      const amount = enemy.fodder
+        ? cfg.levelNovaFodderDamage
+        : Math.max(1, Math.round(enemy.maxHp * cfg.levelNovaNonFodderHpFrac));
+      enemy.takeDamage(amount, this, {
+        direction: dir,
+        knockback: cfg.levelNovaKnockback,
+        skill: true,
+        multiHit: false,
+        overkill: Boolean(enemy.fodder),
+      });
+    }
   }
 
   #updateKillFeedback(delta) {
@@ -816,7 +892,12 @@ export class Game {
 
   #checkChainMilestones() {
     const chain = this.killChain;
-    for (const mark of [25, 50, 100]) {
+    const every = GROWTH_CONFIG.chainAttackEvery;
+    const marks = new Set([25, 50, 100]);
+    if (every > 0 && chain >= every) {
+      for (let m = every; m <= chain; m += every) marks.add(m);
+    }
+    for (const mark of [...marks].sort((a, b) => a - b)) {
       if (chain >= mark && !this._chainMilestones.has(mark)) {
         this._chainMilestones.add(mark);
         this.ui.notify(`${mark} KILL CHAIN!`, mark >= 100 ? 'boss' : 'level', 3.6);
@@ -824,7 +905,25 @@ export class Game {
         this.effects?.ring?.(this.player.position, 0xffe38a, 3.5 + mark * 0.02, {
           life: 0.55, startScale: 0.1,
         });
+        // Permanent-in-run attack bump every N chain kills (Hunt + Defense).
+        if (every > 0 && mark % every === 0) this.#applyChainAttackGrowth();
       }
+    }
+  }
+
+  #applyChainAttackGrowth() {
+    const cfg = GROWTH_CONFIG;
+    const mods = this.player?.runMods;
+    if (!mods) return;
+    const before = mods.attack ?? 1;
+    mods.attack = Math.min(cfg.chainAttackCap, before + cfg.chainAttackBump);
+    if (mods.attack > before) {
+      this.player.invalidateStats?.();
+      this.ui?.notify?.(
+        `Kill surge · Attack +${Math.round(cfg.chainAttackBump * 100)}% (run)`,
+        'level',
+        2.4,
+      );
     }
   }
 

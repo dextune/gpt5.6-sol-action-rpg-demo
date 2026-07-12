@@ -104,6 +104,29 @@ export const HORDE_CONFIG = Object.freeze({
   animSkipDistance: 35,
 });
 
+/**
+ * Growth loop — kill CDR/MP refund, level-up nova, Hunt chain attack bumps.
+ * Numbers only; hooks live on Game / Player.
+ */
+export const GROWTH_CONFIG = Object.freeze({
+  killCdrFodder: 0.12,
+  killCdrElite: 0.35,
+  killCdrBoss: 2.0,
+  /** Floor remaining CD after kill refund (prevents zero-CD spam). */
+  killCdrFloor: 0.15,
+  killMpFodder: 1.5,
+  killMpElite: 4,
+  killMpBoss: 12,
+  levelNovaRadius: 4.5,
+  levelNovaFodderDamage: 9999,
+  levelNovaNonFodderHpFrac: 0.35,
+  levelNovaInvuln: 1.2,
+  levelNovaKnockback: 8.5,
+  chainAttackEvery: 50,
+  chainAttackBump: 0.02,
+  chainAttackCap: 1.5,
+});
+
 /** Defense-only HP multiplier for a wave index (1-based). Hunt never calls this. */
 export function defenseWaveHpMul(wave) {
   const w = Math.max(0, Number(wave) || 0);

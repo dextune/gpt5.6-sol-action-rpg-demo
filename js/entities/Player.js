@@ -691,6 +691,49 @@ export class Player {
     return true;
   }
 
+  /**
+   * Auto-spend skill points: actives first (by unlockLevel), then passives.
+   * Shared by Defense wave clear and Hunt level-up growth (no draft UI in V1).
+   * @param {{ onUnlock?: (skill: object) => void }} [hooks]
+   * @returns {number} points spent
+   */
+  autoSpendSkillPoints(hooks = {}) {
+    if (this.skillPoints <= 0) return 0;
+    const ids = getClassSkillIds(this.classId);
+    const actives = [];
+    const passives = [];
+    for (const id of ids) {
+      const skill = SKILLS[id];
+      if (!skill) continue;
+      if (skill.passive) passives.push(id);
+      else actives.push(id);
+    }
+    const order = [
+      ...actives.sort((a, b) => (SKILLS[a].unlockLevel ?? 99) - (SKILLS[b].unlockLevel ?? 99)),
+      ...passives.sort((a, b) => (SKILLS[a].unlockLevel ?? 99) - (SKILLS[b].unlockLevel ?? 99)),
+    ];
+    let spent = 0;
+    let guard = 40;
+    while (this.skillPoints > 0 && guard-- > 0) {
+      let upgraded = false;
+      for (const id of order) {
+        const before = this.skillPoints;
+        if (this.upgradeSkill(id)) {
+          spent += 1;
+          upgraded = true;
+          const skill = SKILLS[id];
+          if (skill && !skill.passive && (this.skills[id] ?? 0) === 1) {
+            hooks.onUnlock?.(skill);
+          }
+          break;
+        }
+        if (this.skillPoints !== before) break;
+      }
+      if (!upgraded) break;
+    }
+    return spent;
+  }
+
   cooldownRatio(skillId) {
     if (skillId === 'dash') return this.dashCooldown / PLAYER_CONFIG.dashCooldown;
     if (skillId === 'potion') return this.potionCooldown / PLAYER_CONFIG.potionCooldown;
