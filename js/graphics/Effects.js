@@ -158,12 +158,14 @@ export class Effects {
       const object = new THREE.Sprite(material); object.visible = false; this.root.add(object);
       return { object, material };
     }, 18);
-    // Brief shadowless point-light pops so hits read against the environment.
+    // Fake light pops: additive soft-glow sprites. Real PointLights are avoided on
+    // purpose — toggling scene light count forces a full shader recompile of every
+    // visible material (a frame-long freeze exactly on hit).
     this.lightFlashes = new Pool(() => {
-      const object = new THREE.PointLight(0xffffff, 0, 11, 2);
-      object.visible = false; this.root.add(object);
-      return { object, material: null };
-    }, 6);
+      const material = new THREE.SpriteMaterial({ map: this.texture, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending });
+      const object = new THREE.Sprite(material); object.visible = false; this.root.add(object);
+      return { object, material };
+    }, 10);
   }
 
   setQuality(quality) {
@@ -255,17 +257,17 @@ export class Effects {
     return effect.object;
   }
 
-  /** Short point-light pop (no shadows). Skipped on low quality. */
+  /** Short fake-light pop (additive glow sprite). Skipped on low quality. */
   flash(position, color = 0xffffff, intensity = 14, options = {}) {
     if (this.quality === 'low') return null;
     const effect = this.lightFlashes.acquire();
     effect.object.position.copy(position);
     effect.object.position.y += options.height ?? .6;
-    effect.object.color.set(color);
-    effect.object.intensity = intensity;
-    effect.object.distance = options.distance ?? 11;
+    effect.material.color.set(color);
+    effect.material.opacity = Math.min(1, intensity / 22) * .85;
+    effect.object.scale.setScalar((options.distance ?? 11) * .38);
     effect.life = effect.maxLife = options.life ?? .16;
-    effect.baseIntensity = intensity;
+    effect.baseOpacity = effect.material.opacity;
     return effect.object;
   }
 
@@ -740,8 +742,9 @@ export class Effects {
     for (const effect of this.lightFlashes.active()) {
       effect.life -= delta;
       const t = Math.max(0, effect.life / effect.maxLife);
-      effect.object.intensity = effect.baseIntensity * t * t;
-      if (effect.life <= 0) { effect.object.intensity = 0; this.lightFlashes.release(effect); }
+      effect.object.scale.multiplyScalar(1 + delta * 2.4);
+      effect.material.opacity = effect.baseOpacity * t * t;
+      if (effect.life <= 0) this.lightFlashes.release(effect);
     }
   }
 
