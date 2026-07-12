@@ -319,6 +319,25 @@ export class CombatSystem {
         scale: 1.15 + rank * 0.05,
         statusOnHit: combat.status ?? null,
       });
+      // Rank 3+: residual scar along the wave path (B5).
+      if (rank >= 3 && combat.residualMult > 0) {
+        const scarCenter = this.#aimAlongFacing(player, 4.2);
+        this.#delay(combat.residualDelay ?? 0.42, () => {
+          if (!player.alive) return;
+          this.game.effects.groundDecal?.(scarCenter, theme.accent, combat.residualRadius ?? 1.5, {
+            life: 1.6, opacity: 0.45, startScale: 0.2,
+          });
+          this.game.effects.ring?.(scarCenter, theme.primary, combat.residualRadius ?? 1.5, {
+            life: 0.4, startScale: 0.25, height: 0.08, opacity: 0.55,
+          });
+          this.#hitEnemiesInRadius(
+            scarCenter,
+            combat.residualRadius ?? 1.5,
+            skillDamage(player.attackPower, combat, 'residualMult'),
+            { knockback: 1.2, multiHit: true, skill: true },
+          );
+        });
+      }
     };
     if (phase != null && phase !== 'full') fire();
     else fire();
@@ -420,6 +439,17 @@ export class CombatSystem {
       const radius = combat.radius;
       player.invulnerable = Math.max(player.invulnerable, combat.invuln ?? 0.28);
       this.game.effects.recipeIceNova(player.position, theme, radius);
+      // Rank 3+: deepen chill on already-slowed targets (B5).
+      for (const enemy of this.game.enemies.enemies) {
+        if (!enemy.alive) continue;
+        if (enemy.position.distanceTo(player.position) > radius + enemy.radius) continue;
+        if (rank >= 3 && enemy.statuses?.slow?.remaining > 0) {
+          enemy.applyStatus?.('slow', {
+            duration: combat.deepChillDuration ?? 1.55,
+            power: combat.deepChillPower ?? 0.58,
+          }, this.game);
+        }
+      }
       this.#hitEnemiesInRadius(
         player.position,
         radius,
@@ -758,6 +788,23 @@ export class CombatSystem {
       this.game.effects.recipeMarkGlyph?.(player.position.clone().addScaledVector(direction, 4), theme, 2.2);
       return;
     }
+    // Rank 3+: re-mark detonates existing expose (B5).
+    const alreadyMarked = rank >= 3 && best.statuses?.expose?.remaining > 0;
+    if (alreadyMarked && combat.detonateMult > 0) {
+      this.game.effects.recipeMarkGlyph?.(best.position, theme, 3.4);
+      this.game.effects.burst?.(best.position.clone().add(new THREE.Vector3(0, 1.2, 0)), theme.core, 22, {
+        speed: 5.5, size: 0.3, life: 0.5, upward: 0.5,
+      });
+      this.#damageEnemy(best, skillDamage(player.attackPower, combat, 'detonateMult'), {
+        direction: TMP_B.copy(best.position).sub(player.position).setY(0).normalize(),
+        knockback: (combat.knockback ?? 2) + 2.5,
+        criticalBonus: (combat.criticalBonus ?? 0.08) + 0.1,
+        skill: true,
+        multiHit: true,
+      });
+      // Clear mark so it must be reapplied.
+      if (best.statuses?.expose) delete best.statuses.expose;
+    }
     this.game.effects.recipeMarkGlyph?.(best.position, theme, 2.8);
     this.#damageEnemy(best, skillDamage(player.attackPower, combat), {
       direction: TMP_B.copy(best.position).sub(player.position).setY(0).normalize(),
@@ -775,22 +822,28 @@ export class CombatSystem {
   #twinFangStab(player, rank, hitIndex) {
     const { combat, theme } = this.#skillBundle('twin_fang', rank);
     const direction = this.#facingDir(player);
-    const hits = Math.max(1, Math.round(combat.hits ?? 2));
+    let hits = Math.max(1, Math.round(combat.hits ?? 2));
+    if (rank >= 3) hits = Math.max(hits, Math.round(combat.hitsAtRank3 ?? 3));
     const finale = hitIndex >= hits - 1;
     const origin = player.position.clone().addScaledVector(direction, .3);
     this.game.effects.recipeFangRush(player.position, direction, theme, combat.range, hitIndex, finale);
+    let status = finale ? (combat.status ? { ...combat.status } : null) : null;
+    if (status && rank >= 3 && combat.bleedDurationBonus) {
+      status = { ...status, duration: (status.duration ?? 2.6) + combat.bleedDurationBonus };
+    }
     this.#hitEnemiesInCone(origin, direction, combat.range, combat.arc ?? 1.15, skillDamage(player.attackPower, combat), {
       knockback: combat.knockback ?? 1.6,
       criticalBonus: combat.criticalBonus ?? 0.15,
       multiHit: true,
       skill: true,
-      status: finale ? combat.status ?? null : null,
+      status,
     });
   }
 
   #twinFang(player, rank, phase = null) {
     const { combat } = this.#skillBundle('twin_fang', rank);
-    const hits = Math.max(1, Math.round(combat.hits ?? 2));
+    let hits = Math.max(1, Math.round(combat.hits ?? 2));
+    if (rank >= 3) hits = Math.max(hits, Math.round(combat.hitsAtRank3 ?? 3));
     if (phase != null && phase !== 'full') {
       if (!player.alive) return;
       this.#twinFangStab(player, rank, Number(phase) || 0);

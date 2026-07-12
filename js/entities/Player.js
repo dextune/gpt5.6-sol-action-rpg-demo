@@ -507,6 +507,10 @@ export class Player {
   }
 
   usePotion(game) {
+    if (game?.mode === 'defense' && game.defense?.mutator?.id === 'scarce') {
+      game.ui?.notify?.('Scarce Tide · potions sealed', 'danger', 2.2);
+      return false;
+    }
     if (this.potionCooldown > 0 || this.potions <= 0 || this.hp >= this.maxHp || !this.alive) return false;
     this.potions -= 1;
     this.potionCooldown = PLAYER_CONFIG.potionCooldown;

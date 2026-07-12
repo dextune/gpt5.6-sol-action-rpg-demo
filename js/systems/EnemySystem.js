@@ -72,7 +72,15 @@ export class EnemySystem {
     const level = Math.max(levelFloor, adaptive);
     const eliteChance = clamp(.045 + player.luck * .65 + this.game.hunt.worldTier * .006, .045, .26);
     const elite = chance(eliteChance) && this.enemies.filter(enemy => enemy.elite && enemy.alive).length < 7;
-    return this.spawn(data, position, { level, elite });
+    const eliteAffix = elite ? this.rollEliteAffix() : null;
+    return this.spawn(data, position, { level, elite, eliteAffix });
+  }
+
+  rollEliteAffix() {
+    const roll = Math.random();
+    if (roll < 0.34) return 'shielded';
+    if (roll < 0.67) return 'enraged';
+    return 'volatile';
   }
 
   populate(count = 24) {
@@ -93,8 +101,18 @@ export class EnemySystem {
     this.enemies.push(enemy);
     this.spawnedByZone[data.zone] = (this.spawnedByZone[data.zone] ?? 0) + 1;
     if (enemy.elite) {
-      this.game.effects.pillar(enemy.position, 0xffd66b, 4.2, { life: .5, bottom: .55 });
-      this.game.effects.ring(enemy.position, 0xffd66b, 2.3, { life: .48 });
+      const accent = enemy.eliteAffix === 'shielded' ? 0x7ad8ff
+        : enemy.eliteAffix === 'volatile' ? 0xff9040
+          : 0xffd66b;
+      this.game.effects.pillar(enemy.position, accent, 4.2, { life: .5, bottom: .55 });
+      this.game.effects.ring(enemy.position, accent, 2.3, { life: .48 });
+      if (enemy.eliteAffix) {
+        this.game.ui?.notify?.(
+          `Elite · ${enemy.eliteAffix === 'shielded' ? 'Shielded' : enemy.eliteAffix === 'enraged' ? 'Enraged' : 'Volatile'} ${enemy.data.name}`,
+          'uncommon',
+          2.4,
+        );
+      }
     }
     return enemy;
   }

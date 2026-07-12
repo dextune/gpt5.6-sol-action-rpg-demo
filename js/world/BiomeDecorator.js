@@ -9,6 +9,116 @@ function distanceToSegment(px, pz, ax, az, bx, bz) {
   return Math.hypot(px - (ax + abx * t), pz - (az + abz * t));
 }
 
+/**
+ * Memorable landmark recipes near each ZONES center.
+ * Reuses tree / rock / ruin / crystal meshes only — no new GLBs.
+ * Offsets are relative to zone.center; keep 4–8 cluster entries per zone.
+ */
+const LANDMARK_RECIPES = Object.freeze({
+  verdant: Object.freeze({
+    crystalColor: 0xa8e36f,
+    crystalOffset: [14, -16],
+    trees: Object.freeze([
+      { ox: 18, oz: 12, count: 10, sx: 7, sz: 6, color: 0xf4f0d6 },
+      { ox: -16, oz: 20, count: 9, sx: 6.5, sz: 6, color: 0xe5ead0 },
+      { ox: 22, oz: -8, count: 8, sx: 6, sz: 5.5, color: 0xffffff },
+    ]),
+    rocks: Object.freeze([
+      { ox: -14, oz: -18, count: 7, sx: 5.5, sz: 5 },
+      { ox: 10, oz: 24, count: 6, sx: 5, sz: 4.5 },
+    ]),
+    ruins: Object.freeze([
+      { ox: 20, oz: -14, scale: 1.02, rot: .35 },
+      { ox: -18, oz: 16, scale: .94, rot: -.55 },
+    ]),
+  }),
+  forest: Object.freeze({
+    crystalColor: 0x69d57d,
+    crystalOffset: [10, 8],
+    trees: Object.freeze([
+      { ox: 12, oz: -10, count: 14, sx: 9, sz: 8, color: 0x9db59d },
+      { ox: -14, oz: 12, count: 12, sx: 8, sz: 7.5, color: 0x8aa18f },
+      { ox: 8, oz: 16, count: 11, sx: 7.5, sz: 7, color: 0x97ad8f },
+    ]),
+    rocks: Object.freeze([
+      { ox: 16, oz: 6, count: 6, sx: 5, sz: 4.5 },
+      { ox: -12, oz: -8, count: 5, sx: 4.5, sz: 4 },
+    ]),
+    ruins: Object.freeze([
+      { ox: 6, oz: 4, scale: 1.08, rot: 1.35 },
+      { ox: -8, oz: -6, scale: .96, rot: -.8 },
+    ]),
+  }),
+  canyon: Object.freeze({
+    crystalColor: 0xffbd63,
+    crystalOffset: [-8, 10],
+    trees: Object.freeze([
+      { ox: -14, oz: -12, count: 5, sx: 5, sz: 4.5, color: 0xbc9b74 },
+      { ox: 12, oz: 14, count: 4, sx: 4.5, sz: 4, color: 0xc4a67a },
+    ]),
+    rocks: Object.freeze([
+      { ox: 10, oz: -8, count: 12, sx: 8, sz: 7 },
+      { ox: -12, oz: 6, count: 11, sx: 7.5, sz: 7 },
+      { ox: 6, oz: 14, count: 9, sx: 6.5, sz: 6 },
+    ]),
+    ruins: Object.freeze([
+      { ox: 4, oz: -6, scale: 1.14, rot: -.55 },
+      { ox: -10, oz: 8, scale: 1.0, rot: 1.2 },
+    ]),
+  }),
+  frost: Object.freeze({
+    crystalColor: 0xb8ecff,
+    crystalOffset: [8, -6],
+    trees: Object.freeze([
+      { ox: -12, oz: 10, count: 6, sx: 5.5, sz: 5, color: 0xc7d6d5 },
+      { ox: 14, oz: 8, count: 5, sx: 5, sz: 4.5, color: 0xd0ddd8 },
+    ]),
+    rocks: Object.freeze([
+      { ox: 10, oz: 12, count: 11, sx: 7.5, sz: 7 },
+      { ox: -10, oz: -8, count: 10, sx: 7, sz: 6.5 },
+      { ox: 12, oz: -12, count: 8, sx: 6, sz: 5.5 },
+    ]),
+    ruins: Object.freeze([
+      { ox: 0, oz: 8, scale: 1.06, rot: .55 },
+      { ox: -8, oz: -10, scale: .98, rot: 1.7 },
+    ]),
+  }),
+  ember: Object.freeze({
+    crystalColor: 0xff7445,
+    crystalOffset: [-6, -10],
+    trees: Object.freeze([
+      { ox: 12, oz: -8, count: 5, sx: 5, sz: 4.5, color: 0x80695e },
+      { ox: -10, oz: 12, count: 4, sx: 4.5, sz: 4, color: 0x8a6f5c },
+    ]),
+    rocks: Object.freeze([
+      { ox: 8, oz: 10, count: 12, sx: 8, sz: 7 },
+      { ox: -12, oz: -6, count: 10, sx: 7, sz: 6.5 },
+      { ox: 14, oz: -12, count: 9, sx: 6.5, sz: 6 },
+    ]),
+    ruins: Object.freeze([
+      { ox: 6, oz: 4, scale: 1.08, rot: 1.95 },
+      { ox: -10, oz: -8, scale: 1.0, rot: -.4 },
+    ]),
+  }),
+  astral: Object.freeze({
+    crystalColor: 0xc28cff,
+    crystalOffset: [-8, 8],
+    trees: Object.freeze([
+      { ox: 10, oz: 12, count: 5, sx: 5, sz: 4.5, color: 0x8b7ba4 },
+      { ox: -12, oz: -10, count: 4, sx: 4.5, sz: 4, color: 0x9a88b0 },
+    ]),
+    rocks: Object.freeze([
+      { ox: 8, oz: -8, count: 10, sx: 7, sz: 6.5 },
+      { ox: -10, oz: 10, count: 9, sx: 6.5, sz: 6 },
+      { ox: 12, oz: 6, count: 8, sx: 6, sz: 5.5 },
+    ]),
+    ruins: Object.freeze([
+      { ox: 0, oz: -6, scale: 1.16, rot: -.2 },
+      { ox: -8, oz: 4, scale: 1.04, rot: 1.1 },
+    ]),
+  }),
+});
+
 export class BiomeDecorator {
   constructor(root, terrain, environmentFactory, materials, quality = 'medium') {
     this.root = root;
@@ -63,6 +173,42 @@ export class BiomeDecorator {
     }
   }
 
+  /**
+   * Place tree/rock/ruin landmark clusters from LANDMARK_RECIPES near each zone center.
+   * Mutates trees/rocks arrays and returns extra ruin placements.
+   */
+  #applyLandmarkRecipes(trees, rocks, multiplier) {
+    const ruinExtras = [];
+    let treeVariant = 0;
+    let rockVariant = 0;
+    for (const zone of Object.values(ZONES)) {
+      const recipe = LANDMARK_RECIPES[zone.id];
+      if (!recipe) continue;
+      const [cx, cz] = zone.center;
+      // Verdant center is the hunter camp — skip clear check only when far enough, else #clearForLarge already protects camp/roads.
+      for (const t of recipe.trees) {
+        const count = Math.max(2, Math.round(t.count * multiplier));
+        this.#addCluster(trees[treeVariant++ % 4], cx + t.ox, cz + t.oz, count, t.sx, t.sz, {
+          minScale: .78, maxScale: 1.42, color: t.color ?? 0xffffff, collider: true, colliderRadius: .55,
+          clear: zone.id === 'verdant',
+        });
+      }
+      for (const r of recipe.rocks) {
+        const count = Math.max(2, Math.round(r.count * multiplier));
+        this.#addCluster(rocks[rockVariant++ % 6], cx + r.ox, cz + r.oz, count, r.sx, r.sz, {
+          minScale: .5, maxScale: 1.65, color: 0xffffff, collider: true, colliderRadius: .5, clear: false, tilt: .14,
+        });
+      }
+      for (const ruin of recipe.ruins) {
+        const x = cx + ruin.ox;
+        const z = cz + ruin.oz;
+        if (Math.hypot(x, z) < 16) continue;
+        ruinExtras.push(this.#placement(x, z, ruin.scale ?? 1, ruin.rot ?? 0, 0xffffff));
+      }
+    }
+    return ruinExtras;
+  }
+
   build() {
     const multiplier = { high: 1, medium: .72, low: .44 }[this.quality] ?? .72;
     const trees = [[], [], [], []];
@@ -94,6 +240,9 @@ export class BiomeDecorator {
       });
     }
 
+    // B2: zone-center landmark density (trees / rocks / ruins recipes).
+    const landmarkRuins = this.#applyLandmarkRecipes(trees, rocks, multiplier);
+
     const treeShadows = this.quality === 'high';
     for (let i = 0; i < 4; i += 1) {
       const group = this.factory.createInstanced(`environment.tree.${i}`, trees[i], { castShadow: treeShadows });
@@ -108,6 +257,7 @@ export class BiomeDecorator {
       [0, -10, 1.1, 0], [35, -7, .88, -.32], [-39, 25, .82, .55], [-93, -24, 1.05, 1.1],
       [93, 14, 1.1, -.7], [-28, -103, 1.05, .4], [25, 105, 1.05, 1.9], [103, -94, 1.12, -.25],
     ].map(([x, z, scale, rotation]) => this.#placement(x, z, scale, rotation, 0xffffff));
+    for (const p of landmarkRuins) ruinLocations.push(p);
     const ruins = this.factory.createInstanced('environment.ruin.arch', ruinLocations, { castShadow: this.quality === 'high' });
     this.root.add(ruins); this.groups.push(ruins);
     for (const p of ruinLocations) this.colliders.push({ x: p.x, z: p.z, radius: 2.05 * p.scale });
@@ -118,7 +268,7 @@ export class BiomeDecorator {
 
     this.#buildPaving(multiplier);
     this.#buildCampfire();
-    this.#buildLandmarkCrystals();
+    this.#buildLandmarkCrystals(multiplier);
   }
 
   #buildPaving(multiplier) {
@@ -160,17 +310,48 @@ export class BiomeDecorator {
     this.root.add(group); this.campfire = group;
   }
 
-  #buildLandmarkCrystals() {
+  #buildLandmarkCrystals(multiplier = 1) {
     const group = new THREE.Group(); group.name = 'RegionalLandmarkCrystals';
     const geo = new THREE.OctahedronGeometry(.68, 2);
-    const locations = [[103, -94, 0xc28cff], [25, 105, 0xff7445], [-28, -103, 0xb8ecff], [93, 14, 0xffbd63]];
-    for (const [x, z, color] of locations) {
-      for (let i = 0; i < 7; i += 1) {
-        const a = i / 7 * Math.PI * 2; const radius = 1.5 + (i % 3) * .5;
-        const material = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: .25, roughness: .28, metalness: .12 });
-        const mesh = new THREE.Mesh(geo, material); mesh.scale.set(.55 + i % 3 * .18, 1.3 + i % 4 * .35, .55 + i % 2 * .15);
-        mesh.position.set(x + Math.cos(a) * radius, this.terrain.heightAt(x + Math.cos(a) * radius, z + Math.sin(a) * radius) + mesh.scale.y * .38, z + Math.sin(a) * radius);
-        mesh.rotation.set((this.rng() - .5) * .22, a, (this.rng() - .5) * .25); mesh.castShadow = true; mesh.receiveShadow = true; group.add(mesh);
+    // One crystal ring per zone center (offset so verdant/camp stay clear). Density scales with quality.
+    const shardBase = this.quality === 'low' ? 4 : this.quality === 'high' ? 7 : 5;
+    const shardCount = Math.max(3, Math.round(shardBase * Math.min(1, multiplier + .2)));
+    for (const zone of Object.values(ZONES)) {
+      const recipe = LANDMARK_RECIPES[zone.id];
+      if (!recipe) continue;
+      const [cx, cz] = zone.center;
+      const [ox, oz] = recipe.crystalOffset;
+      const x = cx + ox;
+      const z = cz + oz;
+      if (Math.hypot(x, z) < 14) continue;
+      const color = recipe.crystalColor ?? zone.accent ?? 0xffffff;
+      for (let i = 0; i < shardCount; i += 1) {
+        const a = i / shardCount * Math.PI * 2;
+        const radius = 1.45 + (i % 3) * .52;
+        const material = new THREE.MeshStandardMaterial({
+          color, emissive: color, emissiveIntensity: .25, roughness: .28, metalness: .12,
+        });
+        const mesh = new THREE.Mesh(geo, material);
+        mesh.scale.set(.55 + i % 3 * .18, 1.3 + i % 4 * .35, .55 + i % 2 * .15);
+        const px = x + Math.cos(a) * radius;
+        const pz = z + Math.sin(a) * radius;
+        mesh.position.set(px, this.terrain.heightAt(px, pz) + mesh.scale.y * .38, pz);
+        mesh.rotation.set((this.rng() - .5) * .22, a, (this.rng() - .5) * .25);
+        mesh.castShadow = this.quality === 'high';
+        mesh.receiveShadow = true;
+        group.add(mesh);
+      }
+      // Optional center spire for stronger landmark read (skip on low quality).
+      if (this.quality !== 'low') {
+        const spireMat = new THREE.MeshStandardMaterial({
+          color, emissive: color, emissiveIntensity: .38, roughness: .22, metalness: .18,
+        });
+        const spire = new THREE.Mesh(geo, spireMat);
+        spire.scale.set(.85, 2.15, .85);
+        spire.position.set(x, this.terrain.heightAt(x, z) + spire.scale.y * .38, z);
+        spire.castShadow = this.quality === 'high';
+        spire.receiveShadow = true;
+        group.add(spire);
       }
     }
     this.root.add(group); this.crystals = group;

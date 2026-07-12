@@ -32,6 +32,7 @@ Guides for small and large agents to safely modify the **GPT-5.6: Sol / Action R
 | [plan/defense-mode.md](./plan/defense-mode.md) | **plan: Defense mode (waves) — must not regress Hunt** |
 | [plan/multi-class-wizard.md](./plan/multi-class-wizard.md) | **plan: multi-class heroes + wizard GLB** |
 | [plan/ranger-class.md](./plan/ranger-class.md) | **plan: Ranger (archer / huntress) 4th hero class** |
+| [plan/short-session-polish.md](./plan/short-session-polish.md) | **plan: short-session content/visual polish (Tier A–B, no long-term sprawl)** |
 | [plan/skill-motion-spectacle.md](./plan/skill-motion-spectacle.md) | **implemented standard: skill content, motion & spectacle** |
 
 ## Agent working rules (summary)

@@ -794,24 +794,173 @@ export function createCampShrine() {
   return group;
 }
 
-export function createLootMesh(item) {
+/**
+ * Ground pickup visual. Weapons prefer a cloned equip model when AssetManager has it.
+ * @param {object} item gear item
+ * @param {{ assets?: import('../assets/AssetManager.js').AssetManager, quality?: string }} [options]
+ */
+export function createLootMesh(item, options = {}) {
   const group = new THREE.Group();
   const color = item.rarityColor ?? item.color ?? 0xffffff;
-  const mat = toonMaterial(item.color ?? color, { emissive: color, emissiveIntensity: .35 });
-  const dark = toonMaterial(new THREE.Color(color).multiplyScalar(.55).getHex(), { emissive: color, emissiveIntensity: .08 });
+  const rarity = item.rarity ?? 'common';
+  const rarityBoost = rarity === 'legendary' ? 1 : rarity === 'epic' ? .72 : rarity === 'rare' ? .45 : .28;
+  let release = null;
+
   if (item.slot === 'weapon') {
-    addPart(group, geometry('loot-weapon', () => new THREE.BoxGeometry(.16, 1.15, .1)), mat, [0, .72, 0], [1, 1, 1], [0, 0, -.35], { thickness: 1.05 });
-    addPart(group, geometry('loot-guard', () => new THREE.BoxGeometry(.58, .09, .12)), dark, [0, .16, 0], [1, 1, 1], [0, 0, -.35], { thickness: 1.04 });
+    const weaponMesh = tryCreateWeaponLootMesh(item, options);
+    if (weaponMesh) {
+      group.add(weaponMesh.root);
+      release = weaponMesh.release;
+    } else {
+      const mat = toonMaterial(item.color ?? color, { emissive: color, emissiveIntensity: .28 + rarityBoost * .22 });
+      const dark = toonMaterial(new THREE.Color(color).multiplyScalar(.55).getHex(), { emissive: color, emissiveIntensity: .06 + rarityBoost * .08 });
+      // Stylized fallback: silhouette reads as bow / staff / dagger / blade.
+      const kind = item.model ?? 'sword';
+      const isBow = kind === 'bow';
+      const isStaff = kind === 'staff';
+      const isDagger = kind === 'dagger';
+      if (isBow) {
+        addPart(group, geometry('loot-bow-arc', () => new THREE.TorusGeometry(.55, .05, 6, 18, Math.PI * 1.15)), mat, [0, .7, 0], [1, 1.15, .55], [0, 0, Math.PI * .5], { thickness: 1.04 });
+        addPart(group, geometry('loot-bow-string', () => new THREE.BoxGeometry(.04, 1.05, .03)), dark, [0, .7, 0], [1, 1, 1], [0, 0, 0], { thickness: 1.03 });
+      } else if (isStaff) {
+        addPart(group, geometry('loot-staff', () => new THREE.CylinderGeometry(.06, .08, 1.35, 7)), mat, [0, .78, 0], [1, 1, 1], [0, 0, -.2], { thickness: 1.04 });
+        addPart(group, geometry('loot-staff-head', () => new THREE.OctahedronGeometry(.22, 0)), dark, [0, 1.42, 0], [1, 1.15, 1], [0, 0, 0], { thickness: 1.05 });
+      } else {
+        const bladeH = isDagger ? .72 : 1.15;
+        const guardW = isDagger ? .36 : .58;
+        addPart(group, geometry('loot-weapon', () => new THREE.BoxGeometry(.16, 1.15, .1)), mat, [0, .35 + bladeH * .5, 0], [1, bladeH / 1.15, isDagger ? .85 : 1], [0, 0, -.35], { thickness: 1.05 });
+        addPart(group, geometry('loot-guard', () => new THREE.BoxGeometry(.58, .09, .12)), dark, [0, .16, 0], [guardW / .58, 1, 1], [0, 0, -.35], { thickness: 1.04 });
+      }
+    }
   } else if (item.slot === 'armor') {
+    const mat = toonMaterial(item.color ?? color, { emissive: color, emissiveIntensity: .28 + rarityBoost * .22 });
+    const dark = toonMaterial(new THREE.Color(color).multiplyScalar(.55).getHex(), { emissive: color, emissiveIntensity: .06 + rarityBoost * .08 });
     addPart(group, geometry('loot-armor', () => new THREE.CylinderGeometry(.45, .58, .9, 8)), mat, [0, .62, 0], [1, 1, .7], [0, .2, 0], { thickness: 1.045 });
     addPart(group, geometry('loot-armor-core', () => new THREE.OctahedronGeometry(.18, 0)), dark, [0, .7, .48], [1, 1.2, .55], [0, 0, 0], { thickness: 1.05 });
+    // Rarity trim ring on armor
+    if (rarity !== 'common') {
+      const trim = addPlain(
+        group,
+        geometry('loot-armor-trim', () => new THREE.TorusGeometry(.52, .03, 5, 18)),
+        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: .35 + rarityBoost * .35, depthWrite: false, blending: THREE.AdditiveBlending }),
+        [0, .95, 0], [1, 1, 1], [Math.PI / 2, 0, 0],
+      );
+      trim.renderOrder = 2;
+    }
   } else {
+    const mat = toonMaterial(item.color ?? color, { emissive: color, emissiveIntensity: .28 + rarityBoost * .22 });
     addPart(group, geometry('loot-charm', () => new THREE.OctahedronGeometry(.38, 1)), mat, [0, .65, 0], [1, 1.35, .65], [0, .4, 0], { thickness: 1.055 });
-    addPlain(group, geometry('loot-ring', () => new THREE.TorusGeometry(.55, .035, 6, 22)), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: .65, depthWrite: false }), [0, .65, 0], [1, 1, 1], [Math.PI / 2, 0, 0]);
+    addPlain(group, geometry('loot-ring', () => new THREE.TorusGeometry(.55, .035, 6, 22)), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: .55 + rarityBoost * .25, depthWrite: false }), [0, .65, 0], [1, 1, 1], [Math.PI / 2, 0, 0]);
   }
-  const beam = addPlain(group, geometry('loot-beam', () => new THREE.CylinderGeometry(.08, .22, 4, 10, 1, true)), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: .22, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }), [0, 2.1, 0]);
-  const glow = new THREE.Sprite(spriteMaterial(color, .72));
-  glow.scale.set(2.3, 2.3, 1); glow.position.y = .7; group.add(glow);
-  const shadow = createShadow(group, .55, .18);
-  return { group, beam, glow, shadow };
+
+  // Beam height / opacity scale with rarity (legendary & epic read from a distance).
+  const beamH = rarity === 'legendary' ? 7.2 : rarity === 'epic' ? 5.6 : rarity === 'rare' ? 4.6 : 4;
+  const beamOp = rarity === 'legendary' ? .34 : rarity === 'epic' ? .28 : .2;
+  const beamTop = rarity === 'legendary' ? .12 : .08;
+  const beamBot = rarity === 'legendary' ? .32 : rarity === 'epic' ? .26 : .22;
+  const beamGeoKey = `loot-beam-${rarity}`;
+  const beam = addPlain(
+    group,
+    geometry(beamGeoKey, () => new THREE.CylinderGeometry(beamTop, beamBot, beamH, 10, 1, true)),
+    new THREE.MeshBasicMaterial({
+      color, transparent: true, opacity: beamOp, depthWrite: false,
+      side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
+    }),
+    [0, beamH * .52, 0],
+  );
+
+  let ring = null;
+  if (rarity === 'legendary' || rarity === 'epic') {
+    ring = addPlain(
+      group,
+      geometry(`loot-ground-ring-${rarity}`, () => new THREE.TorusGeometry(rarity === 'legendary' ? .85 : .62, .04, 6, 28)),
+      new THREE.MeshBasicMaterial({
+        color, transparent: true, opacity: rarity === 'legendary' ? .55 : .38,
+        depthWrite: false, blending: THREE.AdditiveBlending,
+      }),
+      [0, .05, 0], [1, 1, 1], [Math.PI / 2, 0, 0],
+    );
+  }
+
+  const glowScale = rarity === 'legendary' ? 3.4 : rarity === 'epic' ? 2.9 : 2.3;
+  const glow = new THREE.Sprite(spriteMaterial(color, .6 + rarityBoost * .25));
+  glow.scale.set(glowScale, glowScale, 1); glow.position.y = .7; group.add(glow);
+  const shadow = createShadow(group, rarity === 'legendary' ? .72 : .55, .18);
+  return { group, beam, glow, shadow, ring, release };
+}
+
+/** Clone equip weapon for ground loot; returns null on miss/fallback. */
+function tryCreateWeaponLootMesh(item, options = {}) {
+  const assets = options.assets;
+  if (!assets?.cloneModel) return null;
+  const kind = item.model ?? 'sword';
+  let asset;
+  try {
+    asset = assets.cloneModel(`weapon.${kind}`, { quality: options.quality ?? 'low' });
+  } catch {
+    return null;
+  }
+  if (!asset || asset.fallback) {
+    asset?.release?.();
+    return null;
+  }
+  const root = asset.scene;
+  root.name = `LootWeapon_${kind}`;
+  // Compact ground pose — bows upright, blades slightly tilted.
+  if (kind === 'bow') {
+    root.scale.setScalar(.42);
+    root.rotation.set(0, 0, Math.PI * .08);
+    root.position.set(0, .55, 0);
+  } else if (kind === 'staff') {
+    root.scale.setScalar(.38);
+    root.rotation.set(0, 0, -.25);
+    root.position.set(0, .7, 0);
+  } else if (kind === 'dagger') {
+    root.scale.setScalar(.48);
+    root.rotation.set(0, 0, -.4);
+    root.position.set(0, .45, 0);
+  } else {
+    root.scale.setScalar(.4);
+    root.rotation.set(0, 0, -.35);
+    root.position.set(0, .55, 0);
+  }
+
+  const rarityColor = new THREE.Color(item.rarityColor ?? item.color ?? 0xe8f4ff);
+  const rarity = item.rarity ?? 'common';
+  const emissiveMul = rarity === 'legendary' ? .28 : rarity === 'epic' ? .18 : rarity === 'rare' ? .1 : .05;
+  root.traverse(object => {
+    if (!object.isMesh) return;
+    object.castShadow = false;
+    object.receiveShadow = false;
+    const source = object.material;
+    const materials = Array.isArray(source) ? source : [source];
+    const cloned = materials.map(m => {
+      const mat = m?.clone?.() ?? m;
+      if (mat?.color) {
+        mat.color.lerp(rarityColor, .35);
+      }
+      if (mat?.emissive) {
+        mat.emissive.copy(rarityColor);
+        mat.emissiveIntensity = (mat.emissiveIntensity ?? .1) + emissiveMul;
+      }
+      if (object.name?.toLowerCase?.().includes('rune') && mat?.emissive) {
+        mat.emissiveIntensity = rarity === 'legendary' ? 1.1 : rarity === 'epic' ? .75 : .4;
+      }
+      return mat;
+    });
+    object.material = Array.isArray(source) ? cloned : cloned[0];
+  });
+
+  return {
+    root,
+    release: () => {
+      // Dispose only cloned materials; leave shared GLB geometry in AssetManager cache.
+      root.traverse(object => {
+        if (!object.material) return;
+        const list = Array.isArray(object.material) ? object.material : [object.material];
+        for (const material of list) material?.dispose?.();
+      });
+      asset.release?.();
+    },
+  };
 }

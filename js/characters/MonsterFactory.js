@@ -4,11 +4,20 @@ import { convertToStylized, inferMaterialRole } from '../graphics/StylizedMateri
 
 const SHAPE_ARCHETYPE = Object.freeze({
   blob: 'slime', plant: 'slime', beetle: 'slime', crab: 'slime',
+  // Hare stays light/skirmish; raptor/harpy use taller lean read via scale in create().
   hare: 'hare', raptor: 'hare', harpy: 'hare',
+  // Pack hunters use boar mesh but get longer scale + crest kits below.
   boar: 'boar', wolf: 'boar', lizard: 'boar', panther: 'boar', stag: 'boar',
   wisp: 'wisp', imp: 'wisp',
   raider: 'humanoid', shaman: 'humanoid', knight: 'humanoid', cyclops: 'humanoid',
   golem: 'colossus', colossus: 'colossus', drake: 'colossus', scorpion: 'colossus',
+});
+
+/** Per-shape silhouette multipliers so remapped bodies still read differently (B1-a). */
+const SHAPE_SCALE = Object.freeze({
+  wolf: 1.08, panther: 1.05, stag: 1.18, lizard: 0.95, raptor: 1.12,
+  harpy: 0.92, plant: 0.88, beetle: 0.82, crab: 1.05, imp: 0.78,
+  cyclops: 1.15, drake: 1.22, scorpion: 1.12, golem: 1.08,
 });
 
 function makeHealthBar(height, elite, boss) {
@@ -86,8 +95,15 @@ export class MonsterFactory {
     const group = asset.scene;
     group.name = `Enemy_${data.id}`;
     const modelHeight = Number(group.userData.modelHeight) || (archetype === 'colossus' ? 4 : 2);
-    const baseScale = (data.scale ?? 1) * (boss ? 1.05 : elite ? 1.06 : 1);
+    const shapeMul = SHAPE_SCALE[data.shape] ?? 1;
+    const baseScale = (data.scale ?? 1) * shapeMul * (boss ? 1.05 : elite ? 1.06 : 1);
     group.scale.setScalar(baseScale);
+    // Zone-tinted emissive eyes for clearer silhouette family (B1-a).
+    if (['wolf', 'panther', 'stag', 'raptor'].includes(data.shape)) {
+      // Slight stretch along forward axis for pack-hunter read on boar body.
+      group.scale.z *= 1.08;
+      group.scale.x *= 0.96;
+    }
     const baseColor = new THREE.Color(data.color ?? 0x71816a);
     const accent = new THREE.Color(data.accent ?? 0xe3c771);
     const materials = [];

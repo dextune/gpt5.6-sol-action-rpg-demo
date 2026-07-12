@@ -25,6 +25,8 @@ export class DefenseSystem {
     this.bestWaveThisRun = 0;
     this.killsThisRun = 0;
     this.lastSpawned = 0;
+    this.mutator = null;
+    this.mutatorsSeen = [];
   }
 
   /** Begin an endless Defense run at wave 1. */
@@ -84,10 +86,18 @@ export class DefenseSystem {
     const zoneId = this.#zoneForWave(wave);
     const entries = ZONE_SPAWNS[zoneId] ?? ZONE_SPAWNS.verdant;
     const player = this.game.player;
-    const count = Math.min(
+    // Mutators every 3 waves from wave 3 (B6).
+    this.mutator = wave >= 3 && wave % 3 === 0 ? this.#pickMutator(wave) : this.mutator;
+    if (this.mutator && !this.mutatorsSeen.includes(this.mutator.id)) {
+      this.mutatorsSeen.push(this.mutator.id);
+      this.game.ui?.notify?.(`Mutator · ${this.mutator.label}`, 'contract', 3.2);
+    }
+    const mut = this.mutator;
+    let count = Math.min(
       cfg.maxCount,
       cfg.baseCount + Math.floor((wave - 1) / 2) * cfg.countPerTwoWaves,
     );
+    if (mut?.id === 'frenzy') count = Math.min(cfg.maxCount, count + 2);
 
     let spawned = 0;
     for (let i = 0; i < count; i += 1) {
@@ -99,12 +109,11 @@ export class DefenseSystem {
         data.level,
         player.level + Math.floor((wave - 1) * cfg.levelBonusPerWave),
       );
+      let eliteChance = cfg.eliteChanceBase + (wave - cfg.eliteStartWave) * cfg.eliteChancePerWave;
+      if (mut?.id === 'frenzy') eliteChance += 0.12;
       const elite = wave >= cfg.eliteStartWave
-        && chance(clamp(
-          cfg.eliteChanceBase + (wave - cfg.eliteStartWave) * cfg.eliteChancePerWave,
-          0,
-          0.45,
-        ));
+        && chance(clamp(eliteChance, 0, 0.55));
+      const eliteAffix = elite ? this.game.enemies.rollEliteAffix() : null;
 
       const position = this.game.world.randomSpawnAround(
         player.position,
@@ -114,10 +123,21 @@ export class DefenseSystem {
       const enemy = this.game.enemies.spawn(data, position, {
         level,
         elite,
+        eliteAffix,
         wave,
         defenseWave: true,
       });
-      if (enemy) spawned += 1;
+      if (enemy) {
+        if (mut?.id === 'swift') {
+          enemy.speed *= 1.12;
+          enemy.attackCooldown *= 0.88;
+        } else if (mut?.id === 'armored') {
+          enemy.defense *= 1.22;
+          enemy.maxHp = Math.round(enemy.maxHp * 1.08);
+          enemy.hp = enemy.maxHp;
+        }
+        spawned += 1;
+      }
     }
 
     // Mini-boss cadence: one boss from the rotated zone's boss table.
@@ -164,7 +184,21 @@ export class DefenseSystem {
       phase: this.phase,
       kills: this.killsThisRun,
       totalKills: this.killsThisRun,
+      mutator: this.mutator?.label ?? null,
+      mutatorId: this.mutator?.id ?? null,
+      mutatorsSeen: [...this.mutatorsSeen],
+      bestWave: this.bestWaveThisRun,
     };
+  }
+
+  #pickMutator(wave) {
+    const pool = [
+      { id: 'swift', label: 'Swift Tide' },
+      { id: 'armored', label: 'Iron Tide' },
+      { id: 'frenzy', label: 'Frenzy Tide' },
+      { id: 'scarce', label: 'Scarce Tide' },
+    ];
+    return pool[Math.floor(wave / 3) % pool.length];
   }
 
   /** Meta merge helper for SaveManager (best wave this run). */

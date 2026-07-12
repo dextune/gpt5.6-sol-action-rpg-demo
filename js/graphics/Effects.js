@@ -343,7 +343,11 @@ export class Effects {
     this.slash(position, direction, theme.primary, size * 1.1, {
       height: 0.55, life: 0.28, thickness: 0.05, spin: -1.6, angleOffset: 0.4,
     });
-    this.groundDecal(position, theme.accent, size * 0.55, { life: 0.55, opacity: 0.4, startScale: 0.2 });
+    // Longer scar residual (A6).
+    this.groundDecal(position, theme.accent, size * 0.55, { life: 1.35, opacity: 0.42, startScale: 0.2 });
+    this.groundDecal(position.clone().addScaledVector(direction, size * 0.45), theme.primary, size * 0.4, {
+      life: 1.15, opacity: 0.32, startScale: 0.25,
+    });
     this.dust(position, theme.dust, 12, 0.36);
     this.burst(position.clone().add(new THREE.Vector3(0, 0.9, 0)).addScaledVector(direction, 1.2), theme.primary, 14, {
       speed: 4, size: 0.26, life: 0.4, upward: 0.25,
@@ -419,7 +423,9 @@ export class Effects {
     this.burst(position.clone().add(new THREE.Vector3(0, 0.85, 0)), theme.primary, 26, {
       speed: 5.4, size: 0.3, life: 0.55, upward: 0.12,
     });
-    this.groundDecal(position, theme.accent, radius * 0.95, { life: 1.1, opacity: 0.42, startScale: 0.12 });
+    // Longer frost residual floor (A6).
+    this.groundDecal(position, theme.accent, radius * 0.95, { life: 1.85, opacity: 0.48, startScale: 0.12 });
+    this.groundDecal(position, theme.secondary, radius * 0.7, { life: 1.5, opacity: 0.28, startScale: 0.2 });
     // Lattice shards
     for (let i = 0; i < 6; i += 1) {
       const ang = (i / 6) * Math.PI * 2;

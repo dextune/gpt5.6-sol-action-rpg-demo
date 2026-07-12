@@ -342,6 +342,21 @@ export class AudioManager {
       this.#tone(55, 0.14, { type: 'sine', volume: 0.04, end: 36, filter: 220 });
       return;
     }
+    if (key.includes('bow')) {
+      this.#noise(0.11, 0.028, { type: 'bandpass', frequency: 520, q: 0.65, decay: 1.05 });
+      this.#tone(95, 0.11, { type: 'triangle', volume: 0.032, end: 55, filter: 650 });
+      return;
+    }
+    if (key.includes('trap')) {
+      this.#noise(0.08, 0.03, { type: 'highpass', frequency: 700, q: 0.7, decay: 1.4 });
+      this.#tone(120, 0.07, { type: 'square', volume: 0.02, end: 60, filter: 900 });
+      return;
+    }
+    if (key.includes('dagger')) {
+      this.#noise(0.07, 0.022, { type: 'bandpass', frequency: 700, q: 0.9, decay: 1.5 });
+      this.#tone(160, 0.06, { type: 'triangle', volume: 0.025, end: 70, filter: 1000 });
+      return;
+    }
     this.#noise(0.12, 0.03, { type: 'bandpass', frequency: 400, q: 0.7, decay: 1.0 });
     this.#tone(90, 0.14, { type: 'triangle', volume: 0.04, end: 48, filter: 400 });
   }
@@ -355,6 +370,9 @@ export class AudioManager {
       skill_fire: 'skill_fire',
       skill_ice: 'skill_ice',
       skill_arcane: 'skill_arcane',
+      skill_bow: 'skill_bow',
+      skill_trap: 'skill_trap',
+      skill_dagger: 'skill_dagger',
       windsteel: 'skill_blade',
       bladewave: 'skill_blade',
       skyice: 'skill_leap',
@@ -363,10 +381,14 @@ export class AudioManager {
       meteor: 'skill_fire',
       frost: 'skill_ice',
       arcane: 'skill_arcane',
-      venom: 'skill_blade',
-      nightsteel: 'skill_blade',
+      venom: 'skill_dagger',
+      nightsteel: 'skill_dagger',
       shadow: 'skill_arcane',
       wrath: 'skill_blade',
+      hunt_amber: 'skill_bow',
+      hunt_gold: 'skill_bow',
+      windleaf: 'skill_bow',
+      thorn: 'skill_trap',
     };
     return map[themeOrKey] ?? (String(themeOrKey).startsWith('skill_') ? themeOrKey : 'skill');
   }

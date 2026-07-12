@@ -299,12 +299,19 @@ function synthSkill(seed) {
   return fade(out, 2, 8);
 }
 
-/** Themed skill banks — blade / fire / ice / arcane / leap / star */
+/** Themed skill banks — blade / fire / ice / arcane / leap / star / bow / trap / dagger */
 function synthSkillTheme(seed, theme = 'blade') {
   const rng = mulberry32(seed);
   const pink = makePink(rng);
   const lp = makeLP();
-  const frames = Math.floor(SR * (theme === 'leap' ? 0.28 : 0.24));
+  const hp = makeHP();
+  const frames = Math.floor(SR * (
+    theme === 'leap' ? 0.28
+      : theme === 'trap' ? 0.18
+        : theme === 'dagger' ? 0.16
+          : theme === 'bow' ? 0.22
+            : 0.24
+  ));
   const out = new Float32Array(frames);
   for (let i = 0; i < frames; i += 1) {
     const t = i / SR;
@@ -329,13 +336,34 @@ function synthSkillTheme(seed, theme = 'blade') {
       sample = lp(pink(), lerp(800, 400, u)) * expDecay(t, 10) * 0.45
         + Math.sin(2 * Math.PI * lerp(100, 150, u) * t) * expDecay(t, 8) * 0.4
         + Math.sin(2 * Math.PI * 60 * t) * expDecay(t, 7) * 0.25;
+    } else if (theme === 'bow') {
+      // String release twang + air whoosh (no bright chime)
+      const pluck = Math.sin(2 * Math.PI * lerp(190, 95, Math.min(1, t * 8)) * t)
+        * expDecay(t, 22) * 0.38;
+      const stringBody = Math.sin(2 * Math.PI * 72 * t) * expDecay(t, 12) * 0.28;
+      const whoosh = lp(pink(), lerp(900, 260, u)) * expDecay(t, 9) * 0.52;
+      sample = pluck + stringBody + whoosh;
+    } else if (theme === 'trap') {
+      // Metal snap / thorn bite — short transient + grit
+      const snap = hp(pink(), 700) * expDecay(t, 55) * 0.55
+        + Math.sin(2 * Math.PI * 140 * t) * expDecay(t, 38) * 0.35;
+      const thorn = lp(pink(), lerp(500, 180, u)) * expDecay(t, 14) * 0.42;
+      const body = Math.sin(2 * Math.PI * 58 * t) * expDecay(t, 16) * 0.3;
+      sample = snap + thorn + body;
+    } else if (theme === 'dagger') {
+      // Short steel clicks — fast, dry, little body
+      const click = hp(pink(), 1100) * expDecay(t, 70) * 0.48
+        + Math.sin(2 * Math.PI * 220 * t) * expDecay(t, 48) * 0.22;
+      const scrape = lp(pink(), lerp(850, 320, u)) * expDecay(t, 16) * 0.4;
+      const light = Math.sin(2 * Math.PI * 95 * t) * expDecay(t, 18) * 0.22;
+      sample = click + scrape + light;
     } else {
       sample = lp(pink(), 500) * expDecay(t, 10) * 0.5
         + Math.sin(2 * Math.PI * 80 * t) * expDecay(t, 8) * 0.4;
     }
     out[i] = sample * (0.85 + rng() * 0.15);
   }
-  return fade(out, 2, 8);
+  return fade(out, theme === 'dagger' || theme === 'trap' ? 0.8 : 2, theme === 'dagger' ? 5 : 8);
 }
 
 function synthHurt(seed) {
@@ -458,6 +486,9 @@ save('skill_ice_0', synthSkillTheme(9230, 'ice'));
 save('skill_arcane_0', synthSkillTheme(9240, 'arcane'));
 save('skill_leap_0', synthSkillTheme(9250, 'leap'));
 save('skill_star_0', synthSkillTheme(9260, 'star'));
+save('skill_bow_0', synthSkillTheme(9270, 'bow'));
+save('skill_trap_0', synthSkillTheme(9280, 'trap'));
+save('skill_dagger_0', synthSkillTheme(9290, 'dagger'));
 save('hurt_0', synthHurt(9301));
 save('hurt_1', synthHurt(9302));
 save('pickup_0', synthPickup(9401, 0.9));
@@ -468,3 +499,4 @@ save('legendary_0', synthLegendary(9701));
 
 console.log(`Generated ${files.length} SFX → assets/audio/combat/`);
 for (const f of files) console.log(`  ${f.slice(ROOT.length + 1)}`);
+console.log('Class banks: skill_bow_0.wav, skill_trap_0.wav, skill_dagger_0.wav (register in assets.json if not already).');

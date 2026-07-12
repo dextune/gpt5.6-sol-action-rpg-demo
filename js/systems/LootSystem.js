@@ -151,20 +151,31 @@ export class LootSystem {
   }
 
   spawnGear(item, position) {
-    const refs = createLootMesh(item);
+    const quality = this.game.quality ?? 'high';
+    const refs = createLootMesh(item, {
+      assets: this.game.assets,
+      // Low/mobile quality still clones weapons; outlines stay off via loot mesh path.
+      quality: quality === 'low' ? 'low' : 'medium',
+    });
     const ground = this.game.world.heightAt(position.x, position.z);
     refs.group.position.set(position.x, ground + .08, position.z);
     this.game.scene.add(refs.group);
     const pickup = {
       id: uid('loot'), kind: 'gear', item, refs, group: refs.group,
-      baseY: ground + .08, age: 0, life: item.rarity === 'legendary' ? 300 : 120,
+      baseY: ground + .08, age: 0,
+      life: item.rarity === 'legendary' ? 300 : item.rarity === 'epic' ? 180 : 120,
       collected: false,
     };
     this.pickups.push(pickup);
     if (item.rarity === 'legendary') {
       this.game.audio.legendary();
       this.game.ui.notify(`Legendary gear appears · ${item.name}`, 'legendary', 5);
-      this.game.effects.pillar(position, item.rarityColor, 10, { life: 1.4, bottom: 1.25 });
+      this.game.effects.pillar(position, item.rarityColor, 12, { life: 1.55, bottom: 1.45, opacity: .55 });
+      this.game.effects.burst(position.clone().add(new THREE.Vector3(0, .4, 0)), item.rarityColor, 22, {
+        speed: 4.2, size: .32, life: .7, upward: .35,
+      });
+    } else if (item.rarity === 'epic') {
+      this.game.effects.pillar(position, item.rarityColor, 7.5, { life: .95, bottom: 1.05, opacity: .42 });
     }
     return pickup;
   }
@@ -206,13 +217,15 @@ export class LootSystem {
   }
 
   grantContractReward(tier = 1) {
+    // Slight tier floors: T1 uncommon, T2–3 rare, T4–5 epic. Higher tiers roll a bit over player level.
     const rarityFloor = tier >= 4 ? 'epic' : tier >= 2 ? 'rare' : 'uncommon';
-    const gear = this.generateGear(this.game.player.level + tier, { floor: rarityFloor });
+    const itemLevel = this.game.player.level + tier + (tier >= 4 ? 1 : 0);
+    const gear = this.generateGear(itemLevel, { floor: rarityFloor });
     const angle = Math.random() * Math.PI * 2;
     const position = this.game.player.position.clone().add(new THREE.Vector3(Math.cos(angle) * 1.8, 0, Math.sin(angle) * 1.8));
     this.spawnGear(gear, position);
-    const gold = this.game.player.addGold(45 + tier * 55 + this.game.player.level * 7);
-    this.game.player.essence += Math.max(1, Math.floor(tier / 2));
+    const gold = this.game.player.addGold(50 + tier * 60 + this.game.player.level * 8);
+    this.game.player.essence += Math.max(1, Math.floor(tier / 2) + (tier >= 4 ? 1 : 0));
     return { gear, gold };
   }
 
@@ -226,8 +239,18 @@ export class LootSystem {
       const bob = Math.sin(pickup.age * 2.7 + i) * .12;
       group.position.y = pickup.baseY + bob;
       group.rotation.y += delta * (pickup.kind === 'gear' ? .75 : 1.45);
-      if (pickup.refs.beam?.material) pickup.refs.beam.material.opacity = .12 + Math.sin(pickup.age * 3.2) * .055;
+      if (pickup.refs.beam?.material) {
+        const rarity = pickup.item?.rarity;
+        const base = rarity === 'legendary' ? .26 : rarity === 'epic' ? .2 : .12;
+        const amp = rarity === 'legendary' ? .1 : rarity === 'epic' ? .07 : .055;
+        pickup.refs.beam.material.opacity = base + Math.sin(pickup.age * 3.2) * amp;
+      }
       if (pickup.refs.glow?.material) pickup.refs.glow.material.opacity = .52 + Math.sin(pickup.age * 3.5) * .16;
+      if (pickup.refs.ring?.material) {
+        const base = pickup.item?.rarity === 'legendary' ? .48 : .32;
+        pickup.refs.ring.material.opacity = base + Math.sin(pickup.age * 2.6) * .12;
+        pickup.refs.ring.rotation.z += delta * .9;
+      }
 
       const distance = group.position.distanceTo(player.position);
       if (distance < 5.2 && distance > 1.15) {
@@ -275,6 +298,22 @@ export class LootSystem {
 
   #removePickup(pickup) {
     this.game.scene.remove(pickup.group);
+    // Weapon clones: dispose cloned materials + release AssetManager ref (skip shared GLB geo).
+    if (typeof pickup.refs?.release === 'function') {
+      pickup.refs.release();
+      pickup.refs.release = null;
+      // Still dispose beam/glow/ring materials that live on the group outside the weapon root.
+      for (const key of ['beam', 'glow', 'ring', 'shadow']) {
+        const node = pickup.refs[key];
+        if (!node?.material) continue;
+        const materials = Array.isArray(node.material) ? node.material : [node.material];
+        for (const material of materials) {
+          if (!material || material.name === 'silhouette-outline') continue;
+          material.dispose?.();
+        }
+      }
+      return;
+    }
     pickup.group.traverse(object => {
       if (!object.material) return;
       const materials = Array.isArray(object.material) ? object.material : [object.material];

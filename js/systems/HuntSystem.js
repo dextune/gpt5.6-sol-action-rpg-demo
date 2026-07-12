@@ -1,5 +1,19 @@
 import { HUNT_TITLES, ZONES } from '../data/content.js';
-import { clamp, pick, randInt, uid } from '../core/Utils.js';
+import { clamp, randInt, uid, weightedPick } from '../core/Utils.js';
+
+/** English reward preview lines by contract reward tier (1–5). */
+const CONTRACT_REWARD_HINTS = Object.freeze({
+  1: 'Modest gold · Uncommon gear',
+  2: 'Solid gold · Rare gear chance',
+  3: 'Rich gold · Rare gear guaranteed floor',
+  4: 'Premium gold · Epic floor · Skill Point chance',
+  5: 'Jackpot gold · Epic floor · Skill Point',
+});
+
+function rewardHintForTier(tier) {
+  const t = clamp(Math.round(tier) || 1, 1, 5);
+  return CONTRACT_REWARD_HINTS[t] ?? CONTRACT_REWARD_HINTS[1];
+}
 
 export class HuntSystem {
   constructor(game) {
@@ -97,53 +111,99 @@ export class HuntSystem {
     contract.complete = true;
     this.completedContracts += 1;
     const reward = this.game.loot.grantContractReward(contract.rewardTier);
-    this.game.ui.notify(`Hunt contract complete · ${contract.label} · ${reward.gold}G`, 'contract', 4.4);
+    const gearName = reward.gear?.name ? ` · ${reward.gear.name}` : '';
+    const spNote = contract.rewardTier >= 4 ? ' · Skill Point' : '';
+    this.game.ui.notify(
+      `Contract complete · ${contract.label} · +${reward.gold}G${gearName}${spNote}`,
+      'contract',
+      5.2,
+    );
+    const floatAt = this.game.player.position.clone();
+    floatAt.y += 2.2;
+    this.game.ui.floatText?.(floatAt, 'CONTRACT+', 'heal');
+    // Mini payoff VFX at the hunter (reuse existing effects pools).
+    const fxPos = this.game.player.position.clone();
+    this.game.effects?.pillar?.(fxPos, 0x69e0a0, 5.5, { life: 0.55, bottom: 0.9, opacity: 0.52 });
+    const burstAt = fxPos.clone();
+    burstAt.y += 1.0;
+    this.game.effects?.burst?.(burstAt, 0x9ef0c8, 22, {
+      speed: 3.8, size: 0.26, life: 0.5, upward: 0.45,
+    });
     this.game.audio.levelUp();
     this.game.player.skillPoints += contract.rewardTier >= 4 ? 1 : 0;
     this.contractCooldown = 1.8;
     this.game.requestSave?.();
     this.game.defer?.(1.9, () => {
       this.contract = this.#makeContract();
-      this.game.ui.notify(`New hunt contract · ${this.contract.label}`, 'contract', 3.4);
+      this.game.ui.notify(`New contract · ${this.contract.label}`, 'contract', 3.4);
     });
+  }
+
+  /**
+   * Level-based type weights:
+   * early — kills / zone · mid — elite / streak · late — boss slightly higher.
+   */
+  #pickContractType(level) {
+    const entries = [
+      { id: 'kills', weight: level < 8 ? 3.4 : level < 16 ? 2.2 : 1.5 },
+      { id: 'zone', weight: level < 8 ? 2.9 : level < 16 ? 2.0 : 1.4 },
+      { id: 'elite', weight: level < 6 ? 0.85 : level < 14 ? 2.1 : 2.5 },
+    ];
+    if (level >= 8) {
+      entries.push({ id: 'streak', weight: level < 16 ? 1.5 : 2.2 });
+    }
+    if (level >= 12) {
+      entries.push({ id: 'boss', weight: level < 20 ? 1.05 : 1.85 });
+    }
+    return weightedPick(entries);
   }
 
   #makeContract() {
     const level = this.game.player.level;
     const currentZone = this.game.world.currentZone?.id ?? 'verdant';
-    const pool = ['kills', 'zone', 'elite'];
-    if (level >= 8) pool.push('streak');
-    if (level >= 12) pool.push('boss');
-    const type = pick(pool);
+    const zone = ZONES[currentZone] ?? ZONES.verdant;
+    const type = this.#pickContractType(level);
     const scale = Math.max(0, Math.floor(level / 10));
+    const rewardTier = clamp(1 + Math.floor(level / 16), 1, 5);
     const contract = {
-      id: uid('contract'), type, progress: 0, complete: false,
-      zoneId: currentZone, rewardTier: clamp(1 + Math.floor(level / 16), 1, 5),
-      target: 0, label: '', description: '',
+      id: uid('contract'),
+      type,
+      progress: 0,
+      complete: false,
+      zoneId: currentZone,
+      rewardTier,
+      target: 0,
+      label: '',
+      description: '',
+      rewardHint: rewardHintForTier(rewardTier),
     };
+
     if (type === 'kills') {
       contract.target = 18 + scale * 4 + randInt(0, 8);
-      contract.label = `Defeat ${contract.target} monsters`;
-      contract.description = 'Hunt wild monsters of any kind.';
+      contract.label = `Cull ${contract.target} beasts`;
+      contract.description = 'Defeat any wild monsters across the hunting grounds.';
     } else if (type === 'zone') {
-      const zone = ZONES[currentZone];
       contract.target = 14 + scale * 3 + randInt(0, 6);
-      contract.label = `${zone.name} purge ${contract.target} monsters`;
-      contract.description = `Defeat monsters in ${zone.name}.`;
+      contract.label = `${zone.name} · clear ${contract.target}`;
+      contract.description = `Hunt monsters inside ${zone.name} only.`;
     } else if (type === 'elite') {
       contract.target = 2 + Math.min(4, Math.floor(level / 18));
-      contract.label = `Defeat ${contract.target} elite monsters`;
-      contract.description = 'Track elite specimens wrapped in a golden aura.';
+      contract.label = `Fell ${contract.target} elite${contract.target > 1 ? 's' : ''}`;
+      contract.description = 'Track golden-aura elites and bring them down.';
     } else if (type === 'streak') {
       contract.target = 10 + Math.min(15, Math.floor(level / 3));
-      contract.label = `Achieve a ${contract.target}-kill streak`;
-      contract.description = 'Keep hunting without letting the streak lapse.';
+      contract.label = `${contract.target}-kill blood streak`;
+      contract.description = 'Chain kills before the streak timer fades.';
     } else {
       contract.target = 1;
-      contract.label = 'Defeat 1 zone boss';
-      contract.description = 'Fill the boss gauge to summon the zone boss.';
+      contract.label = `Slay the ${zone.name} alpha`;
+      contract.description = `Fill Boss Presence, then defeat the ${zone.name} boss.`;
       contract.rewardTier = clamp(contract.rewardTier + 1, 2, 5);
+      contract.rewardHint = rewardHintForTier(contract.rewardTier);
     }
+
+    // Ensure reward hint always matches final tier.
+    contract.rewardHint = rewardHintForTier(contract.rewardTier);
     return contract;
   }
 
@@ -172,7 +232,10 @@ export class HuntSystem {
     this.bestStreak = Math.max(0, Number(state.bestStreak) || 0);
     this.bossCharge = clamp(Number(state.bossCharge) || 0, 0, 99.5);
     if (state.contract && typeof state.contract === 'object' && !state.contract.complete) {
-      this.contract = { ...state.contract, progress: clamp(Number(state.contract.progress) || 0, 0, Number(state.contract.target) || 1) };
+      const c = { ...state.contract };
+      c.progress = clamp(Number(c.progress) || 0, 0, Number(c.target) || 1);
+      if (!c.rewardHint) c.rewardHint = rewardHintForTier(c.rewardTier ?? 1);
+      this.contract = c;
     }
   }
 }

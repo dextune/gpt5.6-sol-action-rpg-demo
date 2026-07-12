@@ -51,19 +51,27 @@
         <div class="class-select" id="class-select" role="group" aria-label="Hero class">
           <button type="button" class="class-card is-selected" data-class-id="aerin" aria-pressed="true">
             <strong>Knight</strong>
-            <small>Gareth · Iron blade</small>
+            <small class="class-card-meta">Gareth · Iron blade</small>
+            <span class="class-card-tags" data-class-tags></span>
+            <span class="class-card-skills" data-class-skills></span>
           </button>
           <button type="button" class="class-card" data-class-id="wizard" aria-pressed="false">
             <strong>Wizard</strong>
-            <small>Lyra · Arcane focus</small>
+            <small class="class-card-meta">Lyra · Arcane focus</small>
+            <span class="class-card-tags" data-class-tags></span>
+            <span class="class-card-skills" data-class-skills></span>
           </button>
           <button type="button" class="class-card" data-class-id="rogue" aria-pressed="false">
             <strong>Rogue</strong>
-            <small>Vex · Twin daggers</small>
+            <small class="class-card-meta">Vex · Twin daggers</small>
+            <span class="class-card-tags" data-class-tags></span>
+            <span class="class-card-skills" data-class-skills></span>
           </button>
           <button type="button" class="class-card" data-class-id="ranger" aria-pressed="false">
             <strong>Ranger</strong>
-            <small>Sable · Wildshot</small>
+            <small class="class-card-meta">Sable · Wildshot</small>
+            <span class="class-card-tags" data-class-tags></span>
+            <span class="class-card-skills" data-class-skills></span>
           </button>
         </div>
         <div class="title-actions">
@@ -118,6 +126,7 @@
           <strong id="contract-title">Preparing contract…</strong>
           <div><i id="contract-fill"></i></div>
           <span id="contract-progress">0 / 0</span>
+          <em id="contract-hint" class="contract-hint"></em>
         </div>
       </aside>
 

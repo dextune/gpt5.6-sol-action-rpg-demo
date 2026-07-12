@@ -44,6 +44,7 @@ const enemy = (id, name, zone, shape, level, hp, damage, defense, speed, range, 
   boss: Boolean(options.boss),
   eliteOnly: Boolean(options.eliteOnly),
   special: options.special ?? null,
+  phase2Hp: options.phase2Hp ?? null,
   dropBias: options.dropBias ?? null,
 });
 
@@ -54,7 +55,7 @@ export const ENEMY_TYPES = Object.freeze({
   pollen_wisp: enemy('pollen_wisp', 'Pollen Wisp', 'verdant', 'wisp', 4, 58, 12, 1, 3.1, 8.5, 31, { color: 0xffdb74, accent: 0xfff6b7, ai: 'ranged', weight: 1.05 }),
   leaf_raider: enemy('leaf_raider', 'Leafmask Raider', 'verdant', 'raider', 5, 105, 14, 3, 3.4, 1.8, 39, { color: 0x55955b, accent: 0xe7d07d, ai: 'melee', weight: 0.9 }),
   shellback: enemy('shellback', 'Bronzeshell', 'verdant', 'beetle', 7, 148, 17, 7, 2.8, 1.65, 54, { color: 0x607c4b, accent: 0xb7db6f, ai: 'tank', weight: 0.7 }),
-  moss_crown: enemy('moss_crown', 'Mosscrown Colossus', 'verdant', 'colossus', 12, 1650, 27, 10, 2.1, 2.8, 650, { color: 0x456b45, accent: 0x9ce879, ai: 'boss', scale: 1.7, boss: true, special: 'roots' }),
+  moss_crown: enemy('moss_crown', 'Mosscrown Colossus', 'verdant', 'colossus', 12, 1650, 27, 10, 2.1, 2.8, 650, { color: 0x456b45, accent: 0x9ce879, ai: 'boss', scale: 1.7, boss: true, special: 'roots', phase2Hp: 0.5 }),
 
   dusk_wolf: enemy('dusk_wolf', 'Duskshade Wolf', 'forest', 'wolf', 8, 145, 19, 4, 4.8, 1.65, 63, { color: 0x4b5e52, accent: 0x9bd67b, ai: 'pack', weight: 1.35 }),
   thornling: enemy('thornling', 'Thornling Stalker', 'forest', 'plant', 9, 132, 21, 4, 2.6, 8.2, 66, { color: 0x4b8a58, accent: 0xe0807e, ai: 'ranged', weight: 1.15 }),
@@ -70,7 +71,7 @@ export const ENEMY_TYPES = Object.freeze({
   dust_bandit: enemy('dust_bandit', 'Dust Bandit', 'canyon', 'raider', 19, 252, 37, 7, 3.65, 2, 153, { color: 0x9c5f3d, accent: 0xf0d09a, ai: 'melee', weight: 1.05 }),
   sun_shaman: enemy('sun_shaman', 'Sunshaman', 'canyon', 'shaman', 20, 216, 41, 5, 2.9, 9.8, 166, { color: 0xb16d3f, accent: 0xffc45e, ai: 'caster', weight: 0.85 }),
   stone_cyclops: enemy('stone_cyclops', 'Stone Cyclops', 'canyon', 'cyclops', 23, 438, 47, 13, 2.65, 2.5, 231, { color: 0x926149, accent: 0xf4b95e, ai: 'leap', scale: 1.12, weight: 0.65 }),
-  dune_tyrant: enemy('dune_tyrant', 'Dune Tyrant', 'canyon', 'scorpion', 29, 3850, 57, 17, 3.2, 3.4, 1550, { color: 0x9b543b, accent: 0xffb550, ai: 'boss', scale: 1.72, boss: true, special: 'sandstorm' }),
+  dune_tyrant: enemy('dune_tyrant', 'Dune Tyrant', 'canyon', 'scorpion', 29, 3850, 57, 17, 3.2, 3.4, 1550, { color: 0x9b543b, accent: 0xffb550, ai: 'boss', scale: 1.72, boss: true, special: 'sandstorm', phase2Hp: 0.5 }),
 
   snow_hopper: enemy('snow_hopper', 'Snowspring Hopper', 'frost', 'hare', 24, 315, 45, 8, 4.7, 1.5, 218, { color: 0xc6dde0, accent: 0xf4ffff, ai: 'skirmish', weight: 1.25 }),
   ice_wisp: enemy('ice_wisp', 'Ice Wisp', 'frost', 'wisp', 25, 272, 49, 7, 3.2, 10.2, 229, { color: 0x8edbec, accent: 0xe4fbff, ai: 'ranged', weight: 1.1 }),
@@ -86,7 +87,7 @@ export const ENEMY_TYPES = Object.freeze({
   forge_knight: enemy('forge_knight', 'Forge Knight', 'ember', 'knight', 40, 765, 84, 23, 3.15, 2.25, 563, { color: 0x71333a, accent: 0xffb052, ai: 'tank', weight: 0.82 }),
   cinder_golem: enemy('cinder_golem', 'Cinder Golem', 'ember', 'golem', 42, 890, 91, 25, 2.7, 2.45, 645, { color: 0x563137, accent: 0xff6c3f, ai: 'leap', scale: 1.12, weight: 0.68 }),
   flame_harpy: enemy('flame_harpy', 'Flame Harpy', 'ember', 'harpy', 44, 635, 96, 15, 4.65, 9.4, 606, { color: 0x8a3940, accent: 0xffb35e, ai: 'caster', weight: 0.7 }),
-  molten_colossus: enemy('molten_colossus', 'Molten Colossus', 'ember', 'colossus', 52, 7200, 111, 31, 2.45, 3.6, 3200, { color: 0x4d2a31, accent: 0xff6c3d, ai: 'boss', scale: 2.05, boss: true, special: 'inferno' }),
+  molten_colossus: enemy('molten_colossus', 'Molten Colossus', 'ember', 'colossus', 52, 7200, 111, 31, 2.45, 3.6, 3200, { color: 0x4d2a31, accent: 0xff6c3d, ai: 'boss', scale: 2.05, boss: true, special: 'inferno', phase2Hp: 0.4 }),
 
   void_blob: enemy('void_blob', 'Void Blob', 'astral', 'blob', 48, 760, 94, 16, 3.35, 1.7, 665, { color: 0x7459ad, accent: 0xd1a5ff, ai: 'swarm', weight: 1.25 }),
   prism_wisp: enemy('prism_wisp', 'Prism Wisp', 'astral', 'wisp', 50, 690, 102, 15, 3.45, 11, 702, { color: 0x9e72d4, accent: 0xf2c5ff, ai: 'caster', weight: 1.15 }),
@@ -208,9 +209,14 @@ export const SKILLS = Object.freeze({
       radius: 1.25,
       knockback: 4.2,
       status: Object.freeze({ id: 'expose', duration: 2.4, power: 0.18 }),
+      // Rank 3+: residual scar DoT along the wave path (B5).
+      // Applied only when rank >= 3 (handler gates).
+      residualMult: Object.freeze([0.35, 0.08]),
+      residualDelay: 0.42,
+      residualRadius: 1.5,
     }),
-    description: 'Fires a piercing blade that rends the ground.',
-    rankText: rank => `Damage ${Math.round((1.5 + rank * 0.22) * 100)}% · Pierce ${3 + rank}`,
+    description: 'Fires a piercing blade that rends the ground. Higher ranks leave a cutting scar.',
+    rankText: rank => `Damage ${Math.round((1.5 + rank * 0.22) * 100)}% · Pierce ${3 + rank}${rank >= 3 ? ' · Scar residual' : ''}`,
   },
   skyfall: {
     id: 'skyfall', classId: 'aerin', name: 'Skyfall', key: 'R', unlockLevel: 10, maxRank: 5, mp: 30, cooldown: 9.5,
@@ -308,9 +314,12 @@ export const SKILLS = Object.freeze({
       invuln: 0.28,
       criticalBonus: 0.04,
       status: Object.freeze({ id: 'slow', duration: 2.6, power: 0.42 }),
+      // Applied when rank >= 3 (handler gates).
+      deepChillPower: 0.58,
+      deepChillDuration: 1.55,
     }),
-    description: 'Freezes the ground in a ring and slows foes outward.',
-    rankText: rank => `Damage ${Math.round((1.2 + rank * 0.16) * 100)}% · Radius ${(4.4 + rank * 0.2).toFixed(1)} · Slow`,
+    description: 'Freezes the ground in a ring and slows foes outward. Higher ranks deepen chill.',
+    rankText: rank => `Damage ${Math.round((1.2 + rank * 0.16) * 100)}% · Radius ${(4.4 + rank * 0.2).toFixed(1)} · Slow${rank >= 3 ? ' · Deep Chill' : ''}`,
   },
   arcane_blink: {
     id: 'arcane_blink', classId: 'wizard', name: 'Arcane Blink', key: 'R', unlockLevel: 10, maxRank: 5, mp: 28, cooldown: 9.2,
@@ -387,24 +396,27 @@ export const SKILLS = Object.freeze({
   twin_fang: {
     id: 'twin_fang', classId: 'rogue', name: 'Twin Fang', key: 'Q', unlockLevel: 3, maxRank: 5, mp: 14, cooldown: 4.2,
     castTime: .3, anim: 'skill_twin_fang', animFallback: 'attack_2', effect: 'twin_fang',
-    theme: 'venom', sfx: 'skill_blade', recipe: 'fangRush',
-    timeline: Object.freeze({ hits: Object.freeze([0.22, 0.52]) }),
+    theme: 'venom', sfx: 'skill_dagger', recipe: 'fangRush',
+    timeline: Object.freeze({ hits: Object.freeze([0.22, 0.52, 0.72]) }),
     combat: Object.freeze({
       mult: Object.freeze([0.72, 0.09]),
       range: Object.freeze([2.3, 0.08]),
       hits: 2,
+      // Rank 3+: third micro-stab (B5).
+      hitsAtRank3: 3,
       arc: 1.15,
       knockback: 1.6,
       criticalBonus: 0.15,
       status: Object.freeze({ id: 'bleed', duration: 2.6, dps: 0.1, tick: 0.4, power: 1 }),
+      bleedDurationBonus: 0.9,
     }),
-    description: 'Two lightning-fast dagger stabs that rend the target open.',
-    rankText: rank => `Damage ${Math.round((0.72 + rank * 0.09) * 100)}% ×2 · Crit +15% · Bleed`,
+    description: 'Two lightning-fast dagger stabs that rend the target open. Higher ranks add a third cut.',
+    rankText: rank => `Damage ${Math.round((0.72 + rank * 0.09) * 100)}% ×${rank >= 3 ? 3 : 2} · Crit +15% · Bleed`,
   },
   fan_of_knives: {
     id: 'fan_of_knives', classId: 'rogue', name: 'Fan of Knives', key: 'E', unlockLevel: 5, maxRank: 5, mp: 20, cooldown: 6.4,
     castTime: .32, anim: 'skill_fan_knives', animFallback: 'skill_crescent', effect: 'fan_of_knives',
-    theme: 'nightsteel', sfx: 'skill_blade', recipe: 'daggerFan',
+    theme: 'nightsteel', sfx: 'skill_dagger', recipe: 'daggerFan',
     timeline: Object.freeze({ hits: Object.freeze([0.34]) }),
     combat: Object.freeze({
       mult: Object.freeze([0.55, 0.07]),
@@ -440,7 +452,7 @@ export const SKILLS = Object.freeze({
   death_lotus: {
     id: 'death_lotus', classId: 'rogue', name: 'Death Lotus', key: 'C', unlockLevel: 14, maxRank: 5, mp: 38, cooldown: 14,
     castTime: .6, anim: 'skill_death_lotus', animFallback: 'skill_whirlwind', effect: 'death_lotus',
-    theme: 'shadow', sfx: 'skill_blade', recipe: 'lotusFlurry',
+    theme: 'shadow', sfx: 'skill_dagger', recipe: 'lotusFlurry',
     combat: Object.freeze({
       mult: Object.freeze([0.42, 0.05]),
       finaleMult: Object.freeze([1.1, 0.12]),
@@ -491,7 +503,7 @@ export const SKILLS = Object.freeze({
   piercing_shot: {
     id: 'piercing_shot', classId: 'ranger', name: 'Piercing Shot', key: 'Q', unlockLevel: 3, maxRank: 5, mp: 16, cooldown: 4.8,
     castTime: .34, anim: 'skill_pierce_shot', animFallback: 'cast_2', effect: 'piercing_shot',
-    theme: 'hunt_amber', sfx: 'skill_blade', recipe: 'arrowStreak',
+    theme: 'hunt_amber', sfx: 'skill_bow', recipe: 'arrowStreak',
     timeline: Object.freeze({ hits: Object.freeze([0.34]) }),
     combat: Object.freeze({
       mult: Object.freeze([1.65, 0.22]),
@@ -510,7 +522,7 @@ export const SKILLS = Object.freeze({
   caltrop_trap: {
     id: 'caltrop_trap', classId: 'ranger', name: 'Caltrop Trap', key: 'E', unlockLevel: 6, maxRank: 5, mp: 22, cooldown: 8.2,
     castTime: .4, anim: 'skill_trap', animFallback: 'cast_3', effect: 'caltrop_trap',
-    theme: 'thorn', sfx: 'skill', recipe: 'trapField',
+    theme: 'thorn', sfx: 'skill_trap', recipe: 'trapField',
     combat: Object.freeze({
       mult: Object.freeze([0.38, 0.05]),
       radius: Object.freeze([3.2, 0.12]),
@@ -526,7 +538,7 @@ export const SKILLS = Object.freeze({
   vault_shot: {
     id: 'vault_shot', classId: 'ranger', name: 'Vault Shot', key: 'R', unlockLevel: 10, maxRank: 5, mp: 26, cooldown: 9.0,
     castTime: .42, anim: 'skill_vault_shot', animFallback: 'dodge', effect: 'vault_shot',
-    theme: 'windleaf', sfx: 'skill_leap', recipe: 'vaultVolley',
+    theme: 'windleaf', sfx: 'skill_bow', recipe: 'vaultVolley',
     combat: Object.freeze({
       mult: Object.freeze([0.58, 0.07]),
       dash: Object.freeze([3.6, 0.12]),
@@ -545,7 +557,7 @@ export const SKILLS = Object.freeze({
   hunter_mark: {
     id: 'hunter_mark', classId: 'ranger', name: 'Hunter Mark', key: 'C', unlockLevel: 16, maxRank: 5, mp: 34, cooldown: 13.5,
     castTime: .5, anim: 'skill_hunter_mark', animFallback: 'cast_4', effect: 'hunter_mark',
-    theme: 'hunt_gold', sfx: 'skill_arcane', recipe: 'markGlyph',
+    theme: 'hunt_gold', sfx: 'skill_bow', recipe: 'markGlyph',
     combat: Object.freeze({
       mult: Object.freeze([1.1, 0.14]),
       range: Object.freeze([14, 0.4]),
@@ -555,9 +567,11 @@ export const SKILLS = Object.freeze({
       damageAmp: Object.freeze([0.16, 0.025]),
       knockback: 2.0,
       criticalBonus: 0.08,
+      // Rank 3+: re-mark detonates (B5).
+      detonateMult: Object.freeze([1.35, 0.15]),
     }),
-    description: 'Marks the nearest prey ahead — exposed and takes bonus damage.',
-    rankText: rank => `Tag ${Math.round((1.1 + rank * 0.14) * 100)}% · Amp +${Math.round((16 + rank * 2.5))}% · ${(5.2 + rank * 0.35).toFixed(1)}s`,
+    description: 'Marks the nearest prey ahead — exposed and takes bonus damage. Higher ranks detonate on re-mark.',
+    rankText: rank => `Tag ${Math.round((1.1 + rank * 0.14) * 100)}% · Amp +${Math.round((16 + rank * 2.5))}% · ${(5.2 + rank * 0.35).toFixed(1)}s${rank >= 3 ? ' · Detonate' : ''}`,
   },
   // —— Ranger passives ——
   eagle_eye: {

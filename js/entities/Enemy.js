@@ -16,6 +16,8 @@ export class Enemy {
     this.typeId = data.id;
     this.elite = Boolean(options.elite) && !data.boss;
     this.boss = Boolean(data.boss);
+    this.eliteAffix = this.elite ? (options.eliteAffix ?? null) : null;
+    this.bossPhase = 1;
     this.level = Math.max(1, Math.round(options.level ?? data.level));
     this.monsterFactory = monsterFactory;
     const monster = monsterFactory.create(data, { elite: this.elite, boss: this.boss, quality });
@@ -44,6 +46,15 @@ export class Enemy {
     this.damage = data.damage * (1 + extraLevels * .055) * Math.sqrt(tierScale) * eliteDamage * waveDmg;
     this.defense = data.defense * (1 + extraLevels * .045) * eliteDefense;
     this.speed = data.speed * (this.elite ? 1.08 : 1);
+    // Elite affix lite (B3)
+    this.shieldHitsLeft = 0;
+    this.affixEnraged = false;
+    if (this.eliteAffix === 'shielded') {
+      this.shieldHitsLeft = 4;
+      this.defense *= 1.15;
+    } else if (this.eliteAffix === 'enraged') {
+      this.damage *= 1.08;
+    }
     this.attackRange = data.range;
     this.radius = (this.boss ? 1.25 : this.elite ? .78 : .58) * (data.scale ?? 1);
     this.aggroRadius = this.boss ? 42 : data.ranged ? 29 : 25;
@@ -79,7 +90,13 @@ export class Enemy {
 
   get position() { return this.mesh.position; }
   get healthRatio() { return clamp(this.hp / Math.max(1, this.maxHp), 0, 1); }
-  get displayName() { return `${this.elite ? 'Elite ' : ''}${this.data.name}`; }
+  get displayName() {
+    const affix = this.eliteAffix === 'shielded' ? 'Shielded '
+      : this.eliteAffix === 'enraged' ? 'Enraged '
+        : this.eliteAffix === 'volatile' ? 'Volatile '
+          : '';
+    return `${this.elite ? 'Elite ' : ''}${affix}${this.data.name}`;
+  }
 
   update(delta, game) {
     this.animTime += delta;
@@ -188,11 +205,12 @@ export class Enemy {
       if (this.specialCooldown <= 0) {
         this.state = 'casting';
         this.stateTimer = 1.65;
-        this.specialCooldown = this.enraged ? rand(4.1, 5.4) : rand(5.8, 7.3);
-        this.#playAnimation('special', this.enraged ? 1.12 : .95);
+        const phase2 = this.bossPhase >= 2;
+        this.specialCooldown = (this.enraged || phase2) ? rand(3.4, 4.8) : rand(5.8, 7.3);
+        this.#playAnimation('special', (this.enraged || phase2) ? 1.12 : .95);
         game.combat.enemyBossSpecial(this);
       } else if (distance > this.attackRange * .82) {
-        this.#move(this.facing, delta, this.enraged ? 1.08 : .92, game.world);
+        this.#move(this.facing, delta, (this.enraged || this.bossPhase >= 2) ? 1.08 : .92, game.world);
       } else this.#tryMelee(game, distance, 1.4);
       return;
     }
@@ -230,14 +248,27 @@ export class Enemy {
     this.statuses = applyStatus(this.statuses, id, opts);
     if (game?.effects) {
       if (id === 'slow') {
-        game.effects.trail(this.position.clone().add(new THREE.Vector3(0, 1, 0)), 0x7ad8ff, 0.4, 0.4);
-        game.effects.groundDecal?.(this.position, 0xa8ecff, this.radius * 1.6, { life: 0.5, opacity: 0.35 });
+        game.effects.trail(this.position.clone().add(new THREE.Vector3(0, 1, 0)), 0x7ad8ff, 0.45, 0.42);
+        game.effects.groundDecal?.(this.position, 0xa8ecff, this.radius * 1.85, { life: 0.85, opacity: 0.42 });
+        game.effects.ring?.(this.position, 0x7ad8ff, this.radius * 1.4, { life: 0.35, startScale: 0.3, height: 0.08, opacity: 0.55 });
       } else if (id === 'burn') {
-        game.effects.trail(this.position.clone().add(new THREE.Vector3(0, 1, 0)), 0xff7a42, 0.38, 0.35);
+        game.effects.trail(this.position.clone().add(new THREE.Vector3(0, 1, 0)), 0xff7a42, 0.42, 0.38);
+        game.effects.burst?.(this.position.clone().add(new THREE.Vector3(0, 0.9, 0)), 0xff9040, 6, {
+          speed: 2.2, size: 0.18, life: 0.32, upward: 0.55,
+        });
       } else if (id === 'bleed') {
-        game.effects.trail(this.position.clone().add(new THREE.Vector3(0, 1, 0)), 0x4de8b8, 0.34, 0.3);
+        game.effects.trail(this.position.clone().add(new THREE.Vector3(0, 1, 0)), 0xff6a7a, 0.38, 0.32);
+        game.effects.burst?.(this.position.clone().add(new THREE.Vector3(0, 1.05, 0)), 0xff4a5a, 4, {
+          speed: 1.8, size: 0.14, life: 0.28, upward: 0.2,
+        });
       } else if (id === 'expose') {
-        game.effects.trail(this.position.clone().add(new THREE.Vector3(0, 1.2, 0)), 0xc6f1ff, 0.3, 0.3);
+        // Persistent hunter mark cue (A1)
+        const markH = this.refs.modelHeight * 0.95 + 0.35;
+        game.effects.recipeMarkGlyph?.(this.position.clone().add(new THREE.Vector3(0, 0.05, 0)), {
+          primary: 0xffd26b, secondary: 0xffeeb0, core: 0xfff8e0, dust: 0xc8a858, accent: 0xffc040,
+        }, 2.4);
+        game.effects.pillar?.(this.position, 0xffd26b, markH * 0.55, { life: 0.55, bottom: 0.35, opacity: 0.35 });
+        game.effects.trail(this.position.clone().add(new THREE.Vector3(0, markH, 0)), 0xffe38a, 0.45, 0.4);
       }
     }
   }
@@ -251,7 +282,7 @@ export class Enemy {
       // Direct DoT tick (burn/bleed) — bypass short i-frames so multi-hit DoT lands.
       const prevInvuln = this.invulnerable;
       this.invulnerable = 0;
-      const dmg = this.takeDamage(amount, game, { multiHit: true, knockback: 0 });
+      const dmg = this.takeDamage(amount, game, { multiHit: true, knockback: 0, dot: true });
       this.invulnerable = Math.min(prevInvuln, this.invulnerable);
       if (dmg.amount > 0) {
         game.ui?.floatText?.(
@@ -259,16 +290,47 @@ export class Enemy {
           `${dmg.amount}`,
           'damage',
         );
-        game.effects?.trail?.(this.position.clone().add(new THREE.Vector3(0, 1, 0)), 0xff9040, 0.28, 0.22);
+        const isBleed = this.statuses.bleed?.remaining > 0 && !(this.statuses.burn?.remaining > 0);
+        game.effects?.trail?.(
+          this.position.clone().add(new THREE.Vector3(0, 1, 0)),
+          isBleed ? 0xff6a7a : 0xff9040,
+          0.3,
+          0.24,
+        );
+        if (isBleed && Math.random() < 0.55) {
+          game.effects?.burst?.(this.position.clone().add(new THREE.Vector3(0, 1.05, 0)), 0xff4a5a, 3, {
+            speed: 1.5, size: 0.12, life: 0.22, upward: 0.15,
+          });
+        }
       }
     }
-    if (this.statuses.burn && Math.random() < delta * 4) {
-      game.effects?.burst?.(this.position.clone().add(new THREE.Vector3(0, 0.9, 0)), 0xff7a42, 3, {
-        speed: 1.6, size: 0.16, life: 0.28, upward: 0.5,
+    // Continuous status silhouettes while afflicted (throttled).
+    if (this.statuses.burn && Math.random() < delta * 5.5) {
+      game.effects?.burst?.(this.position.clone().add(new THREE.Vector3(0, 0.85, 0)), 0xff7a42, 4, {
+        speed: 1.7, size: 0.15, life: 0.3, upward: 0.55,
       });
     }
-    if (this.statuses.slow && Math.random() < delta * 3) {
-      game.effects?.trail?.(this.position.clone().add(new THREE.Vector3(0, 0.7, 0)), 0xa8ecff, 0.18, 0.2);
+    if (this.statuses.slow) {
+      if (Math.random() < delta * 3.5) {
+        game.effects?.trail?.(this.position.clone().add(new THREE.Vector3(0, 0.55, 0)), 0xa8ecff, 0.2, 0.22);
+      }
+      if (Math.random() < delta * 1.2) {
+        game.effects?.groundDecal?.(this.position, 0xa8ecff, this.radius * 1.5, { life: 0.55, opacity: 0.28, startScale: 0.4 });
+      }
+    }
+    if (this.statuses.expose && Math.random() < delta * 2.2) {
+      const markH = this.refs.modelHeight * 0.92 + 0.3;
+      game.effects?.ring?.(
+        this.position.clone().add(new THREE.Vector3(0, markH, 0)),
+        0xffd26b,
+        0.55,
+        { life: 0.28, startScale: 0.35, height: 0.9, opacity: 0.65 },
+      );
+    }
+    if (this.eliteAffix === 'shielded' && this.shieldHitsLeft > 0 && Math.random() < delta * 2) {
+      game.effects?.ring?.(this.position, 0x7ad8ff, this.radius * 1.8, {
+        life: 0.25, startScale: 0.4, height: 0.2, opacity: 0.4,
+      });
     }
   }
 
@@ -347,9 +409,24 @@ export class Enemy {
 
   takeDamage(rawAmount, game, options = {}) {
     if (!this.alive || this.invulnerable > 0) return { amount: 0, killed: false };
+    let incoming = rawAmount;
+    // Shielded elite: absorb first N hits (halved damage) until shield breaks.
+    if (this.shieldHitsLeft > 0 && !options.dot) {
+      this.shieldHitsLeft -= 1;
+      incoming *= 0.45;
+      game.effects?.ring?.(this.position, 0x7ad8ff, this.radius * 2, {
+        life: 0.22, startScale: 0.35, height: 0.15, opacity: 0.7,
+      });
+      if (this.shieldHitsLeft <= 0) {
+        game.effects?.burst?.(this.position.clone().add(new THREE.Vector3(0, 1, 0)), 0xa8ecff, 12, {
+          speed: 4, size: 0.22, life: 0.35, upward: 0.4,
+        });
+        game.ui?.floatText?.(this.position.clone().add(new THREE.Vector3(0, this.refs.modelHeight * 0.7, 0)), 'SHIELD BREAK', 'critical');
+      }
+    }
     const armorPierce = clamp(options.armorPierce ?? 0, 0, .85);
     const reduction = this.defense * .37 * (1 - armorPierce);
-    const amount = Math.max(1, Math.round(rawAmount - reduction));
+    const amount = Math.max(1, Math.round(incoming - reduction));
     this.hp = Math.max(0, this.hp - amount);
     this.hitTimer = .28;
     this.#playAnimation('hit', 1.35);
@@ -358,6 +435,27 @@ export class Enemy {
     if (options.direction) {
       const force = (options.knockback ?? (this.boss ? .9 : this.elite ? 1.8 : 2.6)) * (this.boss ? .72 : 1);
       this.knockback.addScaledVector(options.direction, force);
+    }
+    // Elite enraged affix: power spike under half HP.
+    if (this.eliteAffix === 'enraged' && !this.affixEnraged && this.healthRatio <= 0.5) {
+      this.affixEnraged = true;
+      this.damage *= 1.18;
+      this.speed *= 1.1;
+      this.attackCooldown = Math.min(this.attackCooldown, 0.35);
+      game.effects?.pillar?.(this.position, 0xff6a55, 5, { life: 0.55, bottom: 0.8 });
+      game.ui?.notify?.(`${this.data.name} enrages!`, 'danger', 2.4);
+    }
+    // Flagship boss phase-2 (B4) — once per fight.
+    if (this.boss && this.bossPhase === 1) {
+      const thr = this.data.phase2Hp ?? 0.5;
+      if (this.healthRatio <= thr) {
+        this.bossPhase = 2;
+        this.speed *= 1.08;
+        this.specialCooldown = Math.min(this.specialCooldown, 1.2);
+        game.effects?.pillar?.(this.position, this.data.accent, 9, { life: 0.9, bottom: 1.5 });
+        game.effects?.ring?.(this.position, this.data.accent, 6, { life: 0.7, startScale: 0.08 });
+        game.ui?.notify?.('The beast grows desperate…', 'boss', 3.5);
+      }
     }
     // Brief hitstun so the body "eats" the hit (bosses only flinch slightly).
     this.state = 'hit';
@@ -375,6 +473,33 @@ export class Enemy {
     this.velocity.set(0, 0, 0);
     this.animation.playOneShot('death', { fade: .10, fadeOut: .18, timeScale: this.boss ? .82 : 1.06, fallback: null });
     if (direction) this.knockback.addScaledVector(direction, this.boss ? 2.2 : 4.8);
+    // Volatile elite: small death burst (capped vs player max HP).
+    if (this.eliteAffix === 'volatile' && game.player?.alive) {
+      const radius = 3.2;
+      game.effects?.ring?.(this.position, 0xff9040, radius, { life: 0.45, startScale: 0.12 });
+      game.effects?.burst?.(this.position.clone().add(new THREE.Vector3(0, 0.8, 0)), 0xff6a40, 18, {
+        speed: 5, size: 0.28, life: 0.45, upward: 0.4,
+      });
+      const dist = game.player.position.distanceTo(this.position);
+      if (dist < radius + 0.5) {
+        const cap = Math.round(game.player.maxHp * 0.12);
+        const raw = Math.min(cap, Math.round(this.damage * 0.85));
+        const dir = game.player.position.clone().sub(this.position).setY(0);
+        if (dir.lengthSq() > 1e-6) dir.normalize();
+        else dir.set(0, 0, 1);
+        const dealt = game.player.takeDamage(raw, dir.clone().multiplyScalar(5.5));
+        if (dealt > 0) {
+          game.ui?.floatText?.(
+            game.player.position.clone().add(new THREE.Vector3(0, 1.8, 0)),
+            `-${dealt}`,
+            'hurt',
+          );
+          game.effects?.burst?.(game.player.position.clone().add(new THREE.Vector3(0, 1, 0)), 0xff6b6b, 10, {
+            speed: 3.5, size: 0.24, life: 0.4, upward: 0.35,
+          });
+        }
+      }
+    }
     game.onEnemyKilled(this);
   }
 

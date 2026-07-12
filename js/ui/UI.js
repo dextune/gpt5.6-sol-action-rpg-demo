@@ -10,8 +10,18 @@ const STAT_LABELS = Object.freeze({
   power: 'Attack', defense: 'Defense', hp: 'Health', crit: 'Crit', haste: 'Haste', leech: 'Lifesteal',
   xpBonus: 'XP', goldBonus: 'Gold', skillPower: 'Skill', moveSpeed: 'Move', luck: 'Luck',
 });
+const STAT_KEYS = Object.freeze([
+  'power', 'defense', 'hp', 'crit', 'haste', 'leech', 'skillPower', 'xpBonus', 'goldBonus', 'moveSpeed', 'luck',
+]);
 const PERCENT_STATS = new Set(['crit', 'haste', 'leech', 'xpBonus', 'goldBonus', 'skillPower', 'luck']);
 const RARITY_RANK = Object.freeze({ common: 0, uncommon: 1, rare: 2, epic: 3, legendary: 4 });
+const ATTACK_STYLE_LABEL = Object.freeze({ melee: 'Melee', magic: 'Magic', ranged: 'Ranged' });
+const CLASS_ACCENT = Object.freeze({
+  aerin: '#d4b86a',
+  wizard: '#b06dff',
+  rogue: '#35e0b8',
+  ranger: '#e8b040',
+});
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>'"]/g, character => ({
@@ -51,6 +61,19 @@ function statText(key, value) {
   return `${STAT_LABELS[key]} +${Math.round(value)}`;
 }
 
+/** Format a signed delta for inventory compare (same units as statText). */
+function formatStatDelta(key, delta) {
+  if (!delta) return '';
+  const sign = delta > 0 ? '+' : '';
+  if (PERCENT_STATS.has(key)) {
+    const pct = delta * 100;
+    return `${sign}${pct.toFixed(Math.abs(pct) < 10 ? 1 : 0)}%`;
+  }
+  if (key === 'moveSpeed') return `${sign}${Number(delta).toFixed(2)}`;
+  if (key === 'speed') return `${sign}${Number(delta).toFixed(2)}`;
+  return `${sign}${Math.round(delta)}`;
+}
+
 export class UI {
   constructor(game) {
     this.game = game;
@@ -67,7 +90,7 @@ export class UI {
       'energy-bar', 'energy-fill', 'energy-text',
       'world-tier', 'zone-name', 'zone-subtitle', 'defense-wave-panel', 'defense-wave-label', 'defense-wave-remaining',
       'kill-count', 'streak-count', 'elite-count', 'boss-count',
-      'boss-charge-text', 'boss-charge-fill', 'contract-title', 'contract-fill', 'contract-progress',
+      'boss-charge-text', 'boss-charge-fill', 'contract-title', 'contract-fill', 'contract-progress', 'contract-hint',
       'boss-hud', 'boss-name', 'boss-level', 'boss-health-fill', 'gold-count', 'essence-count', 'bag-count', 'potion-count',
       'minimap', 'minimap-zone', 'notifications', 'float-layer', 'aim-reticle', 'zone-toast',
       'panel-layer', 'panel-title', 'panel-content', 'panel-close', 'death-screen', 'death-timer-fill',
@@ -84,6 +107,7 @@ export class UI {
     this.classCards = [...document.querySelectorAll('[data-class-id]')];
     this.#bindEvents();
     this.#syncClassSelect();
+    this.#fillClassCards();
   }
 
   #bindEvents() {
@@ -147,6 +171,35 @@ export class UI {
     }
   }
 
+  /** Densify title class cards: energy name, attack style, Q/E/R/C skill names. */
+  #fillClassCards() {
+    for (const card of this.classCards) {
+      const classId = resolveHeroClassId(card.dataset.classId);
+      const hero = getHeroClass(classId);
+      const accent = CLASS_ACCENT[classId] ?? '#78d2ff';
+      card.style.setProperty('--class-accent', accent);
+
+      const tags = card.querySelector('[data-class-tags]');
+      if (tags) {
+        const styleLabel = ATTACK_STYLE_LABEL[hero.attackStyle] ?? 'Melee';
+        const energyLabel = hero.energy?.label ? escapeHtml(hero.energy.label) : '—';
+        tags.innerHTML = `
+          <span class="class-tag style">${escapeHtml(styleLabel)}</span>
+          <span class="class-tag energy">${energyLabel === '—' ? 'No energy' : energyLabel}</span>`;
+      }
+
+      const skillsEl = card.querySelector('[data-class-skills]');
+      if (skillsEl) {
+        const skills = getClassActiveSkills(classId);
+        skillsEl.innerHTML = skills.map(skill => {
+          const key = escapeHtml(skill.key ?? '?');
+          const name = escapeHtml(skill.name ?? skill.id);
+          return `<span class="class-skill"><kbd>${key}</kbd> ${name}</span>`;
+        }).join('');
+      }
+    }
+  }
+
   setLoading(progress, text) {
     this.elements['loading-bar'].style.width = `${clamp(progress, 0, 1) * 100}%`;
     if (text) this.elements['loading-text'].textContent = text;
@@ -160,6 +213,7 @@ export class UI {
     this.elements['panel-layer'].classList.add('hidden');
     this.elements['death-screen'].classList.add('hidden');
     this.elements['defense-wave-panel']?.classList.add('hidden');
+    this.#fillClassCards();
     this.#refreshContinueButton();
   }
 
@@ -250,9 +304,11 @@ export class UI {
       if (this.elements['defense-wave-remaining']) {
         this.elements['defense-wave-remaining'].textContent = `${remaining} left`;
       }
-      this.elements['contract-title'].textContent = 'Wave Survival';
+      const mutLabel = this.game.defense?.hud?.mutator;
+      this.elements['contract-title'].textContent = mutLabel ? `Wave Survival · ${mutLabel}` : 'Wave Survival';
       this.elements['contract-progress'].textContent = `${remaining} remaining`;
       this.elements['contract-fill'].style.width = '0%';
+      if (this.elements['contract-hint']) this.elements['contract-hint'].textContent = 'Clear waves for gear rewards';
       const defenseKills = defenseHud?.kills ?? defenseHud?.totalKills;
       this.elements['kill-count'].textContent = (defenseKills ?? hunt.totalKills ?? 0).toLocaleString('en-US');
       this.elements['streak-count'].textContent = defenseHud?.streak ?? 0;
@@ -269,6 +325,12 @@ export class UI {
         this.elements['contract-title'].textContent = contract.label;
         this.elements['contract-progress'].textContent = `${Math.floor(contract.progress)} / ${contract.target}`;
         this.elements['contract-fill'].style.width = `${clamp(contract.progress / contract.target, 0, 1) * 100}%`;
+        if (this.elements['contract-hint']) {
+          this.elements['contract-hint'].textContent = contract.rewardHint
+            || `Reward tier ${contract.rewardTier ?? 1}`;
+        }
+      } else if (this.elements['contract-hint']) {
+        this.elements['contract-hint'].textContent = '';
       }
     }
     this.elements['zone-name'].textContent = zone.name;
@@ -558,11 +620,11 @@ export class UI {
     const equipped = this.game.player.equipped[item.slot] === item.id;
     const canEquip = this.game.player.canEquipItem?.(item) ?? true;
     const equipLabel = equipped ? 'Equipped' : canEquip ? 'Equip' : 'Wrong class';
-    return `<article class="item-card ${equipped ? 'equipped' : ''}" style="--rarity:${hexColor(item.rarityColor)}">
+    return `<article class="item-card ${equipped ? 'equipped' : ''}${canEquip ? '' : ' wrong-class'}" style="--rarity:${hexColor(item.rarityColor)}">
       <img class="item-icon" src="${itemIcon(item)}" alt="">
       <header><small>${RARITIES[item.rarity].name} · iLv.${item.itemLevel}</small><strong>${escapeHtml(item.name)}</strong></header>
       <span class="item-score">S ${item.score}</span>
-      <div class="item-stats">${this.#itemStats(item, 6)}</div>
+      <div class="item-stats">${this.#itemStats(item, 6, { compare: !equipped })}</div>
       <div class="item-actions">
         <button data-action="equip" data-item="${item.id}" ${equipped || !canEquip ? 'disabled' : ''}>${equipLabel}</button>
         <button data-action="salvage" data-item="${item.id}" ${equipped || item.locked ? 'disabled' : ''}>Salvage</button>
@@ -570,12 +632,59 @@ export class UI {
     </article>`;
   }
 
-  #itemStats(item, limit = 6) {
+  #itemStats(item, limit = 6, options = {}) {
+    const compare = Boolean(options.compare);
+    const equippedItem = compare
+      ? this.game.player.getItem(this.game.player.equipped[item.slot])
+      : null;
+    const showDelta = Boolean(equippedItem && equippedItem.id !== item.id);
     const values = [];
-    for (const key of ['power', 'defense', 'hp', 'crit', 'haste', 'leech', 'skillPower', 'xpBonus', 'goldBonus', 'moveSpeed', 'luck']) {
-      if (item[key]) values.push(`<span>${statText(key, item[key])}</span>`);
+    for (const key of STAT_KEYS) {
+      const value = Number(item[key]) || 0;
+      const base = showDelta ? (Number(equippedItem[key]) || 0) : 0;
+      if (!value && !(showDelta && base)) continue;
+      if (!value && !showDelta) continue;
+      if (!value && showDelta && !base) continue;
+      // Prefer showing stats that exist on the candidate (or on equipped when comparing).
+      if (!value && showDelta) {
+        const delta = -base;
+        const deltaHtml = `<em class="stat-down">${formatStatDelta(key, delta)}</em>`;
+        values.push(`<span>${STAT_LABELS[key]} 0 ${deltaHtml}</span>`);
+        continue;
+      }
+      const main = statText(key, value);
+      if (!showDelta) {
+        values.push(`<span>${main}</span>`);
+        continue;
+      }
+      const delta = value - base;
+      if (Math.abs(delta) < 1e-9) {
+        values.push(`<span>${main}</span>`);
+      } else {
+        const cls = delta > 0 ? 'stat-up' : 'stat-down';
+        values.push(`<span>${main} <em class="${cls}">${formatStatDelta(key, delta)}</em></span>`);
+      }
     }
-    if (item.slot === 'weapon') values.push(`<span>Speed ×${Number(item.speed ?? 1).toFixed(2)}</span>`);
+    if (item.slot === 'weapon') {
+      const speed = Number(item.speed ?? 1);
+      let speedHtml = `Speed ×${speed.toFixed(2)}`;
+      if (showDelta) {
+        const baseSpeed = Number(equippedItem.speed ?? 1);
+        const delta = speed - baseSpeed;
+        if (Math.abs(delta) >= 0.005) {
+          const cls = delta > 0 ? 'stat-up' : 'stat-down';
+          speedHtml += ` <em class="${cls}">${formatStatDelta('speed', delta)}</em>`;
+        }
+      }
+      values.push(`<span>${speedHtml}</span>`);
+    }
+    if (showDelta && (item.score != null || equippedItem.score != null)) {
+      const scoreDelta = (item.score ?? 0) - (equippedItem.score ?? 0);
+      if (Math.abs(scoreDelta) >= 1) {
+        const cls = scoreDelta > 0 ? 'stat-up' : 'stat-down';
+        values.push(`<span>Score <em class="${cls}">${scoreDelta > 0 ? '+' : ''}${Math.round(scoreDelta)}</em></span>`);
+      }
+    }
     return values.slice(0, limit).join('') || '<span>No special stats</span>';
   }
 
@@ -627,7 +736,7 @@ export class UI {
           <div class="record-card"><h3>Kills by Zone</h3>${zoneRows}</div>
         </section>
         <section>
-          <div class="record-card"><h3>Current Contract</h3><div class="contract-detail"><small>REWARD TIER ${contract?.rewardTier ?? 1}</small><strong>${escapeHtml(contract?.label ?? 'Contract preparing')}</strong><p>${escapeHtml(contract?.description ?? '')}</p><div class="zone-record"><span>Progress</span><b>${Math.floor(contract?.progress ?? 0)} / ${contract?.target ?? 0}</b><div><i style="width:${contract ? contract.progress / contract.target * 100 : 0}%"></i></div></div></div></div>
+          <div class="record-card"><h3>Current Contract</h3><div class="contract-detail"><small>REWARD TIER ${contract?.rewardTier ?? 1}</small><strong>${escapeHtml(contract?.label ?? 'Contract preparing')}</strong><p>${escapeHtml(contract?.description ?? '')}</p><p class="contract-reward-hint">${escapeHtml(contract?.rewardHint ?? '')}</p><div class="zone-record"><span>Progress</span><b>${Math.floor(contract?.progress ?? 0)} / ${contract?.target ?? 0}</b><div><i style="width:${contract ? contract.progress / contract.target * 100 : 0}%"></i></div></div></div></div>
           <div class="record-card"><h3>Codex & Play</h3><div class="character-stats"><span>Monsters Found <b>${discovered} / 42</b></span><span>Contracts Done <b>${hunt.completedContracts}</b></span><span>Play Time <b>${formatTime(this.game.playTime)}</b></span><span>Next Boss <b>${Math.floor(hunt.bossCharge)}%</b></span></div></div>
         </section>
       </div>`;
@@ -714,9 +823,16 @@ export class UI {
     const eyebrow = root.querySelector('span');
     if (this.game.mode === 'defense') {
       const wave = this.game.defense?.hud?.wave ?? this.game.defense?.wave ?? 1;
+      const best = this.game.defense?.bestWaveThisRun ?? this.game.defenseMeta?.bestWave ?? wave;
+      const kills = this.game.defense?.killsThisRun ?? 0;
+      const mut = this.game.defense?.mutator?.label;
       if (eyebrow) eyebrow.textContent = 'DEFENSE FAILED';
       if (title) title.textContent = `You fell on wave ${wave}`;
-      if (copy) copy.textContent = 'The defense run is over. Returning to title.';
+      if (copy) {
+        copy.textContent = mut
+          ? `Best wave ${best} · ${kills} kills · Last mutator: ${mut}. Returning to title.`
+          : `Best wave ${best} · ${kills} kills. Returning to title.`;
+      }
     } else {
       if (eyebrow) eyebrow.textContent = 'HUNTER DOWN';
       if (title) title.textContent = 'The hunt is not over';
