@@ -91,11 +91,14 @@ export class Game {
         this.ui.setDebugVisible(this.debugVisible);
       }
     });
-    window.addEventListener('beforeunload', () => {
+    const flushSave = () => {
       if (this.state === 'playing' || this.state === 'paused') this.saveGame(false);
-    });
+    };
+    window.addEventListener('beforeunload', flushSave);
+    // Mobile Safari often skips beforeunload; pagehide is the reliable flush.
+    window.addEventListener('pagehide', flushSave);
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden && (this.state === 'playing' || this.state === 'paused')) this.saveGame(false);
+      if (document.hidden) flushSave();
     });
   }
 
@@ -267,8 +270,8 @@ export class Game {
     this.ui.setDeathProgress(this.deathTimer / this.deathDuration);
     this.world.update(delta, this);
     this.effects.update(delta);
+    // Soft residual sim only — combat was cleared on death; avoid re-spawning attack FX.
     this.enemies.update(delta * .35);
-    this.combat.update(delta);
     this.loot.update(delta);
     if (this.deathTimer <= 0) {
       if (this.mode === 'defense') this.#endDefenseRun();
@@ -429,6 +432,7 @@ export class Game {
     this.hunt.reset();
     this.playTime = 0;
     this.autoSaveTimer = GAME_CONFIG.autoSaveSeconds;
+    this.saveRequested = false;
     this.cameraYaw = .55;
     this.cameraDistance = GAME_CONFIG.cameraDistance;
     this.world.resolvePosition(this.player.position, .48);
@@ -438,7 +442,8 @@ export class Game {
     this.enemies.populate(28);
     const heroName = this.player.name;
     this.ui.notify(`Hunt started · ${heroName} enters the field.`, 'contract', 4.5);
-    this.requestSave();
+    // Immediate localStorage write so Continue is available even if the tab closes early.
+    this.saveGame(false);
   }
 
   /** Endless wave arena — separate entry from Hunt; does not write Hunt continue saves mid-run. */
@@ -470,23 +475,47 @@ export class Game {
   continueGame() {
     const data = this.save.load();
     if (!data?.player) {
-      this.newGame();
-      return;
+      this.ui.notify('No valid save found in browser storage.', 'danger', 3.5);
+      this.ui.showTitle();
+      return false;
     }
-    this.#clearRun();
-    this.mode = 'hunt';
-    this.defense.reset();
-    this.player.load(data.player, this.world);
-    this.hunt.load(data.hunt);
-    if (data.defenseMeta) this.#mergeDefenseMeta(data.defenseMeta, false);
-    this.playTime = Math.max(0, Number(data.playTime) || 0);
-    this.cameraYaw = Number(data.cameraYaw) || .55;
-    this.cameraDistance = clamp(Number(data.cameraDistance) || GAME_CONFIG.cameraDistance, GAME_CONFIG.cameraMinDistance, GAME_CONFIG.cameraMaxDistance);
-    this.state = 'playing';
-    this.ui.showHUD();
-    this.#snapCamera();
-    this.enemies.populate(28);
-    this.ui.notify(`Hunt resumed · ${this.hunt.hunterTitle}`, 'contract', 3.8);
+    try {
+      this.#clearRun();
+      this.mode = 'hunt';
+      this.defense.reset();
+      this.player.load(data.player, this.world);
+      this.hunt.load(data.hunt ?? {});
+      this.defenseMeta = { bestWave: 0, lastWave: 0, runs: 0 };
+      if (data.defenseMeta) this.#mergeDefenseMeta(data.defenseMeta, false);
+      this.playTime = Math.max(0, Number(data.playTime) || 0);
+      this.cameraYaw = Number.isFinite(Number(data.cameraYaw)) ? Number(data.cameraYaw) : .55;
+      this.cameraDistance = clamp(
+        Number(data.cameraDistance) || GAME_CONFIG.cameraDistance,
+        GAME_CONFIG.cameraMinDistance,
+        GAME_CONFIG.cameraMaxDistance,
+      );
+      this.autoSaveTimer = GAME_CONFIG.autoSaveSeconds;
+      this.saveRequested = false;
+      this.state = 'playing';
+      if (this.ui) this.ui.selectedClassId = this.player.classId;
+      this.ui.showHUD();
+      this.#snapCamera();
+      this.enemies.populate(28);
+      // Re-write current schema so Continue stays durable after version upgrades.
+      this.saveGame(false);
+      this.ui.notify(
+        `Hunt resumed · ${this.player.name} · Lv.${this.player.level} · ${this.hunt.hunterTitle}`,
+        'contract',
+        3.8,
+      );
+      return true;
+    } catch (error) {
+      console.error('[continueGame] failed', error);
+      this.ui.notify('Could not load save. Try New Hunt or clear site data.', 'danger', 4.5);
+      this.state = 'title';
+      this.ui.showTitle();
+      return false;
+    }
   }
 
   #clearRun() {
@@ -625,7 +654,9 @@ export class Game {
       cameraDistance: this.cameraDistance,
       defenseMeta: this.defenseMeta,
     });
-    if (!success && showFailure) this.ui.notify('Could not access browser storage.', 'danger');
+    if (!success && showFailure) {
+      this.ui.notify('Could not write save to browser localStorage.', 'danger', 4);
+    }
     return success;
   }
 

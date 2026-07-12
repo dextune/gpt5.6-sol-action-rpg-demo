@@ -1,6 +1,6 @@
 # Agent guides — hero classes & multi-class system
 
-English-only playbooks for AI agents and humans who extend **playable hero classes** (knight `aerin`, wizard, rogue, future jobs).
+English-only playbooks for AI agents and humans who extend **playable hero classes** (knight `aerin`, wizard, rogue, planned ranger, future jobs).
 
 These guides document the architecture and the work done to introduce multi-class heroes, a full wizard combat kit, facing-aligned combat, and import-integrity guards.
 
@@ -42,9 +42,10 @@ These guides document the architecture and the work done to introduce multi-clas
 | `aerin` | Iron knight (default) | `hero.aerin` | `melee` | Knight Longsword (`sword`) — plate helm GLB |
 | `wizard` | Arcane caster | `hero.wizard` | `magic` | Apprentice Staff (`staff`) |
 | `rogue` | Night fang — short-reach crit flurry | `hero.rogue` | `melee` | Fledgling Dagger (`dagger`) — runtime hood kit |
+| `ranger` | Wildshot — bow volleys, trap & mark | `hero.ranger` | `ranged` | Fledgling Bow (`bow`) — [../plan/ranger-class.md](../plan/ranger-class.md) |
 
 Melee basic-attack combo length grows with player level (3→7); clips `attack_1`–`attack_7` when baked.  
-Wizard basics use `cast_1`–`cast_4`. See [combat-facing.md](./combat-facing.md) and Player `basicComboLength`.
+Wizard basics use `cast_1`–`cast_4`. Ranger plan reuses projectile basics with bow presentation. See [combat-facing.md](./combat-facing.md) and Player `basicComboLength`.
 
 Class mechanics are data on the `HERO_CLASSES` row (see [../plan/character-improvements.md](../plan/character-improvements.md)):
 

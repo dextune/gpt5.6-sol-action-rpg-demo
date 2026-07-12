@@ -73,6 +73,8 @@ export function applyStatus(current, id, opts = {}) {
     tick: opts.tick ?? prev.tick ?? 0.5,
     tickAcc: prev.tickAcc ?? 0,
     dps: opts.dps ?? prev.dps ?? 0,
+    // Optional mark amp (hunter_mark expose) — preserved across re-apply.
+    damageAmp: opts.damageAmp ?? prev.damageAmp ?? 0,
   };
   return next;
 }

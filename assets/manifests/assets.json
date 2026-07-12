@@ -83,6 +83,34 @@
         "skill_death_lotus": "skill_death_lotus"
       }
     },
+    "hero.ranger": {
+      "type": "character",
+      "lods": {
+        "high": "./assets/models/hero/ranger_lod0.glb",
+        "medium": "./assets/models/hero/ranger_lod1.glb",
+        "low": "./assets/models/hero/ranger_lod1.glb"
+      },
+      "animationMap": {
+        "idle": "idle",
+        "run": "run",
+        "sprint": "sprint",
+        "attack_1": "attack_1",
+        "attack_2": "attack_2",
+        "attack_3": "attack_3",
+        "attack_4": "attack_4",
+        "cast_1": "cast_1",
+        "cast_2": "cast_2",
+        "cast_3": "cast_3",
+        "cast_4": "cast_4",
+        "dodge": "dodge",
+        "hit": "hit",
+        "death": "death",
+        "skill_pierce_shot": "skill_pierce_shot",
+        "skill_trap": "skill_trap",
+        "skill_vault_shot": "skill_vault_shot",
+        "skill_hunter_mark": "skill_hunter_mark"
+      }
+    },
     "monster.slime": {
       "type": "monster",
       "lods": {
@@ -210,6 +238,10 @@
     "weapon.dagger": {
       "type": "prop",
       "url": "./assets/models/props/weapon_dagger.glb"
+    },
+    "weapon.bow": {
+      "type": "prop",
+      "url": "./assets/models/props/weapon_bow.glb"
     }
   },
   "textures": {

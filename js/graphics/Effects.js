@@ -539,6 +539,44 @@ export class Effects {
     this.impact(center.clone().add(new THREE.Vector3(0, 1.2, 0)), theme.primary, 'finisher');
   }
 
+  /** Ranger bow draw / pierce muzzle flash */
+  recipeArrowStreak(muzzle, direction, theme) {
+    this.slash(muzzle, direction, theme.secondary, 2.4, { height: 0.75, life: 0.2, thickness: 0.04, spin: 1.2, opacity: 0.65 });
+    this.trail(muzzle.clone().add(new THREE.Vector3(0, 1.15, 0)).addScaledVector(direction, 0.9), theme.core, 0.62, 0.18);
+    this.burst(muzzle.clone().add(new THREE.Vector3(0, 1.1, 0)).addScaledVector(direction, 0.55), theme.primary, 12, {
+      speed: 4.2, size: 0.2, life: 0.28, upward: 0.15,
+    });
+  }
+
+  recipeTrapField(center, theme, radius) {
+    this.ring(center, theme.primary, radius, { life: 0.55, startScale: 0.12 });
+    this.ring(center, theme.secondary, radius * 0.7, { life: 0.4, startScale: 0.2, height: 0.07, opacity: 0.65 });
+    this.groundDecal(center, theme.accent, radius * 0.95, { life: 1.6, opacity: 0.4, startScale: 0.15 });
+    this.burst(center.clone().add(new THREE.Vector3(0, 0.6, 0)), theme.primary, 18, {
+      speed: 3.8, size: 0.24, life: 0.45, upward: 0.55,
+    });
+    this.dust(center, theme.dust, 12, 0.36);
+  }
+
+  recipeVaultVolley(from, to, direction, theme) {
+    this.afterimage(from, theme.primary, { life: 0.32, opacity: 0.5, scale: 1 });
+    this.dust(from, theme.dust, 10, 0.3);
+    this.trail(from.clone().lerp(to, 0.5).add(new THREE.Vector3(0, 1, 0)), theme.secondary, 0.55, 0.22);
+    this.ring(to, theme.accent, 1.8, { life: 0.28, startScale: 0.2 });
+    this.recipeArrowStreak(to, direction, theme);
+  }
+
+  recipeMarkGlyph(at, theme, radius = 2.6) {
+    this.ring(at, theme.primary, radius, { life: 0.55, startScale: 0.08, height: 0.12 });
+    this.ring(at, theme.core, radius * 0.45, { life: 0.35, startScale: 0.2, height: 0.16, opacity: 0.85 });
+    this.pillar(at, theme.secondary, 5.5, { life: 0.48, bottom: 0.7, opacity: 0.42 });
+    this.burst(at.clone().add(new THREE.Vector3(0, 1.2, 0)), theme.primary, 22, {
+      speed: 5.2, size: 0.28, life: 0.5, upward: 0.55,
+    });
+    this.groundDecal(at, theme.accent, radius * 0.7, { life: 1.0, opacity: 0.45, startScale: 0.12 });
+    this.impact(at.clone().add(new THREE.Vector3(0, 1.1, 0)), theme.primary, 'heavy');
+  }
+
   update(delta) {
     for (const effect of this.particles.active()) {
       effect.life -= delta; const t = Math.max(0, effect.life / effect.maxLife); const p = effect.geometry.attributes.position.array;

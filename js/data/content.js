@@ -129,6 +129,9 @@ export const WEAPON_BASES = Object.freeze({
   oak_staff: { id: 'oak_staff', name: 'Oak Staff', model: 'staff', power: 9, speed: 1.05, crit: 0.03, skillPower: 0.05, color: 0xc4a878 },
   crystal_rod: { id: 'crystal_rod', name: 'Crystal Rod', model: 'staff', power: 12, speed: 1.08, crit: 0.04, skillPower: 0.08, color: 0xb8d4ff },
   void_scepter: { id: 'void_scepter', name: 'Void Scepter', model: 'staff', power: 16, speed: 1.02, crit: 0.05, skillPower: 0.12, color: 0xd9b4ff },
+  yew_bow: { id: 'yew_bow', name: 'Yew Recurve', model: 'bow', power: 10, speed: 1.12, crit: 0.05, color: 0xc4a574 },
+  longbow_ash: { id: 'longbow_ash', name: 'Ash Longbow', model: 'bow', power: 13, speed: 1.06, crit: 0.055, color: 0xd8c090 },
+  storm_recurve: { id: 'storm_recurve', name: 'Storm Recurve', model: 'bow', power: 16, speed: 1.14, crit: 0.07, color: 0x9ad0a8 },
 });
 
 export const ARMOR_BASES = Object.freeze({
@@ -484,6 +487,109 @@ export const SKILLS = Object.freeze({
     description: 'Strikes at weakness — extra crit chance against bleeding or slowed prey.',
     rankText: rank => `Crit +${(rank * 1.5).toFixed(1)}% vs bleeding/slowed`,
   },
+  // —— Ranger actives —— physical bow · mark & trap
+  piercing_shot: {
+    id: 'piercing_shot', classId: 'ranger', name: 'Piercing Shot', key: 'Q', unlockLevel: 3, maxRank: 5, mp: 16, cooldown: 4.8,
+    castTime: .34, anim: 'skill_pierce_shot', animFallback: 'cast_2', effect: 'piercing_shot',
+    theme: 'hunt_amber', sfx: 'skill_blade', recipe: 'arrowStreak',
+    timeline: Object.freeze({ hits: Object.freeze([0.34]) }),
+    combat: Object.freeze({
+      mult: Object.freeze([1.65, 0.22]),
+      speed: Object.freeze([18, 0.4]),
+      radius: 0.95,
+      pierce: Object.freeze([3, 0.4]),
+      life: 1.15,
+      knockback: 3.2,
+      scale: 1.05,
+      armorPierce: 0.18,
+      status: Object.freeze({ id: 'bleed', duration: 2.2, dps: 0.09, tick: 0.45, power: 1 }),
+    }),
+    description: 'Looses a heavy arrow that punches through a line of foes.',
+    rankText: rank => `Damage ${Math.round((1.65 + rank * 0.22) * 100)}% · Pierce ${Math.round(3 + rank * 0.4)}`,
+  },
+  caltrop_trap: {
+    id: 'caltrop_trap', classId: 'ranger', name: 'Caltrop Trap', key: 'E', unlockLevel: 6, maxRank: 5, mp: 22, cooldown: 8.2,
+    castTime: .4, anim: 'skill_trap', animFallback: 'cast_3', effect: 'caltrop_trap',
+    theme: 'thorn', sfx: 'skill', recipe: 'trapField',
+    combat: Object.freeze({
+      mult: Object.freeze([0.38, 0.05]),
+      radius: Object.freeze([3.2, 0.12]),
+      aim: 7.5,
+      ticks: Object.freeze([5, 0]),
+      tickInterval: 0.55,
+      knockback: 1.1,
+      status: Object.freeze({ id: 'slow', duration: 1.4, power: 0.4 }),
+    }),
+    description: 'Seeds a thorn field ahead that chips and slows everything inside.',
+    rankText: rank => `Damage ${Math.round((0.38 + rank * 0.05) * 100)}% ×5 · Radius ${(3.2 + rank * 0.12).toFixed(1)} · Slow`,
+  },
+  vault_shot: {
+    id: 'vault_shot', classId: 'ranger', name: 'Vault Shot', key: 'R', unlockLevel: 10, maxRank: 5, mp: 26, cooldown: 9.0,
+    castTime: .42, anim: 'skill_vault_shot', animFallback: 'dodge', effect: 'vault_shot',
+    theme: 'windleaf', sfx: 'skill_leap', recipe: 'vaultVolley',
+    combat: Object.freeze({
+      mult: Object.freeze([0.58, 0.07]),
+      dash: Object.freeze([3.6, 0.12]),
+      arrows: Object.freeze([4, 1]),
+      speed: Object.freeze([16.5, 0.3]),
+      spread: 0.14,
+      radius: 0.88,
+      life: 0.85,
+      knockback: 2.6,
+      invuln: 0.4,
+      criticalBonus: 0.06,
+    }),
+    description: 'Vaults backward along facing and fans arrows into the gap.',
+    rankText: rank => `Damage ${Math.round((0.58 + rank * 0.07) * 100)}% · Arrows ${4 + rank} · Vault ${(3.6 + rank * 0.12).toFixed(1)}`,
+  },
+  hunter_mark: {
+    id: 'hunter_mark', classId: 'ranger', name: 'Hunter Mark', key: 'C', unlockLevel: 16, maxRank: 5, mp: 34, cooldown: 13.5,
+    castTime: .5, anim: 'skill_hunter_mark', animFallback: 'cast_4', effect: 'hunter_mark',
+    theme: 'hunt_gold', sfx: 'skill_arcane', recipe: 'markGlyph',
+    combat: Object.freeze({
+      mult: Object.freeze([1.1, 0.14]),
+      range: Object.freeze([14, 0.4]),
+      arc: 1.4,
+      markDuration: Object.freeze([5.2, 0.35]),
+      exposePower: Object.freeze([0.22, 0.03]),
+      damageAmp: Object.freeze([0.16, 0.025]),
+      knockback: 2.0,
+      criticalBonus: 0.08,
+    }),
+    description: 'Marks the nearest prey ahead — exposed and takes bonus damage.',
+    rankText: rank => `Tag ${Math.round((1.1 + rank * 0.14) * 100)}% · Amp +${Math.round((16 + rank * 2.5))}% · ${(5.2 + rank * 0.35).toFixed(1)}s`,
+  },
+  // —— Ranger passives ——
+  eagle_eye: {
+    id: 'eagle_eye', classId: 'ranger', name: 'Eagle Eye', passive: true, unlockLevel: 2, maxRank: 10,
+    effect: { crit: .01, attack: .015 },
+    description: 'Sharpens aim for vital shots.',
+    rankText: rank => `Crit +${rank}% · Attack +${rank * 1.5}%`,
+  },
+  fleet_foot: {
+    id: 'fleet_foot', classId: 'ranger', name: 'Fleet Foot', passive: true, unlockLevel: 2, maxRank: 10,
+    effect: { haste: .01, moveSpeed: .02 },
+    description: 'Keeps distance while drawing the next arrow.',
+    rankText: rank => `Attack Speed +${rank}% · Move +${(rank * 2).toFixed(0)}%`,
+  },
+  barbed_tips: {
+    id: 'barbed_tips', classId: 'ranger', name: 'Barbed Tips', passive: true, unlockLevel: 5, maxRank: 10,
+    effect: { skillPower: .025, dotPower: .05 },
+    description: 'Barbs make skills and bleeds bite harder.',
+    rankText: rank => `Skill Power +${rank * 2.5}% · DoT +${rank * 5}%`,
+  },
+  scavenger: {
+    id: 'scavenger', classId: 'ranger', name: 'Scavenger', passive: true, unlockLevel: 8, maxRank: 10,
+    effect: { luck: .03, gold: .035 },
+    description: 'A tracker’s eye for hides, coin, and rare finds.',
+    rankText: rank => `Luck +${rank * 3}% · Gold +${rank * 3.5}%`,
+  },
+  predator: {
+    id: 'predator', classId: 'ranger', name: 'Predator', passive: true, unlockLevel: 12, maxRank: 5,
+    effect: { execute: .035, statusCrit: .01 },
+    description: 'Finishes wounded and marked prey with precision.',
+    rankText: rank => `+${rank * 3.5}% vs under 30% HP · Crit vs afflicted +${rank}%`,
+  },
 });
 
 export const HUNT_TITLES = Object.freeze([
@@ -521,8 +627,8 @@ export const HERO_CLASSES = Object.freeze({
     activeSkills: Object.freeze(['whirlwind', 'crescent', 'skyfall', 'starburst']),
     passiveSkills: Object.freeze(['might', 'vitality', 'focus', 'fortune', 'executioner']),
     baseStatMods: Object.freeze({ attack: 1.06, mp: 0.95, skillPower: 0 }),
-    // Loot leans toward heavy blades for the knight.
-    weaponBias: Object.freeze({ preferred: Object.freeze(['sword', 'greatsword', 'saber', 'katana', 'leaf', 'relic']), mult: 1.6, otherMult: .5 }),
+    // Blades only — no staff/bow/dagger for the knight silhouette.
+    weaponBias: Object.freeze({ preferred: Object.freeze(['sword', 'greatsword', 'saber', 'katana', 'leaf', 'relic']), mult: 1.8, otherMult: 0 }),
     // Rage charges mostly from damage taken and landed hits; the full gauge
     // (Lv3+) turns the next attack click into a Wrath Slam heavy crush.
     energy: Object.freeze({
@@ -568,8 +674,8 @@ export const HERO_CLASSES = Object.freeze({
     activeSkills: Object.freeze(['fireball', 'frost_nova', 'arcane_blink', 'meteor_storm']),
     passiveSkills: Object.freeze(['arcane_might', 'mana_ward', 'mana_font', 'star_luck', 'pyromancer']),
     baseStatMods: Object.freeze({ attack: .92, mp: 1.28, skillPower: .08 }),
-    // Loot leans toward staves for the wizard.
-    weaponBias: Object.freeze({ preferred: Object.freeze(['staff']), mult: 2.6, otherMult: .55 }),
+    // Staves only for the wizard silhouette.
+    weaponBias: Object.freeze({ preferred: Object.freeze(['staff']), mult: 2.8, otherMult: 0 }),
     starterWeapon: Object.freeze({
       id: 'starter-apprentice-staff',
       baseId: 'oak_staff',
@@ -601,8 +707,8 @@ export const HERO_CLASSES = Object.freeze({
     passiveSkills: Object.freeze(['keen_edge', 'swift_hands', 'shadow_veil', 'plunder', 'opportunist']),
     // Glass cannon: hits harder than the knight but folds faster.
     baseStatMods: Object.freeze({ attack: 1.12, mp: 1.05, skillPower: 0, hp: .82, defense: .85 }),
-    // Loot leans toward daggers and light sabers for the rogue.
-    weaponBias: Object.freeze({ preferred: Object.freeze(['dagger', 'saber']), mult: 2.4, otherMult: .55 }),
+    // Daggers + light sabers only for the rogue.
+    weaponBias: Object.freeze({ preferred: Object.freeze(['dagger', 'saber']), mult: 2.5, otherMult: 0 }),
     // Short-reach fast blades: each click bursts into a 2-hit flurry (human click rate is the cap, not the blades).
     meleeProfile: Object.freeze({ rangeMult: .78, arcMult: 1.05, flurry: 2 }),
     // Focus charges on landed basic hits; when full, the next attack unleashes a level-scaled combo rush.
@@ -638,6 +744,54 @@ export const HERO_CLASSES = Object.freeze({
       locked: true,
     }),
   }),
+  ranger: Object.freeze({
+    id: 'ranger',
+    name: 'Sable',
+    title: 'Wildshot',
+    blurb: 'Bow hunter · mark & trap',
+    modelKey: 'hero.ranger',
+    lookId: 'ranger',
+    attackStyle: 'ranged',
+    skillPanelTitle: 'Hunt Arts & Tracker Instincts',
+    attackLabel: 'Draw',
+    activeSkills: Object.freeze(['piercing_shot', 'caltrop_trap', 'vault_shot', 'hunter_mark']),
+    passiveSkills: Object.freeze(['eagle_eye', 'fleet_foot', 'barbed_tips', 'scavenger', 'predator']),
+    baseStatMods: Object.freeze({ attack: 1.0, mp: 1.08, skillPower: 0.04, hp: 0.9, defense: 0.88 }),
+    // Bows only — prevents ranger auto-equipping blades that break the hunt fantasy.
+    weaponBias: Object.freeze({ preferred: Object.freeze(['bow']), mult: 2.6, otherMult: 0 }),
+    basicAttack: Object.freeze({
+      bolts: 4,
+      comboMults: Object.freeze([1.0, 1.08, 1.18, 1.42]),
+    }),
+    energy: Object.freeze({
+      label: 'Focus',
+      effect: 'arrow_storm',
+      max: 100,
+      perHit: 6,
+      perCrit: 3,
+      comboUnlockLevel: 3,
+      stormArrows: 8,
+      stormMult: 0.55,
+      stormSpread: 0.11,
+      stormSpeed: 17,
+      stormCritBonus: 0.1,
+    }),
+    starterWeapon: Object.freeze({
+      id: 'starter-yew-bow',
+      baseId: 'yew_bow',
+      slot: 'weapon',
+      name: 'Fledgling Bow',
+      rarity: 'common',
+      level: 1,
+      itemLevel: 1,
+      power: 10,
+      speed: 1.12,
+      crit: .05,
+      model: 'bow',
+      color: 0xc4a574,
+      locked: true,
+    }),
+  }),
 });
 
 export function resolveHeroClassId(classId) {
@@ -669,8 +823,40 @@ const MAGIC_BASIC_DEFAULTS = Object.freeze({
 /** Merged basic-attack profile for a class (style defaults + class overrides). */
 export function getClassBasicAttack(classId) {
   const def = getHeroClass(classId);
-  const base = def.attackStyle === 'magic' ? MAGIC_BASIC_DEFAULTS : MELEE_BASIC_DEFAULTS;
+  const ranged = def.attackStyle === 'magic' || def.attackStyle === 'ranged';
+  const base = ranged ? MAGIC_BASIC_DEFAULTS : MELEE_BASIC_DEFAULTS;
   return { ...base, ...(def.meleeProfile ?? {}), ...(def.basicAttack ?? {}) };
+}
+
+/** True for staff/bow projectile basics (cast clips + orb path). */
+export function isRangedAttackStyle(classId) {
+  const style = getHeroClass(classId).attackStyle ?? 'melee';
+  return style === 'magic' || style === 'ranged';
+}
+
+/**
+ * Weapon models this class may equip / hold.
+ * When weaponBias.preferred is set, only those models are allowed (strict).
+ * Empty preferred → all models allowed.
+ */
+export function getClassWeaponModels(classId) {
+  const preferred = getHeroClass(classId).weaponBias?.preferred;
+  if (!preferred?.length) return null;
+  return preferred;
+}
+
+/** Whether a weapon item/model is legal for the class visual + equip rules. */
+export function canClassUseWeapon(classId, itemOrModel) {
+  const model = typeof itemOrModel === 'string'
+    ? itemOrModel
+    : itemOrModel?.model;
+  if (!model) return false;
+  if (itemOrModel && typeof itemOrModel === 'object' && itemOrModel.slot && itemOrModel.slot !== 'weapon') {
+    return true;
+  }
+  const allowed = getClassWeaponModels(classId);
+  if (!allowed) return true;
+  return allowed.includes(model);
 }
 
 export function getHeroClass(classId) {

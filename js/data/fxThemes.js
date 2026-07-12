@@ -99,6 +99,38 @@ export const FX_THEMES = Object.freeze({
     dust: 0xa05040,
     accent: 0xffb84d,
   }),
+  hunt_amber: Object.freeze({
+    id: 'hunt_amber',
+    primary: 0xe8b060,
+    secondary: 0xffe0a8,
+    core: 0xfff6e0,
+    dust: 0xb89060,
+    accent: 0xd4a050,
+  }),
+  thorn: Object.freeze({
+    id: 'thorn',
+    primary: 0x6ab06a,
+    secondary: 0xb8e0a8,
+    core: 0xe8ffe0,
+    dust: 0x6a8050,
+    accent: 0x4a9048,
+  }),
+  windleaf: Object.freeze({
+    id: 'windleaf',
+    primary: 0x8fd0a0,
+    secondary: 0xd8f4e0,
+    core: 0xf0fff4,
+    dust: 0xa0b898,
+    accent: 0x70c090,
+  }),
+  hunt_gold: Object.freeze({
+    id: 'hunt_gold',
+    primary: 0xffd26b,
+    secondary: 0xffeeb0,
+    core: 0xfff8e0,
+    dust: 0xc8a858,
+    accent: 0xffc040,
+  }),
 });
 
 export function getFxTheme(themeId) {

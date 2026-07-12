@@ -14,6 +14,7 @@ const BASE_LEVELS = Object.freeze({
   sun_fang: 18, glacier_brand: 27, ember_katana: 36, astral_oath: 50,
   oak_staff: 1, crystal_rod: 14, void_scepter: 40,
   night_fang: 1, viper_kris: 30,
+  yew_bow: 1, longbow_ash: 16, storm_recurve: 38,
   hide_vest: 1, leaf_mail: 8, dune_plate: 16, frost_coat: 25, forge_shell: 36, starweave: 49,
   fang_charm: 1, breeze_knot: 6, heart_seed: 12, coin_eye: 19, scholar_rune: 28, eclipse_shard: 48,
 });
@@ -48,11 +49,13 @@ export class LootSystem {
   #pickWeaponBase(pool) {
     const bias = getHeroClass(this.game.player?.classId)?.weaponBias;
     if (!bias?.preferred?.length) return pick(pool);
+    // Strict class weapons: only drop models this class can equip (sword never on ranger, etc.).
+    const preferred = pool.filter(base => bias.preferred.includes(base.model));
+    const usePool = preferred.length ? preferred : pool;
     const preferredMult = bias.mult ?? 2.2;
-    const otherMult = bias.otherMult ?? .6;
-    return weightedPick(pool.map(base => ({
+    return weightedPick(usePool.map(base => ({
       id: base,
-      weight: bias.preferred.includes(base.model) ? preferredMult : otherMult,
+      weight: preferredMult,
     })));
   }
 

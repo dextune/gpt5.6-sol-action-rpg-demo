@@ -1,7 +1,10 @@
 import * as THREE from 'three';
-import { SKILLS, getClassBasicAttack, getHeroClass } from '../data/content.js';
+import { SKILLS, getClassBasicAttack, getHeroClass, isRangedAttackStyle } from '../data/content.js';
 import { getFxTheme } from '../data/fxThemes.js';
 import { resolveSkillHitRaw, skillCombatAtRank, skillDamage } from '../data/skillCombat.js';
+import {
+  createProjectileVisual, disposeProjectileVisual, orientProjectile,
+} from '../graphics/ProjectileMeshes.js';
 import { clamp, rand } from '../core/Utils.js';
 
 const TMP_A = new THREE.Vector3();
@@ -15,10 +18,6 @@ export class CombatSystem {
     this.telegraphs = [];
     this.delayed = [];
     this.charges = [];
-    this.projectileGeometry = new THREE.OctahedronGeometry(.28, 1);
-    this.waveGeometry = new THREE.BoxGeometry(1.25, .18, .45);
-    this.enemyOrbGeometry = new THREE.SphereGeometry(.25, 10, 8);
-    this.orbGeometry = new THREE.SphereGeometry(.22, 12, 10);
     /** effect id → handler(player, rank, phase?) — phase for anim-synced skills */
     this.skillHandlers = {
       whirlwind: (p, r, phase) => this.#whirlwind(p, r, phase),
@@ -33,11 +32,16 @@ export class CombatSystem {
       fan_of_knives: (p, r, phase) => this.#fanOfKnives(p, r, phase),
       shadowstep: (p, r) => this.#shadowstep(p, r),
       death_lotus: (p, r) => this.#deathLotus(p, r),
+      piercing_shot: (p, r, phase) => this.#piercingShot(p, r, phase),
+      caltrop_trap: (p, r) => this.#caltropTrap(p, r),
+      vault_shot: (p, r) => this.#vaultShot(p, r),
+      hunter_mark: (p, r) => this.#hunterMark(p, r),
     };
     /** Energy (Focus/Rage) burst id → handler(player, def) → { duration, anim, sfx, floatText } */
     this.energyHandlers = {
       dagger_rush: (p, def) => this.#daggerRushBurst(p, def),
       wrath_slam: (p, def) => this.#wrathSlamBurst(p, def),
+      arrow_storm: (p, def) => this.#arrowStormBurst(p, def),
     };
   }
 
@@ -53,8 +57,7 @@ export class CombatSystem {
   }
 
   playerAttack(player, combo, comboLength = 4) {
-    const style = getHeroClass(player.classId).attackStyle ?? 'melee';
-    if (style === 'magic') this.#magicAttack(player, combo, comboLength);
+    if (isRangedAttackStyle(player.classId)) this.#magicAttack(player, combo, comboLength);
     else this.#meleeAttack(player, combo, comboLength);
   }
 
@@ -145,42 +148,49 @@ export class CombatSystem {
     }
   }
 
-  /** Staff basic attack — ranged mana bolts (combo builds into a multi-orb finisher). */
+  /** Ranged basic attack — mana bolts (wizard) or arrows (ranger); combo → multi-shot finisher. */
   #magicAttack(player, combo, comboLength = 4) {
     // Capture facing at cast time so delayed bolts don't inherit a later turn/mouse aim.
     const direction = this.#facingDir(player);
     const profile = getClassBasicAttack(player.classId);
     const finisher = combo >= Math.max(0, comboLength - 1);
-    const theme = getFxTheme('arcane');
+    const isBow = getHeroClass(player.classId).attackStyle === 'ranged';
+    const theme = getFxTheme(isBow ? 'hunt_amber' : 'arcane');
     const color = player.weapon?.rarityColor ?? theme.primary;
     const origin = player.position.clone().add(new THREE.Vector3(0, 1.15, 0)).addScaledVector(direction, .7);
-    this.game.effects.trail(origin, color, finisher ? .75 : .42, .18);
-    this.game.effects.burst(origin, color, finisher ? 18 : 8 + combo * 2, {
-      speed: 3.4, size: .24, life: .34, upward: .22,
-    });
-    this.game.effects.slash(player.position, direction, theme.secondary, finisher ? 2.6 : 1.8 + combo * 0.15, {
-      height: 1.05, life: 0.22, thickness: 0.05, spin: 1.8, opacity: 0.55,
-    });
+    if (isBow) this.game.effects.recipeArrowStreak?.(player.position, direction, theme);
+    else {
+      this.game.effects.trail(origin, color, finisher ? .75 : .42, .18);
+      this.game.effects.burst(origin, color, finisher ? 18 : 8 + combo * 2, {
+        speed: 3.4, size: .24, life: .34, upward: .22,
+      });
+      this.game.effects.slash(player.position, direction, theme.secondary, finisher ? 2.6 : 1.8 + combo * 0.15, {
+        height: 1.05, life: 0.22, thickness: 0.05, spin: 1.8, opacity: 0.55,
+      });
+    }
 
     const bolts = finisher ? profile.bolts : 1;
-    const baseDamage = player.attackPower * (profile.comboMults[combo] ?? 1) * player.skillPower;
+    const baseDamage = player.attackPower * (profile.comboMults[combo] ?? 1) * (isBow ? 1 : player.skillPower);
+    const bowMul = isBow ? 1 : 1;
     const baseYaw = Math.atan2(direction.x, direction.z);
     for (let i = 0; i < bolts; i += 1) {
       this.#delay(finisher ? i * .05 : .03, () => {
         if (!player.alive) return;
-        const spread = finisher ? (i - 2) * .12 : 0;
+        const spread = finisher ? (i - (bolts - 1) / 2) * (isBow ? 0.1 : 0.12) : 0;
         const dir = new THREE.Vector3(Math.sin(baseYaw + spread), 0, Math.cos(baseYaw + spread));
         const start = player.position.clone().add(new THREE.Vector3(0, 1.15, 0)).addScaledVector(dir, .65);
         this.#spawnFriendlyOrb(start, dir, {
-          color: finisher && i === 2 ? theme.core : color,
-          damage: baseDamage * (finisher ? .42 : 1),
-          speed: finisher ? 14 + i : 15.5,
-          radius: finisher ? 1.05 : .9,
-          life: 1.2,
+          style: isBow ? 'arrow' : 'mana',
+          color: finisher && i === Math.floor(bolts / 2) ? theme.core : color,
+          damage: baseDamage * bowMul * (finisher ? (isBow ? .48 : .42) : 1),
+          speed: finisher ? (isBow ? 16 + i * 0.3 : 14 + i) : (isBow ? 17.5 : 15.5),
+          radius: finisher ? 1.05 : (isBow ? .85 : .9),
+          life: isBow ? 1.35 : 1.2,
           pierce: finisher ? 2 : 1,
           knockback: finisher ? 3.8 : 2.2,
           skill: false,
-          scale: finisher ? 1.25 : 1.05,
+          skillPowerApplied: !isBow,
+          scale: finisher ? (isBow ? 1.15 : 1.2) : (isBow ? 1.0 : 1.05),
         });
       });
     }
@@ -207,31 +217,40 @@ export class CombatSystem {
 
   #spawnFriendlyOrb(start, direction, options = {}) {
     const color = options.color ?? 0xc8b4ff;
-    const material = new THREE.MeshBasicMaterial({
-      color, transparent: true, opacity: .92, depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    });
-    const mesh = new THREE.Mesh(this.orbGeometry, material);
-    mesh.position.copy(start);
-    mesh.scale.setScalar(options.scale ?? 1.15);
-    this.game.scene.add(mesh);
+    const style = options.style ?? (options.wave ? 'blade_wave' : 'mana');
+    const dir = direction.clone().normalize();
+    const visual = createProjectileVisual(style, color, { scale: options.scale ?? 1.1 });
+    visual.root.position.copy(start);
+    if (visual.orient) orientProjectile(visual.root, dir, 0);
+    this.game.scene.add(visual.root);
     this.projectiles.push({
-      mesh, material, friendly: true,
-      velocity: direction.clone().normalize().multiplyScalar(options.speed ?? 15),
+      mesh: visual.root,
+      materials: visual.materials,
+      friendly: true,
+      style,
+      orient: visual.orient,
+      spin: visual.spin,
+      spinRoll: 0,
+      trailRate: visual.trailRate,
+      trailSize: visual.trailSize,
+      velocity: dir.clone().multiplyScalar(options.speed ?? 15),
       damage: options.damage ?? 10,
       radius: options.radius ?? .9,
       life: options.life ?? 1.25,
       pierce: options.pierce ?? 1,
       hit: new Set(),
-      wave: Boolean(options.wave),
+      wave: Boolean(options.wave) || style === 'blade_wave',
       color,
-      direction: direction.clone().normalize(),
+      direction: dir,
       knockback: options.knockback ?? 2.5,
       skill: Boolean(options.skill),
       // true only when damage already includes skillPower (e.g. fireball orb)
       skillPowerApplied: Boolean(options.skillPowerApplied),
       explode: options.explode ?? null,
       statusOnHit: options.statusOnHit ?? null,
+      armorPierce: options.armorPierce ?? 0,
+      criticalBonus: options.criticalBonus ?? 0,
+      energyCombo: Boolean(options.energyCombo),
     });
   }
 
@@ -242,6 +261,7 @@ export class CombatSystem {
       power: status.power ?? 0.4,
       dps: status.dps ?? 0,
       tick: status.tick ?? 0.5,
+      damageAmp: status.damageAmp ?? 0,
     }, this.game);
   }
 
@@ -286,6 +306,7 @@ export class CombatSystem {
       start.y += 1;
       this.game.effects.recipeGroundWave(player.position, direction, theme, 3.6);
       this.#spawnFriendlyOrb(start, direction, {
+        style: 'blade_wave',
         color: theme.primary,
         damage: skillDamage(player.attackPower, combat),
         speed: combat.speed,
@@ -295,16 +316,9 @@ export class CombatSystem {
         knockback: combat.knockback ?? 4.2,
         skill: true,
         wave: true,
-        scale: 1.2 + rank * 0.04,
+        scale: 1.15 + rank * 0.05,
         statusOnHit: combat.status ?? null,
       });
-      // Stretch wave mesh look
-      const last = this.projectiles[this.projectiles.length - 1];
-      if (last?.wave) {
-        last.mesh.geometry = this.waveGeometry;
-        last.mesh.scale.set(1.35 + rank * 0.08, 1.25, 1.2);
-        last.mesh.rotation.y = Math.atan2(direction.x, direction.z);
-      }
     };
     if (phase != null && phase !== 'full') fire();
     else fire();
@@ -373,6 +387,7 @@ export class CombatSystem {
       const start = player.position.clone().add(new THREE.Vector3(0, 1.2, 0)).addScaledVector(direction, 1.05);
       this.game.effects.recipeFireOrb(player.position, direction, theme);
       this.#spawnFriendlyOrb(start, direction, {
+        style: 'fireball',
         color: theme.primary,
         damage: skillDamage(player.attackPower, combat) * player.skillPower,
         speed: combat.speed,
@@ -382,7 +397,7 @@ export class CombatSystem {
         knockback: combat.knockback ?? 4.5,
         skill: true,
         skillPowerApplied: true,
-        scale: combat.scale ?? 1.45,
+        scale: combat.scale ?? 1.35,
         statusOnHit: combat.status ?? null,
         explode: {
           radius: combat.blastRadius,
@@ -588,6 +603,175 @@ export class CombatSystem {
     return { duration: .6, anim: 'skill_skyfall', sfx: 'skill_leap', floatText: 'WRATH!' };
   }
 
+  /** Ranger Focus burst — multi-arrow storm along facing cone. */
+  #arrowStormBurst(player, def) {
+    const theme = getFxTheme('hunt_amber');
+    const arrows = Math.max(4, Math.round(def.stormArrows ?? 8));
+    const direction = this.#facingDir(player);
+    const baseYaw = Math.atan2(direction.x, direction.z);
+    this.game.effects.recipeArrowStreak?.(player.position, direction, theme);
+    for (let i = 0; i < arrows; i += 1) {
+      this.#delay(0.04 + i * 0.055, () => {
+        if (!player.alive) return;
+        const spread = (i - (arrows - 1) / 2) * (def.stormSpread ?? 0.11);
+        const dir = new THREE.Vector3(Math.sin(baseYaw + spread), 0, Math.cos(baseYaw + spread));
+        const start = player.position.clone().add(new THREE.Vector3(0, 1.15, 0)).addScaledVector(dir, 0.7);
+        const finale = i === arrows - 1;
+        this.#spawnFriendlyOrb(start, dir, {
+          style: 'arrow',
+          color: finale ? theme.core : theme.primary,
+          damage: player.attackPower * (def.stormMult ?? 0.55) * (finale ? 1.35 : 1),
+          speed: (def.stormSpeed ?? 17) + i * 0.15,
+          radius: 0.9,
+          life: 1.1,
+          pierce: 2,
+          knockback: finale ? 4.2 : 2.0,
+          skill: false,
+          energyCombo: true,
+          scale: finale ? 1.2 : 1.0,
+          criticalBonus: def.stormCritBonus ?? 0.1,
+        });
+        if (i % 2 === 0) this.game.audio.swing(Math.min(3, i % 4));
+      });
+    }
+    return {
+      duration: 0.08 + arrows * 0.055 + 0.28,
+      anim: 'skill_pierce_shot',
+      sfx: 'skill_blade',
+      floatText: `STORM ×${arrows}`,
+    };
+  }
+
+  #piercingShot(player, rank, phase = null) {
+    const fire = () => {
+      if (!player.alive) return;
+      const { combat, theme } = this.#skillBundle('piercing_shot', rank);
+      const direction = this.#facingDir(player);
+      this.game.effects.recipeArrowStreak?.(player.position, direction, theme);
+      const start = player.position.clone().add(new THREE.Vector3(0, 1.2, 0)).addScaledVector(direction, 1.0);
+      this.#spawnFriendlyOrb(start, direction, {
+        style: 'heavy_arrow',
+        color: theme.primary,
+        damage: skillDamage(player.attackPower, combat),
+        speed: combat.speed ?? 18,
+        radius: combat.radius ?? 0.95,
+        life: combat.life ?? 1.15,
+        pierce: Math.max(1, Math.round(combat.pierce ?? 3)),
+        knockback: combat.knockback ?? 3.2,
+        skill: true,
+        scale: combat.scale ?? 1.1,
+        armorPierce: combat.armorPierce ?? 0.18,
+        statusOnHit: combat.status ?? null,
+      });
+    };
+    if (phase != null && phase !== 'full') fire();
+    else fire();
+  }
+
+  #caltropTrap(player, rank) {
+    const { combat, theme } = this.#skillBundle('caltrop_trap', rank);
+    const center = this.#aimAlongFacing(player, combat.aim ?? 7.5);
+    const radius = combat.radius ?? 3.2;
+    const ticks = Math.max(1, Math.round(combat.ticks ?? 5));
+    const interval = combat.tickInterval ?? 0.55;
+    this.game.effects.recipeTrapField?.(center, theme, radius);
+    for (let i = 0; i < ticks; i += 1) {
+      this.#delay(0.08 + i * interval, () => {
+        if (!player.alive) return;
+        this.game.effects.ring(center, i % 2 ? theme.secondary : theme.primary, radius * (0.55 + i * 0.08), {
+          life: 0.32, startScale: 0.3, height: 0.06, opacity: 0.55,
+        });
+        this.#hitEnemiesInRadius(center, radius, skillDamage(player.attackPower, combat), {
+          knockback: combat.knockback ?? 1.1,
+          multiHit: true,
+          skill: true,
+          status: combat.status ?? null,
+        });
+      });
+    }
+  }
+
+  #vaultShot(player, rank) {
+    const { combat, theme } = this.#skillBundle('vault_shot', rank);
+    const forward = this.#facingDir(player);
+    const back = forward.clone().multiplyScalar(-1);
+    const from = player.position.clone();
+    const dash = combat.dash ?? 3.6;
+    player.position.addScaledVector(back, dash);
+    this.game.world.resolvePosition(player.position, 0.48);
+    player.invulnerable = Math.max(player.invulnerable, combat.invuln ?? 0.4);
+    this.game.effects.recipeVaultVolley?.(from, player.position, forward, theme);
+    const arrows = Math.max(1, Math.round(combat.arrows ?? 4));
+    const baseYaw = Math.atan2(forward.x, forward.z);
+    const spread = combat.spread ?? 0.14;
+    for (let i = 0; i < arrows; i += 1) {
+      const yaw = baseYaw + (i - (arrows - 1) / 2) * spread;
+      const dir = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
+      const start = player.position.clone().add(new THREE.Vector3(0, 1.15, 0)).addScaledVector(dir, 0.55);
+      this.#spawnFriendlyOrb(start, dir, {
+        style: 'arrow',
+        color: i % 2 ? theme.secondary : theme.primary,
+        damage: skillDamage(player.attackPower, combat),
+        speed: combat.speed ?? 16.5,
+        radius: combat.radius ?? 0.88,
+        life: combat.life ?? 0.85,
+        pierce: 1,
+        knockback: combat.knockback ?? 2.6,
+        skill: true,
+        scale: 0.95,
+        criticalBonus: combat.criticalBonus ?? 0.06,
+      });
+    }
+  }
+
+  #hunterMark(player, rank) {
+    const { combat, theme } = this.#skillBundle('hunter_mark', rank);
+    const direction = this.#facingDir(player);
+    const range = combat.range ?? 14;
+    const cosThreshold = Math.cos((combat.arc ?? 1.4) * 0.5);
+    let best = null;
+    let bestDist = Infinity;
+    for (const enemy of this.game.enemies.enemies) {
+      if (!enemy.alive) continue;
+      const offset = TMP_A.copy(enemy.position).sub(player.position).setY(0);
+      const dist = offset.length();
+      if (dist > range + enemy.radius || dist < 0.001) continue;
+      const dir = offset.clone().normalize();
+      if (dir.dot(direction) < cosThreshold) continue;
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = enemy;
+      }
+    }
+    if (!best) {
+      // Fallback: nearest living enemy in world radius of aim
+      for (const enemy of this.game.enemies.enemies) {
+        if (!enemy.alive) continue;
+        const dist = enemy.position.distanceTo(player.position);
+        if (dist < bestDist && dist < range + 4) {
+          bestDist = dist;
+          best = enemy;
+        }
+      }
+    }
+    if (!best) {
+      this.game.effects.recipeMarkGlyph?.(player.position.clone().addScaledVector(direction, 4), theme, 2.2);
+      return;
+    }
+    this.game.effects.recipeMarkGlyph?.(best.position, theme, 2.8);
+    this.#damageEnemy(best, skillDamage(player.attackPower, combat), {
+      direction: TMP_B.copy(best.position).sub(player.position).setY(0).normalize(),
+      knockback: combat.knockback ?? 2,
+      criticalBonus: combat.criticalBonus ?? 0.08,
+      skill: true,
+    });
+    best.applyStatus?.('expose', {
+      duration: combat.markDuration ?? 5.2,
+      power: combat.exposePower ?? 0.22,
+      damageAmp: combat.damageAmp ?? 0.16,
+    }, this.game);
+  }
+
   #twinFangStab(player, rank, hitIndex) {
     const { combat, theme } = this.#skillBundle('twin_fang', rank);
     const direction = this.#facingDir(player);
@@ -635,6 +819,7 @@ export class CombatSystem {
         const dir = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
         const start = player.position.clone().add(new THREE.Vector3(0, 1.1, 0)).addScaledVector(dir, .6);
         this.#spawnFriendlyOrb(start, dir, {
+          style: 'dagger',
           color: i % 2 ? theme.secondary : theme.primary,
           damage: skillDamage(player.attackPower, combat),
           speed: combat.speed,
@@ -643,7 +828,7 @@ export class CombatSystem {
           pierce: Math.round(combat.pierce ?? 1),
           knockback: combat.knockback ?? 2.4,
           skill: true,
-          scale: 0.72,
+          scale: 0.95,
           statusOnHit: combat.status ?? null,
         });
       }
@@ -742,6 +927,9 @@ export class CombatSystem {
   enemyProjectile(enemy, options = {}) {
     const delay = options.caster ? .72 : .46;
     const color = enemy.data.accent;
+    // Casters throw crystalline bolts; physical ranged spit acidic blobs / shards by zone tone.
+    const style = options.style
+      ?? (options.caster ? 'enemy_bolt' : this.#enemyProjectileStyle(enemy));
     this.#telegraphCircle(enemy.position, enemy.radius * 1.15 + .55, delay, color, () => {
       if (!enemy.alive || !this.game.player.alive) return;
       const count = options.count ?? 1;
@@ -750,6 +938,7 @@ export class CombatSystem {
         const spread = count === 1 ? 0 : (i - (count - 1) / 2) * .2;
         const direction = baseDirection.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), spread);
         this.#spawnEnemyProjectile(enemy, direction, {
+          style,
           color, speed: options.caster ? 8.3 : 10.2,
           damage: enemy.damage * (options.caster ? 1.04 : .86),
           size: options.caster ? .34 : .25,
@@ -758,6 +947,16 @@ export class CombatSystem {
       }
       this.game.effects.burst(enemy.position, color, options.caster ? 14 : 8, { speed: 2.5, size: .24, life: .42 });
     }, { follows: enemy, fillOpacity: .08 });
+  }
+
+  /** Pick a readable enemy projectile silhouette from zone / shape hints. */
+  #enemyProjectileStyle(enemy) {
+    const zone = enemy.data?.zone ?? '';
+    const shape = enemy.data?.shape ?? '';
+    if (zone === 'frost' || shape === 'wisp') return 'enemy_frost';
+    if (zone === 'canyon' || zone === 'volcanic') return 'enemy_ember';
+    if (shape === 'boar' || shape === 'colossus') return 'enemy_shard';
+    return 'enemy_spit';
   }
 
   enemyCharge(enemy) {
@@ -841,7 +1040,9 @@ export class CombatSystem {
       this.game.effects.ring(enemy.position, 0xffc266, 7.2, { life: .8, startScale: .1 });
       for (let i = 0; i < 18; i += 1) {
         const direction = new THREE.Vector3(Math.cos(i / 18 * Math.PI * 2), 0, Math.sin(i / 18 * Math.PI * 2));
-        this.#spawnEnemyProjectile(enemy, direction, { color: 0xffb95f, speed: 8.2, damage: enemy.damage * .62, size: .28 });
+        this.#spawnEnemyProjectile(enemy, direction, {
+          style: 'enemy_ember', color: 0xffb95f, speed: 8.2, damage: enemy.damage * .62, size: .28,
+        });
       }
       if (this.game.player.position.distanceTo(enemy.position) < 7.5) {
         const direction = this.game.player.position.clone().sub(enemy.position).setY(0).normalize();
@@ -888,6 +1089,7 @@ export class CombatSystem {
         const angle = i / 24 * Math.PI * 2;
         const direction = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
         this.#spawnEnemyProjectile(enemy, direction, {
+          style: i % 2 ? 'enemy_void' : 'enemy_bolt',
           color: i % 2 ? 0xc184ff : 0x7fcfff, speed: 7.2 + (i % 3) * .6,
           damage: enemy.damage * .56, size: .31, homing: i % 4 === 0 ? .18 : 0,
         });
@@ -899,20 +1101,33 @@ export class CombatSystem {
   }
 
   #spawnEnemyProjectile(enemy, direction, options = {}) {
-    const material = new THREE.MeshBasicMaterial({
-      color: options.color ?? enemy.data.accent, transparent: true, opacity: .92, depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    });
-    const mesh = new THREE.Mesh(this.enemyOrbGeometry, material);
-    mesh.scale.setScalar(options.size ? options.size / .25 : 1);
-    mesh.position.copy(enemy.position);
-    mesh.position.y += Math.max(1, enemy.refs.modelHeight * (enemy.data.scale ?? 1) * .5);
-    this.game.scene.add(mesh);
+    const color = options.color ?? enemy.data.accent;
+    const style = options.style ?? 'enemy_spit';
+    const dir = direction.clone().normalize();
+    const sizeScale = options.size ? options.size / .25 : 1;
+    const visual = createProjectileVisual(style, color, { scale: sizeScale });
+    visual.root.position.copy(enemy.position);
+    visual.root.position.y += Math.max(1, enemy.refs.modelHeight * (enemy.data.scale ?? 1) * .5);
+    if (visual.orient) orientProjectile(visual.root, dir, 0);
+    this.game.scene.add(visual.root);
     this.projectiles.push({
-      mesh, material, friendly: false, velocity: direction.clone().normalize().multiplyScalar(options.speed ?? 9),
-      damage: options.damage ?? enemy.damage, radius: (options.size ?? .25) + .34,
-      life: options.life ?? 3.4, source: enemy, homing: options.homing ?? 0,
-      color: options.color ?? enemy.data.accent,
+      mesh: visual.root,
+      materials: visual.materials,
+      friendly: false,
+      style,
+      orient: visual.orient,
+      spin: visual.spin,
+      spinRoll: 0,
+      trailRate: visual.trailRate,
+      trailSize: visual.trailSize,
+      velocity: dir.clone().multiplyScalar(options.speed ?? 9),
+      damage: options.damage ?? enemy.damage,
+      radius: (options.size ?? .25) + .34,
+      life: options.life ?? 3.4,
+      source: enemy,
+      homing: options.homing ?? 0,
+      color,
+      direction: dir,
     });
   }
 
@@ -968,9 +1183,14 @@ export class CombatSystem {
       critical,
       critMultiplier: player.critMultiplier,
     });
-    // Knight Executioner: bonus damage vs enemies below 30% health.
+    // Knight Executioner / Ranger Predator: bonus damage vs enemies below 30% health.
     if (player.passiveEffects.execute > 0 && enemy.hp / Math.max(1, enemy.maxHp) < .3) {
       damage *= 1 + player.passiveEffects.execute;
+    }
+    // Hunter Mark (expose): flat damage amp while the mark lasts.
+    if (enemy.statuses?.expose?.remaining > 0) {
+      const amp = Number(enemy.statuses.expose.damageAmp) || 0;
+      if (amp > 0) damage *= 1 + amp;
     }
     const result = enemy.takeDamage(damage, this.game, {
       direction: options.direction,
@@ -1072,10 +1292,16 @@ export class CombatSystem {
   #updateDelayed(delta) {
     for (let i = this.delayed.length - 1; i >= 0; i -= 1) {
       const action = this.delayed[i];
+      if (!action) {
+        this.delayed.splice(i, 1);
+        continue;
+      }
       action.time -= delta;
       if (action.time > 0) continue;
       this.delayed.splice(i, 1);
       try { action.callback(); } catch (error) { console.error('Delayed combat action failed:', error); }
+      // Nested clear() emptied the queue — stop iterating stale indices.
+      if (this._clearing || i > this.delayed.length) return;
     }
   }
 
@@ -1130,92 +1356,159 @@ export class CombatSystem {
   }
 
   #updateProjectiles(delta) {
+    // Snapshot length so clear()/spawn re-entrancy cannot leave undefined holes mid-loop.
     for (let i = this.projectiles.length - 1; i >= 0; i -= 1) {
       const projectile = this.projectiles[i];
+      if (!projectile?.mesh || projectile.life == null) {
+        if (i >= 0 && i < this.projectiles.length) this.projectiles.splice(i, 1);
+        continue;
+      }
+
       projectile.life -= delta;
       if (projectile.homing && !projectile.friendly && this.game.player.alive) {
-        const targetDirection = TMP_A.copy(this.game.player.position).sub(projectile.mesh.position).setY(0).normalize();
-        const speed = projectile.velocity.length();
-        projectile.velocity.lerp(targetDirection.multiplyScalar(speed), Math.min(1, delta * projectile.homing * 3.2));
+        const targetDirection = TMP_A.copy(this.game.player.position).sub(projectile.mesh.position).setY(0);
+        if (targetDirection.lengthSq() > 1e-6) {
+          targetDirection.normalize();
+          const speed = projectile.velocity.length();
+          projectile.velocity.lerp(targetDirection.multiplyScalar(speed), Math.min(1, delta * projectile.homing * 3.2));
+        }
+        if (!projectile.direction) projectile.direction = new THREE.Vector3(0, 0, 1);
+        projectile.direction.copy(projectile.velocity).setY(0);
+        if (projectile.direction.lengthSq() > 1e-6) projectile.direction.normalize();
       }
       projectile.mesh.position.addScaledVector(projectile.velocity, delta);
-      projectile.mesh.rotation.x += delta * 5.5;
-      projectile.mesh.rotation.y += delta * 8;
+
+      // Visual motion: orient arrows/knives along velocity; orbs tumble; waves hold yaw.
+      const spin = projectile.spin ?? 'tumble';
+      if (projectile.orient || projectile.wave) {
+        if (spin === 'roll') projectile.spinRoll = (projectile.spinRoll ?? 0) + delta * (projectile.style === 'dagger' ? 18 : 10);
+        else projectile.spinRoll = projectile.spinRoll ?? 0;
+        const dir = projectile.velocity.lengthSq() > 1e-6
+          ? projectile.velocity
+          : (projectile.direction ?? TMP_A.set(0, 0, 1));
+        orientProjectile(projectile.mesh, dir, projectile.spinRoll);
+      } else if (spin === 'tumble') {
+        projectile.mesh.rotation.x += delta * 5.5;
+        projectile.mesh.rotation.y += delta * 8;
+        projectile.mesh.rotation.z += delta * 3.2;
+      }
+
+      // Fade blade waves slightly as they travel
+      if (projectile.wave && projectile.materials?.length) {
+        const lifeFade = clamp(projectile.life * 1.2, 0.15, 1);
+        for (const m of projectile.materials) {
+          if (m) m.opacity = (m.userData.baseOpacity ?? 0.75) * lifeFade;
+        }
+      }
+
+      const trailRate = projectile.trailRate ?? 16;
+      const trailSize = projectile.trailSize ?? 0.18;
       if (projectile.wave) {
-        projectile.mesh.material.opacity = Math.min(.9, projectile.life * 1.5);
-        this.game.effects.trail(projectile.mesh.position, projectile.color, .34, .13);
-      } else if (Math.random() < delta * 16) {
-        this.game.effects.trail(projectile.mesh.position, projectile.color, .18, .18);
+        this.game.effects.trail(projectile.mesh.position, projectile.color, 0.34, 0.13);
+      } else if (Math.random() < delta * trailRate) {
+        this.game.effects.trail(projectile.mesh.position, projectile.color, trailSize, trailSize * 0.9);
       }
 
       if (projectile.friendly) {
+        const hitDir = projectile.direction?.clone?.()
+          ?? projectile.velocity.clone().setY(0).normalize();
         for (const enemy of this.game.enemies.enemies) {
           if (!enemy.alive || projectile.hit.has(enemy.id)) continue;
           const distance = enemy.position.distanceTo(projectile.mesh.position);
           if (distance > projectile.radius + enemy.radius) continue;
           projectile.hit.add(enemy.id);
           this.#damageEnemy(enemy, projectile.damage, {
-            direction: projectile.direction.clone(),
+            direction: hitDir,
             knockback: projectile.knockback,
-            armorPierce: .18,
+            armorPierce: projectile.armorPierce ?? .18,
+            criticalBonus: projectile.criticalBonus ?? 0,
             skill: projectile.skill,
             skillPowerApplied: Boolean(projectile.skillPowerApplied),
             status: projectile.statusOnHit ?? null,
+            energyCombo: projectile.energyCombo,
           });
+          // clear() may have wiped the list (e.g. death mid-hit) — abandon this pass.
+          if (!this.projectiles[i] || this.projectiles[i] !== projectile) return;
           projectile.pierce -= 1;
           if (projectile.pierce <= 0) projectile.life = 0;
         }
       } else if (this.game.player.alive && projectile.mesh.position.distanceTo(this.game.player.position.clone().add(new THREE.Vector3(0, .8, 0))) < projectile.radius + .55) {
-        const direction = projectile.velocity.clone().setY(0).normalize();
+        const direction = projectile.velocity.clone().setY(0);
+        if (direction.lengthSq() > 1e-6) direction.normalize();
+        else direction.set(0, 0, 1);
         this.#damagePlayer(projectile.damage, direction, 4.5);
+        if (!this.projectiles[i] || this.projectiles[i] !== projectile) return;
         projectile.life = 0;
       }
 
+      // Bail if this entry was removed by a nested clear() during damage.
+      if (!this.projectiles[i] || this.projectiles[i] !== projectile) return;
+
       const ground = this.game.world.heightAt(projectile.mesh.position.x, projectile.mesh.position.z);
       if (projectile.life <= 0 || projectile.mesh.position.y < ground + .05 || Math.hypot(projectile.mesh.position.x, projectile.mesh.position.z) > 180) {
-        if (projectile.explode && projectile.friendly) {
-          const blast = projectile.explode;
-          const at = projectile.mesh.position.clone();
-          at.y = ground;
-          if (blast.theme && this.game.effects.recipeFireBlast) {
-            this.game.effects.recipeFireBlast(at, blast.theme, blast.radius);
-          } else {
-            this.game.effects.ring(at, blast.color ?? projectile.color, blast.radius, { life: .42, startScale: .12 });
-            this.game.effects.burst(at.clone().add(new THREE.Vector3(0, .8, 0)), blast.color ?? projectile.color, 18, {
-              speed: 5.5, size: .32, life: .5, upward: .35,
-            });
-          }
-          this.#hitEnemiesInRadius(at, blast.radius, blast.damage, {
-            knockback: 4.2,
-            multiHit: true,
-            skill: true,
-            skillPowerApplied: Boolean(blast.skillPowerApplied),
-            armorPierce: .12,
-            status: blast.status ?? null,
-          });
-        } else {
-          this.game.effects.burst(projectile.mesh.position, projectile.color, 5, { speed: 2.2, size: .2, life: .3 });
-        }
-        this.game.scene.remove(projectile.mesh);
-        projectile.material.dispose();
-        this.projectiles.splice(i, 1);
+        this.#retireProjectile(i, projectile, ground);
       }
     }
   }
 
-  clear() {
-    for (const projectile of this.projectiles) {
+  #retireProjectile(index, projectile, groundY) {
+    if (!projectile || this.projectiles[index] !== projectile) return;
+    try {
+      if (projectile.explode && projectile.friendly && projectile.mesh) {
+        const blast = projectile.explode;
+        const at = projectile.mesh.position.clone();
+        at.y = groundY;
+        if (blast.theme && this.game.effects.recipeFireBlast) {
+          this.game.effects.recipeFireBlast(at, blast.theme, blast.radius);
+        } else {
+          this.game.effects.ring(at, blast.color ?? projectile.color, blast.radius, { life: .42, startScale: .12 });
+          this.game.effects.burst(at.clone().add(new THREE.Vector3(0, .8, 0)), blast.color ?? projectile.color, 18, {
+            speed: 5.5, size: .32, life: .5, upward: .35,
+          });
+        }
+        this.#hitEnemiesInRadius(at, blast.radius, blast.damage, {
+          knockback: 4.2,
+          multiHit: true,
+          skill: true,
+          skillPowerApplied: Boolean(blast.skillPowerApplied),
+          armorPierce: .12,
+          status: blast.status ?? null,
+        });
+      } else if (projectile.mesh) {
+        this.game.effects.burst(projectile.mesh.position, projectile.color, 5, { speed: 2.2, size: .2, life: .3 });
+      }
+    } catch (error) {
+      console.error('Projectile retire FX failed:', error);
+    }
+    // Nested clear may have already emptied the array.
+    if (this.projectiles[index] !== projectile) return;
+    if (projectile.mesh) {
       this.game.scene.remove(projectile.mesh);
-      projectile.material.dispose();
+      disposeProjectileVisual(projectile.mesh, projectile.materials);
     }
-    for (const warning of this.telegraphs) {
-      this.game.scene.remove(warning.group);
-      warning.ringGeometry?.dispose(); warning.fillGeometry?.dispose();
-      warning.ringMaterial?.dispose(); warning.fillMaterial?.dispose();
+    this.projectiles.splice(index, 1);
+  }
+
+  clear() {
+    if (this._clearing) return;
+    this._clearing = true;
+    try {
+      const projectiles = this.projectiles.splice(0, this.projectiles.length);
+      for (const projectile of projectiles) {
+        if (!projectile?.mesh) continue;
+        this.game.scene.remove(projectile.mesh);
+        disposeProjectileVisual(projectile.mesh, projectile.materials ?? (projectile.material ? [projectile.material] : []));
+      }
+      const warnings = this.telegraphs.splice(0, this.telegraphs.length);
+      for (const warning of warnings) {
+        if (warning?.group) this.game.scene.remove(warning.group);
+        warning?.ringGeometry?.dispose(); warning?.fillGeometry?.dispose();
+        warning?.ringMaterial?.dispose(); warning?.fillMaterial?.dispose();
+      }
+      this.delayed.length = 0;
+      this.charges.length = 0;
+    } finally {
+      this._clearing = false;
     }
-    this.projectiles.length = 0;
-    this.telegraphs.length = 0;
-    this.delayed.length = 0;
-    this.charges.length = 0;
   }
 }

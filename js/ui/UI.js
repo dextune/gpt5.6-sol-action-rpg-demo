@@ -28,6 +28,22 @@ function itemIcon(item) {
   return `./assets/textures/ui/icon_${icon}.png`;
 }
 
+/** Relative age for Continue meta (localStorage savedAt). */
+function formatSaveAge(savedAt) {
+  const ts = Number(savedAt) || 0;
+  if (ts <= 0) return '';
+  const sec = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+  if (sec < 60) return 'just now';
+  if (sec < 3600) return `${Math.floor(sec / 60)}m ago`;
+  if (sec < 86400) return `${Math.floor(sec / 3600)}h ago`;
+  if (sec < 86400 * 14) return `${Math.floor(sec / 86400)}d ago`;
+  try {
+    return new Date(ts).toLocaleDateString();
+  } catch {
+    return '';
+  }
+}
+
 function statText(key, value) {
   if (!value) return '';
   if (PERCENT_STATS.has(key)) return `${STAT_LABELS[key]} +${(value * 100).toFixed(value < .1 ? 1 : 0)}%`;
@@ -82,7 +98,8 @@ export class UI {
     this.elements['continue-btn'].addEventListener('click', async () => {
       if (this.elements['continue-btn'].disabled) return;
       await this.game.audio.unlock();
-      this.game.continueGame();
+      const ok = this.game.continueGame();
+      if (!ok) this.#refreshContinueButton();
     });
     this.classCards.forEach(card => {
       let suppressClickUntil = 0;
@@ -143,11 +160,26 @@ export class UI {
     this.elements['panel-layer'].classList.add('hidden');
     this.elements['death-screen'].classList.add('hidden');
     this.elements['defense-wave-panel']?.classList.add('hidden');
-    const save = this.game.save.load();
-    this.elements['continue-btn'].disabled = !save;
-    this.elements['continue-meta'].textContent = save
-      ? `Lv.${save.player?.level ?? 1} · ${formatTime(save.playTime ?? 0)} · ${save.hunt?.totalKills ?? 0} kills`
-      : 'No save data';
+    this.#refreshContinueButton();
+  }
+
+  #refreshContinueButton() {
+    const btn = this.elements['continue-btn'];
+    const meta = this.elements['continue-meta'];
+    if (!btn || !meta) return;
+    const summary = this.game.save.getSummary?.() ?? null;
+    const save = summary ? true : this.game.save.hasSave();
+    btn.disabled = !save;
+    if (!summary) {
+      meta.textContent = 'No save data';
+      return;
+    }
+    const hero = summary.classId ? getHeroClass(summary.classId) : null;
+    const label = hero?.title || hero?.name || summary.name || 'Hunter';
+    const age = formatSaveAge(summary.savedAt);
+    meta.textContent = age
+      ? `${label} Lv.${summary.level} · ${summary.kills} kills · ${age}`
+      : `${label} Lv.${summary.level} · ${formatTime(summary.playTime)} · ${summary.kills} kills`;
   }
 
   showHUD() {
@@ -524,13 +556,15 @@ export class UI {
 
   #itemCard(item) {
     const equipped = this.game.player.equipped[item.slot] === item.id;
+    const canEquip = this.game.player.canEquipItem?.(item) ?? true;
+    const equipLabel = equipped ? 'Equipped' : canEquip ? 'Equip' : 'Wrong class';
     return `<article class="item-card ${equipped ? 'equipped' : ''}" style="--rarity:${hexColor(item.rarityColor)}">
       <img class="item-icon" src="${itemIcon(item)}" alt="">
       <header><small>${RARITIES[item.rarity].name} · iLv.${item.itemLevel}</small><strong>${escapeHtml(item.name)}</strong></header>
       <span class="item-score">S ${item.score}</span>
       <div class="item-stats">${this.#itemStats(item, 6)}</div>
       <div class="item-actions">
-        <button data-action="equip" data-item="${item.id}" ${equipped ? 'disabled' : ''}>${equipped ? 'Equipped' : 'Equip'}</button>
+        <button data-action="equip" data-item="${item.id}" ${equipped || !canEquip ? 'disabled' : ''}>${equipLabel}</button>
         <button data-action="salvage" data-item="${item.id}" ${equipped || item.locked ? 'disabled' : ''}>Salvage</button>
       </div>
     </article>`;
@@ -617,6 +651,11 @@ export class UI {
       this.inventoryFilter = button.dataset.filter;
       this.#renderInventory();
     } else if (action === 'equip') {
+      const item = this.game.player.getItem(button.dataset.item);
+      if (item && !this.game.player.canEquipItem?.(item)) {
+        this.notify('This class cannot equip that weapon.', 'danger', 2.8);
+        return;
+      }
       if (this.game.player.equip(button.dataset.item)) {
         this.game.audio.click();
         this.notify('Equipped new gear.', 'loot');
@@ -649,8 +688,7 @@ export class UI {
       if (this.game.setQuality(button.dataset.quality)) this.#renderSystem();
     } else if (action === 'resume') this.closePanel();
     else if (action === 'save') {
-      this.game.saveGame(true);
-      this.notify('Progress saved.', 'loot');
+      if (this.game.saveGame(true)) this.notify('Progress saved to browser storage.', 'loot');
     } else if (action === 'mute') {
       this.game.audio.setMuted(!this.game.audio.muted);
       this.#renderSystem();

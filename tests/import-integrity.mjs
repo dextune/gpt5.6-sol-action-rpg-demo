@@ -190,7 +190,7 @@ const registeredHandlers = new Set(
 for (const [classId, def] of Object.entries(HERO_CLASSES)) {
   ok(Array.isArray(def.activeSkills) && def.activeSkills.length > 0, `class ${classId} has activeSkills`);
   ok(Array.isArray(def.passiveSkills), `class ${classId} has passiveSkills`);
-  ok(def.attackStyle === 'melee' || def.attackStyle === 'magic', `class ${classId} attackStyle valid`);
+  ok(def.attackStyle === 'melee' || def.attackStyle === 'magic' || def.attackStyle === 'ranged', `class ${classId} attackStyle valid`);
   ok(Boolean(def.starterWeapon?.model), `class ${classId} starterWeapon.model`);
 
   for (const id of getClassSkillIds(classId)) {

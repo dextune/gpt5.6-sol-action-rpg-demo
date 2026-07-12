@@ -482,6 +482,11 @@ const HERO_CLASS_CLIPS = Object.freeze({
   aerin: Object.freeze([...HERO_MELEE_ATTACK_CLIPS, 'skill_whirlwind', 'skill_crescent', 'skill_skyfall', 'skill_starburst']),
   wizard: Object.freeze(['attack_1', 'attack_2', 'attack_3', 'attack_4', 'cast_1', 'cast_2', 'cast_3', 'cast_4', 'skill_fireball', 'skill_frost_nova', 'skill_blink', 'skill_meteor']),
   rogue: Object.freeze([...HERO_MELEE_ATTACK_CLIPS, 'skill_twin_fang', 'skill_fan_knives', 'skill_shadowstep', 'skill_death_lotus']),
+  ranger: Object.freeze([
+    'attack_1', 'attack_2', 'attack_3', 'attack_4',
+    'cast_1', 'cast_2', 'cast_3', 'cast_4',
+    'skill_pierce_shot', 'skill_trap', 'skill_vault_shot', 'skill_hunter_mark',
+  ]),
 });
 const HERO_SHARED_CLIPS = Object.freeze([
   'idle', 'run', 'sprint', 'dodge', 'hit', 'death',
@@ -684,6 +689,33 @@ function heroAnimations(skeletonInfo, profileId = null) {
     F(1.3, { pelvis: [0, 0, 0], spine: [0, 0, 0], chest: [0, 0, 0], right_upper_arm: [.03, 0, -.08], left_upper_arm: [.03, 0, .08], cape_root: [.12, 0, 0] }),
   ], skeletonInfo));
 
+  // Ranger-unique bow draw / skill clips
+  clips.push(animationClip('skill_pierce_shot', .9, [
+    F(0, { chest: [-.08, 0, 0], right_upper_arm: [-.9, -.3, -.45], left_upper_arm: [-.7, .2, .35], right_lower_arm: [-.55, 0, -.25] }),
+    F(.28, { pelvis: [0, -.18, 0], chest: [-.18, -.15, -.08], right_upper_arm: [-1.45, -.5, -.65], left_upper_arm: [-1.1, .35, .45], right_lower_arm: [-.75, 0, -.35], cape_root: [.35, -.08, 0] }),
+    F(.48, { pelvis: [0, .12, 0], chest: [-.05, .35, .12], right_upper_arm: [-.25, .85, .55], left_upper_arm: [-.4, -.15, .2], right_lower_arm: [.05, 0, .4], cape_root: [.5, .12, 0] }),
+    F(.9, { pelvis: [0, 0, 0], chest: [0, 0, 0], right_upper_arm: [.03, 0, -.08], left_upper_arm: [.03, 0, .08], right_lower_arm: [0, 0, 0], cape_root: [.12, 0, 0] }),
+  ], skeletonInfo));
+  clips.push(animationClip('skill_trap', .95, [
+    F(0, { right_upper_arm: [-.5, 0, -.25], left_upper_arm: [-.45, 0, .25] }),
+    F(.26, { pelvis: [0, -.22, 0], chest: [-.15, 0, 0], right_upper_arm: [-1.15, .25, -.3], left_upper_arm: [-1.0, -.2, .3], cape_root: [.4, 0, 0] }),
+    F(.5, { pelvis: [0, .08, 0], chest: [.06, 0, 0], right_upper_arm: [-.4, .7, .4], left_upper_arm: [-.35, -.55, .35], cape_root: [.55, .08, 0] }),
+    F(.95, { pelvis: [0, 0, 0], chest: [0, 0, 0], right_upper_arm: [.03, 0, -.08], left_upper_arm: [.03, 0, .08], cape_root: [.12, 0, 0] }),
+  ], skeletonInfo));
+  clips.push(animationClip('skill_vault_shot', 1.05, [
+    F(0, { pelvis: [-.1, 0, 0], chest: [-.12, 0, 0], right_upper_arm: [-.55, 0, -.3], left_upper_arm: [-.55, 0, .3] }),
+    F(.24, { pelvis: [-.45, .3, 0], spine: [-.2, .15, 0], right_upper_arm: [-1.0, 0, -.5], left_upper_arm: [-1.0, 0, .5], cape_root: [.85, .1, 0] }, { pelvis: [0, -.12, 0] }),
+    F(.5, { pelvis: [-.2, -.25, 0], chest: [-.08, -.2, 0], right_upper_arm: [-.3, .7, .4], left_upper_arm: [-.9, -.3, .25], cape_root: [.7, -.12, 0] }, { root: [0, 0.05, -0.2] }),
+    F(.72, { pelvis: [0, .1, 0], right_upper_arm: [-.2, 1.0, .55], left_upper_arm: [-.25, -.2, .2], cape_root: [.5, .1, 0] }),
+    F(1.05, { pelvis: [0, 0, 0], spine: [0, 0, 0], chest: [0, 0, 0], right_upper_arm: [.03, 0, -.08], left_upper_arm: [.03, 0, .08], cape_root: [.12, 0, 0] }, { root: [0, 0, 0] }),
+  ], skeletonInfo));
+  clips.push(animationClip('skill_hunter_mark', 1.15, [
+    F(0, { chest: [-.1, 0, 0], right_upper_arm: [-.6, 0, -.35], left_upper_arm: [-.6, 0, .35] }),
+    F(.32, { pelvis: [0, -.15, 0], spine: [-.12, 0, 0], right_upper_arm: [-1.5, 0, -.55], left_upper_arm: [-1.45, 0, .55], cape_root: [.55, 0, 0] }),
+    F(.62, { pelvis: [0, .1, 0], chest: [.08, 0, 0], right_upper_arm: [-.4, .9, .45], left_upper_arm: [-.4, -.9, .45], cape_root: [.7, .15, 0] }),
+    F(1.15, { pelvis: [0, 0, 0], spine: [0, 0, 0], chest: [0, 0, 0], right_upper_arm: [.03, 0, -.08], left_upper_arm: [.03, 0, .08], cape_root: [.12, 0, 0] }),
+  ], skeletonInfo));
+
   // Per-class clip subset — keeps each hero GLB lean instead of shipping every job's kit.
   if (profileId && HERO_CLASS_CLIPS[profileId]) {
     const keep = new Set([...HERO_SHARED_CLIPS, ...HERO_CLASS_CLIPS[profileId]]);
@@ -749,6 +781,26 @@ const HERO_BAKE_PROFILES = Object.freeze({
     belt: 0x14181e,
     buckle: 0xb8e8d8,
     outline: 0x0a0e14,
+    hairStyle: 'knight',
+    headGear: 'none',
+    bodyStyle: 'default',
+  }),
+  // Wildshot ranger — forest cloak, auburn crop, amber eyes; no runtime hood.
+  ranger: Object.freeze({
+    name: 'Ranger_Hero_Rig',
+    skin: 0xd8a882,
+    cloth: 0x4a6a48,
+    leather: 0x3a2a1c,
+    cape: 0x3a4a30,
+    hair: 0x8a4028,
+    eye: 0xe8b040,
+    eyeWhite: 0xfff6e8,
+    brow: 0x5a2818,
+    mouth: 0x7a4a44,
+    trim: 0xc8b070,
+    belt: 0x241810,
+    buckle: 0xd4b862,
+    outline: 0x101810,
     hairStyle: 'knight',
     headGear: 'none',
     bodyStyle: 'default',
@@ -1069,6 +1121,7 @@ function bladeShape(kind, length, width) {
 
 function createWeapon(kind) {
   if (kind === 'staff') return createStaff();
+  if (kind === 'bow') return createBow();
   const specs = {
     sword: { length: 1.55, width: .18 },
     saber: { length: 1.62, width: .18 },
@@ -1130,6 +1183,46 @@ function createWeapon(kind) {
   tip.position.set(0, specs.length + .23, 0);
   group.add(base, tip);
   group.rotation.set(0, 0, -.08);
+  return group;
+}
+
+function createBow() {
+  const group = new THREE.Group();
+  group.name = 'weapon_bow';
+  group.userData.weaponKind = 'bow';
+  const wood = material('weapon_grip', 0x6a4a28, .82, .06);
+  const dark = material('weapon_metal', 0x3a2a18, .55, .25);
+  const stringMat = material('weapon_trim', 0xe8dcc0, .4, .15);
+  // Recurve limbs as a thin torus segment + grip
+  const limb = new THREE.Mesh(new THREE.TorusGeometry(0.72, 0.045, 8, 28, Math.PI * 1.15), wood);
+  limb.name = 'blade_mesh';
+  limb.rotation.z = Math.PI / 2;
+  limb.rotation.y = Math.PI / 2;
+  limb.position.set(0, 0.85, 0);
+  limb.castShadow = true;
+  group.add(limb);
+  const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.06, 0.28, 10), dark);
+  grip.name = 'weapon_grip';
+  grip.position.y = 0.85;
+  grip.castShadow = true;
+  group.add(grip);
+  // Bowstring
+  const string = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 1.35, 6), stringMat);
+  string.position.set(0.22, 0.85, 0);
+  string.rotation.z = 0.08;
+  group.add(string);
+  const tipOrnament = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 6), stringMat);
+  tipOrnament.name = 'weapon_rune';
+  tipOrnament.position.set(0.05, 1.55, 0);
+  group.add(tipOrnament);
+  const base = new THREE.Object3D();
+  base.name = 'blade_base';
+  base.position.set(0, 0.35, 0);
+  const tip = new THREE.Object3D();
+  tip.name = 'blade_tip';
+  tip.position.set(0, 1.55, 0);
+  group.add(base, tip);
+  group.rotation.set(0, 0, -0.12);
   return group;
 }
 
@@ -1630,9 +1723,11 @@ async function main() {
   const aerinOnly = args.has('--aerin-only') || args.has('--knight-only');
   const wizardOnly = args.has('--wizard-only');
   const rogueOnly = args.has('--rogue-only');
-  const heroesOnly = args.has('--heroes-only') || wizardOnly || aerinOnly || rogueOnly;
+  const rangerOnly = args.has('--ranger-only');
+  const heroesOnly = args.has('--heroes-only') || wizardOnly || aerinOnly || rogueOnly || rangerOnly;
   const staffOnly = args.has('--staff-only');
   const daggerOnly = args.has('--dagger-only');
+  const bowOnly = args.has('--bow-only');
 
   await mkdir(resolve(ASSETS, 'models/hero'), { recursive: true });
   await mkdir(resolve(ASSETS, 'models/props'), { recursive: true });
@@ -1649,6 +1744,12 @@ async function main() {
     return;
   }
 
+  if (bowOnly) {
+    await exportGLB(createWeapon('bow'), resolve(ASSETS, 'models/props/weapon_bow.glb'));
+    console.log('Bow weapon generation complete.');
+    return;
+  }
+
   if (!heroesOnly) {
     await mkdir(resolve(ASSETS, 'models/monsters'), { recursive: true });
     await mkdir(resolve(ASSETS, 'models/environment'), { recursive: true });
@@ -1660,10 +1761,13 @@ async function main() {
     await exportHeroClass('wizard', 'wizard');
   } else if (rogueOnly) {
     await exportHeroClass('rogue', 'rogue');
+  } else if (rangerOnly) {
+    await exportHeroClass('ranger', 'ranger');
   } else if (!args.has('--no-heroes')) {
     await exportHeroClass('aerin', 'aerin');
     await exportHeroClass('wizard', 'wizard');
     await exportHeroClass('rogue', 'rogue');
+    await exportHeroClass('ranger', 'ranger');
   }
 
   if (heroesOnly) {
@@ -1671,7 +1775,7 @@ async function main() {
     return;
   }
 
-  for (const kind of ['sword', 'saber', 'greatsword', 'leaf', 'katana', 'relic', 'staff', 'dagger']) {
+  for (const kind of ['sword', 'saber', 'greatsword', 'leaf', 'katana', 'relic', 'staff', 'dagger', 'bow']) {
     await exportGLB(createWeapon(kind), resolve(ASSETS, `models/props/weapon_${kind}.glb`));
   }
 

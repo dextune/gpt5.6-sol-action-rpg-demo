@@ -70,6 +70,26 @@ const CLASS_LOOKS = Object.freeze({
     headKit: 'rogue',
     scale: .92,
   }),
+  // Wildshot ranger — forest olive cloak, auburn crop, amber eyes; no runtime hood.
+  ranger: Object.freeze({
+    palette: Object.freeze({
+      skin: 0xd8a882,
+      cloth: 0x4a6a48,
+      clothDark: 0x2a3a28,
+      leather: 0x3a2a1c,
+      hair: 0x8a4028,
+      hairDark: 0x5a2818,
+      metal: 0xc8b070,
+      eye: 0xe8b040,
+      outline: 0x101810,
+      shadowTintCloth: 0x1a2818,
+      shadowTintHair: 0x3a2010,
+      rimHair: 0xf0c090,
+      rimSkin: 0xffd0b0,
+    }),
+    headKit: 'none',
+    scale: .93,
+  }),
 });
 
 // ~70% of previous overlong blades, with thicker girth for a solid blade read.
@@ -82,6 +102,7 @@ const WEAPON_LENGTH = Object.freeze({
   relic: 1.25,
   staff: 1.35,
   dagger: .78,
+  bow: 1.05,
 });
 const WEAPON_GIRTH = Object.freeze({
   sword: 1.22,
@@ -92,6 +113,7 @@ const WEAPON_GIRTH = Object.freeze({
   relic: 1.25,
   staff: .95,
   dagger: 1,
+  bow: 1.15,
 });
 
 function resolveLook(lookId) {
@@ -327,8 +349,14 @@ export class CharacterFactory {
     const asset = this.assets.cloneModel(`weapon.${kind}`, { quality: 'high' });
     const weapon = asset.scene;
     weapon.name = `Equipped_${kind}`;
-    weapon.position.set(.02, -.02, .01);
-    weapon.rotation.set(0, Math.PI, .14);
+    // Bow sits more upright on the hip/hand socket; blades keep the legacy tilt.
+    if (kind === 'bow') {
+      weapon.position.set(.04, -.04, .02);
+      weapon.rotation.set(0.15, Math.PI * 0.92, -0.55);
+    } else {
+      weapon.position.set(.02, -.02, .01);
+      weapon.rotation.set(0, Math.PI, .14);
+    }
     const length = WEAPON_LENGTH[kind] ?? 1.25;
     const girth = WEAPON_GIRTH[kind] ?? 1.2;
     weapon.scale.set(girth, length, girth);

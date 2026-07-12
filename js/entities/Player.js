@@ -2,8 +2,8 @@ import * as THREE from 'three';
 import { PLAYER_CONFIG } from '../config.js';
 import {
   DEFAULT_HERO_CLASS_ID, RARITIES, SKILLS,
-  createClassStarterWeapon, createEmptySkillCooldowns, createEmptySkillRanks,
-  getClassSkillIds, getHeroClass, resolveHeroClassId,
+  canClassUseWeapon, createClassStarterWeapon, createEmptySkillCooldowns, createEmptySkillRanks,
+  getClassSkillIds, getHeroClass, isRangedAttackStyle, resolveHeroClassId,
 } from '../data/content.js';
 import { clamp, disposeObject } from '../core/Utils.js';
 import { setMaterialHitPulse } from '../graphics/StylizedMaterial.js';
@@ -51,7 +51,14 @@ export class Player {
       this.mesh.position.copy(position);
       this.mesh.rotation.y = rotationY;
       this.facing.copy(facing);
+      // Title preview: always show this class's starter weapon (never a leftover blade on ranger).
+      const starter = createClassStarterWeapon(this.classId);
+      if (!this.inventory.some(item => item.id === starter.id)) this.inventory.unshift(starter);
+      this.equipped.weapon = starter.id;
+    } else {
+      this.#sanitizeEquippedWeapon();
     }
+    this.#updateWeaponVisual();
     return this.classId;
   }
 
@@ -146,7 +153,7 @@ export class Player {
     if (this._passiveEffectsCache) return this._passiveEffectsCache;
     const out = {
       attack: 0, hp: 0, defense: 0, skillPower: 0, mpRegen: 0, mpFlat: 0, luck: 0, gold: 0,
-      crit: 0, haste: 0, execute: 0, dotPower: 0, statusCrit: 0,
+      crit: 0, haste: 0, execute: 0, dotPower: 0, statusCrit: 0, moveSpeed: 0,
     };
     for (const id of getClassSkillIds(this.classId)) {
       const skill = SKILLS[id];
@@ -199,7 +206,9 @@ export class Player {
     return Math.max(0, raw - 1.75);
   }
   get energyGainMul() { return 1 + this.attackSpeedOverflow * 2; }
-  get moveSpeed() { return PLAYER_CONFIG.moveSpeed + this.equipmentStats.moveSpeed; }
+  get moveSpeed() {
+    return PLAYER_CONFIG.moveSpeed * (1 + this.passiveEffects.moveSpeed) + this.equipmentStats.moveSpeed;
+  }
   get skillPower() {
     const mods = this.classMods;
     return 1 + this.equipmentStats.skillPower + this.passiveEffects.skillPower + (mods.skillPower ?? 0);
@@ -359,8 +368,7 @@ export class Player {
    * Magic keeps a stable 4-step orb combo.
    */
   get basicComboLength() {
-    const style = getHeroClass(this.classId).attackStyle ?? 'melee';
-    if (style === 'magic') return 4;
+    if (isRangedAttackStyle(this.classId)) return 4;
     // Lv1–3: 3 · 4–7: 4 · 8–12: 5 · 13–19: 6 · 20+: 7
     if (this.level >= 20) return 7;
     if (this.level >= 13) return 6;
@@ -389,10 +397,9 @@ export class Player {
     const lunge = (finisher ? 2.4 : 1.35 + this.comboIndex * .22) * Math.min(1.15, this.attackSpeed);
     this.velocity.addScaledVector(this.facing, lunge * .35);
     const timeScale = Math.min(2.15, this.attackSpeed * (finisher ? 1.02 : 1.35));
-    // Melee: attack_1..7 when baked. Magic: prefer cast_1..4 staff poses.
-    const style = getHeroClass(this.classId).attackStyle ?? 'melee';
+    // Melee: attack_1..7 when baked. Magic/ranged: prefer cast_1..4 draw/cast poses.
     let animName;
-    if (style === 'magic') {
+    if (isRangedAttackStyle(this.classId)) {
       const castSlot = (this.comboIndex % 4) + 1;
       animName = `cast_${castSlot}`;
       if (!this.animation.has(animName)) animName = `attack_${Math.min(4, castSlot)}`;
@@ -577,20 +584,46 @@ export class Player {
     if (this.inventory.length >= PLAYER_CONFIG.inventoryLimit) return { added: false, reason: 'full' };
     this.inventory.push(item);
     const current = this.getItem(this.equipped[item.slot]);
-    const autoEquip = !current || (item.score ?? 0) > (current.score ?? 0) * 1.08;
-    if (autoEquip) this.equip(item.id);
-    return { added: true, equipped: autoEquip };
+    const better = !current || (item.score ?? 0) > (current.score ?? 0) * 1.08;
+    // Never auto-equip weapons this class cannot wield (e.g. sword on ranger).
+    const autoEquip = better && this.canEquipItem(item) && this.equip(item.id);
+    return { added: true, equipped: Boolean(autoEquip) };
+  }
+
+  /** Class weapon allow-list (armor/charm always ok). */
+  canEquipItem(item) {
+    if (!item || !['weapon', 'armor', 'charm'].includes(item.slot)) return false;
+    if (item.slot === 'weapon') return canClassUseWeapon(this.classId, item);
+    return true;
   }
 
   equip(itemId) {
     const item = this.getItem(itemId);
     if (!item || !['weapon', 'armor', 'charm'].includes(item.slot)) return false;
+    if (!this.canEquipItem(item)) return false;
     this.equipped[item.slot] = item.id;
     this.invalidateStats();
     this.hp = Math.min(this.hp, this.maxHp);
     this.mp = Math.min(this.mp, this.maxMp);
     if (item.slot === 'weapon') this.#updateWeaponVisual();
     return true;
+  }
+
+  /** Ensure held weapon model matches class; used after load / class change. */
+  #sanitizeEquippedWeapon() {
+    const starter = createClassStarterWeapon(this.classId);
+    if (!this.inventory.some(item => item.id === starter.id)) {
+      this.inventory.unshift(starter);
+    }
+    const equipped = this.getItem(this.equipped.weapon);
+    if (equipped && this.canEquipItem(equipped)) return;
+    // Prefer best legal weapon in bag, else starter.
+    let best = null;
+    for (const item of this.inventory) {
+      if (item.slot !== 'weapon' || !this.canEquipItem(item)) continue;
+      if (!best || (item.score ?? 0) > (best.score ?? 0)) best = item;
+    }
+    this.equipped.weapon = best?.id ?? starter.id;
   }
 
   salvage(itemId) {
@@ -624,6 +657,10 @@ export class Player {
   }
 
   #updateWeaponVisual() {
+    // Hard guard: never mount a mesh this class cannot wield.
+    if (this.weapon && !canClassUseWeapon(this.classId, this.weapon)) {
+      this.#sanitizeEquippedWeapon();
+    }
     const rarity = RARITIES[this.weapon?.rarity] ?? RARITIES.common;
     this.characterFactory.equipWeapon(this.refs, { ...this.weapon, rarityColor: rarity.color });
   }
@@ -679,6 +716,8 @@ export class Player {
       const item = this.getItem(this.equipped[slot]);
       if (!item || item.slot !== slot) this.equipped[slot] = slot === 'weapon' ? starter.id : null;
     }
+    // Drop illegal weapons from the hand (old saves / wrong-class loot).
+    this.#sanitizeEquippedWeapon();
     this.potions = clamp(Number(state.potions) || 0, 0, Number(state.maxPotions) || 5);
     this.maxPotions = Math.max(5, Number(state.maxPotions) || 5);
     const position = Array.isArray(state.position) ? state.position : [0, 0, 6];
