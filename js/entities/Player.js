@@ -13,6 +13,8 @@ const NUMERIC_GEAR_STATS = Object.freeze([
   'skillPower', 'moveSpeed', 'luck',
 ]);
 
+const TMP_VEL_DIR = new THREE.Vector3();
+
 export class Player {
   constructor(scene, characterFactory, quality = 'medium', classId = DEFAULT_HERO_CLASS_ID) {
     this.scene = scene;
@@ -310,24 +312,41 @@ export class Player {
       // Commit to the swing — slight slow, but keep forward bite during lunge.
       const slow = this.attackAnim > 0 ? (this.attackLunge > 0 ? .72 : .42) : this.castTimer > 0 ? .28 : 1;
       desired.multiplyScalar(slow);
-      const acceleration = this.moveDirection.lengthSq() > .001 ? PLAYER_CONFIG.acceleration : PLAYER_CONFIG.friction;
+      const hasInput = this.moveDirection.lengthSq() > .001;
+      // 180° / sharp reverse: kill opposite momentum so the hero does not slide backward
+      // while the body slowly turns (felt like long stepping arcs).
+      if (hasInput && this.velocity.lengthSq() > 1e-4) {
+        const inputDir = this.moveDirection;
+        const along = this.velocity.dot(inputDir);
+        if (along < 0) {
+          this.velocity.addScaledVector(inputDir, -along);
+        }
+      }
+      // Reverse / large turns use higher accel so direction changes feel instant.
+      let acceleration = hasInput ? PLAYER_CONFIG.acceleration : PLAYER_CONFIG.friction;
+      if (hasInput && this.velocity.lengthSq() > 1e-4) {
+        const velDirDot = TMP_VEL_DIR.copy(this.velocity).normalize().dot(this.moveDirection);
+        if (velDirDot < 0.25) acceleration = Math.max(acceleration, 92);
+      }
       this.velocity.lerp(desired, 1 - Math.exp(-acceleration * delta));
-      if (this.moveDirection.lengthSq() > .01 && this.attackAnim <= 0 && this.castTimer <= 0) {
-        this.facing.lerp(this.moveDirection, 1 - Math.exp(-13 * delta)).normalize();
+      // Body facing: snap to move input immediately (action-RPG style). Soft lerp only
+      // for tiny corrections was making 180° turns look like a long pivot step.
+      if (hasInput && this.attackAnim <= 0 && this.castTimer <= 0) {
+        this.facing.copy(this.moveDirection).setY(0);
+        if (this.facing.lengthSq() > 1e-6) this.facing.normalize();
       }
     }
 
     this.position.addScaledVector(this.velocity, delta);
     this.position.addScaledVector(this.knockback, delta);
     world.resolvePosition(this.position, .48);
-    // Snap yaw hard during attacks so the cut faces body facing / move dir.
-    const yawSnap = this.attackAnim > 0 ? 1 - Math.exp(-28 * delta) : 1;
+    // Mesh yaw always tracks facing; keep a tiny blend only mid-attack so the cut does not jitter.
     const targetYaw = Math.atan2(this.facing.x, this.facing.z);
     if (this.attackAnim > 0) {
       let dy = targetYaw - this.mesh.rotation.y;
       while (dy > Math.PI) dy -= Math.PI * 2;
       while (dy < -Math.PI) dy += Math.PI * 2;
-      this.mesh.rotation.y += dy * yawSnap;
+      this.mesh.rotation.y += dy * (1 - Math.exp(-28 * delta));
     } else {
       this.mesh.rotation.y = targetYaw;
     }

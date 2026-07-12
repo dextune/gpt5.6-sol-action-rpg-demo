@@ -369,6 +369,8 @@ export class Game {
   #updateCamera(delta) {
     if (this.state === 'title' || !this.player || !this.world) return;
     const distance = this.cameraDistance;
+    // Orbit is driven only by cameraYaw + player position — never by body facing.
+    // Looking along facing made 180° turns pan the whole frame as if the camera translated.
     TMP_CAMERA.set(
       Math.sin(this.cameraYaw) * distance,
       this.#cameraOffsetHeight(distance),
@@ -379,7 +381,6 @@ export class Game {
     const positionLerp = 1 - Math.exp(-7.4 * delta);
     this.camera.position.lerp(TMP_CAMERA, positionLerp);
     this.cameraTarget.copy(this.player.position)
-      .addScaledVector(this.player.facing, 1.05)
       .add(TMP_TARGET.set(0, GAME_CONFIG.cameraLookHeight, 0));
 
     // Camera shake intentionally disabled — keep framing stable during combat.
@@ -396,7 +397,6 @@ export class Game {
     ).add(this.player.position);
     this.camera.position.copy(TMP_CAMERA);
     this.cameraTarget.copy(this.player.position)
-      .addScaledVector(this.player.facing, 1.05)
       .add(TMP_TARGET.set(0, GAME_CONFIG.cameraLookHeight, 0));
     this.camera.lookAt(this.cameraTarget);
   }
