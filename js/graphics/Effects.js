@@ -274,34 +274,37 @@ export class Effects {
   /**
    * Flashy multi-layer hit VFX (no camera shake) — sparks, flash rings, streaks, optional beam.
    * @param {'light'|'heavy'|'critical'|'finisher'} intensity
+   * @param {{ direction?: THREE.Vector3, scale?: number }} options scale multiplies star/ring/spark size (multi-hit coalesce).
    */
   impact(position, color = 0xffffff, intensity = 'light', options = {}) {
     const dir = options.direction?.clone?.().setY(0).normalize?.() ?? new THREE.Vector3(0, 0, 1);
+    if (dir.lengthSq() < 1e-6) dir.set(0, 0, 1);
+    const scale = Math.max(0.5, options.scale ?? 1);
     const crit = intensity === 'critical';
     const finisher = intensity === 'finisher';
     const heavy = intensity === 'heavy' || crit || finisher;
     const accent = crit ? 0xffe47a : finisher ? 0xfff6d0 : color;
     const white = 0xffffff;
-    const sparkCount = crit ? 48 : finisher ? 36 : heavy ? 28 : 18;
-    const ringSize = crit ? 2.1 : finisher ? 1.75 : heavy ? 1.25 : .85;
+    const sparkCount = Math.round((crit ? 48 : finisher ? 36 : heavy ? 28 : 18) * Math.min(1.35, 0.7 + scale * 0.25));
+    const ringSize = (crit ? 2.1 : finisher ? 1.75 : heavy ? 1.25 : .85) * scale;
 
     // Anime star flash + light pop — instant "contact" read before particles bloom.
-    this.starburst(position, white, crit ? 3.4 : finisher ? 2.9 : heavy ? 2.3 : 1.55, {
+    this.starburst(position, white, (crit ? 3.4 : finisher ? 2.9 : heavy ? 2.3 : 1.55) * scale, {
       life: crit ? .22 : .16, opacity: 1,
     });
     if (heavy) {
-      this.starburst(position, accent, crit ? 4.6 : 3.4, { life: .28, opacity: .7, spin: -3.5 });
+      this.starburst(position, accent, (crit ? 4.6 : 3.4) * scale, { life: .28, opacity: .7, spin: -3.5 });
     }
-    this.flash(position, crit || finisher ? 0xffe9b0 : color, crit ? 26 : finisher ? 20 : heavy ? 15 : 9, {
-      life: crit ? .2 : .14, distance: crit ? 14 : 10,
+    this.flash(position, crit || finisher ? 0xffe9b0 : color, (crit ? 26 : finisher ? 20 : heavy ? 15 : 9) * Math.min(1.4, scale), {
+      life: crit ? .2 : .14, distance: (crit ? 14 : 10) * Math.min(1.25, scale),
     });
 
     // Core white flash + colored spark shell.
     this.burst(position, white, Math.round(sparkCount * .45), {
-      speed: crit ? 9.5 : 7.2, size: crit ? .48 : .34, life: .28, gravity: 4, upward: .15, height: 0, opacity: 1,
+      speed: crit ? 9.5 : 7.2, size: (crit ? .48 : .34) * Math.min(1.2, scale), life: .28, gravity: 4, upward: .15, height: 0, opacity: 1,
     });
     this.burst(position, accent, sparkCount, {
-      speed: crit ? 8.5 : heavy ? 6.8 : 5.2, size: crit ? .4 : .3, life: crit ? .55 : .42,
+      speed: crit ? 8.5 : heavy ? 6.8 : 5.2, size: (crit ? .4 : .3) * Math.min(1.2, scale), life: crit ? .55 : .42,
       gravity: 6.5, upward: .7, height: 0, opacity: .95,
     });
     // Secondary glitter scatter.
@@ -315,22 +318,22 @@ export class Effects {
     if (heavy) this.ring(position, accent, ringSize * 1.45, { life: .32, startScale: .05, height: .04, opacity: .55, lift: .4 });
 
     // Slash streaks through the hit point.
-    this.slash(position, dir, white, heavy ? 2.4 : 1.7, {
+    this.slash(position, dir, white, (heavy ? 2.4 : 1.7) * Math.min(1.3, scale), {
       height: 0, thickness: heavy ? .1 : .07, opacity: .95, spin: 4.5, life: .12, grow: 1.4, tilt: .2,
     });
-    this.slash(position, dir, accent, heavy ? 2.8 : 2.0, {
+    this.slash(position, dir, accent, (heavy ? 2.8 : 2.0) * Math.min(1.3, scale), {
       height: .05, thickness: heavy ? .08 : .05, opacity: .75, spin: -3.2, life: .16, grow: 1.1,
       angleOffset: 1.1, tilt: -.35,
     });
     if (crit || finisher) {
-      this.slash(position, dir, white, 3.2, {
+      this.slash(position, dir, white, 3.2 * Math.min(1.3, scale), {
         height: -.05, thickness: .06, opacity: .65, spin: 6, life: .14, grow: 1.6, angleOffset: -1.0,
       });
-      this.pillar(position, accent, crit ? 5.5 : 4.2, { life: .32, bottom: .55, opacity: .55 });
-      this.trail(position, white, crit ? .85 : .6, .16);
-      this.trail(position.clone().addScaledVector(dir, .4), accent, .5, .2);
+      this.pillar(position, accent, (crit ? 5.5 : 4.2) * Math.min(1.2, scale), { life: .32, bottom: .55, opacity: .55 });
+      this.trail(position, white, (crit ? .85 : .6) * scale, .16);
+      this.trail(position.clone().addScaledVector(dir, .4), accent, .5 * scale, .2);
     } else {
-      this.trail(position, accent, .38, .14);
+      this.trail(position, accent, .38 * scale, .14);
     }
   }
 
@@ -355,6 +358,46 @@ export class Effects {
     this.burst(position.clone().addScaledVector(direction, size * .25).add(new THREE.Vector3(0, 1, 0)), color, heavy ? 14 : 8, {
       speed: 3.5, size: .22, life: .32, upward: .2, height: 0, gravity: 5,
     });
+  }
+
+  /**
+   * Lite weapon swing trail — additive slash ribbon + soft glow along the swing path.
+   * v1: no bone sampling; reuses slash/trail pools.
+   */
+  swingTrail(position, direction, color = 0xffffff, range = 2.4, options = {}) {
+    const dir = direction?.clone?.().setY(0) ?? new THREE.Vector3(0, 0, 1);
+    if (dir.lengthSq() < 1e-6) dir.set(0, 0, 1);
+    else dir.normalize();
+    const heavy = Boolean(options.heavy);
+    const size = range * (heavy ? 1.15 : 1);
+    const angle = options.angleOffset ?? 0.42;
+    // Primary weapon-color ribbon through the arc.
+    this.slash(position, dir, color, size, {
+      height: options.height ?? 1.08,
+      thickness: heavy ? .14 : .09,
+      opacity: heavy ? .95 : .78,
+      spin: heavy ? 3.4 : 2.5,
+      life: heavy ? .28 : .2,
+      grow: heavy ? .85 : .6,
+      tilt: .12,
+      angleOffset: angle * 0.35,
+    });
+    // Brighter core edge (white) for blade read.
+    this.slash(position, dir, 0xffffff, size * .92, {
+      height: (options.height ?? 1.08) + .08,
+      thickness: heavy ? .07 : .045,
+      opacity: heavy ? .62 : .48,
+      spin: heavy ? -2.8 : -2.1,
+      life: heavy ? .2 : .14,
+      grow: .95,
+      tilt: -.18,
+      angleOffset: -angle * 0.55,
+    });
+    // Soft afterglow spheres along the swing midline.
+    const mid = position.clone().addScaledVector(dir, range * 0.45);
+    mid.y += options.height ?? 1.08;
+    this.trail(mid, color, heavy ? .55 : .38, heavy ? .22 : .15);
+    this.trail(mid.clone().addScaledVector(dir, range * 0.22), color, heavy ? .4 : .28, .12);
   }
 
   /** Fading ground disc (ice residual / scorch). */

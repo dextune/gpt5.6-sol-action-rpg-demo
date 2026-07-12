@@ -92,6 +92,15 @@ export class CombatSystem {
       player.position.clone().add(new THREE.Vector3(0, 1.05, 0)).addScaledVector(direction, .55),
       color, finisher ? .7 : .34 + chain * .2, finisher ? .24 : .12,
     );
+    // Lite weapon swing ribbon (no bone sampling) — melee-only path.
+    const swingRange = ((finisher ? profile.finisherRange : profile.range) + combo * profile.rangePerCombo + levelBoost * .25) * rangeMult;
+    this.game.effects.swingTrail?.(
+      player.position.clone().add(new THREE.Vector3(0, 1.05, 0)),
+      direction,
+      color,
+      swingRange * (finisher ? 1.2 : 1),
+      { heavy: finisher || combo >= 2, angleOffset: combo % 2 ? .45 : -.4 },
+    );
 
     // High-level finishers and late chain steps land as multi-pulse hits for impact.
     let pulses = finisher
@@ -118,6 +127,18 @@ export class CombatSystem {
           spin: (combo + pulse) % 2 ? -3.1 : 2.9,
           angleOffset: (combo + pulse) % 2 ? .58 : -.5,
         });
+        // Second delayed ribbon — brighter follow-through on the same swing.
+        this.game.effects.swingTrail?.(
+          hitOrigin.clone().add(new THREE.Vector3(0, 0.08, 0)),
+          direction,
+          color,
+          range * (finisher ? 1.25 : 1.05),
+          {
+            heavy: finisher || combo >= 2,
+            height: finisher ? 1.15 : 0.98,
+            angleOffset: (combo + pulse) % 2 ? -.52 : .48,
+          },
+        );
         if (finisher && pulse === 0) {
           this.game.effects.ring(player.position, color, 3.4 + comboLength * .12, { life: .36, startScale: .12, height: .1, opacity: .75 });
           this.game.effects.ring(player.position, 0xffffff, 2.2, { life: .22, startScale: .2, height: .14, opacity: .88 });
@@ -1186,7 +1207,7 @@ export class CombatSystem {
 
   #hitEnemiesInCone(origin, direction, range, arc, rawDamage, options = {}) {
     const cosThreshold = Math.cos(arc * .5);
-    let hits = 0;
+    const collected = [];
     for (const enemy of this.game.enemies.enemies) {
       if (!enemy.alive) continue;
       const offset = TMP_A.copy(enemy.position).sub(origin).setY(0);
@@ -1195,22 +1216,60 @@ export class CombatSystem {
       const dir = offset.normalize();
       const dot = dir.dot(direction);
       if (dot < cosThreshold) continue;
-      this.#damageEnemy(enemy, rawDamage, { ...options, direction: dir.clone() });
-      hits += 1;
+      collected.push({ enemy, direction: dir.clone() });
     }
-    return hits;
+    return this.#resolveMultiHits(collected, rawDamage, {
+      ...options,
+      direction: options.direction ?? direction,
+    });
   }
 
   #hitEnemiesInRadius(origin, radius, rawDamage, options = {}) {
-    let hits = 0;
+    const collected = [];
     for (const enemy of this.game.enemies.enemies) {
       if (!enemy.alive) continue;
       const offset = TMP_A.copy(enemy.position).sub(origin).setY(0);
       const distance = offset.length();
       if (distance > radius + enemy.radius) continue;
-      const direction = distance > .001 ? offset.normalize().clone() : new THREE.Vector3(rand(-1, 1), 0, rand(-1, 1)).normalize();
-      this.#damageEnemy(enemy, rawDamage, { ...options, direction });
-      hits += 1;
+      const direction = distance > .001
+        ? offset.normalize().clone()
+        : new THREE.Vector3(rand(-1, 1), 0, rand(-1, 1)).normalize();
+      collected.push({ enemy, direction });
+    }
+    return this.#resolveMultiHits(collected, rawDamage, options);
+  }
+
+  /**
+   * Apply damage to collected hits; coalesce heavy impact VFX when 3+ land together.
+   * options.coalesceVfx defaults true — set false to force per-enemy full impact().
+   */
+  #resolveMultiHits(collected, rawDamage, options = {}) {
+    const hits = collected.length;
+    if (hits <= 0) return 0;
+    const coalesce = options.coalesceVfx !== false && hits >= 3;
+    if (coalesce) {
+      const centroid = new THREE.Vector3();
+      let heightSum = 0;
+      for (const entry of collected) {
+        centroid.add(entry.enemy.position);
+        heightSum += entry.enemy.refs.modelHeight * .48;
+      }
+      centroid.multiplyScalar(1 / hits);
+      centroid.y += heightSum / hits;
+      const weaponColor = this.game.player.weapon?.rarityColor ?? 0xeef8ff;
+      // Scale 1.6 + 0.25×hits, cap ~4 (matches hit-feel roadmap).
+      const scale = Math.min(4, 1.6 + 0.25 * hits);
+      this.game.effects.impact(centroid, weaponColor, hits >= 5 ? 'finisher' : 'heavy', {
+        direction: options.direction,
+        scale,
+      });
+    }
+    for (const entry of collected) {
+      this.#damageEnemy(entry.enemy, rawDamage, {
+        ...options,
+        direction: entry.direction,
+        liteImpact: coalesce,
+      });
     }
     return hits;
   }
@@ -1262,13 +1321,21 @@ export class CombatSystem {
     const weaponColor = player.weapon?.rarityColor ?? 0xeef8ff;
     const intensity = critical ? 'critical' : finisher ? 'finisher' : options.skill ? 'heavy' : 'light';
 
-    // Flashy contact VFX only — no camera shake. Defense slightly amps impact pop.
-    const defenseHit = this.game.mode === 'defense';
-    this.game.effects.impact(hitPoint, critical ? 0xffe47a : weaponColor, intensity, {
-      direction: options.direction,
-    });
-    if (defenseHit && (critical || finisher || options.skill)) {
-      this.game.effects.trail(hitPoint, critical ? 0xffe47a : weaponColor, critical ? 0.42 : 0.3, 0.32);
+    // Multi-hit coalesce: small spark/trail only; heavy impact already fired at centroid.
+    if (options.liteImpact) {
+      this.game.effects.burst(hitPoint, critical ? 0xffe47a : weaponColor, 4, {
+        speed: 3.6, size: .18, life: .28, gravity: 5, upward: .25, height: 0, opacity: .9,
+      });
+      this.game.effects.trail(hitPoint, critical ? 0xffe47a : weaponColor, critical ? .32 : .22, .16);
+    } else {
+      // Flashy contact VFX only — no camera shake. Defense slightly amps impact pop.
+      const defenseHit = this.game.mode === 'defense';
+      this.game.effects.impact(hitPoint, critical ? 0xffe47a : weaponColor, intensity, {
+        direction: options.direction,
+      });
+      if (defenseHit && (critical || finisher || options.skill)) {
+        this.game.effects.trail(hitPoint, critical ? 0xffe47a : weaponColor, critical ? 0.42 : 0.3, 0.32);
+      }
     }
     if (options.status?.id === 'slow') {
       this.game.effects.trail(hitPoint, 0x7ad8ff, 0.35, 0.35);
