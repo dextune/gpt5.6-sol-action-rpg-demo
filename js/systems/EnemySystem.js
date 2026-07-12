@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { GAME_CONFIG } from '../config.js';
+import { GAME_CONFIG, HORDE_CONFIG } from '../config.js';
 import { ENEMY_TYPES, ZONES, ZONE_BOSSES, ZONE_SPAWNS } from '../data/content.js';
 import { chance, clamp, rand, randInt, weightedPick } from '../core/Utils.js';
 import { Enemy } from '../entities/Enemy.js';
@@ -51,9 +51,21 @@ export class EnemySystem {
 
     // Continuous field spawn is Hunt-only. Defense uses DefenseSystem.spawnWave.
     if (!defenseMode && this.spawnTimer <= 0 && this.game.state === 'playing' && this.game.player.alive) {
-      this.spawnTimer = this.livingCount < 10 ? .07 : .26;
-      const target = clamp(GAME_CONFIG.targetEnemies + Math.floor(this.game.player.level / 8), 32, GAME_CONFIG.maxEnemies);
-      if (this.livingCount < target) this.#spawnOne();
+      this.spawnTimer = this.livingCount < 18 ? .06 : .22;
+      const target = clamp(
+        GAME_CONFIG.targetEnemies + Math.floor(this.game.player.level / 8),
+        Math.min(48, GAME_CONFIG.targetEnemies),
+        GAME_CONFIG.maxEnemies,
+      );
+      if (this.livingCount < target) {
+        // Prefer packs for horde density; fall back to singles near cap.
+        const room = GAME_CONFIG.maxEnemies + 4 - this.enemies.length;
+        if (room >= HORDE_CONFIG.packMin && chance(HORDE_CONFIG.packChance)) {
+          this.spawnPack();
+        } else {
+          this.#spawnOne();
+        }
+      }
     }
   }
 
@@ -73,7 +85,76 @@ export class EnemySystem {
     const eliteChance = clamp(.045 + player.luck * .65 + this.game.hunt.worldTier * .006, .045, .26);
     const elite = chance(eliteChance) && this.enemies.filter(enemy => enemy.elite && enemy.alive).length < 7;
     const eliteAffix = elite ? this.rollEliteAffix() : null;
-    return this.spawn(data, position, { level, elite, eliteAffix });
+    // ~70% fodder; elites/bosses never fodder (enforced in Enemy + here).
+    const fodder = !elite && !data.boss && chance(HORDE_CONFIG.fodderRatio);
+    return this.spawn(data, position, { level, elite, eliteAffix, fodder });
+  }
+
+  /**
+   * Spawn a clustered fodder pack near the player.
+   * @param {string|object|null} typeOrData - enemy type id / data, or null for zone-weighted pick
+   * @param {number|null} count - pack size (clamped to packMin..packMax and remaining cap)
+   * @param {THREE.Vector3|null} origin - pack center; defaults to random ring around player
+   */
+  spawnPack(typeOrData = null, count = null, origin = null) {
+    const player = this.game.player;
+    const world = this.game.world;
+    const packCap = GAME_CONFIG.maxEnemies + 4 - this.enemies.length;
+    if (packCap <= 0) return [];
+
+    const size = Math.min(
+      packCap,
+      Math.max(
+        1,
+        count ?? randInt(HORDE_CONFIG.packMin, HORDE_CONFIG.packMax),
+      ),
+    );
+    if (size < 1) return [];
+
+    const center = origin?.clone?.()
+      ?? world.randomSpawnAround(player.position, GAME_CONFIG.spawnInnerRadius, GAME_CONFIG.spawnOuterRadius);
+    world.resolvePosition(center, .7);
+
+    const zone = world.zoneAt(center.x, center.z);
+    const entries = ZONE_SPAWNS[zone.id] ?? ZONE_SPAWNS.verdant;
+    let data = typeof typeOrData === 'string'
+      ? ENEMY_TYPES[typeOrData]
+      : typeOrData;
+    if (!data) {
+      const typeId = weightedPick(entries);
+      data = ENEMY_TYPES[typeId];
+    }
+    if (!data || data.boss) return [];
+
+    // Brief ring telegraph at pack origin.
+    const accent = data.accent ?? 0xff5d72;
+    this.game.effects?.ring?.(center, accent, 2.8, {
+      life: HORDE_CONFIG.packTelegraphSec,
+      startScale: 0.12,
+      height: 0.06,
+      opacity: 0.55,
+    });
+
+    const levelFloor = Math.max(data.level, zone.minLevel ?? 1);
+    const adaptive = player.level + randInt(-3, 2) + Math.max(0, this.game.hunt.worldTier - 1) * 2;
+    const level = Math.max(levelFloor, adaptive);
+
+    const spawned = [];
+    for (let i = 0; i < size; i += 1) {
+      if (this.enemies.length >= GAME_CONFIG.maxEnemies + 4) break;
+      const angle = (i / size) * Math.PI * 2 + rand(-0.25, 0.25);
+      const dist = rand(0.4, 2.5);
+      const pos = new THREE.Vector3(
+        center.x + Math.cos(angle) * dist,
+        0,
+        center.z + Math.sin(angle) * dist,
+      );
+      world.resolvePosition(pos, .55);
+      // Packs are always fodder clusters (never elite).
+      const enemy = this.spawn(data, pos, { level, elite: false, fodder: true });
+      if (enemy) spawned.push(enemy);
+    }
+    return spawned;
   }
 
   rollEliteAffix() {
@@ -83,9 +164,22 @@ export class EnemySystem {
     return 'volatile';
   }
 
-  populate(count = 24) {
+  populate(count = 48) {
     const target = Math.min(count, GAME_CONFIG.maxEnemies);
-    for (let i = 0; i < target; i += 1) this.#spawnOne();
+    // Fill denser with packs first, then singles to top off.
+    while (this.livingCount < target) {
+      const room = target - this.livingCount;
+      if (room >= HORDE_CONFIG.packMin && chance(0.65)) {
+        const want = Math.min(room, randInt(HORDE_CONFIG.packMin, HORDE_CONFIG.packMax));
+        const before = this.livingCount;
+        this.spawnPack(null, want);
+        if (this.livingCount <= before) this.#spawnOne();
+      } else {
+        const before = this.livingCount;
+        this.#spawnOne();
+        if (this.livingCount <= before) break;
+      }
+    }
     this.spawnTimer = .35;
   }
 
@@ -138,7 +232,7 @@ export class EnemySystem {
     }
     this.game.world.resolvePosition(position, 1.6);
     const level = Math.max(data.level, this.game.player.level + 2 + (this.game.hunt.worldTier - 1) * 2);
-    const boss = this.spawn(data, position, { level, elite: false });
+    const boss = this.spawn(data, position, { level, elite: false, fodder: false });
     if (boss) {
       this.game.audio.boss();
       this.game.effects.pillar(position, data.accent, 12, { life: 1.25, bottom: 1.9 });

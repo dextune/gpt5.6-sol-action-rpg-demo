@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { GAME_CONFIG, defenseWaveDmgMul, defenseWaveHpMul } from '../config.js';
+import { GAME_CONFIG, HORDE_CONFIG, defenseWaveDmgMul, defenseWaveHpMul } from '../config.js';
 import { clamp, rand, uid } from '../core/Utils.js';
 import { applyStatus, statusMoveMul, tickStatuses } from '../data/skillCombat.js';
 import { setMaterialHitPulse } from '../graphics/StylizedMaterial.js';
@@ -16,6 +16,8 @@ export class Enemy {
     this.typeId = data.id;
     this.elite = Boolean(options.elite) && !data.boss;
     this.boss = Boolean(data.boss);
+    // Fodder tier: never elite/boss. Soft stats + cheaper UI/anim path.
+    this.fodder = Boolean(options.fodder) && !this.elite && !this.boss;
     this.eliteAffix = this.elite ? (options.eliteAffix ?? null) : null;
     this.bossPhase = 1;
     this.level = Math.max(1, Math.round(options.level ?? data.level));
@@ -62,11 +64,25 @@ export class Enemy {
     this.xpValue = Math.round(data.xp * levelScale * (this.elite ? 2.65 : 1));
     this.goldRange = data.gold;
 
+    if (this.fodder) {
+      const hpMul = HORDE_CONFIG.fodderHpMul;
+      const dmgMul = HORDE_CONFIG.fodderDmgMul;
+      const xpMul = HORDE_CONFIG.fodderXpMul;
+      this.maxHp = Math.max(1, Math.round(this.maxHp * hpMul));
+      this.hp = this.maxHp;
+      this.damage *= dmgMul;
+      this.xpValue = Math.max(1, Math.round(this.xpValue * xpMul));
+    }
+
     this.alive = true;
     this.removable = false;
     this.deathHandled = false;
     this.deathTimer = 0;
     this.hitTimer = 0;
+    /** Fodder health bar: seconds remaining visible after a hit (0 = hidden). */
+    this.healthBarTimer = 0;
+    /** Accumulator for half-rate far fodder animation. */
+    this._animSkipAcc = 0;
     this.invulnerable = 0;
     this.attackCooldown = rand(.35, 1.15);
     this.specialCooldown = rand(2.6, 5.2);
@@ -102,6 +118,7 @@ export class Enemy {
   update(delta, game) {
     this.animTime += delta;
     this.hitTimer = Math.max(0, this.hitTimer - delta);
+    if (this.fodder) this.healthBarTimer = Math.max(0, this.healthBarTimer - delta);
     this.invulnerable = Math.max(0, this.invulnerable - delta);
     this.attackCooldown = Math.max(0, this.attackCooldown - delta);
     this.specialCooldown = Math.max(0, this.specialCooldown - delta);
@@ -380,7 +397,18 @@ export class Enemy {
   #animate(delta, elapsed, playerDistance) {
     const speed = this.velocity.length();
     this.animation.setLocomotion(speed, { sprint: speed > this.speed * 1.12 });
-    this.animation.update(delta, { distance: playerDistance, visible: this.mesh.visible });
+    // Far fodder: update animation at half rate to cut skinning cost.
+    let animDelta = delta;
+    if (this.fodder && playerDistance > HORDE_CONFIG.animSkipDistance) {
+      this._animSkipAcc = (this._animSkipAcc + 1) % 2;
+      if (this._animSkipAcc === 1) {
+        animDelta = delta * 2;
+        this.animation.update(animDelta, { distance: playerDistance, visible: this.mesh.visible });
+      }
+    } else {
+      this._animSkipAcc = 0;
+      this.animation.update(delta, { distance: playerDistance, visible: this.mesh.visible });
+    }
     const statusPulse = this.statuses.burn ? 0.35 : this.statuses.slow ? 0.2 : 0;
     setMaterialHitPulse(this.mesh, Math.max(
       this.hitTimer > 0 ? Math.min(1, this.hitTimer / .15) : 0,
@@ -402,7 +430,12 @@ export class Enemy {
     let difference = targetYaw - this.mesh.rotation.y;
     difference = Math.atan2(Math.sin(difference), Math.cos(difference));
     this.mesh.rotation.y += difference * Math.min(1, delta * (this.boss ? 5 : 9));
-    this.refs.healthGroup.visible = this.boss || this.elite || this.healthRatio < .995 || playerDistance < 8;
+    if (this.fodder) {
+      // Fodder bars only after a hit (brief), never idle proximity spam.
+      this.refs.healthGroup.visible = this.healthBarTimer > 0 || this.hitTimer > 0;
+    } else {
+      this.refs.healthGroup.visible = this.boss || this.elite || this.healthRatio < .995 || playerDistance < 8;
+    }
     this.#setHealthBar(this.healthRatio);
   }
 
@@ -442,6 +475,7 @@ export class Enemy {
     const amount = Math.max(1, Math.round(incoming - reduction));
     this.hp = Math.max(0, this.hp - amount);
     this.hitTimer = .28;
+    if (this.fodder) this.healthBarTimer = 2;
     this.#playAnimation('hit', 1.35);
     this.invulnerable = options.multiHit ? .045 : .09;
     this.lastHitAt = game.elapsed;

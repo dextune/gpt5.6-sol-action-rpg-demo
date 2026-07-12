@@ -7,8 +7,8 @@ export const GAME_CONFIG = Object.freeze({
   terrainSegments: 144,
   autoSaveSeconds: 24,
   maxDelta: 0.05,
-  targetEnemies: 28,
-  maxEnemies: 42,
+  targetEnemies: 60,
+  maxEnemies: 90,
   spawnInnerRadius: 18,
   spawnOuterRadius: 46,
   despawnRadius: 78,
@@ -31,12 +31,13 @@ export const GAME_CONFIG = Object.freeze({
 export const DEFENSE_CONFIG = Object.freeze({
   maxWave: 200,
   prepSeconds: 2.6,
-  // Roster density (gentler early, denser late).
-  baseCount: 5,
-  countPerThreeWaves: 1,
-  maxCount: 36,
+  // Roster density (gentler early, denser late). Higher body count — per-mob HP curve softens below.
+  baseCount: 10,
+  countPerThreeWaves: 2,
+  maxCount: 80,
   // Linear soft terms (Enemy multiplies with #defenseWaveHp / #defenseWaveDmg).
-  hpPerWave: 0.055,
+  // Slightly lower per-wave HP because fodder + higher roster counts keep total TTK similar.
+  hpPerWave: 0.045,
   dmgPerWave: 0.032,
   // Extra late-game ramp after softStartWave (keeps wave 200 dangerous).
   hpLatePow: 1.28,
@@ -82,6 +83,25 @@ export const DEFENSE_CONFIG = Object.freeze({
   gearPowerPerWave: 0.009,
   spawnInner: 10,
   spawnOuter: 22,
+});
+
+/**
+ * Horde density — fodder tier, pack spawn, animation skip budget.
+ * Fodder is a soft tier (stat + UI + anim rate); no VAT/InstancedMesh in v1.
+ */
+export const HORDE_CONFIG = Object.freeze({
+  fodderHpMul: 0.35,
+  fodderXpMul: 0.3,
+  fodderDmgMul: 0.7,
+  /** Fraction of Hunt field spawns marked fodder (elites/bosses never fodder). */
+  fodderRatio: 0.7,
+  packMin: 4,
+  packMax: 8,
+  packTelegraphSec: 0.55,
+  /** When field spawn fires, chance to spawn a pack instead of a single. */
+  packChance: 0.55,
+  /** Beyond this distance, fodder animation updates at half rate. */
+  animSkipDistance: 35,
 });
 
 /** Defense-only HP multiplier for a wave index (1-based). Hunt never calls this. */
