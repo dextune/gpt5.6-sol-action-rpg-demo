@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { DEFENSE_CONFIG, GAME_CONFIG } from '../config.js';
+import { GAME_CONFIG, defenseWaveDmgMul, defenseWaveHpMul } from '../config.js';
 import { clamp, rand, uid } from '../core/Utils.js';
 import { applyStatus, statusMoveMul, tickStatuses } from '../data/skillCombat.js';
 import { setMaterialHitPulse } from '../graphics/StylizedMaterial.js';
@@ -38,9 +38,10 @@ export class Enemy {
     // Wave mult only when Defense (or other callers) pass a positive options.wave.
     // Hunt spawns omit wave → multipliers stay 1 (byte-for-byte with prior Hunt math).
     const wave = Math.max(0, Number(options.wave) || 0);
-    const waveHp = wave > 0 ? 1 + (wave - 1) * DEFENSE_CONFIG.hpPerWave : 1;
-    const waveDmg = wave > 0 ? 1 + (wave - 1) * DEFENSE_CONFIG.dmgPerWave : 1;
+    const waveHp = wave > 0 ? defenseWaveHpMul(wave) : 1;
+    const waveDmg = wave > 0 ? defenseWaveDmgMul(wave) : 1;
     this.defenseWave = wave > 0 || Boolean(options.defenseWave);
+    this.wave = wave > 0 ? wave : 0;
     this.maxHp = Math.round(data.hp * levelScale * tierScale * eliteHp * waveHp);
     this.hp = this.maxHp;
     this.damage = data.damage * (1 + extraLevels * .055) * Math.sqrt(tierScale) * eliteDamage * waveDmg;
@@ -385,6 +386,18 @@ export class Enemy {
       this.hitTimer > 0 ? Math.min(1, this.hitTimer / .15) : 0,
       statusPulse,
     ));
+    // Squash-and-stretch flinch: fast lateral squash on contact, springy overshoot on recovery.
+    if (this.hitTimer > 0 && this.alive) {
+      const ht = this.hitTimer / .28;
+      const punch = Math.sin(ht * Math.PI) * (this.boss ? .05 : .13);
+      this.mesh.scale.set(
+        this.normalScale.x * (1 + punch * .8),
+        this.normalScale.y * (1 - punch),
+        this.normalScale.z * (1 + punch * .8),
+      );
+    } else if (this.alive) {
+      this.mesh.scale.lerp(this.normalScale, Math.min(1, delta * 14));
+    }
     const targetYaw = Math.atan2(this.facing.x, this.facing.z);
     let difference = targetYaw - this.mesh.rotation.y;
     difference = Math.atan2(Math.sin(difference), Math.cos(difference));

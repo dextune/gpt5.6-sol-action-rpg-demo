@@ -14,6 +14,39 @@ function makeSoftDiscTexture() {
   return texture;
 }
 
+/** Anime-style radial impact star — sharp spikes with a hot core, for hit flashes. */
+function makeStarburstTexture() {
+  const size = 128;
+  const canvas = document.createElement('canvas'); canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  const c = size / 2;
+  ctx.translate(c, c);
+  const spikes = 8;
+  ctx.fillStyle = 'rgba(255,255,255,.92)';
+  for (let i = 0; i < spikes; i += 1) {
+    const angle = (i / spikes) * Math.PI * 2;
+    const len = i % 2 === 0 ? c * .98 : c * .55;
+    const width = i % 2 === 0 ? c * .13 : c * .09;
+    ctx.save();
+    ctx.rotate(angle);
+    ctx.beginPath();
+    ctx.moveTo(0, -width);
+    ctx.lineTo(len, 0);
+    ctx.lineTo(0, width);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+  const core = ctx.createRadialGradient(0, 0, 0, 0, 0, c * .4);
+  core.addColorStop(0, 'rgba(255,255,255,1)');
+  core.addColorStop(.55, 'rgba(255,255,255,.85)');
+  core.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = core;
+  ctx.fillRect(-c, -c, size, size);
+  const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace; texture.needsUpdate = true;
+  return texture;
+}
+
 function ribbonGeometry(segments = 26) {
   const positions = [];
   const uvs = [];
@@ -118,6 +151,19 @@ export class Effects {
       const object = new THREE.Mesh(this.shared.beam, material); object.visible = false; this.root.add(object);
       return { object, material };
     }, 16);
+    this.starTexture = makeStarburstTexture();
+    // Camera-facing impact stars — the classic anime hit flash.
+    this.stars = new Pool(() => {
+      const material = new THREE.SpriteMaterial({ map: this.starTexture, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending });
+      const object = new THREE.Sprite(material); object.visible = false; this.root.add(object);
+      return { object, material };
+    }, 18);
+    // Brief shadowless point-light pops so hits read against the environment.
+    this.lightFlashes = new Pool(() => {
+      const object = new THREE.PointLight(0xffffff, 0, 11, 2);
+      object.visible = false; this.root.add(object);
+      return { object, material: null };
+    }, 6);
   }
 
   setQuality(quality) {
@@ -193,6 +239,36 @@ export class Effects {
     return effect.object;
   }
 
+  /** Camera-facing radial star flash with pop-in scale and fast falloff. */
+  starburst(position, color = 0xffffff, size = 1.6, options = {}) {
+    const effect = this.stars.acquire();
+    effect.object.position.copy(position);
+    effect.object.position.y += options.height ?? 0;
+    effect.material.color.set(color);
+    effect.material.opacity = options.opacity ?? 1;
+    effect.material.rotation = options.rotation ?? Math.random() * Math.PI * 2;
+    effect.object.scale.setScalar(size * .25);
+    effect.life = effect.maxLife = options.life ?? .18;
+    effect.baseOpacity = options.opacity ?? 1;
+    effect.targetScale = size;
+    effect.spin = options.spin ?? (Math.random() < .5 ? -2.4 : 2.4);
+    return effect.object;
+  }
+
+  /** Short point-light pop (no shadows). Skipped on low quality. */
+  flash(position, color = 0xffffff, intensity = 14, options = {}) {
+    if (this.quality === 'low') return null;
+    const effect = this.lightFlashes.acquire();
+    effect.object.position.copy(position);
+    effect.object.position.y += options.height ?? .6;
+    effect.object.color.set(color);
+    effect.object.intensity = intensity;
+    effect.object.distance = options.distance ?? 11;
+    effect.life = effect.maxLife = options.life ?? .16;
+    effect.baseIntensity = intensity;
+    return effect.object;
+  }
+
   /**
    * Flashy multi-layer hit VFX (no camera shake) — sparks, flash rings, streaks, optional beam.
    * @param {'light'|'heavy'|'critical'|'finisher'} intensity
@@ -206,6 +282,17 @@ export class Effects {
     const white = 0xffffff;
     const sparkCount = crit ? 48 : finisher ? 36 : heavy ? 28 : 18;
     const ringSize = crit ? 2.1 : finisher ? 1.75 : heavy ? 1.25 : .85;
+
+    // Anime star flash + light pop — instant "contact" read before particles bloom.
+    this.starburst(position, white, crit ? 3.4 : finisher ? 2.9 : heavy ? 2.3 : 1.55, {
+      life: crit ? .22 : .16, opacity: 1,
+    });
+    if (heavy) {
+      this.starburst(position, accent, crit ? 4.6 : 3.4, { life: .28, opacity: .7, spin: -3.5 });
+    }
+    this.flash(position, crit || finisher ? 0xffe9b0 : color, crit ? 26 : finisher ? 20 : heavy ? 15 : 9, {
+      life: crit ? .2 : .14, distance: crit ? 14 : 10,
+    });
 
     // Core white flash + colored spark shell.
     this.burst(position, white, Math.round(sparkCount * .45), {
@@ -434,6 +521,8 @@ export class Effects {
         height: 0.7 + (i % 3) * 0.15, life: 0.28, thickness: 0.04, spin: 2 + i * 0.4, opacity: 0.7,
       });
     }
+    this.starburst(position.clone().add(new THREE.Vector3(0, .9, 0)), theme.core, 3.2, { life: .22 });
+    this.flash(position, theme.primary, 18, { life: .18, distance: radius + 5 });
   }
 
   recipeBlinkBurst(from, to, theme, radius) {
@@ -464,6 +553,8 @@ export class Effects {
     this.ring(point, theme.secondary, 2.4, { life: 0.38, startScale: 0.12 });
     this.groundDecal(point, theme.accent, 2.1, { life: 0.95, opacity: 0.5, startScale: 0.15 });
     this.dust(point, theme.dust, 12, 0.42);
+    this.starburst(point.clone().add(new THREE.Vector3(0, 1, 0)), theme.core, 3.6, { life: .24 });
+    this.flash(point, theme.primary, 22, { life: .2, distance: 13 });
   }
 
   recipeFangRush(position, direction, theme, range, hitIndex = 0, finale = false) {
@@ -635,23 +726,44 @@ export class Effects {
       effect.material.opacity = Math.sin(t * Math.PI) * effect.baseOpacity;
       if (effect.life <= 0) this.beams.release(effect);
     }
+    for (const effect of this.stars.active()) {
+      effect.life -= delta;
+      const t = Math.max(0, effect.life / effect.maxLife);
+      const progress = 1 - t;
+      // Snap out fast (elastic pop), collapse opacity with a hot tail.
+      const pop = 1 - Math.pow(1 - Math.min(1, progress * 2.6), 3);
+      effect.object.scale.setScalar(effect.targetScale * (.25 + pop * .75));
+      effect.material.rotation += effect.spin * delta;
+      effect.material.opacity = Math.pow(t, 1.35) * effect.baseOpacity;
+      if (effect.life <= 0) this.stars.release(effect);
+    }
+    for (const effect of this.lightFlashes.active()) {
+      effect.life -= delta;
+      const t = Math.max(0, effect.life / effect.maxLife);
+      effect.object.intensity = effect.baseIntensity * t * t;
+      if (effect.life <= 0) { effect.object.intensity = 0; this.lightFlashes.release(effect); }
+    }
+  }
+
+  #pools() {
+    return [this.particles, this.slashes, this.rings, this.pillars, this.trails, this.decals, this.ghosts, this.beams, this.stars, this.lightFlashes];
   }
 
   clear() {
-    for (const pool of [this.particles, this.slashes, this.rings, this.pillars, this.trails, this.decals, this.ghosts, this.beams]) {
+    for (const pool of this.#pools()) {
       for (const effect of pool.active()) pool.release(effect);
     }
   }
 
   dispose() {
     this.clear();
-    for (const pool of [this.particles, this.slashes, this.rings, this.pillars, this.trails, this.decals, this.ghosts, this.beams]) {
+    for (const pool of this.#pools()) {
       for (const item of pool.items) {
         if (item.geometry && !Object.values(this.shared).includes(item.geometry)) item.geometry.dispose?.();
         item.material?.dispose?.();
       }
     }
     for (const geometry of Object.values(this.shared)) geometry.dispose();
-    this.texture.dispose(); this.scene.remove(this.root);
+    this.texture.dispose(); this.starTexture.dispose(); this.scene.remove(this.root);
   }
 }

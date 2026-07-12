@@ -113,16 +113,22 @@ export class MonsterFactory {
       object.castShadow = true;
       object.receiveShadow = true;
       if (!object.geometry.getAttribute('uv2') && object.geometry.getAttribute('uv')) object.geometry.setAttribute('uv2', object.geometry.getAttribute('uv').clone());
-      const role = inferMaterialRole(object.material?.name ?? object.name);
+      const sourceName = (object.material?.name ?? object.name ?? '').toLowerCase();
+      const role = inferMaterialRole(sourceName);
       const material = convertToStylized(object.material, {
         role: archetype === 'wisp' ? 'spirit' : role,
         style: { bandStrength: boss ? .18 : .24, rimStrength: boss ? .08 : .045 },
       });
+      // Baked accent details (tusks, horns, hooves, crystals) keep their authored color.
+      const keepBakedColor = sourceName.includes('accent') || sourceName.includes('crystal') || sourceName.includes('bubble');
       if (role === 'eye') {
         material.color.copy(accent).lerp(new THREE.Color(0xffffff), .18);
         material.emissive.copy(accent);
         material.emissiveIntensity = boss ? .9 : .36;
+      } else if (keepBakedColor) {
+        // no-op: authored GLB color already copied by convertToStylized
       } else if (role === 'metal' || role === 'leaf') material.color.copy(accent).multiplyScalar(.86);
+      else if (role === 'cloth' || role === 'stone') material.color.copy(baseColor).multiplyScalar(.62).lerp(new THREE.Color(0x8a8f88), role === 'stone' ? .4 : .12);
       else material.color.copy(baseColor).lerp(accent, role === 'spirit' ? .22 : .04);
       const normal = this.assets.getTexture(`monster.${archetype}.normal`);
       const roughness = this.assets.getTexture(`monster.${archetype}.roughness`);

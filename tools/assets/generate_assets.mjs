@@ -2,7 +2,7 @@ import * as THREE from '../../vendor/three.module.min.js';
 import { GLTFExporter } from '../../vendor/examples/jsm/exporters/GLTFExporter.js';
 import { MarchingCubes } from '../../vendor/examples/jsm/objects/MarchingCubes.js';
 import { RoundedBoxGeometry } from '../../vendor/examples/jsm/geometries/RoundedBoxGeometry.js';
-import { mergeGeometries } from '../../vendor/examples/jsm/utils/BufferGeometryUtils.js';
+import { mergeGeometries, mergeVertices } from '../../vendor/examples/jsm/utils/BufferGeometryUtils.js';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -170,6 +170,14 @@ function implicitGeometry(sdf, bounds, resolution = 46, maxPolyCount = 70000) {
   geometry.computeBoundingBox();
   geometry.computeBoundingSphere();
   return geometry;
+}
+
+/** Index marching-cube soup — identical corner vertices collapse, shrinking GLBs ~3x and smoothing normals. */
+function weld(geometry, tolerance = 1e-4) {
+  const result = mergeVertices(geometry, tolerance);
+  result.computeBoundingBox();
+  result.computeBoundingSphere();
+  return result;
 }
 
 function createSkeleton(specs) {
@@ -382,10 +390,30 @@ function heroBodyGeometry(resolution = 52) {
     p => sdfEllipsoid(p, V3(0, 2.67, .43), V3(.13, .12, .15)),
     p => sdfEllipsoid(p, V3(.47, 2.70, .02), V3(.09, .17, .10)),
     p => sdfEllipsoid(p, V3(-.47, 2.70, .02), V3(.09, .17, .10)),
+    // Musculature pass — pecs, delts, traps, forearms, calves for a defined heroic build.
+    p => sdfEllipsoid(p, V3(.19, 1.97, .26), V3(.20, .15, .13)),
+    p => sdfEllipsoid(p, V3(-.19, 1.97, .26), V3(.20, .15, .13)),
+    p => sdfEllipsoid(p, V3(0, 1.60, .25), V3(.16, .22, .10)),
+    p => sdfEllipsoid(p, V3(.45, 2.08, 0), V3(.16, .14, .14)),
+    p => sdfEllipsoid(p, V3(-.45, 2.08, 0), V3(.16, .14, .14)),
+    p => sdfCapsule(p, V3(.12, 2.32, -.04), V3(.40, 2.14, -.02), .10, .08),
+    p => sdfCapsule(p, V3(-.12, 2.32, -.04), V3(-.40, 2.14, -.02), .10, .08),
+    p => sdfEllipsoid(p, V3(.70, 1.44, .03), V3(.11, .15, .10)),
+    p => sdfEllipsoid(p, V3(-.70, 1.44, .03), V3(.11, .15, .10)),
+    p => sdfEllipsoid(p, V3(.25, .52, -.03), V3(.13, .20, .13)),
+    p => sdfEllipsoid(p, V3(-.25, .52, -.03), V3(.13, .20, .13)),
+    p => sdfEllipsoid(p, V3(.16, 2.02, -.24), V3(.14, .18, .10)),
+    p => sdfEllipsoid(p, V3(-.16, 2.02, -.24), V3(.14, .18, .10)),
+    // Facial structure — chin/jaw plane, cheekbones, thumb nubs on the mitts.
+    p => sdfEllipsoid(p, V3(0, 2.50, .32), V3(.16, .12, .13)),
+    p => sdfEllipsoid(p, V3(.24, 2.64, .28), V3(.10, .09, .10)),
+    p => sdfEllipsoid(p, V3(-.24, 2.64, .28), V3(.10, .09, .10)),
+    p => sdfCapsule(p, V3(.82, 1.10, .14), V3(.88, 1.02, .20), .055, .04),
+    p => sdfCapsule(p, V3(-.82, 1.10, .14), V3(-.88, 1.02, .20), .055, .04),
   ];
   return implicitGeometry(p => unionSdf(parts, p, .105), {
     min: V3(-1.05, -.08, -.62), max: V3(1.05, 3.32, .70),
-  }, resolution, 110000);
+  }, resolution, 190000);
 }
 
 function heroSkinRules(skeletonInfo) {
@@ -420,8 +448,8 @@ function heroSkinRules(skeletonInfo) {
 }
 
 function createCapeGeometry(skeletonInfo) {
-  const rows = 8;
-  const cols = 7;
+  const rows = 16;
+  const cols = 13;
   const positions = [];
   const normals = [];
   const uvs = [];
@@ -432,8 +460,9 @@ function createCapeGeometry(skeletonInfo) {
     for (let x = 0; x < cols; x += 1) {
       const u = x / (cols - 1);
       const px = (u - .5) * width * 2;
-      const py = 1.98 - v * .92;
-      const pz = -.31 - Math.sin(v * Math.PI) * .11 - Math.abs(u - .5) * .035;
+      const py = 1.98 - v * .92 - Math.sin(u * Math.PI * 3) * .022 * v;
+      const pz = -.31 - Math.sin(v * Math.PI) * .11 - Math.abs(u - .5) * .035
+        - Math.sin(u * Math.PI * 2.5 + v * 2.2) * .020 * v;
       positions.push(px, py, pz);
       normals.push(0, .12, -1);
       uvs.push(u, 1 - v);
@@ -468,6 +497,7 @@ function createCapeGeometry(skeletonInfo) {
   }
   geometry.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(skinIndices, 4));
   geometry.setAttribute('skinWeight', new THREE.Float32BufferAttribute(skinWeights, 4));
+  geometry.computeVertexNormals();
   geometry.computeBoundingBox();
   geometry.computeBoundingSphere();
   return geometry;
@@ -845,37 +875,42 @@ function attachWizardHat(headBone, profile) {
   const hatRoot = new THREE.Group();
   hatRoot.name = 'wizard_hat';
   const brim = new THREE.Mesh(
-    new THREE.CylinderGeometry(.58, .62, .05, 28),
+    new THREE.CylinderGeometry(.70, .76, .06, 28),
     material('hero_cloth', profile.cloth, .86, 0),
   );
   brim.name = 'wizard_hat_brim';
-  brim.position.set(0, .22, -.02);
+  brim.position.set(0, .30, -.02);
   brim.castShadow = true;
   hatRoot.add(brim);
+  // Wide cone fully encloses the skull — no scalp peeking between brim and point.
   const cone = new THREE.Mesh(
-    new THREE.ConeGeometry(.34, .95, 24),
+    new THREE.ConeGeometry(.62, 1.05, 26),
     material('hero_cloth', profile.cloth, .84, 0),
   );
   cone.name = 'wizard_hat_cone';
-  cone.position.set(0, .72, -.04);
-  cone.rotation.x = -.12;
+  cone.position.set(0, .78, -.03);
+  cone.rotation.x = -.09;
   cone.castShadow = true;
   hatRoot.add(cone);
   const tip = new THREE.Mesh(
-    new THREE.SphereGeometry(.07, 12, 10),
+    new THREE.SphereGeometry(.075, 12, 10),
     material('hero_trim', profile.trim, .4, .7),
   );
   tip.name = 'wizard_hat_tip';
-  tip.position.set(0, 1.2, -.12);
+  tip.position.set(0, 1.33, -.14);
   hatRoot.add(tip);
   const band = new THREE.Mesh(
-    new THREE.TorusGeometry(.28, .035, 8, 28),
+    new THREE.TorusGeometry(.56, .045, 8, 28),
     material('hero_trim', profile.trim, .42, .72),
   );
   band.name = 'wizard_hat_band';
   band.rotation.x = Math.PI / 2;
-  band.position.set(0, .38, -.02);
+  band.position.set(0, .37, -.02);
   hatRoot.add(band);
+  const buckleDetail = new THREE.Mesh(new RoundedBoxGeometry(.11, .11, .04, 2, .02), material('hero_buckle', profile.buckle, .35, .85));
+  buckleDetail.name = 'wizard_hat_buckle';
+  buckleDetail.position.set(0, .37, .58);
+  hatRoot.add(buckleDetail);
   hatRoot.position.set(0, .02, 0);
   headBone.add(hatRoot);
   return hatRoot;
@@ -890,48 +925,50 @@ function attachKnightHelm(headBone, profile) {
   const gold = material('hero_trim', profile.trim, .4, .8);
   const plumeMat = material('hero_cape', profile.cape, .85, 0);
 
-  const dome = new THREE.Mesh(new THREE.SphereGeometry(.44, 20, 16, 0, Math.PI * 2, 0, Math.PI * .62), steel);
+  // Enclosing dome with a front face window (phi sweep skips the face arc).
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(.53, 26, 18, 2.35, 4.58, 0, Math.PI * .60), steel);
   dome.name = 'knight_helm_dome';
-  dome.position.set(0, .14, -.02);
-  dome.scale.set(1.05, 1.12, 1.08);
+  dome.position.set(0, .24, 0);
+  dome.scale.set(1.02, 1.10, 1.04);
   dome.castShadow = true;
   root.add(dome);
 
-  const brow = new THREE.Mesh(new RoundedBoxGeometry(.72, .1, .22, 2, .03), dark);
-  brow.position.set(0, .08, .28);
+  // Skull cap closes the top of the face window.
+  const cap = new THREE.Mesh(new THREE.SphereGeometry(.53, 26, 10, 0, Math.PI * 2, 0, Math.PI * .30), steel);
+  cap.name = 'knight_helm_cap';
+  cap.position.set(0, .24, 0);
+  cap.scale.set(1.02, 1.10, 1.04);
+  cap.castShadow = true;
+  root.add(cap);
+
+  const brow = new THREE.Mesh(new RoundedBoxGeometry(.68, .13, .12, 2, .03), dark);
+  brow.name = 'knight_helm_brow';
+  brow.position.set(0, .33, .40);
   root.add(brow);
 
-  // Open face window — dark recess (face still readable underneath).
-  const visor = new THREE.Mesh(new RoundedBoxGeometry(.5, .18, .08, 2, .02), dark);
-  visor.position.set(0, -.02, .36);
-  root.add(visor);
+  const neckGuard = new THREE.Mesh(new RoundedBoxGeometry(.52, .18, .22, 2, .05), steel);
+  neckGuard.name = 'knight_helm_neck';
+  neckGuard.position.set(0, -.26, -.34);
+  neckGuard.rotation.x = -.3;
+  root.add(neckGuard);
 
-  const cheekL = new THREE.Mesh(new RoundedBoxGeometry(.12, .28, .18, 2, .03), steel);
-  cheekL.position.set(.28, -.08, .22);
-  root.add(cheekL);
-  const cheekR = cheekL.clone();
-  cheekR.position.x = -.28;
-  root.add(cheekR);
-
-  const jaw = new THREE.Mesh(new THREE.CylinderGeometry(.22, .28, .16, 12), steel);
-  jaw.position.set(0, -.22, .12);
-  jaw.rotation.x = .15;
-  root.add(jaw);
-
-  const crest = new THREE.Mesh(new THREE.BoxGeometry(.06, .22, .5), gold);
-  crest.position.set(0, .42, -.06);
+  const crest = new THREE.Mesh(new THREE.BoxGeometry(.06, .22, .55), gold);
+  crest.name = 'knight_helm_crest';
+  crest.position.set(0, .78, -.04);
   root.add(crest);
 
   const plume = new THREE.Mesh(new THREE.ConeGeometry(.12, .7, 8), plumeMat);
-  plume.position.set(0, .78, -.18);
+  plume.name = 'knight_helm_plume';
+  plume.position.set(0, 1.08, -.18);
   plume.rotation.x = .35;
   plume.castShadow = true;
   root.add(plume);
   const plumeTip = new THREE.Mesh(new THREE.SphereGeometry(.08, 10, 8), plumeMat);
-  plumeTip.position.set(0, 1.12, -.32);
+  plumeTip.name = 'knight_helm_plume_tip';
+  plumeTip.position.set(0, 1.40, -.30);
   root.add(plumeTip);
 
-  root.position.set(0, .04, 0);
+  root.position.set(0, .02, 0);
   headBone.add(root);
   return root;
 }
@@ -986,6 +1023,248 @@ function attachKnightArmor(skeletonInfo, profile) {
   const crossH = new THREE.Mesh(new THREE.BoxGeometry(.2, .06, .04), gold);
   crossH.position.set(0, .02, .26);
   pelvis.add(crossH);
+
+  // Limb plate — couters, gauntlet cuffs, poleyns, greaves, sabaton caps, backplate, hip scabbard.
+  for (const side of ['left', 'right']) {
+    const sign = side === 'left' ? 1 : -1;
+    const lowerArm = skeletonInfo.bones.get(`${side}_lower_arm`);
+    const couter = new THREE.Mesh(new THREE.SphereGeometry(.14, 12, 10, 0, Math.PI * 2, 0, Math.PI * .7), steel);
+    couter.name = `knight_couter_${side}`;
+    couter.position.set(0, .03, 0);
+    couter.castShadow = true;
+    lowerArm.add(couter);
+    const cuff = new THREE.Mesh(new THREE.CylinderGeometry(.165, .19, .16, 12, 1, true), steel);
+    cuff.name = `knight_gauntlet_${side}`;
+    cuff.position.set(sign * .04, -.28, .02);
+    cuff.rotation.z = -sign * .19;
+    lowerArm.add(cuff);
+    const lowerLeg = skeletonInfo.bones.get(`${side}_lower_leg`);
+    const poleyn = new THREE.Mesh(new THREE.SphereGeometry(.15, 12, 10, 0, Math.PI * 2, 0, Math.PI * .68), steel);
+    poleyn.name = `knight_poleyn_${side}`;
+    poleyn.position.set(0, .02, .07);
+    poleyn.rotation.x = Math.PI * .42;
+    lowerLeg.add(poleyn);
+    const greave = new THREE.Mesh(new THREE.CylinderGeometry(.175, .20, .34, 12, 1, true), steel);
+    greave.name = `knight_greave_${side}`;
+    greave.position.set(0, -.22, .04);
+    greave.castShadow = true;
+    lowerLeg.add(greave);
+    const foot = skeletonInfo.bones.get(`${side}_foot`);
+    const sabaton = new THREE.Mesh(new RoundedBoxGeometry(.32, .17, .26, 2, .05), steel);
+    sabaton.name = `knight_sabaton_${side}`;
+    sabaton.position.set(0, .05, .18);
+    foot.add(sabaton);
+  }
+  const backplate = new THREE.Mesh(new RoundedBoxGeometry(.62, .58, .16, 3, .05), steel);
+  backplate.name = 'knight_backplate';
+  backplate.position.set(0, .06, -.22);
+  backplate.castShadow = true;
+  chest.add(backplate);
+  const scabbard = new THREE.Mesh(new RoundedBoxGeometry(.08, .82, .13, 2, .03), dark);
+  scabbard.name = 'knight_scabbard';
+  scabbard.position.set(.30, -.48, -.08);
+  scabbard.rotation.set(.10, 0, .16);
+  scabbard.castShadow = true;
+  pelvis.add(scabbard);
+  const scabbardTip = new THREE.Mesh(new THREE.ConeGeometry(.055, .14, 8), gold);
+  scabbardTip.name = 'knight_scabbard_tip';
+  scabbardTip.position.set(.38, -.90, -.13);
+  scabbardTip.rotation.set(.10 + Math.PI, 0, .16);
+  pelvis.add(scabbardTip);
+  const scabbardThroat = new THREE.Mesh(new THREE.CylinderGeometry(.075, .075, .07, 10), gold);
+  scabbardThroat.name = 'knight_scabbard_throat';
+  scabbardThroat.position.set(.235, -.10, -.045);
+  scabbardThroat.rotation.set(.10, 0, .16);
+  pelvis.add(scabbardThroat);
+}
+
+/** Cloth-class fit — bracers, wrist trim, boot cuffs, toe caps, diagonal chest strap. */
+function attachAdventurerGear(skeletonInfo, profile) {
+  const leather = material('hero_leather', profile.leather, .62, .05);
+  const trim = material('hero_trim', profile.trim, .42, .7);
+  for (const side of ['left', 'right']) {
+    const sign = side === 'left' ? 1 : -1;
+    const lowerArm = skeletonInfo.bones.get(`${side}_lower_arm`);
+    const bracer = new THREE.Mesh(new THREE.CylinderGeometry(.155, .175, .30, 12, 1, true), leather);
+    bracer.name = `hero_leather_bracer_${side}`;
+    bracer.position.set(sign * .04, -.20, .02);
+    bracer.rotation.z = -sign * .19;
+    bracer.castShadow = true;
+    lowerArm.add(bracer);
+    const wristRing = new THREE.Mesh(new THREE.TorusGeometry(.155, .022, 8, 20), trim);
+    wristRing.name = `hero_trim_wrist_${side}`;
+    wristRing.rotation.x = Math.PI / 2;
+    wristRing.rotation.z = -sign * .19;
+    wristRing.position.set(sign * .06, -.33, .025);
+    lowerArm.add(wristRing);
+    const lowerLeg = skeletonInfo.bones.get(`${side}_lower_leg`);
+    const cuff = new THREE.Mesh(new THREE.TorusGeometry(.185, .05, 8, 22), leather);
+    cuff.name = `hero_leather_cuff_${side}`;
+    cuff.rotation.x = Math.PI / 2;
+    cuff.position.set(0, -.14, .04);
+    lowerLeg.add(cuff);
+    const foot = skeletonInfo.bones.get(`${side}_foot`);
+    const toeCap = new THREE.Mesh(new RoundedBoxGeometry(.28, .15, .24, 2, .05), leather);
+    toeCap.name = `hero_leather_toecap_${side}`;
+    toeCap.position.set(0, .06, .20);
+    foot.add(toeCap);
+  }
+  const chest = skeletonInfo.bones.get('chest');
+  // Bandolier: ring plane holds the vertical axis, normal tilted sideways; parent squashes depth to hug the torso.
+  const strapGroup = new THREE.Group();
+  strapGroup.name = 'hero_strap_group';
+  strapGroup.position.set(0, -.02, .01);
+  strapGroup.scale.set(1, 1, .58);
+  const strap = new THREE.Mesh(new THREE.TorusGeometry(.62, .05, 8, 36), leather);
+  strap.name = 'hero_leather_strap';
+  strap.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(.86, .51, 0).normalize());
+  strapGroup.add(strap);
+  chest.add(strapGroup);
+  const strapBuckle = new THREE.Mesh(new RoundedBoxGeometry(.10, .10, .045, 2, .02), trim);
+  strapBuckle.name = 'hero_buckle_strap';
+  strapBuckle.position.set(-.15, .14, .335);
+  strapBuckle.rotation.z = .55;
+  chest.add(strapBuckle);
+}
+
+/** Rogue kit — throwing knives on the strap, thigh sheath, shoulder pad, forearm wraps. */
+function attachRogueKit(skeletonInfo, profile) {
+  const chest = skeletonInfo.bones.get('chest');
+  const knifeMat = material('hero_trim_knife', profile.trim, .35, .8);
+  for (let i = 0; i < 3; i += 1) {
+    const knife = new THREE.Mesh(new THREE.ConeGeometry(.036, .20, 6), knifeMat);
+    knife.name = `rogue_knife_${i}`;
+    knife.position.set(.10 - i * .10, .16 - i * .17, .41 - Math.abs(1 - i) * .01);
+    knife.rotation.set(Math.PI, 0, .53);
+    chest.add(knife);
+  }
+  const pad = new THREE.Mesh(new THREE.SphereGeometry(.22, 14, 10, 0, Math.PI * 2, 0, Math.PI * .66), material('hero_leather', profile.leather, .6, .05));
+  pad.name = 'rogue_shoulder_pad';
+  pad.position.set(.46, .22, 0);
+  pad.scale.set(1.15, .72, 1.0);
+  pad.rotation.z = -.28;
+  pad.castShadow = true;
+  chest.add(pad);
+  const leg = skeletonInfo.bones.get('left_upper_leg');
+  const sheath = new THREE.Mesh(new RoundedBoxGeometry(.10, .26, .10, 2, .03), material('hero_leather', profile.leather, .6, .05));
+  sheath.name = 'rogue_thigh_sheath';
+  sheath.position.set(.12, -.24, .14);
+  sheath.rotation.z = .08;
+  leg.add(sheath);
+  const hilt = new THREE.Mesh(new THREE.CylinderGeometry(.018, .018, .12, 8), knifeMat);
+  hilt.name = 'rogue_sheath_hilt';
+  hilt.position.set(.12, -.08, .14);
+  leg.add(hilt);
+  const wrapMat = material('hero_cloth', profile.cloth, .88, 0);
+  for (const side of ['left', 'right']) {
+    const sign = side === 'left' ? 1 : -1;
+    const lowerArm = skeletonInfo.bones.get(`${side}_lower_arm`);
+    for (let i = 0; i < 2; i += 1) {
+      const wrap = new THREE.Mesh(new THREE.TorusGeometry(.165 - i * .012, .028, 8, 18), wrapMat);
+      wrap.name = `rogue_wrap_${side}_${i}`;
+      wrap.rotation.set(Math.PI / 2, 0, -sign * .19);
+      wrap.position.set(sign * (.02 + i * .02), -.10 - i * .13, .02);
+      lowerArm.add(wrap);
+    }
+  }
+}
+
+/** Ranger kit — back quiver with fletched arrows, cloak clasp, reinforced bow bracer. */
+function attachRangerKit(skeletonInfo, profile) {
+  const chest = skeletonInfo.bones.get('chest');
+  const leather = material('hero_leather', profile.leather, .62, .05);
+  const trim = material('hero_trim', profile.trim, .42, .7);
+  const quiver = new THREE.Group();
+  quiver.name = 'ranger_quiver';
+  quiver.position.set(-.30, .14, -.44);
+  quiver.rotation.set(.24, 0, -.42);
+  const tube = new THREE.Mesh(new THREE.CylinderGeometry(.105, .09, .58, 12), leather);
+  tube.name = 'ranger_quiver_tube';
+  tube.castShadow = true;
+  quiver.add(tube);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(.105, .018, 8, 18), trim);
+  rim.name = 'ranger_quiver_rim';
+  rim.rotation.x = Math.PI / 2;
+  rim.position.y = .29;
+  quiver.add(rim);
+  const shaftMat = material('hero_hair_arrow', profile.hair, .8, 0);
+  const fletchMat = material('hero_eye_fletch', profile.eye, .8, 0);
+  for (let i = 0; i < 4; i += 1) {
+    const angle = i / 4 * Math.PI * 2 + .4;
+    const ox = Math.cos(angle) * .05;
+    const oz = Math.sin(angle) * .05;
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(.02, .02, .42, 6), shaftMat);
+    shaft.name = `ranger_arrow_${i}`;
+    shaft.position.set(ox, .44, oz);
+    quiver.add(shaft);
+    const fletch = new THREE.Mesh(new THREE.ConeGeometry(.05, .14, 5), fletchMat);
+    fletch.name = `ranger_fletch_${i}`;
+    fletch.position.set(ox, .63, oz);
+    quiver.add(fletch);
+  }
+  chest.add(quiver);
+  const clasp = new THREE.Mesh(new RoundedBoxGeometry(.12, .12, .05, 2, .03), trim);
+  clasp.name = 'ranger_cloak_clasp';
+  clasp.position.set(0, .30, .28);
+  clasp.rotation.z = Math.PI / 4;
+  chest.add(clasp);
+  const lowerArm = skeletonInfo.bones.get('left_lower_arm');
+  const bowBracer = new THREE.Mesh(new THREE.CylinderGeometry(.17, .19, .22, 12, 1, true), leather);
+  bowBracer.name = 'ranger_bow_bracer';
+  bowBracer.position.set(.05, -.26, .02);
+  bowBracer.rotation.z = -.19;
+  lowerArm.add(bowBracer);
+  const bracerStud = new THREE.Mesh(new THREE.TorusGeometry(.175, .02, 8, 18), trim);
+  bracerStud.name = 'ranger_bracer_stud';
+  bracerStud.rotation.set(Math.PI / 2, 0, -.19);
+  bracerStud.position.set(.055, -.30, .02);
+  lowerArm.add(bracerStud);
+}
+
+/** Wizard kit — shoulder mantle, belt tome, vial, off-hand rune ring. */
+function attachWizardKit(skeletonInfo, profile) {
+  const chest = skeletonInfo.bones.get('chest');
+  const pelvis = skeletonInfo.bones.get('pelvis');
+  const clothMat = material('hero_cloth', profile.cloth, .86, 0);
+  const trim = material('hero_trim', profile.trim, .42, .7);
+  for (const sign of [-1, 1]) {
+    const mantle = new THREE.Mesh(new THREE.SphereGeometry(.26, 14, 10, 0, Math.PI * 2, 0, Math.PI * .6), clothMat);
+    mantle.name = sign > 0 ? 'wizard_mantle_L' : 'wizard_mantle_R';
+    mantle.position.set(sign * .48, .28, 0);
+    mantle.scale.set(1.12, .74, 1.05);
+    mantle.castShadow = true;
+    chest.add(mantle);
+    const mantleTrim = new THREE.Mesh(new THREE.TorusGeometry(.25, .02, 8, 20), trim);
+    mantleTrim.name = sign > 0 ? 'wizard_mantle_trim_L' : 'wizard_mantle_trim_R';
+    mantleTrim.rotation.x = Math.PI / 2;
+    mantleTrim.position.set(sign * .48, .22, 0);
+    mantleTrim.scale.set(1.12, 1.05, 1);
+    chest.add(mantleTrim);
+  }
+  const tome = new THREE.Mesh(new RoundedBoxGeometry(.20, .26, .08, 2, .02), material('hero_leather_tome', profile.leather, .6, .05));
+  tome.name = 'wizard_tome';
+  tome.position.set(.34, -.16, .10);
+  tome.rotation.y = .3;
+  tome.castShadow = true;
+  pelvis.add(tome);
+  const tomeClasp = new THREE.Mesh(new THREE.BoxGeometry(.05, .10, .10), trim);
+  tomeClasp.name = 'wizard_tome_clasp';
+  tomeClasp.position.set(.38, -.16, .13);
+  tomeClasp.rotation.y = .3;
+  pelvis.add(tomeClasp);
+  const vial = new THREE.Mesh(new THREE.CylinderGeometry(.035, .045, .11, 8), material('hero_eye_vial', profile.eye, .25, 0, profile.eye, .5));
+  vial.name = 'wizard_vial';
+  vial.position.set(-.30, -.18, .18);
+  pelvis.add(vial);
+  const vialCap = new THREE.Mesh(new THREE.SphereGeometry(.028, 8, 8), trim);
+  vialCap.name = 'wizard_vial_cap';
+  vialCap.position.set(-.30, -.11, .18);
+  pelvis.add(vialCap);
+  const runeRing = new THREE.Mesh(new THREE.TorusGeometry(.12, .016, 8, 20), material('hero_trim_rune', profile.trim, .35, .8, profile.eye, .35));
+  runeRing.name = 'wizard_rune_ring';
+  runeRing.rotation.x = Math.PI / 2;
+  runeRing.position.set(-.02, -.36, .03);
+  skeletonInfo.bones.get('left_lower_arm').add(runeRing);
 }
 
 function createHero(resolution = 52, profileId = 'aerin') {
@@ -1027,10 +1306,10 @@ function createHero(resolution = 52, profileId = 'aerin') {
   for (let i = 0; i < 3; i += 1) {
     const geometry = subsetGeometry(body, classify, i);
     if (geometry.getAttribute('position').count === 0) continue;
-    group.add(makeSkinnedMesh(geometry, mats[i], skeletonInfo.skeleton, `hero_body_${i}`));
+    group.add(makeSkinnedMesh(weld(geometry), mats[i], skeletonInfo.skeleton, `hero_body_${i}`));
   }
   const outlineMat = new THREE.MeshBasicMaterial({ name: 'outline_proxy', color: profile.outline, transparent: true, opacity: .001, depthWrite: false, side: THREE.BackSide });
-  const outline = makeSkinnedMesh(body.clone(), outlineMat, skeletonInfo.skeleton, 'hero_outline_proxy');
+  const outline = makeSkinnedMesh(weld(body.clone()), outlineMat, skeletonInfo.skeleton, 'hero_outline_proxy');
   outline.userData.outlineProxy = true;
   group.add(outline);
 
@@ -1045,6 +1324,11 @@ function createHero(resolution = 52, profileId = 'aerin') {
   addSurfaceDetail(group, headBone, 'eye_white_R', eyeGeo, eyeWhite, [-.185, .10, .425], [0, 0, 0], [1.12, 1.35, 1]);
   addSurfaceDetail(group, headBone, 'eye_L', eyeGeo, eyeMat, [.185, .10, .437], [0, 0, 0], [.5, .72, 1]);
   addSurfaceDetail(group, headBone, 'eye_R', eyeGeo, eyeMat, [-.185, .10, .437], [0, 0, 0], [.5, .72, 1]);
+  // Catch-light glints sell the eyes at close-camera range.
+  const glintMat = material('hero_eye_white_glint', 0xffffff, .2, 0);
+  const glintGeo = new THREE.CircleGeometry(.026, 10);
+  addSurfaceDetail(group, headBone, 'eye_glint_L', glintGeo, glintMat, [.212, .135, .448]);
+  addSurfaceDetail(group, headBone, 'eye_glint_R', glintGeo, glintMat, [-.158, .135, .448]);
   const browGeo = new THREE.BoxGeometry(isKnight ? .16 : .18, isKnight ? .035 : .025, .018);
   const browL = addSurfaceDetail(group, headBone, 'brow_L', browGeo, material('hero_brow', profile.brow, .9, 0), [.185, .245, .44], [0, 0, isKnight ? -.2 : -.12]);
   const browR = addSurfaceDetail(group, headBone, 'brow_R', browGeo, browL.material, [-.185, .245, .44], [0, 0, isKnight ? .2 : .12]);
@@ -1053,7 +1337,7 @@ function createHero(resolution = 52, profileId = 'aerin') {
   addSurfaceDetail(group, headBone, 'mouth', new THREE.TubeGeometry(mouthCurve, 12, .012, 5, false), material('hero_mouth', profile.mouth, .72, 0), [0, 0, 0]);
 
   const hairParts = heroHairParts(profile.hairStyle);
-  const hairGeometry = implicitGeometry(p => unionSdf(hairParts, p, .08), { min: V3(-.65, -.72, -.62), max: V3(.65, .68, .48) }, Math.max(34, resolution - 10), 50000);
+  const hairGeometry = weld(implicitGeometry(p => unionSdf(hairParts, p, .08), { min: V3(-.65, -.72, -.62), max: V3(.65, .68, .48) }, Math.max(34, resolution - 10), 90000));
   const hair = new THREE.Mesh(hairGeometry, material('hero_hair', profile.hair, .55, 0));
   hair.name = 'hero_hair_silhouette';
   hair.castShadow = true;
@@ -1066,6 +1350,10 @@ function createHero(resolution = 52, profileId = 'aerin') {
   if (isKnight) {
     attachKnightArmor(skeletonInfo, profile);
   } else {
+    attachAdventurerGear(skeletonInfo, profile);
+    if (profileId === 'rogue') attachRogueKit(skeletonInfo, profile);
+    if (profileId === 'ranger') attachRangerKit(skeletonInfo, profile);
+    if (profileId === 'wizard') attachWizardKit(skeletonInfo, profile);
     const collar = new THREE.Mesh(new THREE.TorusGeometry(.39, .055, 8, 36), material('hero_trim', profile.trim, .42, .72));
     collar.name = 'hero_collar';
     collar.rotation.x = Math.PI / 2;
@@ -1073,23 +1361,23 @@ function createHero(resolution = 52, profileId = 'aerin') {
     collar.position.set(0, .27, .015);
     skeletonInfo.bones.get('chest').add(collar);
   }
-  const belt = new THREE.Mesh(new THREE.TorusGeometry(.43, .055, 8, 40), material('hero_belt', profile.belt, .7, .05));
+  const belt = new THREE.Mesh(new THREE.TorusGeometry(.375, .055, 8, 40), material('hero_belt', profile.belt, .7, .05));
   belt.name = 'hero_belt';
   belt.rotation.x = Math.PI / 2;
-  belt.scale.z = .72;
-  belt.position.set(0, -.19, .01);
+  belt.scale.z = .64;
+  belt.position.set(0, -.17, .02);
   skeletonInfo.bones.get('pelvis').add(belt);
-  const buckle = new THREE.Mesh(new RoundedBoxGeometry(.18, .16, .06, 3, .035), material('hero_buckle', profile.buckle, .35, .85));
+  const buckle = new THREE.Mesh(new RoundedBoxGeometry(.16, .14, .06, 3, .035), material('hero_buckle', profile.buckle, .35, .85));
   buckle.name = 'hero_buckle';
-  buckle.position.set(0, -.19, .36);
+  buckle.position.set(0, -.17, .265);
   skeletonInfo.bones.get('pelvis').add(buckle);
 
   if (profileId === 'wizard') {
     // Soft robe flare on lower body via leather-role sash trim.
-    const sash = new THREE.Mesh(new THREE.TorusGeometry(.48, .04, 8, 36), material('hero_trim', profile.trim, .5, .55));
+    const sash = new THREE.Mesh(new THREE.TorusGeometry(.41, .04, 8, 36), material('hero_trim', profile.trim, .5, .55));
     sash.name = 'wizard_sash';
     sash.rotation.x = Math.PI / 2;
-    sash.scale.set(1, 1, .78);
+    sash.scale.set(1, 1, .68);
     sash.position.set(0, -.05, .02);
     skeletonInfo.bones.get('pelvis').add(sash);
   }
@@ -1175,6 +1463,31 @@ function createWeapon(kind) {
   rune.name = 'weapon_rune';
   rune.position.z = .07;
   group.add(rune);
+  // Detail pass — fuller groove, leather grip wraps, guard caps, pommel gem.
+  const fullerDepth = kind === 'greatsword' ? .092 : .066;
+  for (const side of [-1, 1]) {
+    const fuller = new THREE.Mesh(new THREE.BoxGeometry(.022, specs.length * .52, .012), gripMat);
+    fuller.name = `weapon_fuller_${side}`;
+    fuller.position.set(0, specs.length * .48 + .22, side * fullerDepth);
+    group.add(fuller);
+  }
+  for (let i = 0; i < 3; i += 1) {
+    const wrapRing = new THREE.Mesh(new THREE.TorusGeometry(.078, .013, 6, 14), trimMat);
+    wrapRing.name = `weapon_trim_wrap_${i}`;
+    wrapRing.rotation.x = Math.PI / 2;
+    wrapRing.position.set(0, .02 - i * .13, 0);
+    group.add(wrapRing);
+  }
+  for (const side of [-1, 1]) {
+    const guardCap = new THREE.Mesh(new THREE.SphereGeometry(.062, 10, 8), trimMat);
+    guardCap.name = `weapon_guard_cap_${side}`;
+    guardCap.position.set(side * .42, .16, 0);
+    group.add(guardCap);
+  }
+  const pommelGem = new THREE.Mesh(new THREE.OctahedronGeometry(.055, 0), runeMat);
+  pommelGem.name = 'weapon_rune_pommel';
+  pommelGem.position.set(0, -.48, .085);
+  group.add(pommelGem);
   const base = new THREE.Object3D();
   base.name = 'blade_base';
   base.position.set(0, .24, 0);
@@ -1215,6 +1528,34 @@ function createBow() {
   tipOrnament.name = 'weapon_rune';
   tipOrnament.position.set(0.05, 1.55, 0);
   group.add(tipOrnament);
+  // Detail pass — grip wraps, limb reinforcement plates, nock beads, lower tip.
+  const trimMat = material('weapon_trim', 0xc99d4d, .35, .82);
+  for (let i = 0; i < 2; i += 1) {
+    const gripRing = new THREE.Mesh(new THREE.TorusGeometry(.062, .012, 6, 12), trimMat);
+    gripRing.name = `bow_grip_ring_${i}`;
+    gripRing.rotation.x = Math.PI / 2;
+    gripRing.position.set(0, .76 + i * .18, 0);
+    group.add(gripRing);
+  }
+  for (const y of [.58, 1.12]) {
+    const plate = new THREE.Mesh(new RoundedBoxGeometry(.06, .14, .09, 2, .02), trimMat);
+    plate.name = `bow_plate_${y}`;
+    plate.position.set(-.04, y, 0);
+    plate.rotation.z = y > .85 ? -.35 : .35;
+    group.add(plate);
+  }
+  const nockTop = new THREE.Mesh(new THREE.SphereGeometry(.032, 8, 6), trimMat);
+  nockTop.name = 'bow_nock_top';
+  nockTop.position.set(.25, 1.51, 0);
+  group.add(nockTop);
+  const nockBottom = nockTop.clone();
+  nockBottom.name = 'bow_nock_bottom';
+  nockBottom.position.set(.19, .19, 0);
+  group.add(nockBottom);
+  const tipLower = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 6), stringMat);
+  tipLower.name = 'bow_tip_lower';
+  tipLower.position.set(0.05, .15, 0);
+  group.add(tipLower);
   const base = new THREE.Object3D();
   base.name = 'blade_base';
   base.position.set(0, 0.35, 0);
@@ -1257,6 +1598,31 @@ function createStaff() {
   const tipOrb = new THREE.Mesh(new THREE.SphereGeometry(.08, 12, 10), crystal);
   tipOrb.position.y = 2.12;
   group.add(tipOrb);
+  // Detail pass — gold vine spiralling the shaft, crown prongs, floating rune halo.
+  const gold = material('weapon_trim', 0xc99d4d, .35, .82);
+  const vinePoints = [];
+  for (let i = 0; i <= 24; i += 1) {
+    const t = i / 24;
+    const angle = t * Math.PI * 5;
+    vinePoints.push(V3(Math.cos(angle) * .085, .40 + t * 1.2, Math.sin(angle) * .085));
+  }
+  const vine = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(vinePoints), 48, .018, 6, false), gold);
+  vine.name = 'staff_vine';
+  vine.castShadow = true;
+  group.add(vine);
+  for (let i = 0; i < 3; i += 1) {
+    const angle = i / 3 * Math.PI * 2;
+    const prong = new THREE.Mesh(new THREE.ConeGeometry(.03, .18, 6), metal);
+    prong.name = `staff_prong_${i}`;
+    prong.position.set(Math.cos(angle) * .10, 1.86, Math.sin(angle) * .10);
+    prong.rotation.set(Math.sin(angle) * .35, 0, -Math.cos(angle) * .35);
+    group.add(prong);
+  }
+  const halo = new THREE.Mesh(new THREE.TorusGeometry(.26, .014, 6, 28), crystal);
+  halo.name = 'weapon_rune_halo';
+  halo.position.y = 1.95;
+  halo.rotation.x = Math.PI / 2;
+  group.add(halo);
   const base = new THREE.Object3D();
   base.name = 'blade_base';
   base.position.set(0, .2, 0);
@@ -1351,8 +1717,15 @@ function monsterGeometry(type, resolution) {
       p => sdfEllipsoid(p, V3(0, .35, .02), V3(.82, .38, .72)),
       p => sdfCapsule(p, V3(-.55, .30, 0), V3(-.72, .12, .08), .18, .10),
       p => sdfCapsule(p, V3(.55, .30, 0), V3(.72, .12, .08), .18, .10),
+      // Surface blobs and dripping goo nubs break up the clean dome read.
+      p => sdfEllipsoid(p, V3(.30, .88, .28), V3(.18, .16, .18)),
+      p => sdfEllipsoid(p, V3(-.34, .80, -.20), V3(.16, .14, .16)),
+      p => sdfEllipsoid(p, V3(.10, 1.04, -.30), V3(.14, .12, .14)),
+      p => sdfCapsule(p, V3(.30, .18, .55), V3(.38, .05, .68), .12, .05),
+      p => sdfCapsule(p, V3(-.42, .16, .40), V3(-.55, .04, .52), .10, .05),
+      p => sdfCapsule(p, V3(.05, .16, -.60), V3(.10, .04, -.73), .10, .05),
     ];
-    return implicitGeometry(p => unionSdf(parts, p, .16), { min: V3(-1.0, -.05, -.9), max: V3(1.0, 1.45, .9) }, resolution, 60000);
+    return implicitGeometry(p => unionSdf(parts, p, .16), { min: V3(-1.0, -.05, -.9), max: V3(1.0, 1.45, .9) }, resolution, 110000);
   }
   if (type === 'hare') {
     const parts = [
@@ -1366,8 +1739,15 @@ function monsterGeometry(type, resolution) {
       p => sdfCapsule(p, V3(.34, .63, -.40), V3(.42, .12, -.35), .22, .13),
       p => sdfCapsule(p, V3(-.34, .63, -.40), V3(-.42, .12, -.35), .22, .13),
       p => sdfEllipsoid(p, V3(0, .70, -.78), V3(.23, .23, .22)),
+      // Chest ruff, heavier haunches, muzzle plane for a defined head.
+      p => sdfEllipsoid(p, V3(0, 1.02, .40), V3(.28, .24, .22)),
+      p => sdfEllipsoid(p, V3(.30, .76, -.30), V3(.22, .26, .30)),
+      p => sdfEllipsoid(p, V3(-.30, .76, -.30), V3(.22, .26, .30)),
+      p => sdfEllipsoid(p, V3(0, 1.22, .90), V3(.18, .14, .17)),
+      p => sdfEllipsoid(p, V3(.15, 1.44, .84), V3(.08, .07, .07)),
+      p => sdfEllipsoid(p, V3(-.15, 1.44, .84), V3(.08, .07, .07)),
     ];
-    return implicitGeometry(p => unionSdf(parts, p, .105), { min: V3(-.9, -.05, -1.1), max: V3(.9, 2.35, 1.15) }, resolution, 85000);
+    return implicitGeometry(p => unionSdf(parts, p, .105), { min: V3(-.9, -.05, -1.1), max: V3(.9, 2.35, 1.15) }, resolution, 150000);
   }
   if (type === 'boar') {
     const parts = [
@@ -1380,8 +1760,17 @@ function monsterGeometry(type, resolution) {
       p => sdfCapsule(p, V3(.46, .70, -.55), V3(.48, .10, -.52), .20, .12),
       p => sdfCapsule(p, V3(-.46, .70, -.55), V3(-.48, .10, -.52), .20, .12),
       p => sdfCapsule(p, V3(0, .95, -.95), V3(0, 1.02, -1.32), .15, .06),
+      // Mane ridge along the spine, ears, shoulder bulk, snout disc.
+      p => sdfEllipsoid(p, V3(0, 1.34, .28), V3(.20, .22, .30)),
+      p => sdfEllipsoid(p, V3(0, 1.40, -.08), V3(.22, .24, .34)),
+      p => sdfEllipsoid(p, V3(0, 1.30, -.46), V3(.20, .20, .30)),
+      p => sdfCapsule(p, V3(.26, 1.36, .90), V3(.40, 1.60, .80), .10, .04),
+      p => sdfCapsule(p, V3(-.26, 1.36, .90), V3(-.40, 1.60, .80), .10, .04),
+      p => sdfEllipsoid(p, V3(.40, .94, .40), V3(.24, .30, .30)),
+      p => sdfEllipsoid(p, V3(-.40, .94, .40), V3(.24, .30, .30)),
+      p => sdfEllipsoid(p, V3(0, .98, 1.50), V3(.24, .18, .14)),
     ];
-    return implicitGeometry(p => unionSdf(parts, p, .12), { min: V3(-1.05, -.05, -1.55), max: V3(1.05, 1.85, 1.75) }, resolution, 90000);
+    return implicitGeometry(p => unionSdf(parts, p, .12), { min: V3(-1.05, -.05, -1.55), max: V3(1.05, 1.85, 1.75) }, resolution, 160000);
   }
   if (type === 'wisp') {
     const parts = [
@@ -1389,8 +1778,12 @@ function monsterGeometry(type, resolution) {
       p => sdfCapsule(p, V3(0, .58, 0), V3(0, .12, 0), .34, .06),
       p => sdfCapsule(p, V3(.28, .98, 0), V3(.62, 1.24, -.08), .16, .05),
       p => sdfCapsule(p, V3(-.28, .98, 0), V3(-.62, 1.24, -.08), .16, .05),
+      // Extra flame tendrils and a crown lick for a livelier spirit silhouette.
+      p => sdfCapsule(p, V3(.15, .62, .22), V3(.35, .20, .42), .10, .03),
+      p => sdfCapsule(p, V3(-.15, .62, .22), V3(-.35, .20, .42), .10, .03),
+      p => sdfCapsule(p, V3(0, 1.28, -.12), V3(0, 1.56, -.32), .12, .04),
     ];
-    return implicitGeometry(p => unionSdf(parts, p, .10), { min: V3(-.85, -.05, -.65), max: V3(.85, 1.75, .65) }, resolution, 60000);
+    return implicitGeometry(p => unionSdf(parts, p, .10), { min: V3(-.85, -.05, -.65), max: V3(.85, 1.75, .65) }, resolution, 110000);
   }
   if (type === 'humanoid') {
     const parts = [
@@ -1400,8 +1793,18 @@ function monsterGeometry(type, resolution) {
       p => sdfCapsule(p, V3(-.50, 1.88, 0), V3(-.88, 1.12, .02), .23, .17),
       p => sdfCapsule(p, V3(.28, 1.10, 0), V3(.32, .18, .10), .28, .16),
       p => sdfCapsule(p, V3(-.28, 1.10, 0), V3(-.32, .18, .10), .28, .16),
+      // Brute anatomy — pecs, gut, delts, heavy fists, jaw and brow ridge.
+      p => sdfEllipsoid(p, V3(.28, 1.80, .28), V3(.22, .16, .14)),
+      p => sdfEllipsoid(p, V3(-.28, 1.80, .28), V3(.22, .16, .14)),
+      p => sdfEllipsoid(p, V3(0, 1.26, .30), V3(.30, .26, .16)),
+      p => sdfEllipsoid(p, V3(.54, 2.00, 0), V3(.20, .18, .18)),
+      p => sdfEllipsoid(p, V3(-.54, 2.00, 0), V3(.20, .18, .18)),
+      p => sdfEllipsoid(p, V3(.90, 1.06, .04), V3(.15, .13, .14)),
+      p => sdfEllipsoid(p, V3(-.90, 1.06, .04), V3(.15, .13, .14)),
+      p => sdfEllipsoid(p, V3(0, 2.00, .28), V3(.16, .12, .12)),
+      p => sdfEllipsoid(p, V3(0, 2.42, .38), V3(.26, .08, .12)),
     ];
-    return implicitGeometry(p => unionSdf(parts, p, .11), { min: V3(-1.15, -.05, -.72), max: V3(1.15, 2.95, .78) }, resolution, 90000);
+    return implicitGeometry(p => unionSdf(parts, p, .11), { min: V3(-1.15, -.05, -.72), max: V3(1.15, 2.95, .78) }, resolution, 160000);
   }
   if (type === 'colossus') {
     const parts = [
@@ -1416,8 +1819,17 @@ function monsterGeometry(type, resolution) {
       p => sdfCapsule(p, V3(-.28, 3.05, -.05), V3(-.65, 3.72, -.1), .18, .07),
       p => sdfCapsule(p, V3(.52, 3.45, -.08), V3(.92, 3.82, -.15), .11, .05),
       p => sdfCapsule(p, V3(-.52, 3.45, -.08), V3(-.92, 3.82, -.15), .11, .05),
+      // Boulder shoulders, knuckle mass, brow shelf — ancient stone golem bulk.
+      p => sdfEllipsoid(p, V3(.85, 2.35, 0), V3(.34, .30, .32)),
+      p => sdfEllipsoid(p, V3(-.85, 2.35, 0), V3(.34, .30, .32)),
+      p => sdfEllipsoid(p, V3(1.28, 1.05, .04), V3(.24, .20, .24)),
+      p => sdfEllipsoid(p, V3(-1.28, 1.05, .04), V3(.24, .20, .24)),
+      p => sdfEllipsoid(p, V3(0, 2.88, .42), V3(.36, .12, .18)),
+      p => sdfEllipsoid(p, V3(0, 1.35, .40), V3(.42, .30, .22)),
+      p => sdfEllipsoid(p, V3(.30, 2.10, -.42), V3(.26, .34, .20)),
+      p => sdfEllipsoid(p, V3(-.30, 2.10, -.42), V3(.26, .34, .20)),
     ];
-    return implicitGeometry(p => unionSdf(parts, p, .14), { min: V3(-1.65, -.05, -.92), max: V3(1.65, 4.05, 1.0) }, resolution, 150000);
+    return implicitGeometry(p => unionSdf(parts, p, .14), { min: V3(-1.65, -.05, -.92), max: V3(1.65, 4.05, 1.0) }, resolution, 240000);
   }
   throw new Error(`Unknown monster geometry: ${type}`);
 }
@@ -1490,9 +1902,8 @@ function createMonster(type, resolution = 44) {
   const skeletonInfo = makeHealthlessMonsterSkeleton(type);
   group.add(skeletonInfo.rootBone);
   group.updateMatrixWorld(true);
-  const geometry = monsterGeometry(type, resolution);
   const { rules, selector } = monsterSkinRules(type, skeletonInfo);
-  applySkinWeights(geometry, skeletonInfo, rules, selector);
+  const geometry = weld(applySkinWeights(monsterGeometry(type, resolution), skeletonInfo, rules, selector));
   const bodyMat = material('monster_body', type === 'slime' ? 0x55bd7b : type === 'hare' ? 0xb9aa7d : type === 'boar' ? 0x6f664b : type === 'wisp' ? 0xf0c95e : type === 'colossus' ? 0x4f6945 : 0x527a55, type === 'slime' || type === 'wisp' ? .36 : .78, type === 'colossus' ? .05 : 0, type === 'wisp' ? 0xe0a940 : 0x000000, type === 'wisp' ? .55 : 0);
   const body = makeSkinnedMesh(geometry, bodyMat, skeletonInfo.skeleton, `${type}_body`);
   group.add(body);
@@ -1505,27 +1916,153 @@ function createMonster(type, resolution = 44) {
   const eyeGlow = material('monster_eye_glow', 0xffe17b, .25, .05, 0xffb83f, .35);
   const eyeGeo = new THREE.CircleGeometry(type === 'colossus' ? .12 : .085, 20);
   if (type === 'slime' || type === 'wisp') {
-    addSurfaceDetail(group, headBone, `${type}_eye_l`, eyeGeo, type === 'wisp' ? eyeGlow : eyeMat, [.18, .02, type === 'wisp' ? .40 : .46], [0, 0, 0], [1, 1.25, 1]);
-    addSurfaceDetail(group, headBone, `${type}_eye_r`, eyeGeo, type === 'wisp' ? eyeGlow : eyeMat, [-.18, .02, type === 'wisp' ? .40 : .46], [0, 0, 0], [1, 1.25, 1]);
+    addSurfaceDetail(group, headBone, `${type}_eye_l`, eyeGeo, eyeMat, [.18, .02, type === 'wisp' ? .40 : .46], [0, 0, 0], [1, 1.25, 1]);
+    addSurfaceDetail(group, headBone, `${type}_eye_r`, eyeGeo, eyeMat, [-.18, .02, type === 'wisp' ? .40 : .46], [0, 0, 0], [1, 1.25, 1]);
+    const bodyBone = skeletonInfo.bones.get('body');
+    if (type === 'slime') {
+      // Glossy surface bubbles + a dark gel mouth; glints keep the face readable.
+      const glintMat = material('slime_accent_glint', 0xf4fff2, .2, 0);
+      const glintGeo = new THREE.CircleGeometry(.03, 10);
+      addSurfaceDetail(group, headBone, 'slime_glint_l', glintGeo, glintMat, [.21, .07, .465]);
+      addSurfaceDetail(group, headBone, 'slime_glint_r', glintGeo, glintMat, [-.15, .07, .465]);
+      const mouthCurve = new THREE.QuadraticBezierCurve3(V3(-.12, -.16, .48), V3(0, -.24, .52), V3(.12, -.16, .48));
+      addSurfaceDetail(group, headBone, 'slime_accent_mouth', new THREE.TubeGeometry(mouthCurve, 10, .022, 5, false), material('slime_accent_mouth', 0x1d4a34, .5, 0), [0, 0, 0]);
+      const bubbleMat = material('slime_bubble_glow', 0x8fe8ae, .22, 0, 0x55bd7b, .35);
+      for (const [bx, by, bz, br] of [[.42, .30, .32, .075], [-.36, .34, .38, .06], [.05, .44, -.52, .09], [-.44, .18, -.30, .055]]) {
+        addSurfaceDetail(group, bodyBone, `slime_bubble_${bx}`, new THREE.SphereGeometry(br, 12, 10), bubbleMat, [bx, by, bz]);
+      }
+    } else {
+      // Ember motes + halo ring reinforce the spirit-flame identity.
+      const emberMat = material('wisp_ember_glow', 0xffd685, .25, 0, 0xe0a940, .8);
+      for (const [ex, ey, ez, er] of [[.55, -.32, .15, .05], [-.50, -.18, -.12, .04], [.18, .10, -.32, .06]]) {
+        addSurfaceDetail(group, bodyBone, `wisp_ember_${ex}`, new THREE.SphereGeometry(er, 10, 8), emberMat, [ex, ey, ez]);
+      }
+      const halo = new THREE.Mesh(new THREE.TorusGeometry(.55, .022, 8, 36), material('wisp_halo_glow', 0xffe9b0, .3, 0, 0xe0a940, .6));
+      halo.name = 'wisp_halo';
+      halo.rotation.x = Math.PI / 2;
+      halo.position.set(0, .38, 0);
+      bodyBone.add(halo);
+    }
   } else if (type === 'hare') {
     addSurfaceDetail(group, headBone, 'hare_eye_l', eyeGeo, eyeMat, [.23, .08, .34], [0, 0, 0], [1, 1.2, 1]);
     addSurfaceDetail(group, headBone, 'hare_eye_r', eyeGeo, eyeMat, [-.23, .08, .34], [0, 0, 0], [1, 1.2, 1]);
+    const hareGlintMat = material('hare_accent_glint', 0xffffff, .2, 0);
+    const hareGlintGeo = new THREE.CircleGeometry(.028, 10);
+    addSurfaceDetail(group, headBone, 'hare_glint_l', hareGlintGeo, hareGlintMat, [.255, .115, .355]);
+    addSurfaceDetail(group, headBone, 'hare_glint_r', hareGlintGeo, hareGlintMat, [-.205, .115, .355]);
     const hornMat = material('monster_accent', 0xe7db9f, .65, 0);
     const hornCurveL = new THREE.CatmullRomCurve3([V3(.18, .25, .22), V3(.25, .45, .18), V3(.16, .62, .08)]);
     const hornCurveR = new THREE.CatmullRomCurve3([V3(-.18, .25, .22), V3(-.25, .45, .18), V3(-.16, .62, .08)]);
     addSurfaceDetail(group, headBone, 'hare_horn_l', new THREE.TubeGeometry(hornCurveL, 12, .035, 7, false), hornMat, [0, 0, 0]);
     addSurfaceDetail(group, headBone, 'hare_horn_r', new THREE.TubeGeometry(hornCurveR, 12, .035, 7, false), hornMat, [0, 0, 0]);
+    // Face kit — pink nose/inner ears, buck teeth, whisker sticks.
+    const noseMat = material('hare_accent_nose', 0xd88a90, .55, 0);
+    addSurfaceDetail(group, headBone, 'hare_nose', new THREE.SphereGeometry(.045, 10, 8), noseMat, [0, -.04, .40], [0, 0, 0], [1, .8, .7]);
+    const innerEarMat = material('hare_accent_ear_inner', 0xd8a0a0, .7, 0);
+    const innerEarGeo = new THREE.CircleGeometry(.085, 12);
+    addSurfaceDetail(group, headBone, 'hare_ear_inner_l', innerEarGeo, innerEarMat, [.21, .56, -.20], [-.28, .18, .08], [.55, 1.9, 1]);
+    addSurfaceDetail(group, headBone, 'hare_ear_inner_r', innerEarGeo, innerEarMat, [-.21, .56, -.20], [-.28, -.18, -.08], [.55, 1.9, 1]);
+    const toothMat = material('hare_accent_tooth', 0xf6f0dc, .5, 0);
+    addSurfaceDetail(group, headBone, 'hare_tooth_l', new THREE.BoxGeometry(.035, .055, .02), toothMat, [.022, -.13, .385]);
+    addSurfaceDetail(group, headBone, 'hare_tooth_r', new THREE.BoxGeometry(.035, .055, .02), toothMat, [-.022, -.13, .385]);
+    const whiskerMat = material('hare_accent_whisker', 0xe8e0c8, .8, 0);
+    for (const sign of [-1, 1]) {
+      for (let i = 0; i < 3; i += 1) {
+        const whisker = new THREE.Mesh(new THREE.BoxGeometry(.24, .006, .006), whiskerMat);
+        whisker.name = `hare_whisker_${sign}_${i}`;
+        whisker.position.set(sign * .20, -.05 - i * .025, .34);
+        whisker.rotation.set(0, sign * -.5, (i - 1) * .16);
+        headBone.add(whisker);
+      }
+    }
   } else if (type === 'boar') {
     addSurfaceDetail(group, headBone, 'boar_eye_l', eyeGeo, eyeMat, [.25, .10, .32]);
     addSurfaceDetail(group, headBone, 'boar_eye_r', eyeGeo, eyeMat, [-.25, .10, .32]);
     const tuskMat = material('monster_accent', 0xe7d9b0, .58, 0);
-    const tuskL = new THREE.CatmullRomCurve3([V3(.22, -.05, .31), V3(.30, -.12, .50), V3(.23, .05, .62)]);
-    const tuskR = new THREE.CatmullRomCurve3([V3(-.22, -.05, .31), V3(-.30, -.12, .50), V3(-.23, .05, .62)]);
-    addSurfaceDetail(group, headBone, 'boar_tusk_l', new THREE.TubeGeometry(tuskL, 12, .045, 7, false), tuskMat, [0, 0, 0]);
-    addSurfaceDetail(group, headBone, 'boar_tusk_r', new THREE.TubeGeometry(tuskR, 12, .045, 7, false), tuskMat, [0, 0, 0]);
+    const tuskL = new THREE.CatmullRomCurve3([V3(.20, -.26, .58), V3(.31, -.32, .76), V3(.25, -.08, .90)]);
+    const tuskR = new THREE.CatmullRomCurve3([V3(-.20, -.26, .58), V3(-.31, -.32, .76), V3(-.25, -.08, .90)]);
+    addSurfaceDetail(group, headBone, 'boar_tusk_l', new THREE.TubeGeometry(tuskL, 12, .055, 7, false), tuskMat, [0, 0, 0]);
+    addSurfaceDetail(group, headBone, 'boar_tusk_r', new THREE.TubeGeometry(tuskR, 12, .055, 7, false), tuskMat, [0, 0, 0]);
+    // Snout nostrils, hooves, bristle row, tail tuft complete the wild-boar read.
+    const nostrilMat = material('boar_accent_nostril', 0x2a211c, .6, 0);
+    const nostrilGeo = new THREE.CircleGeometry(.035, 10);
+    addSurfaceDetail(group, headBone, 'boar_nostril_l', nostrilGeo, nostrilMat, [.08, -.28, .875], [0, 0, 0], [1, 1.4, 1]);
+    addSurfaceDetail(group, headBone, 'boar_nostril_r', nostrilGeo, nostrilMat, [-.08, -.28, .875], [0, 0, 0], [1, 1.4, 1]);
+    const hoofMat = material('boar_accent_hoof', 0x2e2622, .55, 0);
+    for (const footName of ['front_left_foot', 'front_right_foot', 'back_left_foot', 'back_right_foot']) {
+      const foot = skeletonInfo.bones.get(footName);
+      const outward = footName.includes('left') ? 1 : -1;
+      const isFront = footName.startsWith('front');
+      const hoof = new THREE.Mesh(new RoundedBoxGeometry(.22, .13, .24, 2, .03), hoofMat);
+      hoof.name = `boar_hoof_${footName}`;
+      // Skeleton feet sit inboard of the sculpted legs — offset out to the actual leg line.
+      hoof.position.set(outward * .12, -.07, isFront ? .06 : -.10);
+      foot.add(hoof);
+    }
+    const bodyBone = skeletonInfo.bones.get('body');
+    const bristleMat = material('boar_accent_bristle', 0x453a2c, .85, 0);
+    for (let i = 0; i < 5; i += 1) {
+      const bristle = new THREE.Mesh(new THREE.ConeGeometry(.055, .17, 6), bristleMat);
+      bristle.name = `boar_bristle_${i}`;
+      bristle.position.set((i % 2) * .05 - .025, .78 - i * .04, .35 - i * .21);
+      bristle.rotation.x = -.45;
+      bodyBone.add(bristle);
+    }
+    const tuft = new THREE.Mesh(new THREE.SphereGeometry(.07, 8, 8), bristleMat);
+    tuft.name = 'boar_tail_tuft';
+    tuft.position.set(0, .30, -1.32);
+    bodyBone.add(tuft);
   } else {
-    addSurfaceDetail(group, headBone, `${type}_eye_l`, eyeGeo, type === 'colossus' ? eyeGlow : eyeMat, [.21, .06, .43], [0, 0, 0], [1, 1.2, 1]);
-    addSurfaceDetail(group, headBone, `${type}_eye_r`, eyeGeo, type === 'colossus' ? eyeGlow : eyeMat, [-.21, .06, .43], [0, 0, 0], [1, 1.2, 1]);
+    // Colossus head sits higher than the shared skeleton's head bone — lift eyes onto the actual skull.
+    const eyeY = type === 'colossus' ? .52 : .06;
+    const eyeZ = type === 'colossus' ? .60 : .43;
+    addSurfaceDetail(group, headBone, `${type}_eye_l`, eyeGeo, type === 'colossus' ? eyeGlow : eyeMat, [.21, eyeY, eyeZ], [0, 0, 0], [1, 1.2, 1]);
+    addSurfaceDetail(group, headBone, `${type}_eye_r`, eyeGeo, type === 'colossus' ? eyeGlow : eyeMat, [-.21, eyeY, eyeZ], [0, 0, 0], [1, 1.2, 1]);
+  }
+  if (type === 'humanoid') {
+    // Horns, under-bite teeth, rope belt, loincloth, spine spikes — a proper brute.
+    const hornMat = material('humanoid_accent_horn', 0xd8cba8, .6, 0);
+    const hornL = new THREE.CatmullRomCurve3([V3(.28, .28, .08), V3(.46, .50, -.02), V3(.42, .70, -.16)]);
+    const hornR = new THREE.CatmullRomCurve3([V3(-.28, .28, .08), V3(-.46, .50, -.02), V3(-.42, .70, -.16)]);
+    addSurfaceDetail(group, headBone, 'humanoid_horn_l', new THREE.TubeGeometry(hornL, 10, .055, 7, false), hornMat, [0, 0, 0]);
+    addSurfaceDetail(group, headBone, 'humanoid_horn_r', new THREE.TubeGeometry(hornR, 10, .055, 7, false), hornMat, [0, 0, 0]);
+    const toothMat = material('humanoid_accent_tooth', 0xe8ddc0, .5, 0);
+    for (const [tx, tz] of [[.14, .34], [.05, .385], [-.05, .385], [-.14, .34]]) {
+      const tooth = new THREE.Mesh(new THREE.ConeGeometry(.026, .075, 6), toothMat);
+      tooth.name = `humanoid_tooth_${tx}`;
+      tooth.position.set(tx, -.22, tz);
+      headBone.add(tooth);
+    }
+    const pelvisBone = skeletonInfo.bones.get('pelvis');
+    const rope = new THREE.Mesh(new THREE.TorusGeometry(.44, .05, 8, 28), material('humanoid_accent_rope', 0x8a7648, .9, 0));
+    rope.name = 'humanoid_rope_belt';
+    rope.rotation.x = Math.PI / 2;
+    rope.scale.z = .8;
+    rope.position.set(0, -.04, 0);
+    pelvisBone.add(rope);
+    const loincloth = new THREE.Mesh(new RoundedBoxGeometry(.42, .36, .07, 2, .03), material('humanoid_cloth_wrap', 0x4a4238, .92, 0));
+    loincloth.name = 'humanoid_loincloth';
+    loincloth.position.set(0, -.22, .30);
+    loincloth.rotation.x = .12;
+    loincloth.castShadow = true;
+    pelvisBone.add(loincloth);
+    const spineBone = skeletonInfo.bones.get('spine');
+    for (let i = 0; i < 3; i += 1) {
+      const spike = new THREE.Mesh(new THREE.ConeGeometry(.05, .15, 6), hornMat);
+      spike.name = `humanoid_spike_${i}`;
+      spike.position.set(0, .40 - i * .24, -.42 - (i === 1 ? .02 : 0));
+      spike.rotation.x = -.9;
+      spineBone.add(spike);
+    }
+    for (const side of ['left', 'right']) {
+      const arm = skeletonInfo.bones.get(`${side}_arm`);
+      const pad = new THREE.Mesh(new RoundedBoxGeometry(.36, .14, .34, 2, .05), material('humanoid_stone_pad', 0x6a6f66, .9, 0));
+      pad.name = `humanoid_pad_${side}`;
+      pad.position.set(side === 'left' ? -.02 : .02, .04, 0);
+      pad.rotation.z = side === 'left' ? -.38 : .38;
+      pad.castShadow = true;
+      arm.add(pad);
+    }
   }
   if (type === 'colossus') {
     const mossMat = material('monster_moss', 0x6e9b4a, .95, 0);
@@ -1534,9 +2071,45 @@ function createMonster(type, resolution = 44) {
       leafShape.moveTo(0, 0); leafShape.quadraticCurveTo(.16, .18, 0, .42); leafShape.quadraticCurveTo(-.16, .18, 0, 0);
       const leaf = new THREE.Mesh(new THREE.ShapeGeometry(leafShape, 8), mossMat);
       leaf.name = `moss_leaf_${i}`;
-      leaf.position.set((i - 2) * .17, .36 + (i % 2) * .12, -.18 - i * .025);
-      leaf.rotation.set(-.25, i * .45, (i - 2) * .18);
+      leaf.position.set((i - 2) * .17, .82 + (i % 2) * .10, -.30 - i * .03);
+      leaf.rotation.set(-.65, i * .45, (i - 2) * .18);
       headBone.add(leaf);
+    }
+    // Rock plates, glowing rune cracks, and crystal shards — ancient awakened golem.
+    const spineBone = skeletonInfo.bones.get('spine');
+    const stoneMat = material('colossus_stone_plate', 0x5d6258, .92, 0);
+    for (const [px, py, pz, ry] of [[0, .40, -.72, 0], [.44, .10, -.66, .5], [-.44, .10, -.66, -.5], [0, -.24, -.72, .25]]) {
+      const plate = new THREE.Mesh(new RoundedBoxGeometry(.52, .36, .20, 2, .05), stoneMat);
+      plate.name = `colossus_plate_${px}_${py}`;
+      plate.position.set(px, py, pz);
+      plate.rotation.set(.12, ry, 0);
+      plate.castShadow = true;
+      spineBone.add(plate);
+    }
+    const runeMat = material('colossus_rune_glow', 0x8fe8c0, .4, 0, 0x4fd898, .9);
+    for (const [rx, ry, rot] of [[.16, .18, .5], [-.20, .05, -.6], [.05, -.18, .2], [-.10, .32, -.25]]) {
+      const rune = new THREE.Mesh(new THREE.BoxGeometry(.05, .28, .025), runeMat);
+      rune.name = `colossus_rune_${rx}_${ry}`;
+      rune.position.set(rx, ry, .70);
+      rune.rotation.z = rot;
+      spineBone.add(rune);
+    }
+    const crystalMat = material('colossus_crystal_glow', 0x7dd8c8, .3, .1, 0x3fb89a, .7);
+    for (const [cx, cy, cz, tilt] of [[0, .70, -.66, -.6], [.36, .55, -.62, -.45], [-.32, .60, -.64, -.75]]) {
+      const crystal = new THREE.Mesh(new THREE.ConeGeometry(.10, .38, 5), crystalMat);
+      crystal.name = `colossus_crystal_${cx}`;
+      crystal.position.set(cx, cy, cz);
+      crystal.rotation.set(tilt, cx * 1.2, 0);
+      crystal.castShadow = true;
+      spineBone.add(crystal);
+    }
+    for (const side of ['left', 'right']) {
+      const hand = skeletonInfo.bones.get(`${side}_hand`);
+      const knuckle = new THREE.Mesh(new RoundedBoxGeometry(.34, .24, .30, 2, .06), stoneMat);
+      knuckle.name = `colossus_knuckle_${side}`;
+      knuckle.position.set(side === 'left' ? .33 : -.33, -.36, .18);
+      knuckle.castShadow = true;
+      hand.add(knuckle);
     }
   }
   const animations = monsterAnimations(type, skeletonInfo);
@@ -1712,9 +2285,9 @@ function createWell() {
 }
 
 async function exportHeroClass(classId, fileStem) {
-  const hero0 = createHero(52, classId);
+  const hero0 = createHero(66, classId);
   await exportGLB(hero0.group, resolve(ASSETS, `models/hero/${fileStem}_lod0.glb`), hero0.animations);
-  const hero1 = createHero(38, classId);
+  const hero1 = createHero(46, classId);
   await exportGLB(hero1.group, resolve(ASSETS, `models/hero/${fileStem}_lod1.glb`), hero1.animations);
 }
 
@@ -1780,7 +2353,7 @@ async function main() {
   }
 
   const monsterSpecs = [
-    ['slime', 46, 32], ['hare', 48, 34], ['boar', 48, 34], ['wisp', 42, 30], ['humanoid', 46, 34], ['colossus', 58, 40],
+    ['slime', 58, 40], ['hare', 62, 44], ['boar', 62, 44], ['wisp', 54, 38], ['humanoid', 60, 44], ['colossus', 72, 50],
   ];
   for (const [type, lod0Res, lod1Res] of monsterSpecs) {
     const lod0 = createMonster(type, lod0Res);
