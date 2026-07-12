@@ -26,5 +26,5 @@ Thumbs.db
 .vscode/
 .idea/
 
-# Large GLB models — exceed Cloudflare 25 MiB limit (6.5 MB each)
-assets/models/hero/*.glb
+# Hero / monster / prop GLBs are shipped with the game (personal server deploy).
+# Do not exclude assets/models/** here.

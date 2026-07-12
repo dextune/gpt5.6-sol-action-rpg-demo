@@ -20,7 +20,8 @@ Detailed guides are in **`docs/`** — hub: [docs/README.md](./docs/README.md). 
 - **Hit ≠ mesh** — blade length (`WEAPON_*`) and hit `range` are separate. Often both must be aligned.
 - **Frozen objects** — edit `Object.freeze` tables by changing fields / adding entries (keep structure).
 - **Save** — do not change `saveKey`/`saveVersion` casually. On schema add, merge load defaults.
-- **Git finalization** — never automatically commit or push after completing work. Commit or push only when the user explicitly asks.
+- **Git finalization** — never automatically commit or push after completing work. Commit or push only when the user explicitly asks. When committing for deploy, include **all** game assets (hero/monster/prop GLBs, etc.); this project ships to a personal server and does not exclude large models from git or deploy.
+- **Deploy** — do not re-add Cloudflare-style asset size exclusions for `assets/models/hero/*.glb` (see `.assetsignore`).
 - **Documentation language** — every file under `docs/` must be written in English.
 - **UI language** — keep all player-facing UI strings, notifications, and HUD copy in **English**. Do not add Korean (or other non-English) player-facing text.
 - **Debug** — `window.__SOL_ARPG_DEMO__`, F3 HUD. Cheats should be guarded by `?debug=1`.
