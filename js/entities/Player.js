@@ -5,6 +5,9 @@ import {
   canClassUseWeapon, createClassStarterWeapon, createEmptySkillCooldowns, createEmptySkillRanks,
   getClassSkillIds, getHeroClass, isRangedAttackStyle, resolveHeroClassId,
 } from '../data/content.js';
+import {
+  normalizeSkillEvolutionState, normalizeSkillRank, resolveSkillForm, updateSkillMutationChoices,
+} from '../data/skillCombat.js';
 import { clamp, disposeObject } from '../core/Utils.js';
 import { setMaterialHitPulse } from '../graphics/StylizedMaterial.js';
 import {
@@ -47,6 +50,7 @@ export class Player {
   setClass(classId, { keepTransform = false } = {}) {
     const next = resolveHeroClassId(classId);
     if (next === this.classId && this.mesh) return this.classId;
+    this.arcaneOverflow = 0;
     const position = this.mesh?.position.clone() ?? new THREE.Vector3(0, 0, 6);
     const rotationY = this.mesh?.rotation.y ?? 0;
     const facing = this.facing?.clone() ?? new THREE.Vector3(0, 0, 1);
@@ -70,6 +74,7 @@ export class Player {
   #dismountCharacter() {
     if (this.mesh) {
       this.animation?.dispose?.();
+      this.characterFactory?.clearWeapons?.(this.refs);
       this.characterFactory?.outlines?.unregister(this.mesh);
       this.scene.remove(this.mesh);
       disposeObject(this.mesh);
@@ -91,6 +96,7 @@ export class Player {
     this.essence = 0;
     this.skillPoints = 0;
     this.skills = createEmptySkillRanks(this.classId);
+    this.skillEvolution = {};
     this.inventory = [starter];
     this.equipped = { weapon: starter.id, armor: null, charm: null };
     this.potions = 3;
@@ -105,6 +111,9 @@ export class Player {
     this.comboIndex = 0;
     this.comboWindow = 0;
     this.energy = 0;
+    this.arcaneOverflow = 0;
+    this.predatorVerdict = null;
+    this.thornField = null;
     this.dashTimer = 0;
     this.dashCooldown = 0;
     this.potionCooldown = 0;
@@ -115,6 +124,7 @@ export class Player {
     this.attackLunge = 0;
     // Run multipliers (Defense growth + temporary kill-chain bonuses). Cleared every reset.
     this.runMods = { attack: 1, defense: 1, skillPower: 0, haste: 0, xp: 0, moveSpeed: 0, killChainXp: 0 };
+    this.clearShadowFrenzy();
     this.pickupRadiusBase = 2.2;
     this.mesh.position.set(0, 0, 6);
     this.mesh.rotation.set(0, 0, 0);
@@ -211,7 +221,8 @@ export class Player {
   get critMultiplier() { return 1.85 + this.critOverflow * 1.5; }
   get attackSpeed() {
     const runHaste = this.runMods?.haste ?? 0;
-    return clamp(this.equipmentStats.weaponSpeed * (1 + this.equipmentStats.haste + this.passiveEffects.haste + runHaste), .65, 1.75);
+    const frenzyHaste = this.shadowFrenzy?.active ? this.shadowFrenzy.attackHaste : 0;
+    return clamp(this.equipmentStats.weaponSpeed * (1 + this.equipmentStats.haste + this.passiveEffects.haste + runHaste + frenzyHaste), .65, 1.75);
   }
   /** Attack speed past the 1.75 cap accelerates Focus/Rage gain instead. */
   get attackSpeedOverflow() {
@@ -222,7 +233,65 @@ export class Player {
   get energyGainMul() { return 1 + this.attackSpeedOverflow * 2; }
   get moveSpeed() {
     const runMove = this.runMods?.moveSpeed ?? 0;
-    return PLAYER_CONFIG.moveSpeed * (1 + this.passiveEffects.moveSpeed + runMove) + this.equipmentStats.moveSpeed;
+    const frenzyMove = this.shadowFrenzy?.active ? this.shadowFrenzy.moveHaste : 0;
+    return PLAYER_CONFIG.moveSpeed * (1 + this.passiveEffects.moveSpeed + runMove + frenzyMove) + this.equipmentStats.moveSpeed;
+  }
+  get frenzyActive() { return Boolean(this.shadowFrenzy?.active && this.shadowFrenzy.remaining > 0); }
+  get frenzyRatio() { return this.frenzyActive ? clamp(this.shadowFrenzy.remaining / this.shadowFrenzy.duration, 0, 1) : 0; }
+  get frenzyTimingScale() { return this.frenzyActive ? clamp(1 / (1 + this.shadowFrenzy.attackHaste), .68, 1) : 1; }
+
+  clearShadowFrenzy() {
+    this.shadowFrenzy = {
+      active: false, generation: 0, remaining: 0, duration: 0, attackHaste: 0, moveHaste: 0,
+      extensionUsed: 0, extensionPerKill: 0, extensionCap: 0, contactCount: 0,
+      contactCap: 0, exitMult: 0, offhandEcho: 0, chainCap: 0, bossRampCap: 0,
+      chainMult: 0, bossRampStep: 0, bossTarget: null, bossStacks: 0,
+      apexBundle: null, apexAudio: null,
+    };
+  }
+
+  activateShadowFrenzy(combat = {}, bundle = null) {
+    if (this.frenzyActive) return this.shadowFrenzy;
+    const duration = clamp(Number(combat.frenzyDuration) || 4, 0, 5);
+    this.shadowFrenzyGeneration = (this.shadowFrenzyGeneration ?? 0) + 1;
+    this.shadowFrenzy = {
+      active: duration > 0, generation: this.shadowFrenzyGeneration, remaining: duration, duration,
+      attackHaste: clamp(Number(combat.frenzyAttackHaste) || 0, 0, .4),
+      moveHaste: clamp(Number(combat.frenzyMoveHaste) || 0, 0, .35),
+      extensionUsed: 0, extensionPerKill: Math.max(0, Number(combat.killExtension) || 0),
+      extensionCap: clamp(Number(combat.killExtensionCap) || 0, 0, 2),
+      contactCount: 0, contactCap: clamp(Math.round(Number(combat.contactCap) || 0), 0, 16),
+      exitMult: Math.max(0, Number(combat.exitMult) || 0),
+      offhandEcho: clamp(Number(combat.offhandEcho) || 0, 0, .35),
+      chainCap: clamp(Math.round(Number(combat.chainCap) || 0), 0, 3),
+      chainMult: clamp(Number(combat.chainMult) || 0, 0, .3),
+      bossRampCap: clamp(Math.round(Number(combat.bossRampCap) || 0), 0, 6),
+      bossRampStep: clamp(Number(combat.bossRampStep) || 0, 0, .05),
+      bossTarget: null, bossStacks: 0,
+      apexBundle: combat.apexFinisher ? bundle : null, apexAudio: null,
+    };
+    return this.shadowFrenzy;
+  }
+
+  registerFrenzyContact(enemy = null) {
+    if (!this.frenzyActive) return null;
+    const frenzy = this.shadowFrenzy;
+    frenzy.contactCount = Math.min(frenzy.contactCap || 0, frenzy.contactCount + 1);
+    if (enemy?.boss && frenzy.bossRampCap > 0) {
+      if (frenzy.bossTarget !== enemy.id) { frenzy.bossTarget = enemy.id; frenzy.bossStacks = 0; }
+      frenzy.bossStacks = Math.min(frenzy.bossRampCap, frenzy.bossStacks + 1);
+    }
+    return { contacts: frenzy.contactCount, chainCap: frenzy.chainCap, bossStacks: frenzy.bossStacks };
+  }
+
+  extendShadowFrenzyOnKill() {
+    const frenzy = this.shadowFrenzy;
+    if (!this.frenzyActive || frenzy.extensionPerKill <= 0) return 0;
+    const added = Math.min(frenzy.extensionPerKill, frenzy.extensionCap - frenzy.extensionUsed);
+    if (added <= 0) return 0;
+    frenzy.extensionUsed += added;
+    frenzy.remaining = Math.min(frenzy.duration + frenzy.extensionCap, frenzy.remaining + added);
+    return added;
   }
   /** Magnet radius for XP gems (base + luck / run mods). */
   get pickupRadius() {
@@ -246,6 +315,23 @@ export class Player {
 
   /** Focus — rogue class energy resource definition; null for classes without one. */
   get energyDef() { return getHeroClass(this.classId).energy ?? null; }
+
+  gainArcaneOverflow(amount, max = 100) {
+    if (!this.alive || this.classId !== 'wizard' || this.level < 50) return 0;
+    const before = Math.max(0, Number(this.arcaneOverflow) || 0);
+    this.arcaneOverflow = Math.min(Math.max(0, Number(max) || 100), before + Math.max(0, Number(amount) || 0));
+    return this.arcaneOverflow - before;
+  }
+
+  consumeArcaneOverflow(cost = 100) {
+    const required = Math.max(0, Number(cost) || 0);
+    const current = Math.max(0, Number(this.arcaneOverflow) || 0);
+    if (!this.alive || this.classId !== 'wizard' || current < required) return false;
+    this.arcaneOverflow = current - required;
+    return true;
+  }
+
+  clearArcaneOverflow() { this.arcaneOverflow = 0; }
   get maxEnergy() { return this.energyDef?.max ?? 0; }
   get energyRatio() { return this.maxEnergy > 0 ? clamp(this.energy / this.maxEnergy, 0, 1) : 0; }
   get energyComboReady() {
@@ -284,7 +370,7 @@ export class Player {
   }
 
   update(delta, game) {
-    this.#updateTimers(delta);
+    this.#updateTimers(delta, game);
     if (this.alive) {
       this.#regenerate(delta, game);
       this.#move(delta, game.world);
@@ -292,7 +378,7 @@ export class Player {
     this.#animate(delta, game);
   }
 
-  #updateTimers(delta) {
+  #updateTimers(delta, game) {
     this.attackCooldown = Math.max(0, this.attackCooldown - delta);
     this.attackAnim = Math.max(0, this.attackAnim - delta);
     this.comboWindow = Math.max(0, this.comboWindow - delta);
@@ -303,6 +389,23 @@ export class Player {
     this.castTimer = Math.max(0, this.castTimer - delta);
     this.hitTimer = Math.max(0, this.hitTimer - delta);
     this.attackLunge = Math.max(0, this.attackLunge - delta);
+    if (this.shadowFrenzy?.active) {
+      this.shadowFrenzy.remaining = Math.max(0, this.shadowFrenzy.remaining - delta);
+      if (this.shadowFrenzy.remaining <= 0) {
+        const ended = { ...this.shadowFrenzy };
+        this.clearShadowFrenzy();
+        game?.combat?.endShadowFrenzy?.(this, ended);
+      }
+    }
+    if (this.predatorVerdict) {
+      if (!this.predatorVerdict.target?.alive) {
+        this.predatorVerdict = null;
+      } else {
+      this.predatorVerdict.remaining = Math.max(0, this.predatorVerdict.remaining - delta);
+      if (this.predatorVerdict.remaining <= 0) game?.combat?.expirePredatorVerdict?.(this, this.predatorVerdict.generation);
+      }
+    }
+    if (this.thornField) this.thornField.remaining = Math.max(0, this.thornField.remaining - delta);
     for (const key of Object.keys(this.skillCooldowns)) this.skillCooldowns[key] = Math.max(0, this.skillCooldowns[key] - delta);
     this.knockback.multiplyScalar(Math.pow(.004, delta));
   }
@@ -509,40 +612,42 @@ export class Player {
       game.ui.notify(`${skill.name}: Unlocks at Lv.${skill.unlockLevel}`, 'danger');
       return false;
     }
-    if ((this.skillCooldowns[skillId] ?? 0) > 0 || this.mp < skill.mp || this.isDashing || !this.alive) return false;
+    const bundle = resolveSkillForm(skill, rank, this.level, this.skillEvolution[skillId]);
+    if ((this.skillCooldowns[skillId] ?? 0) > 0 || this.mp < bundle.mp || this.isDashing || !this.alive) return false;
     this.alignCombatFacing();
-    this.mp -= skill.mp;
-    this.skillCooldowns[skillId] = skill.cooldown;
-    this.castTimer = skill.castTime ?? .3;
+    this.mp -= bundle.mp;
+    this.skillCooldowns[skillId] = bundle.cooldown;
+    this.castTimer = bundle.castTime;
     this.attackAnimDuration = this.castTimer;
     this.attackAnim = this.castTimer;
-    let anim = skill.anim ?? `skill_${skillId}`;
+    let anim = bundle.anim ?? `skill_${skillId}`;
     // Graceful data-driven fallback if the unique clip is not in the GLB.
     if (!this.animation.has(anim)) {
-      anim = skill.animFallback && this.animation.has(skill.animFallback)
-        ? skill.animFallback
+      anim = bundle.animFallback && this.animation.has(bundle.animFallback)
+        ? bundle.animFallback
         : this.animation.has('skill_whirlwind') ? 'skill_whirlwind' : 'idle';
     }
     this.animation.playOneShot(anim, {
       fade: .09, fadeOut: .13,
-      timeScale: (skill.castTime ?? .3) > .6 ? .92 : 1.05,
+      timeScale: bundle.castTime > .6 ? .92 : 1.05,
       fallback: 'idle',
     });
     if (typeof game.audio.skill === 'function') {
-      game.audio.skill(skill.sfx ?? skill.theme ?? 'skill');
+      game.audio.skill(bundle.presentation.sfx ?? bundle.presentation.theme ?? 'skill');
     }
-    const hits = skill.timeline?.hits;
+    const hits = bundle.timeline?.hits;
     if (Array.isArray(hits) && hits.length && this.animation.oneShot) {
       // Pose-synced skill phases — combat fires on normalized clip times.
       for (let i = 0; i < hits.length; i += 1) {
         const phase = i;
-        this.animation.scheduleNormalized(hits[i], () => {
+        const cadence = Math.max(.5, Math.min(1.25, bundle.combat?.cadenceMult ?? 1));
+        this.animation.scheduleNormalized(Math.min(.98, hits[i] * cadence), () => {
           if (!this.alive) return;
-          game.combat.usePlayerSkill(skillId, this, rank, phase);
+          game.combat.usePlayerSkill(bundle, this, phase);
         }, Symbol(`${skillId}-phase-${phase}`));
       }
     } else {
-      game.combat.usePlayerSkill(skillId, this, rank, null);
+      game.combat.usePlayerSkill(bundle, this, null);
     }
     return true;
   }
@@ -575,6 +680,10 @@ export class Player {
     if (knockback) this.knockback.add(knockback);
     if (this.hp <= 0) {
       this.alive = false;
+      this.clearShadowFrenzy();
+      this.clearArcaneOverflow();
+      this.predatorVerdict = null;
+      this.thornField = null;
       this.animation.playOneShot('death', { fade: .12, fadeOut: .2, timeScale: 1, fallback: null });
     } else this.animation.playOneShot('hit', { fade: .055, fadeOut: .07, timeScale: 1.08, fallback: 'idle' });
     return amount;
@@ -590,6 +699,10 @@ export class Player {
     this.hp = this.maxHp;
     this.mp = this.maxMp;
     this.alive = true;
+    this.clearShadowFrenzy();
+    this.clearArcaneOverflow();
+    this.predatorVerdict = null;
+    this.thornField = null;
     this.invulnerable = 1.4;
     this.velocity.set(0, 0, 0);
     this.mesh.scale.copy(this.normalScale);
@@ -773,8 +886,22 @@ export class Player {
     return true;
   }
 
+  /** Select or respec one unlocked Lv40/Lv80 mutation without changing the skill binding. */
+  setSkillMutation(skillId, milestone, choiceId) {
+    const skill = SKILLS[skillId];
+    const gate = Number(milestone);
+    if (!skill || skill.passive || skill.classId !== this.classId || this.level < gate) return false;
+    const next = updateSkillMutationChoices(skill, this.skillEvolution?.[skillId], gate, choiceId, {
+      classId: this.classId,
+      playerLevel: this.level,
+    });
+    if (!next) return false;
+    this.skillEvolution = { ...this.skillEvolution, [skillId]: next };
+    return true;
+  }
+
   /**
-   * Auto-spend skill points: actives first (by unlockLevel), then passives.
+   * Auto-spend skill points: balance unlocked actives first, then passives.
    * Shared by Defense wave clear and Hunt level-up growth (no draft UI in V1).
    * @param {{ onUnlock?: (skill: object) => void }} [hooks]
    * @returns {number} points spent
@@ -790,28 +917,35 @@ export class Player {
       if (skill.passive) passives.push(id);
       else actives.push(id);
     }
-    const order = [
-      ...actives.sort((a, b) => (SKILLS[a].unlockLevel ?? 99) - (SKILLS[b].unlockLevel ?? 99)),
-      ...passives.sort((a, b) => (SKILLS[a].unlockLevel ?? 99) - (SKILLS[b].unlockLevel ?? 99)),
-    ];
+    const keyOrder = { Q: 0, E: 1, R: 2, C: 3 };
+    const stableOrder = (a, b) => (
+      (SKILLS[a].unlockLevel ?? 99) - (SKILLS[b].unlockLevel ?? 99)
+      || (keyOrder[SKILLS[a].key] ?? 99) - (keyOrder[SKILLS[b].key] ?? 99)
+      || a.localeCompare(b)
+    );
+    actives.sort(stableOrder);
+    passives.sort(stableOrder);
+    const unlockedCapacity = ids.reduce((total, id) => {
+      const skill = SKILLS[id];
+      if (!skill || this.level < skill.unlockLevel) return total;
+      return total + Math.max(0, skill.maxRank - this.skillRank(id));
+    }, 0);
     let spent = 0;
-    let guard = 40;
-    while (this.skillPoints > 0 && guard-- > 0) {
-      let upgraded = false;
-      for (const id of order) {
-        const before = this.skillPoints;
-        if (this.upgradeSkill(id)) {
-          spent += 1;
-          upgraded = true;
-          const skill = SKILLS[id];
-          if (skill && !skill.passive && (this.skills[id] ?? 0) === 1) {
-            hooks.onUnlock?.(skill);
-          }
-          break;
-        }
-        if (this.skillPoints !== before) break;
+    const spendLimit = Math.min(Math.max(0, Math.floor(this.skillPoints)), unlockedCapacity);
+    while (spent < spendLimit && this.skillPoints > 0) {
+      const activeId = actives
+        .filter(id => this.level >= SKILLS[id].unlockLevel && this.skillRank(id) < SKILLS[id].maxRank)
+        .sort((a, b) => this.skillRank(a) - this.skillRank(b) || stableOrder(a, b))[0];
+      const passiveId = passives.find(
+        id => this.level >= SKILLS[id].unlockLevel && this.skillRank(id) < SKILLS[id].maxRank,
+      );
+      const id = activeId ?? passiveId;
+      if (!id || !this.upgradeSkill(id)) break;
+      spent += 1;
+      const skill = SKILLS[id];
+      if (!skill.passive && (this.skills[id] ?? 0) === 1) {
+        hooks.onUnlock?.(skill);
       }
-      if (!upgraded) break;
     }
     return spent;
   }
@@ -837,6 +971,11 @@ export class Player {
   }
 
   serialize() {
+    const skillEvolution = normalizeSkillEvolutionState(
+      this.skillEvolution,
+      SKILLS,
+      getClassSkillIds(this.classId),
+    );
     return {
       classId: this.classId,
       name: this.name,
@@ -846,6 +985,7 @@ export class Player {
       essence: this.essence,
       skillPoints: this.skillPoints,
       skills: { ...this.skills },
+      skillEvolution,
       inventory: this.inventory.map(item => ({
         ...item,
         affixes: [...(item.affixes ?? [])],
@@ -877,9 +1017,12 @@ export class Player {
     const ranks = createEmptySkillRanks(classId);
     const incoming = state.skills ?? {};
     for (const id of getClassSkillIds(classId)) {
-      if (incoming[id] != null) ranks[id] = Math.max(0, Number(incoming[id]) || 0);
+      if (incoming[id] != null) {
+        ranks[id] = normalizeSkillRank(SKILLS[id], incoming[id]);
+      }
     }
     this.skills = ranks;
+    this.skillEvolution = normalizeSkillEvolutionState(state.skillEvolution, SKILLS, getClassSkillIds(classId));
     const loadedInventory = Array.isArray(state.inventory) ? state.inventory.filter(item => item?.id && item?.slot) : [];
     if (!loadedInventory.some(item => item.id === starter.id)) loadedInventory.unshift(starter);
     this.inventory = loadedInventory.length ? loadedInventory.slice(0, PLAYER_CONFIG.inventoryLimit) : [starter];

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { DEFENSE_CONFIG, GAME_CONFIG, GROWTH_CONFIG } from '../config.js';
-import { SKILLS, getClassActiveSkills, getClassSkillIds, skillKeyCode } from '../data/content.js';
+import { HERO_CLASSES, SKILLS, getClassActiveSkills, getClassSkillIds, skillKeyCode } from '../data/content.js';
+import { normalizeSkillRank } from '../data/skillCombat.js';
 import { clamp, randInt } from './Utils.js';
 import { Input } from './Input.js';
 import { SaveManager } from './SaveManager.js';
@@ -39,6 +40,7 @@ export class Game {
     this.camera.position.set(10, 10.5, 16);
 
     this.query = new URLSearchParams(window.location.search);
+    this.debugEnabled = this.query.get('debug') === '1';
     const requestedQuality = this.query.get('quality') ?? localStorage.getItem('sol-arpg-quality') ?? 'medium';
     this.renderPipeline = new RenderPipeline(canvas, this.scene, this.camera, {
       quality: QUALITY_PRESETS[requestedQuality] ? requestedQuality : 'medium',
@@ -78,7 +80,7 @@ export class Game {
     this.loopStarted = false;
     this.loopRunning = false;
     this.frameHandle = 0;
-    this.debugVisible = this.query.get('debug') === '1';
+    this.debugVisible = this.debugEnabled;
     this.debugTimer = 0;
     this.clock = new THREE.Clock();
 
@@ -684,6 +686,7 @@ export class Game {
   onEnemyKilled(enemy) {
     if (enemy.deathHandled) return;
     enemy.deathHandled = true;
+    this.player.extendShadowFrenzyOnKill?.();
 
     // Gold still grants immediately; XP is deferred to floor gems.
     const [minGold, maxGold] = enemy.goldRange;
@@ -1042,6 +1045,41 @@ export class Game {
       assets: this.assets?.getStats?.() ?? null,
       player: this.player ? { level: this.player.level, hp: this.player.hp, x: this.player.position.x, z: this.player.position.z } : null,
     };
+  }
+
+  /** Debug-query-only skill evolution controls; also callable from window.__SOL_ARPG_DEMO__. */
+  debugSetSkillState(options = {}) {
+    if (!this.debugEnabled || !this.player) return false;
+    let changed = false;
+    if (options.classId && HERO_CLASSES[options.classId] && options.classId !== this.player.classId) {
+      this.player.reset(options.classId);
+      changed = true;
+    }
+    if (options.level != null) {
+      const level = clamp(Math.floor(Number(options.level) || 1), 1, 100);
+      if (level !== this.player.level) {
+        this.player.level = level;
+        changed = true;
+      }
+    }
+    if (options.rank != null) {
+      for (const skill of getClassActiveSkills(this.player.classId)) {
+        const rank = normalizeSkillRank(skill, options.rank);
+        if (this.player.skills[skill.id] !== rank) {
+          this.player.skills[skill.id] = rank;
+          changed = true;
+        }
+      }
+    }
+    if (options.skillId && options.milestone != null && options.choiceId) {
+      changed = this.player.setSkillMutation(options.skillId, options.milestone, options.choiceId) || changed;
+    }
+    if (changed) {
+      this.player.invalidateStats();
+      this.player.hp = Math.min(this.player.hp, this.player.maxHp);
+      this.player.mp = Math.min(this.player.mp, this.player.maxMp);
+    }
+    return changed;
   }
 
   #updateDebugHUD(delta) {

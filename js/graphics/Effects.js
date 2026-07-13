@@ -501,6 +501,213 @@ export class Effects {
     this.impact(position.clone().add(new THREE.Vector3(0, 1.1, 0)), theme.primary, 'heavy', { direction });
   }
 
+  recipeVortexPull(position, theme, radius) {
+    this.ring(position, theme.secondary, radius, { life: 0.55, startScale: 1, opacity: 0.52 });
+    this.ring(position, theme.primary, radius * 0.62, { life: 0.44, startScale: 0.9, height: 0.12, opacity: 0.7 });
+    const dir = new THREE.Vector3(1, 0, 0);
+    this.slash(position, dir, theme.primary, radius * 0.9, { height: 0.5, spin: -5.5, life: 0.42, opacity: 0.62 });
+    this.burst(position.clone().add(new THREE.Vector3(0, 0.45, 0)), theme.dust, 18, {
+      speed: 3.4, upward: 0.18, size: 0.26, life: 0.55, additive: false,
+    });
+  }
+
+  recipeBossPullResist(position, target, theme) {
+    const direction = target.clone().sub(position).setY(0);
+    if (direction.lengthSq() < 0.0001) direction.set(0, 0, 1);
+    direction.normalize();
+    this.ring(position, theme.core, 1.35, { life: 0.32, startScale: 0.9, opacity: 0.58 });
+    this.slash(position, direction, theme.secondary, 1.5, {
+      height: 1.05, life: 0.24, opacity: 0.5, thickness: 0.05,
+    });
+  }
+
+  recipeDualBladeCross(position, direction, mainColor, offhandColor, size = 3) {
+    this.slash(position, direction, mainColor, size, {
+      height: 1.08, life: 0.28, thickness: 0.07, angleOffset: 0.72, opacity: 0.84,
+    });
+    this.slash(position, direction, offhandColor, size, {
+      height: 1.08, life: 0.3, thickness: 0.07, angleOffset: -0.72, opacity: 0.8,
+    });
+  }
+
+  recipeShadowCuts(position, direction, color = 0x9a6be8, size = 2.4) {
+    this.slash(position, direction, color, size, {
+      height: 0.92, life: 0.2, thickness: 0.045, angleOffset: -0.38, opacity: 0.58,
+    });
+    this.trail(position.clone().add(new THREE.Vector3(0, 0.9, 0)).addScaledVector(direction, 0.5), color, 0.28, 0.18);
+  }
+
+  recipeFrenzyExit(position, theme, contacts = 0, cap = 12) {
+    const ratio = Math.min(1, contacts / Math.max(1, cap));
+    const radius = 2.8 + ratio * 1.6;
+    this.ring(position, theme.secondary, radius, { life: 0.5, startScale: 0.08, opacity: 0.78 });
+    this.ring(position, theme.core, radius * 0.65, { life: 0.34, startScale: 0.16, height: 0.12, opacity: 0.68 });
+    this.burst(position.clone().add(new THREE.Vector3(0, 0.9, 0)), theme.primary, 14 + Math.round(ratio * 20), {
+      speed: 5.2, upward: 0.48, size: 0.3, life: 0.55,
+    });
+  }
+
+  recipeLivingStar(position, theme, cinders = 0, apex = false) {
+    this.ring(position, theme.primary, apex ? 4.8 : 2.8, { life: .55, startScale: .08, opacity: .78 });
+    this.burst(position.clone().add(new THREE.Vector3(0, .8, 0)), theme.core, 12 + Math.min(3, cinders) * 4, { speed: 4.8, upward: .55, size: .28, life: .55 });
+    if (apex) this.pillar(position, theme.secondary, 7.5, { life: .65, bottom: .65, opacity: .48 });
+  }
+
+  recipeCrystalDominion(position, theme, radius, lances = 6, apex = false) {
+    this.ring(position, theme.primary, radius, { life: .65, startScale: .08 });
+    for (let i = 0; i < Math.min(6, lances); i += 1) {
+      const angle = i / 6 * Math.PI * 2;
+      const at = position.clone().add(new THREE.Vector3(Math.cos(angle) * radius * .72, 0, Math.sin(angle) * radius * .72));
+      this.pillar(at, i % 2 ? theme.secondary : theme.core, apex ? 4.8 : 3.2, { life: .58, bottom: .28, opacity: .5 });
+    }
+  }
+
+  recipeSpaceSeam(from, to, theme, apex = false) {
+    const mid = from.clone().add(to).multiplyScalar(.5);
+    const direction = to.clone().sub(from).setY(0).normalize();
+    this.slash(mid, direction, theme.primary, from.distanceTo(to) * .7, { height: 1, life: apex ? .7 : .4, thickness: .05, opacity: .72 });
+    this.trail(mid.clone().add(new THREE.Vector3(0, 1, 0)), theme.secondary, apex ? .65 : .4, .35);
+  }
+
+  recipeGravityLens(from, to, theme, impactIndex = 0, impactCount = 1, apex = false) {
+    const axis = to.clone().sub(from);
+    const horizontal = new THREE.Vector3(axis.z, 0, -axis.x);
+    if (horizontal.lengthSq() < 1e-5) horizontal.set(1, 0, 0);
+    horizontal.normalize();
+    const tangent = new THREE.Vector3(-horizontal.z, 0, horizontal.x);
+    const phase = impactIndex * 1.37;
+    const stages = apex ? 7 : 5;
+    for (let stage = 0; stage < stages; stage += 1) {
+      const t = (stage + 1) / stages;
+      const radius = (1 - t) * (apex ? 1.8 : 1.25);
+      const angle = phase + t * Math.PI * (apex ? 3.2 : 2.35);
+      const point = from.clone().lerp(to, t)
+        .addScaledVector(horizontal, Math.cos(angle) * radius)
+        .addScaledVector(tangent, Math.sin(angle) * radius);
+      this.trail(point, stage % 2 ? theme.secondary : theme.core, apex ? .44 : .34, .2 + t * .08);
+    }
+    this.ring(to, theme.secondary, (apex ? 2.5 : 1.8) + impactIndex / Math.max(1, impactCount) * .45, {
+      life: .42, startScale: .18, opacity: .48,
+    });
+  }
+
+  recipeSpellReaction(position, kind = 'crystal_shards', direction = null) {
+    const colors = {
+      steam: 0xe8fbff, thermal_shock: 0xffb15c, crystal_shards: 0xaadfff,
+      crystal_execution: 0x72cfff, rift_impact: 0xc08cff,
+    };
+    const color = colors[kind] ?? colors.crystal_shards;
+    this.starburst(position.clone().add(new THREE.Vector3(0, 1, 0)), color, 1.8, { life: .3 });
+    if (direction && (kind === 'crystal_shards' || kind === 'crystal_execution')) {
+      this.slash(position, direction, color, kind === 'crystal_execution' ? 3.2 : 2.5, {
+        height: 1.05, thickness: .06, life: .34, opacity: .82,
+      });
+    }
+  }
+
+  recipeGroundFracture(position, direction, theme, radius) {
+    this.groundDecal(position, theme.accent, radius * 0.78, { life: 1.15, opacity: 0.48, startScale: 0.15 });
+    this.ring(position, theme.core, radius, { life: 0.58, startScale: 0.06, opacity: 0.82 });
+    this.slash(position, direction, theme.secondary, radius * 1.05, { height: 0.2, thickness: 0.11, life: 0.36, spin: 0.5 });
+    this.slash(position, direction, theme.primary, radius * 0.9, { height: 0.24, thickness: 0.07, life: 0.3, spin: -0.4, angleOffset: Math.PI / 2 });
+    this.dust(position, theme.dust, 28, 0.48);
+    this.impact(position.clone().add(new THREE.Vector3(0, 0.8, 0)), theme.primary, 'finisher', { direction });
+  }
+
+  recipeRangerRupture(position, direction, theme) {
+    this.groundDecal(position, theme.secondary, 1.25, { life: .55, opacity: .42, startScale: .2 });
+    this.slash(position, direction, theme.primary, 2.2, { height: .18, life: .3, thickness: .06 });
+  }
+
+  recipeRangerBackwardCorridor(points, direction, theme) {
+    for (const point of points.slice(0, 6)) this.slash(point, direction.clone().negate(), theme.secondary, 3.8, {
+      height: .65, life: .36, thickness: .035, opacity: .62,
+    });
+  }
+
+  recipeWhirlwindScar(from, to, theme) {
+    const mid = from.clone().add(to).multiplyScalar(.5);
+    const direction = to.clone().sub(from).setY(0).normalize();
+    this.slash(mid, direction, theme.secondary, Math.max(2, from.distanceTo(to)), { height: .12, life: .55, thickness: .06 });
+  }
+
+  recipeSovereignCross(position, direction, theme, radius) {
+    const side = new THREE.Vector3(-direction.z, 0, direction.x);
+    this.slash(position, direction, theme.primary, radius * 1.8, { height: .9, life: .42, thickness: .08 });
+    this.slash(position, side, theme.core, radius * 1.8, { height: 1.05, life: .42, thickness: .08 });
+  }
+
+  recipeFangCutLine(from, to, theme, index = 0) {
+    const direction = to.clone().sub(from).setY(0).normalize();
+    this.slash(from.clone().add(to).multiplyScalar(.5), direction, index % 2 ? theme.secondary : theme.primary,
+      from.distanceTo(to), { height: .9, life: .28, thickness: .035 });
+  }
+
+  recipeBackbite(position, direction, theme) {
+    this.slash(position, direction.clone().negate(), theme.secondary, 3.2, { height: 1, life: .34, thickness: .06 });
+  }
+
+  recipeThousandFangFinale(position, direction, theme, lines = 0) {
+    this.ring(position, theme.primary, 3.2, { life: .5, startScale: .15 });
+    this.starburst(position.clone().add(new THREE.Vector3(0, 1, 0)), theme.core, 1.8 + Math.min(6, lines) * .12, { life: .35 });
+  }
+
+  recipeWorldsplitterAct(position, direction, theme, act = 0, apex = false) {
+    if (act === 0) this.slash(position, direction, theme.primary, apex ? 6 : 3.8, { height:.7,life:.35,thickness:.06 });
+    else if (act === 1) this.groundDecal(position.clone().addScaledVector(direction,4),theme.accent,apex?4:2.5,{life:.7,opacity:.45,startScale:.2});
+    else this.slash(position.clone().addScaledVector(direction,4),direction,theme.core,apex?9:5,{height:.2,life:.5,thickness:.09});
+  }
+
+  recipeCrosscurrent(position, direction, theme) {
+    this.slash(position,direction,theme.secondary,2.4,{height:.8,life:.28,thickness:.04});
+  }
+
+  recipeNightPeacockAct(position, direction, theme, act = 0, apex = false) {
+    if (act === 0) this.slash(position,direction,theme.primary,apex?4.5:3,{height:1,life:.3,thickness:.05});
+    else if (act === 1) this.ring(position,theme.secondary,apex?4:2.8,{life:.42,startScale:.2});
+    else this.starburst(position.clone().add(new THREE.Vector3(0,1,0)),theme.core,3.2,{life:.38});
+  }
+
+  recipeThornGrid(position, direction, theme, lines = 0) {
+    const side = new THREE.Vector3(-direction.z, 0, direction.x);
+    for (let i = 0; i < Math.min(5, lines); i += 1) {
+      const at = position.clone().addScaledVector(side, (i - 2) * .9);
+      this.slash(at, direction, i % 2 ? theme.secondary : theme.primary, 4.8, { height: .08, life: .8, thickness: .035, opacity: .52 });
+    }
+  }
+
+  recipeSkyHunterArc(from, to, direction, theme, layers = 1) {
+    const mid = from.clone().add(to).multiplyScalar(.5).add(new THREE.Vector3(0, 2.4, 0));
+    this.trail(mid, theme.core, .55, .3);
+    for (let i = 0; i < Math.min(3, layers); i += 1) this.slash(mid.clone().add(new THREE.Vector3(0, i * .35, 0)), direction, theme.primary, 2.2 + i * .5, { height: 1, life: .42, thickness: .04 });
+  }
+
+  recipePredatorConvergence(position, direction, theme, apex = false) {
+    this.ring(position, theme.secondary, apex ? 4.2 : 2.6, { life: .58, startScale: .16, opacity: .6 });
+    const count = apex ? 8 : 4;
+    for (let i = 0; i < count; i += 1) {
+      const angle = i / count * Math.PI * 2;
+      const at = position.clone().add(new THREE.Vector3(Math.cos(angle) * 2, 1 + (i % 2) * .4, Math.sin(angle) * 2));
+      this.trail(at, i % 2 ? theme.primary : theme.core, .4, .22);
+    }
+    this.slash(position, direction, theme.accent, apex ? 4.8 : 3.2, { height: 1.1, life: .4, thickness: .07 });
+  }
+
+  recipeJudgmentApex(position, theme, radius) {
+    const count = this.#count(8, 4);
+    for (let i = 0; i < count; i += 1) {
+      const angle = i / count * Math.PI * 2;
+      const at = position.clone().add(new THREE.Vector3(Math.cos(angle) * radius * 0.72, 0, Math.sin(angle) * radius * 0.72));
+      this.pillar(at, i % 2 ? theme.primary : theme.secondary, 3.8 + (i % 3) * 0.7, {
+        life: 0.72, bottom: 0.38, opacity: 0.48,
+      });
+    }
+    this.ring(position, theme.core, radius * 1.12, { life: 0.82, startScale: 0.08, opacity: 0.72 });
+    this.burst(position.clone().add(new THREE.Vector3(0, 1, 0)), theme.primary, 38, {
+      speed: 6.2, upward: 0.7, size: 0.36, life: 0.75,
+    });
+  }
+
   recipeStarBlade(point, theme, index = 0) {
     const dir = new THREE.Vector3(Math.cos(index * 1.1), 0, Math.sin(index * 1.1));
     this.slash(point, dir, index % 2 ? theme.accent : theme.secondary, 2.6, {
@@ -524,6 +731,22 @@ export class Effects {
       speed: 7, size: 0.36, life: 0.7, upward: 0.7,
     });
     this.impact(center.clone().add(new THREE.Vector3(0, 1.2, 0)), theme.primary, 'finisher');
+  }
+
+  recipeArsenalAct(center, theme, act = 1, apex = false) {
+    const radius = apex ? 5.2 : 3.6;
+    if (act === 1) {
+      this.groundDecal(center, theme.accent, radius, { life: .62, opacity: .42, startScale: .16 });
+      this.pillar(center, theme.secondary, apex ? 6.2 : 4.4, { life: .46, bottom: .7, opacity: .4 });
+      return;
+    }
+    this.ring(center, act % 2 ? theme.secondary : theme.primary, radius * (.64 + (act - 2) * .18), {
+      life: .42 + (act - 2) * .08, startScale: .12, height: .04 * (act - 1), opacity: .68,
+    });
+    const angle = (act - 2) * Math.PI / 3;
+    this.slash(center, new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle)), theme.core, radius * 1.35, {
+      height: .32 + (act - 2) * .18, life: .34, thickness: .055, opacity: .78,
+    });
   }
 
   recipeFireOrb(muzzle, direction, theme) {
@@ -670,6 +893,37 @@ export class Effects {
     if (index % 3 === 0) this.ring(position, theme.accent, radius * 0.5, { life: 0.22, startScale: 0.3, height: 0.08, opacity: 0.5 });
   }
 
+  recipeMoonlessAct(position, direction, theme, act = 0, apex = false) {
+    if (act === 0) {
+      const side = new THREE.Vector3(-direction.z, 0, direction.x);
+      this.slash(position.clone().addScaledVector(direction, 1.35), direction, theme.primary, apex ? 4.8 : 3.5, {
+        height: .78, life: .24, thickness: .04, opacity: .82,
+      });
+      this.slash(position.clone().addScaledVector(side, .18), direction, theme.secondary, apex ? 4.1 : 3, {
+        height: 1.05, life: .2, thickness: .028, opacity: .66,
+      });
+      return;
+    }
+    if (act === 1) {
+      this.ring(position, theme.accent, apex ? 3.8 : 2.8, { life: .4, startScale: .2, opacity: .58 });
+      this.burst(position.clone().add(new THREE.Vector3(0, .9, 0)), theme.secondary, apex ? 24 : 14, {
+        speed: 4.8, size: .24, life: .42, upward: .32,
+      });
+      return;
+    }
+    this.ring(position, theme.core, 4.4, { life: .56, startScale: .08, opacity: .78 });
+    this.pillar(position, theme.primary, 6.4, { life: .48, bottom: .85, opacity: .48 });
+    this.starburst(position.clone().add(new THREE.Vector3(0, 1, 0)), theme.secondary, 3.4, { life: .4 });
+  }
+
+  recipeApexKeystone(position, classId, theme, count = 1) {
+    const pulses = this.#count(Math.min(8, Math.max(1, count * 2)), 1);
+    const color = classId === 'wizard' ? theme.core : classId === 'rogue' ? theme.secondary : theme.primary;
+    this.ring(position, color, 2.2 + Math.min(3, count) * .35, { life:.48,startScale:.12,opacity:.72 });
+    this.burst(position.clone().add(new THREE.Vector3(0,1,0)),color,pulses,{speed:4.8,size:.24,life:.42,upward:.4});
+    this.starburst(position.clone().add(new THREE.Vector3(0,1,0)),theme.accent,1.5+Math.min(3,count)*.3,{life:.34});
+  }
+
   recipeMeteorFinale(center, theme, radius) {
     this.ring(center, theme.core, radius, { life: 0.85, startScale: 0.05 });
     this.pillar(center, theme.secondary, 8.5, { life: 0.65, bottom: 1.2, opacity: 0.58 });
@@ -682,8 +936,13 @@ export class Effects {
   }
 
   /** Ranger bow draw / pierce muzzle flash */
-  recipeArrowStreak(muzzle, direction, theme) {
-    this.slash(muzzle, direction, theme.secondary, 2.4, { height: 0.75, life: 0.2, thickness: 0.04, spin: 1.2, opacity: 0.65 });
+  recipeArrowStreak(muzzle, direction, theme, rail = false) {
+    this.slash(muzzle, direction, rail ? theme.core : theme.secondary, rail ? 4.2 : 2.4, {
+      height: 0.75, life: rail ? .34 : 0.2, thickness: rail ? .075 : 0.04, spin: 1.2, opacity: rail ? .88 : .65,
+    });
+    if (rail) this.slash(muzzle.clone().addScaledVector(direction, 1.6), direction, theme.primary, 5.4, {
+      height: .82, life: .38, thickness: .035, opacity: .62,
+    });
     this.trail(muzzle.clone().add(new THREE.Vector3(0, 1.15, 0)).addScaledVector(direction, 0.9), theme.core, 0.62, 0.18);
     this.burst(muzzle.clone().add(new THREE.Vector3(0, 1.1, 0)).addScaledVector(direction, 0.55), theme.primary, 12, {
       speed: 4.2, size: 0.2, life: 0.28, upward: 0.15,

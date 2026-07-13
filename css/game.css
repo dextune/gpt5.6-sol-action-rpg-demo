@@ -332,10 +332,34 @@ body[data-mode="defense"] .boss-charge {
 .bag-icon { background: #99b5b7; box-shadow: inset 0 0 0 2px #425e64; }
 
 .ability-bar { position: absolute; left: 50%; bottom: 25px; transform: translateX(-50%); display: flex; align-items: flex-end; gap: 7px; padding: 8px 10px 9px; border-radius: 17px 4px 17px 4px; background: rgba(7,19,27,.63); border: 1px solid rgba(235,255,242,.15); box-shadow: 0 12px 38px rgba(0,0,0,.36); backdrop-filter: blur(8px); }
+.class-state-row { position: absolute; left: 50%; bottom: 103px; transform: translateX(-50%); z-index: 32; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 5px; max-width: min(420px, calc(100vw - 16px)); pointer-events: none; }
+.class-state-chip { min-width: 88px; padding: 6px 8px; display: flex; justify-content: space-between; gap: 8px; overflow: hidden; border-radius: 8px 3px; font: 800 8px/1 system-ui; letter-spacing: .1em; box-shadow: 0 5px 18px rgba(0,0,0,.28); }
+.frenzy-chip { --frenzy-ratio: 1; position: relative; min-width: 118px; padding-bottom: 7px; border: 1px solid rgba(174,112,255,.55); background: rgba(18,8,31,.82); color: #eadcff; }
+.frenzy-chip span { color: #c7a2ff; letter-spacing: .04em; }
+.frenzy-chip i { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; transform: scaleX(var(--frenzy-ratio)); transform-origin: left; background: linear-gradient(90deg,#7d49cf,#e5597f); }
+.overflow-chip { --overflow-ratio: 0; position: relative; min-width: 124px; padding-bottom: 7px; border: 1px solid rgba(177,112,255,.58); background: rgba(24,11,43,.86); color: #f0e3ff; }
+.overflow-chip span { color: #ca9dff; letter-spacing: .03em; }
+.overflow-chip i { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; transform: scaleX(var(--overflow-ratio)); transform-origin: left; background: linear-gradient(90deg,#7043db,#d59cff,#fff1a8); }
+.overflow-chip.is-ready { border-color: rgba(255,224,139,.92); color: #fff4c7; box-shadow: 0 0 14px rgba(199,139,255,.55), 0 5px 18px rgba(0,0,0,.28); }
+.overflow-chip.is-ready span { color: #ffe28e; animation: energy-ready-pulse .6s ease-in-out infinite alternate; }
+.ranger-state-row { display: flex; gap: 5px; min-width: 0; }
+.ranger-chip { border:1px solid rgba(119,220,132,.55); background:rgba(8,28,18,.84); color:#d9ffe0; }
+.ranger-chip span { color:#8ee99d; letter-spacing:.03em; }
 .ability-slot { position: relative; width: 58px; height: 58px; border-radius: 13px 3px 13px 3px; border: 1px solid rgba(225,247,235,.27); background: linear-gradient(145deg, rgba(55,83,88,.72), rgba(12,29,39,.8)); overflow: hidden; box-shadow: inset 0 1px rgba(255,255,255,.1), 0 5px 12px rgba(0,0,0,.26); }
+.ability-slot.evolution-tier-i { border-color: rgba(111,221,255,.72); box-shadow: inset 0 1px rgba(255,255,255,.12), 0 0 10px rgba(77,190,235,.28), 0 5px 12px rgba(0,0,0,.26); }
+.ability-slot.evolution-tier-ii { border-color: rgba(196,139,255,.78); box-shadow: inset 0 1px rgba(255,255,255,.14), 0 0 12px rgba(167,91,255,.38), 0 5px 12px rgba(0,0,0,.26); }
+.ability-slot.evolution-tier-apex { border-color: rgba(255,218,105,.9); box-shadow: inset 0 0 10px rgba(255,215,99,.14), 0 0 15px rgba(255,195,73,.5), 0 5px 12px rgba(0,0,0,.3); }
 .ability-slot::after { content: ""; position: absolute; inset: 3px; border: 1px solid rgba(255,255,255,.06); border-radius: inherit; }
 .ability-slot b { position: absolute; z-index: 3; left: 5px; right: 5px; bottom: 4px; font-size: 7px; text-align: center; text-shadow: 0 1px 4px #000; white-space: nowrap; }
 .ability-slot kbd { position: absolute; z-index: 5; right: 2px; top: 2px; min-width: 18px; height: 17px; padding: 0 3px; font-size: 8px; background: rgba(7,17,24,.82); }
+.skill-tier-badge { position: absolute; z-index: 8; left: 2px; top: 2px; min-width: 15px; max-width: 29px; height: 14px; padding: 0 3px; display: grid; place-items: center; overflow: hidden; color: #eaffff; background: rgba(5,17,26,.88); border: 1px solid rgba(121,225,255,.55); border-radius: 5px 2px 5px 2px; font: 900 7px/1 system-ui; letter-spacing: .02em; text-shadow: 0 1px 3px #000; }
+.evolution-tier-ii .skill-tier-badge { color: #f1ddff; border-color: rgba(203,150,255,.68); }
+.evolution-tier-apex .skill-tier-badge { color: #fff0ae; border-color: rgba(255,219,109,.78); font-size: 5.5px; letter-spacing: 0; }
+.skill-mutation-badges { position: absolute; z-index: 8; left: 2px; right: 2px; bottom: 13px; display: flex; justify-content: center; gap: 2px; min-width: 0; pointer-events: none; }
+.skill-mutation-badges em { flex: 0 1 auto; min-width: 0; max-width: calc(50% - 1px); height: 10px; padding: 1px 3px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 1px solid rgba(219,177,255,.42); border-radius: 4px 1px 4px 1px; background: rgba(22,9,35,.84); color: #e8ceff; font: 900 6px/1 system-ui; letter-spacing: -.04em; text-align: center; }
+.skill-mutation-badges em[data-mutation-tier="80"] { border-color: rgba(255,218,116,.5); background: rgba(42,29,8,.85); color: #ffe8a2; }
+.ability-slot.locked .skill-tier-badge,
+.ability-slot.locked .skill-mutation-badges { display: none !important; }
 .ability-slot .cooldown { position: absolute; z-index: 4; inset: 0; background: conic-gradient(rgba(5,10,16,.82) calc(var(--cooldown, 0) * 1turn), transparent 0); pointer-events: none; }
 .ability-slot.cooling::before { content: attr(data-cd); position: absolute; z-index: 7; inset: 0; display: grid; place-items: center; font-size: 15px; font-weight: 900; text-shadow: 0 2px 5px #000; }
 .ability-slot.locked { filter: grayscale(1) brightness(.55); }
@@ -525,17 +549,44 @@ body[data-mode="defense"] .boss-charge {
 
 .skills-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
 .skill-group > h3, .records-layout h3, .system-layout h3 { margin: 0 0 12px; color: #c8dcd5; font-size: 12px; letter-spacing: .08em; }
-.skill-card { min-height: 120px; margin-bottom: 10px; padding: 14px 15px; position: relative; }
+.skill-card { min-height: 120px; margin-bottom: 10px; padding: 14px 15px 48px; position: relative; overflow-x: clip; }
 .skill-card.locked { opacity: .46; filter: grayscale(.7); }
 .skill-card .skill-key { position: absolute; right: 13px; top: 13px; width: 29px; height: 29px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.2); border-radius: 8px 2px 8px 2px; color: var(--gold); font-weight: 900; }
 .skill-card h4 { margin: 0 42px 5px 0; font-size: 14px; }
 .skill-card p { margin: 0 0 8px; color: #98ada8; font-size: 9px; line-height: 1.6; }
-.skill-card .rank-line { display: flex; justify-content: space-between; align-items: center; color: #c8d9d4; font-size: 9px; }
-.rank-pips { display: flex; gap: 3px; }
-.rank-pips i { width: 18px; height: 4px; background: rgba(255,255,255,.11); }
+.skill-card .rank-line { display: flex; justify-content: space-between; align-items: center; gap: 8px; color: #c8d9d4; font-size: 9px; }
+.skill-card .rank-line > span { flex: 1 1 auto; min-width: 0; }
+.rank-pips { flex: 0 1 128px; width: min(128px, 46%); display: grid; grid-template-columns: repeat(5, minmax(8px, 1fr)); gap: 3px; }
+.rank-pips i { width: auto; height: 4px; background: rgba(255,255,255,.11); }
 .rank-pips i.active { background: var(--gold); box-shadow: 0 0 6px var(--gold); }
-.skill-card button { position: absolute; right: 13px; bottom: 12px; border: 1px solid rgba(112,229,169,.32); border-radius: 7px 2px 7px 2px; background: rgba(70,179,123,.14); color: #dffff0; cursor: pointer; padding: 6px 9px; font-size: 8px; }
+.skill-card > button[data-action="upgrade-skill"] { position: absolute; right: 13px; bottom: 12px; border: 1px solid rgba(112,229,169,.32); border-radius: 7px 2px 7px 2px; background: rgba(70,179,123,.14); color: #dffff0; cursor: pointer; padding: 6px 9px; font-size: 8px; }
 .skill-card button:disabled { opacity: .3; cursor: default; }
+.skill-evolution { margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.08); min-width: 0; }
+.form-status { display: flex; justify-content: space-between; gap: 8px; color: #9db5ae; font-size: 8px; line-height: 1.4; }
+.form-status b { color: var(--gold); white-space: nowrap; }
+.form-status span { min-width: 0; text-align: right; overflow-wrap: anywhere; }
+.mutation-row { margin-top: 8px; display: grid; grid-template-columns: minmax(68px, auto) minmax(0, 1fr); align-items: center; gap: 7px; }
+.mutation-row > span { color: #a9beb8; font-size: 8px; }
+.mutation-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; min-width: 0; }
+.mutation-options button, .skill-debug button { position: static; min-width: 0; min-height: 34px; border: 1px solid rgba(255,255,255,.14); border-radius: 7px 2px 7px 2px; background: rgba(255,255,255,.05); color: #bcd0ca; padding: 6px; font-size: 8px; overflow-wrap: anywhere; cursor: pointer; touch-action: manipulation; }
+.mutation-options button { display: grid; grid-template-columns: 24px minmax(0, 1fr); align-items: center; gap: 5px; text-align: left; overflow: hidden; }
+.mutation-icon { width: 24px; height: 24px; display: grid; place-items: center; align-content: center; overflow: hidden; border: 1px solid rgba(219,177,255,.35); border-radius: 7px 2px 7px 2px; background: rgba(20,10,34,.72); color: #eddcff; line-height: 1; }
+.mutation-icon i, .mutation-icon em { display: block; max-width: 100%; overflow: hidden; font-style: normal; text-align: center; white-space: nowrap; }
+.mutation-icon i { font-size: 11px; font-weight: 900; }
+.mutation-icon em { margin-top: 1px; color: #e4c066; font-size: 5px; font-weight: 900; letter-spacing: -.08em; }
+.mutation-copy { min-width: 0; overflow: hidden; }
+.mutation-options button.selected, .skill-debug button.active { border-color: rgba(255,212,104,.65); background: rgba(255,205,93,.16); color: #fff0bc; }
+.mutation-options button:focus-visible, .skill-debug button:focus-visible { outline: 2px solid #fff0bc; outline-offset: -2px; }
+.mutation-options button b, .mutation-options button small { display: block; }
+.mutation-options button small { margin-top: 3px; color: #8fa8a1; font-size: 7px; line-height: 1.3; }
+.current-summary, .next-summary { margin: 6px 0 0; font-size: 8px; line-height: 1.45; overflow-wrap: anywhere; }
+.current-summary { color: #b9cec8; }
+.next-summary { color: #e1cd91; }
+.skill-evolution > small { display: block; margin-top: 6px; color: #718a84; font-size: 7px; }
+.skill-debug { grid-column: 1 / -1; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 7px 10px; align-items: center; padding: 12px; border: 1px dashed rgba(255,205,93,.35); background: rgba(80,55,10,.12); min-width: 0; }
+.skill-debug > strong { grid-column: 1 / -1; color: var(--gold); font-size: 10px; }
+.skill-debug > span { color: #9db5ae; font-size: 8px; }
+.skill-debug > div { display: flex; flex-wrap: wrap; gap: 5px; min-width: 0; }
 .skill-points-banner { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border: 1px solid rgba(255,212,104,.22); background: rgba(255,205,93,.07); border-radius: 3px 14px 3px 14px; }
 .skill-points-banner b { color: var(--gold); font-size: 22px; }
 
@@ -598,6 +649,18 @@ body[data-mode="defense"] .boss-charge {
   body.touch-ui .minimap-shell,
   body.touch-ui .zone-ribbon { transform: none; }
   body.touch-ui .zone-ribbon { transform: translateX(-50%) scale(.72); }
+}
+@media (max-width: 390px) {
+  .skill-points-banner { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 11px 12px; }
+  .skill-points-banner div { min-width: 0; }
+  .skill-points-banner strong { display: block; overflow-wrap: anywhere; }
+  .skill-points-banner b { font-size: 17px; white-space: nowrap; }
+  .form-status { align-items: flex-start; }
+  .mutation-row { grid-template-columns: 1fr; }
+  .mutation-options button, .skill-debug button { min-height: 44px; font-size: 9px; }
+  .skill-debug { grid-template-columns: 1fr; }
+  .skill-debug > strong { grid-column: 1; }
+  .skill-debug > div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
@@ -960,6 +1023,12 @@ body.touch-ui .ability-bar {
   align-items: center;
   justify-items: center;
 }
+body.touch-ui .class-state-row { left: auto; right: max(6px, env(safe-area-inset-right, 0px)); bottom: max(180px, calc(env(safe-area-inset-bottom, 0px) + 176px)); transform: none; width: min(232px, calc(100vw - 142px - env(safe-area-inset-left, 0px))); max-width: none; justify-content: flex-end; gap: 4px; }
+body.touch-ui .class-state-chip { min-width: 0; max-width: 108px; padding: 5px 6px; font-size: 7px; }
+body.touch-ui .frenzy-chip,
+body.touch-ui .overflow-chip { flex: 0 1 108px; }
+body.touch-ui .ranger-state-row { flex: 1 1 132px; justify-content: flex-end; gap: 4px; min-width: 0; }
+body.touch-ui .ranger-chip { flex: 1 1 62px; max-width: 82px; }
 body.touch-ui .ability-slot {
   width: 46px;
   height: 46px;
@@ -1002,6 +1071,10 @@ body.touch-ui .ability-slot::after {
 body.touch-ui .ability-slot.cooling::before {
   font-size: 12px;
 }
+body.touch-ui .skill-tier-badge { left: 1px; top: 1px; height: 12px; min-width: 13px; max-width: 26px; padding: 0 2px; font-size: 6px; }
+body.touch-ui .evolution-tier-apex .skill-tier-badge { font-size: 5px; }
+body.touch-ui .skill-mutation-badges { left: 1px; right: 1px; bottom: 1px; gap: 1px; }
+body.touch-ui .skill-mutation-badges em { height: 9px; padding: 1px 2px 0; font-size: 5px; }
 
 /* ─── iPhone 13 mini class (≤390px, tall portrait) ─── */
 @media (max-width: 390px) {
@@ -1405,6 +1478,7 @@ body.touch-ui .equipment-icon {
 
 /* While menu is open, kill combat pad hit-targets under the modal */
 body.touch-ui.panel-open .ability-bar,
+body.touch-ui.panel-open .class-state-row,
 body.touch-ui.panel-open .touch-controls {
   pointer-events: none !important;
   opacity: .25;
@@ -1522,5 +1596,172 @@ body.touch-ui #game-canvas { cursor: default; }
 @media (min-width: 700px) {
   body.touch-ui .item-grid {
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  }
+}
+
+/* Mobile combat cockpit ----------------------------------------------------
+   Reserve independent top-info, center-alert, and bottom-control lanes.
+   These rules intentionally come last so phone combat stays collision-free
+   even when a boss, Defense wave, notifications, and class state coexist. */
+body.touch-ui #hud {
+  --combat-edge: max(6px, env(safe-area-inset-left, 0px));
+  --combat-top-safe: max(6px, env(safe-area-inset-top, 0px));
+  --combat-bottom-safe: max(8px, env(safe-area-inset-bottom, 0px));
+}
+
+/* Compact vital information; retain readable values without tall gauges. */
+body.touch-ui .player-card {
+  width: min(184px, 48vw);
+  padding: 5px 7px 5px 5px;
+  background: rgba(16, 28, 32, .66);
+  backdrop-filter: blur(7px) saturate(1.05);
+}
+body.touch-ui .name-row { margin-bottom: 2px; }
+body.touch-ui .name-row strong { font-size: 10px; }
+body.touch-ui .resource-bar {
+  height: 8px;
+  margin: 1px 0;
+  border-width: 1px;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, .38);
+}
+body.touch-ui .resource-bar b { font-size: 6px; letter-spacing: 0; }
+body.touch-ui .resource-pills {
+  top: max(56px, calc(env(safe-area-inset-top, 0px) + 50px));
+  gap: 2px;
+}
+body.touch-ui .resource-pills span {
+  height: 16px;
+  padding: 0 5px;
+  font-size: 7px;
+  border-color: rgba(255, 255, 255, .09);
+}
+body.touch-ui .resource-pills i { width: 8px; height: 8px; }
+
+/* A smaller tactical map leaves the top-right menu its own hit-safe lane. */
+body.touch-ui .minimap-shell {
+  width: 78px;
+  height: 84px;
+  opacity: .78;
+  padding: 4px;
+  border-radius: 10px 3px 10px 3px;
+}
+body.touch-ui .minimap-shell canvas,
+body.touch-ui #minimap {
+  width: 70px !important;
+  height: 70px !important;
+}
+
+/* Center alerts start below every top-corner component. */
+body.touch-ui #notifications {
+  top: max(142px, calc(env(safe-area-inset-top, 0px) + 134px));
+  width: min(170px, 46vw);
+  max-width: min(170px, 46vw);
+}
+body.touch-ui .notification { max-width: 100%; }
+
+/* Boss/Defense priority mode removes redundant location and currency chrome. */
+body.touch-ui #hud.boss-active .zone-ribbon,
+body.touch-ui #hud.defense-active .zone-ribbon {
+  opacity: 0;
+  visibility: hidden;
+}
+body.touch-ui #hud.boss-active .resource-pills {
+  opacity: 0;
+  visibility: hidden;
+}
+body.touch-ui .boss-hud {
+  top: max(146px, calc(env(safe-area-inset-top, 0px) + 138px));
+  width: calc(100vw - 20px);
+  max-width: 360px;
+}
+body.touch-ui .boss-name-row { margin-bottom: 3px; }
+body.touch-ui .boss-name-row span { font-size: 6px; }
+body.touch-ui .boss-name-row strong { font-size: 11px; }
+body.touch-ui .boss-health { height: 7px; border-width: 1px; }
+body.touch-ui #hud.boss-active #notifications {
+  top: max(184px, calc(env(safe-area-inset-top, 0px) + 176px));
+}
+body.touch-ui .defense-wave-panel {
+  top: max(92px, calc(env(safe-area-inset-top, 0px) + 84px));
+  min-width: 92px;
+  padding: 4px 8px;
+}
+body.touch-ui .defense-wave-panel small { margin-bottom: 2px; font-size: 6px; }
+body.touch-ui .defense-wave-panel strong { font-size: 11px; }
+body.touch-ui .defense-wave-panel span { margin-top: 2px; font-size: 7px; }
+body.touch-ui #hud.boss-active.defense-active .defense-wave-panel {
+  left: max(6px, env(safe-area-inset-left, 0px));
+  top: max(62px, calc(env(safe-area-inset-top, 0px) + 56px));
+  transform: none;
+}
+
+/* Keep touch targets stable while reducing only the pad's decorative shell. */
+body.touch-ui .ability-bar {
+  padding: 6px;
+  background: rgba(7, 19, 27, .32);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .25);
+  backdrop-filter: blur(6px);
+}
+body.touch-ui .class-state-row {
+  bottom: max(180px, calc(env(safe-area-inset-bottom, 0px) + 176px));
+}
+
+@media (max-width: 390px) {
+  body.touch-ui .player-card { width: min(158px, 43vw); }
+  body.touch-ui .resource-pills {
+    top: max(58px, calc(env(safe-area-inset-top, 0px) + 52px));
+    max-width: 45vw;
+  }
+  body.touch-ui .zone-ribbon {
+    top: max(82px, calc(env(safe-area-inset-top, 0px) + 76px));
+    max-width: 42vw;
+  }
+  body.touch-ui .minimap-shell {
+    width: 72px;
+    height: 78px;
+    top: max(50px, calc(env(safe-area-inset-top, 0px) + 42px));
+  }
+  body.touch-ui .minimap-shell canvas,
+  body.touch-ui #minimap {
+    width: 64px !important;
+    height: 64px !important;
+  }
+  body.touch-ui .ability-bar { gap: 4px; padding: 4px; }
+  body.touch-ui .class-state-row {
+    bottom: max(180px, calc(env(safe-area-inset-bottom, 0px) + 176px));
+  }
+}
+
+@media (max-height: 480px) and (orientation: landscape) {
+  body.touch-ui .player-card {
+    width: min(176px, 30vw);
+    transform: none;
+  }
+  body.touch-ui .player-card .portrait { display: none; }
+  body.touch-ui .resource-pills {
+    top: max(54px, calc(env(safe-area-inset-top, 0px) + 48px));
+  }
+  body.touch-ui .touch-stick-zone {
+    left: max(10px, env(safe-area-inset-left, 0px));
+    bottom: max(8px, env(safe-area-inset-bottom, 0px));
+  }
+  body.touch-ui .boss-hud {
+    top: max(50px, calc(env(safe-area-inset-top, 0px) + 44px));
+    width: min(42vw, 340px);
+  }
+  body.touch-ui #notifications,
+  body.touch-ui #hud.boss-active #notifications {
+    top: auto;
+    bottom: max(116px, calc(env(safe-area-inset-bottom, 0px) + 108px));
+    width: min(190px, 28vw);
+  }
+  body.touch-ui .defense-wave-panel,
+  body.touch-ui #hud.boss-active.defense-active .defense-wave-panel {
+    left: 50%;
+    top: max(6px, env(safe-area-inset-top, 0px));
+    transform: translateX(-50%) scale(.78);
+  }
+  body.touch-ui .class-state-row {
+    bottom: max(182px, calc(env(safe-area-inset-bottom, 0px) + 174px));
   }
 }

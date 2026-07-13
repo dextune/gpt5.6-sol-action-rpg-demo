@@ -1,3 +1,33 @@
+const apexCadence = Object.freeze({
+  anticipate: Object.freeze({ duration: .12, pitchMul: 1.18, noiseMul: .55, volumeMul: .72 }),
+  impact: Object.freeze({ duration: .09, pitchMul: .82, noiseMul: 1, volumeMul: 1 }),
+  finisher: Object.freeze({ duration: .22, pitchMul: .58, noiseMul: 1.35, volumeMul: 1.18 }),
+});
+
+const apexProfile = (classId, timbre, pitch, noise, filter) => Object.freeze({
+  classId, timbre, pitch, noise, filter, cadence: apexCadence,
+});
+
+/** Procedural-only Lv100 signatures. Keys intentionally match active skill ids. */
+export const APEX_AUDIO_PROFILES = Object.freeze({
+  whirlwind: apexProfile('aerin', 'sawtooth', 92, .020, 520),
+  crescent: apexProfile('aerin', 'sawtooth', 101, .022, 570),
+  skyfall: apexProfile('aerin', 'sawtooth', 67, .027, 410),
+  starburst: apexProfile('aerin', 'sawtooth', 116, .019, 640),
+  fireball: apexProfile('wizard', 'triangle', 132, .024, 760),
+  frost_nova: apexProfile('wizard', 'triangle', 151, .018, 980),
+  arcane_blink: apexProfile('wizard', 'triangle', 174, .016, 1120),
+  meteor_storm: apexProfile('wizard', 'triangle', 78, .029, 620),
+  twin_fang: apexProfile('rogue', 'square', 184, .015, 1180),
+  fan_of_knives: apexProfile('rogue', 'square', 165, .018, 1040),
+  shadowstep: apexProfile('rogue', 'square', 143, .021, 860),
+  death_lotus: apexProfile('rogue', 'square', 124, .023, 720),
+  piercing_shot: apexProfile('ranger', 'sine', 157, .014, 940),
+  caltrop_trap: apexProfile('ranger', 'sine', 109, .026, 680),
+  vault_shot: apexProfile('ranger', 'sine', 139, .017, 820),
+  hunter_mark: apexProfile('ranger', 'sine', 121, .020, 740),
+});
+
 /**
  * Sol ARPG — combat-first audio.
  *
@@ -359,6 +389,24 @@ export class AudioManager {
     }
     this.#noise(0.12, 0.03, { type: 'bandpass', frequency: 400, q: 0.7, decay: 1.0 });
     this.#tone(90, 0.14, { type: 'triangle', volume: 0.04, end: 48, filter: 400 });
+  }
+
+  /** One bounded procedural layer for a level-100 skill cadence phase. */
+  apex(skillId, phase) {
+    const profile = APEX_AUDIO_PROFILES[skillId];
+    const cadence = profile?.cadence?.[phase];
+    if (!profile || !cadence || !this.context || !this.sfx || this.muted) return false;
+    const pitch = profile.pitch * cadence.pitchMul;
+    this.#tone(pitch, cadence.duration, {
+      type: profile.timbre, volume: .045 * cadence.volumeMul,
+      end: Math.max(24, pitch * (phase === 'anticipate' ? 1.12 : .48)), filter: profile.filter,
+    });
+    this.#noise(cadence.duration * .72, profile.noise * cadence.noiseMul, {
+      type: phase === 'anticipate' ? 'bandpass' : 'lowpass',
+      frequency: profile.filter, q: phase === 'anticipate' ? .85 : .55,
+      decay: phase === 'finisher' ? .82 : 1.35,
+    });
+    return true;
   }
 
   #resolveSkillBank(themeOrKey) {

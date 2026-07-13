@@ -283,7 +283,8 @@ export class CharacterFactory {
     const heroDef = getHeroClass(classId);
     const look = resolveLook(heroDef.lookId);
     const palette = look.palette;
-    const asset = this.assets.cloneModel(heroDef.modelKey, { quality: options.quality ?? 'high' });
+    const quality = options.quality ?? 'high';
+    const asset = this.assets.cloneModel(heroDef.modelKey, { quality });
     const group = asset.scene;
     group.name = `Hero_${classId}`;
     group.userData.classId = classId;
@@ -323,15 +324,31 @@ export class CharacterFactory {
     this.outlines.configure(group, { color: palette.outline, priority: 10, maxDistance: 48 });
 
     const socket = group.getObjectByName('weapon_socket');
+    let offhandSocket = group.getObjectByName('offhand_socket');
+    if (!offhandSocket && classId === 'rogue') {
+      const leftHand = group.getObjectByName('left_hand');
+      if (leftHand) {
+        offhandSocket = new THREE.Group();
+        offhandSocket.name = 'offhand_socket_runtime';
+        offhandSocket.position.set(.03, -.11, .02);
+        leftHand.add(offhandSocket);
+      }
+    }
     const refs = {
       group,
       socket,
+      offhandSocket,
       bladeBase: null,
       bladeTip: null,
+      mainBladeBase: null,
+      mainBladeTip: null,
+      offhandBladeBase: null,
+      offhandBladeTip: null,
       modelHeight: 3.05,
       materials: [...materials.values()],
       fallback: asset.fallback,
       classId,
+      quality: group.userData.assetQuality ?? quality,
     };
     const animation = new CharacterAnimationController(group, asset.animations, { referenceRunSpeed: 7.2, defaultFade: .13 });
     return { group, refs, animation, classId };
@@ -340,14 +357,12 @@ export class CharacterFactory {
   equipWeapon(character, item = {}) {
     const refs = character.refs ?? character;
     if (!refs.socket) return null;
-    const previous = this.weaponInstances.get(refs);
-    if (previous) {
-      refs.socket.remove(previous);
-      this.outlines.unregister(previous);
-    }
+    this.clearWeapons(refs);
     const kind = item.model ?? 'sword';
-    const asset = this.assets.cloneModel(`weapon.${kind}`, { quality: 'high' });
+    const quality = item.quality ?? refs.quality ?? 'high';
+    const asset = this.assets.cloneModel(`weapon.${kind}`, { quality });
     const weapon = asset.scene;
+    refs.weaponQuality = weapon.userData.assetQuality ?? quality;
     weapon.name = `Equipped_${kind}`;
     // Bow sits more upright on the hip/hand socket; blades keep the legacy tilt.
     if (kind === 'bow') {
@@ -362,6 +377,7 @@ export class CharacterFactory {
     weapon.scale.set(girth, length, girth);
     const rarityColor = new THREE.Color(item.rarityColor ?? item.color ?? 0xe8f4ff);
     const outlineColor = resolveLook(getHeroClass(refs.classId).lookId).palette.outline;
+    const mainMaterials = new Set();
     weapon.traverse(object => {
       if (!object.isMesh) return;
       object.castShadow = true;
@@ -387,13 +403,77 @@ export class CharacterFactory {
         material.emissiveIntensity = item.rarity === 'legendary' ? 1.2 : item.rarity === 'epic' ? .8 : item.rarity === 'rare' ? .5 : .22;
       }
       object.material = material;
+      mainMaterials.add(material);
     });
     refs.socket.add(weapon);
     refs.bladeBase = weapon.getObjectByName('blade_base');
     refs.bladeTip = weapon.getObjectByName('blade_tip');
+    refs.mainBladeBase = refs.bladeBase;
+    refs.mainBladeTip = refs.bladeTip;
     refs.weapon = weapon;
-    this.weaponInstances.set(refs, weapon);
     this.outlines.configure(weapon, { color: outlineColor, priority: 8, maxDistance: 36 });
+    let offhand = null;
+    let offhandRelease = null;
+    const offhandMaterials = new Set();
+    if (refs.classId === 'rogue' && refs.offhandSocket && (kind === 'dagger' || kind === 'saber')) {
+      const offhandAsset = this.assets.cloneModel(`weapon.${kind}`, { quality });
+      offhandRelease = offhandAsset.release;
+      offhand = offhandAsset.scene;
+      offhand.name = `Equipped_${kind}_offhand`;
+      offhand.position.set(-.02, -.02, .01);
+      offhand.rotation.set(0, 0, -.14);
+      offhand.scale.set(-girth, length, girth);
+      offhand.traverse(object => {
+        if (!object.isMesh) return;
+        object.castShadow = true;
+        object.receiveShadow = true;
+        ensureUv2(object.geometry);
+        const source = object.material;
+        const role = inferMaterialRole(source?.name ?? object.name);
+        const material = convertToStylized(source, {
+          role, style: { bandStrength: .22, rimStrength: role === 'metal' ? .12 : .04, bands: 3 },
+        });
+        material.map = null;
+        if (role === 'metal' || object.name.toLowerCase().includes('blade')) {
+          material.color.copy(rarityColor).lerp(new THREE.Color(0xd9c6ff), .42);
+          material.metalness = .72;
+          material.roughness = .28;
+          material.emissive.setHex(0x6f43a8);
+          material.emissiveIntensity = .2;
+        }
+        object.material = material;
+        offhandMaterials.add(material);
+      });
+      refs.offhandSocket.add(offhand);
+      refs.offhandBladeBase = offhand.getObjectByName('blade_base');
+      refs.offhandBladeTip = offhand.getObjectByName('blade_tip');
+      refs.offhandWeapon = offhand;
+      this.outlines.configure(offhand, { color: outlineColor, priority: 8, maxDistance: 36 });
+    }
+    this.weaponInstances.set(refs, {
+      main: { scene: weapon, release: asset.release, materials: mainMaterials },
+      offhand: offhand ? { scene: offhand, release: offhandRelease, materials: offhandMaterials } : null,
+    });
     return weapon;
+  }
+
+  clearWeapons(character) {
+    const refs = character?.refs ?? character;
+    if (!refs) return;
+    const instances = this.weaponInstances.get(refs);
+    for (const handle of [instances?.main, instances?.offhand]) {
+      if (!handle?.scene) continue;
+      handle.scene.parent?.remove(handle.scene);
+      this.outlines.unregister(handle.scene);
+      for (const material of handle.materials ?? []) material.dispose?.();
+      handle.materials?.clear?.();
+      handle.release?.();
+    }
+    this.weaponInstances.delete(refs);
+    refs.weapon = null;
+    refs.offhandWeapon = null;
+    refs.bladeBase = refs.bladeTip = null;
+    refs.mainBladeBase = refs.mainBladeTip = null;
+    refs.offhandBladeBase = refs.offhandBladeTip = null;
   }
 }

@@ -1,57 +1,57 @@
-# 04 — 타격감 마감: 스윙 트레일, 스태거, 다중 히트 통합, 사운드 (P2)
+# 04 — Hit-feel polish: swing trail, stagger, multihit coalesce, audio (P2)
 
-## 현재 상태 (증거)
+## Current state (evidence)
 
-2026-07 패스로 기본기는 확보됨:
-- `Effects.impact()` — 스타버스트 스프라이트 + 가짜 라이트(가산 글로우) + 링/슬래시/파티클 계층, 크리티컬/피니셔 단계별 강화 (`js/graphics/Effects.js`).
-- 적 스쿼시&스트레치 경직(`Enemy.#animate`), 히트 펄스(StylizedMaterial), 넉백.
+2026-07 pass established the basics:
+- `Effects.impact()` — starburst sprite + fake light (additive glow) + ring/slash/particle stack, stronger on crit/finisher (`js/graphics/Effects.js`).
+- Enemy squash-and-stretch stun (`Enemy.#animate`), hit pulse (StylizedMaterial), knockback.
 
-남은 격차:
-- **스윙 과정의 무게감 없음**: 무기가 지나간 궤적을 따라가는 모션 트레일이 없고, 히트 지점 슬래시 스프라이트뿐.
-- **피격 방향성 없음**: 단일 `hit` 클립 + 균일 스쿼시. 왼쪽에서 맞아도 오른쪽에서 맞아도 같은 모션.
-- **다중 히트 노이즈**: 한 스윙이 6마리를 맞추면 `impact()` 6회가 개별 합산 — 화면이 지저분해지고 파티클 예산 낭비.
-- **사운드 단층**: `audio.hit(critical, finisher)` 2단. 콤보 단계·동시 타격 수·재질(슬라임 vs 골렘)에 따른 변화 없음.
+Remaining gaps:
+- **No weight during the swing**: no motion trail along the weapon path — only hit-point slash sprites.
+- **No hit directionality**: single `hit` clip + uniform squash; left and right hits look identical.
+- **Multihit noise**: one swing hitting 6 enemies fires `impact()` six times — visual clutter and particle budget waste.
+- **Flat audio**: `audio.hit(critical, finisher)` two tiers only. No variation by combo step, simultaneous hit count, or material (slime vs golem).
 
-## 설계 제안
+## Design proposal
 
-### A. 무기 스윙 트레일 (P2)
+### A. Weapon swing trail (P2)
 
-- 무기 소켓(`weapon_socket` 본)의 `blade_base`→`blade_tip`을 매 프레임 샘플링해 리본 메시 생성(최근 8~10 샘플, 삼각 스트립, 가산 블렌딩, 무기 rarity 색).
-- 공격 애니메이션 재생 중에만 활성(`CharacterAnimationController` 상태 참조), 0.15초 페이드아웃.
-- 풀 1개(플레이어 전용)로 충분 — 마법/활 클래스는 트레일 대신 손끝 글로우 파티클.
-- 주의: 본 월드 행렬은 스킨 업데이트 후 읽을 것(1프레임 지연 방지).
+- Sample `blade_base`→`blade_tip` on the `weapon_socket` bone each frame; build a ribbon mesh (last 8–10 samples, triangle strip, additive blend, weapon rarity color).
+- Active only while attack animation plays (`CharacterAnimationController` state); 0.15s fade-out.
+- One pool (player only) is enough — magic/bow classes use fingertip glow particles instead of a blade ribbon.
+- Read bone world matrices **after** skin update (avoid one-frame lag).
 
-### B. 방향성 스태거 (P2)
+### B. Directional stagger (P2)
 
-- `Enemy.takeDamage`에서 타격 방향과 적의 facing 내적으로 4방향 판정 → 스쿼시 축을 타격 방향으로 기울임(현재 균일 y-스쿼시 → 방향 벡터로 기울인 비대칭 스쿼시).
-- 애니메이션 클립 추가 없이 절차적으로 해결(생성기 재작업 불필요).
-- 연속 피격 시 경직 누적 상한(0.4초) — 무한 경직 방지.
+- In `Enemy.takeDamage`, classify 4 directions from hit direction · enemy facing; tilt squash axis toward the hit (uniform y-squash → asymmetric squash along the hit vector).
+- Fully procedural — no new animation clips / generator work.
+- Cap stacked stun duration (0.4s) to prevent infinite lock.
 
-### C. 다중 히트 통합 연출 (P2, 성능 겸용)
+### C. Multihit coalesced FX (P2, also performance)
 
-- 한 스윙/스킬 틱의 히트 결과를 모아 처리: 3히트 이상이면 개별 `impact()` 대신
-  - 히트 중심점에 **대형 임팩트 1회**(스타버스트 크기 = 1.6 + 0.25×히트 수, 상한 4),
-  - 각 적에는 소형 스파크만(파티클 4개).
-- `CombatSystem.#hitEnemiesInCone`이 이미 히트 배열을 알고 있으므로 삽입 지점 명확.
-- [02-kill-reward-loop.md](02-kill-reward-loop.md)의 멀티킬 통합과 같은 윈도우 로직 공유.
+- Batch hits from one swing/skill tick: if ≥3 hits, replace per-target `impact()` with
+  - **one large impact** at the hit centroid (starburst scale = 1.6 + 0.25×hit count, cap 4),
+  - small sparks only on each enemy (~4 particles).
+- `CombatSystem.#hitEnemiesInCone` already has the hit list — clear insertion point.
+- Share window logic with multikill coalesce in [02-kill-reward-loop.md](02-kill-reward-loop.md).
 
-### D. 사운드 레이어링 (P2)
+### D. Sound layering (P2)
 
-`tools/audio/generate-combat-sfx.mjs`에 추가 생성:
-- 콤보 단계별 히트음 4단(콤보 0→3, 점차 무겁고 밝게) — 현행 2단을 확장.
-- 동시 타격 수 3+ 시 "다중 타격 스매시" 변형(저역 강조 + 파편음).
-- 재질 변형 2종: 젤(슬라임 — 습식 펀치), 암석(콜로서스 — 돌 균열). archetype→variant 매핑은 `AudioManager.hit()` 인자 확장.
-- 픽업/체인 사운드는 02 문서 참조(도레미 램프, 체인 스팅).
+Add generation in `tools/audio/generate-combat-sfx.mjs`:
+- 4-tier combo hit sounds (combo 0→3, heavier and brighter) — extend current 2-tier.
+- On simultaneous hits ≥3: "multihit smash" variant (low-end emphasis + debris).
+- Two material variants: gel (slime — wet punch), stone (colossus — rock crack). Map archetype→variant via extended `AudioManager.hit()` args.
+- Pickup/chain audio per doc 02 (solfege ramp, chain stings).
 
-### E. 하지 않는 것 (확정)
+### E. Explicit non-goals (settled)
 
-- 카메라 셰이크, 히트스톱 — `Game.js`에 의도적으로 무력화됨. 재도입 금지.
-- VFX용 실제 PointLight — 셰이더 재컴파일 프리즈(`841a698`에서 수정). 가산 스프라이트로만.
-- 포스트프로세스 히트 플래시(전화면) — 물량전에서 초당 수십 회 히트 시 발작적 화면이 됨. 화면 효과는 레벨업/보스 처치급 이벤트에만.
+- Camera shake, hit-stop — intentionally disabled in `Game.js`. Do not re-enable.
+- Real PointLight for VFX — shader recompile freeze (fixed in `841a698`). Additive sprites only.
+- Full-screen post hit flash — dozens of hits/sec in hordes become seizure-prone. Full-screen effects only for level-up / boss kill class events.
 
-## 수용 기준
+## Acceptance criteria
 
-1. 검이 지나간 자리에 무기 색 궤적이 남고, 정지 상태에서는 보이지 않는다.
-2. 같은 적을 좌/우에서 때리면 기울어지는 방향이 다르다.
-3. 한 스윙 6히트가 대형 임팩트 1회로 정리되어 보이고, 파티클 총량이 개별 처리 대비 감소한다.
-4. 슬라임을 때리는 소리와 콜로서스를 때리는 소리가 다르다.
+1. A sword swing leaves a weapon-colored trail; trails are invisible while idle.
+2. Hitting the same enemy from left vs right tilts it differently.
+3. A 6-hit swing reads as one large impact; total particles drop vs per-hit impacts.
+4. Hitting a slime sounds different from hitting a colossus.

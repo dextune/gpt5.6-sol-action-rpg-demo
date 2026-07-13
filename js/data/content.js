@@ -181,8 +181,8 @@ export const AFFIXES = Object.freeze([
 export const SKILLS = Object.freeze({
   // —— Knight actives ——
   whirlwind: {
-    id: 'whirlwind', classId: 'aerin', name: 'Whirlwind Slash', key: 'Q', unlockLevel: 3, maxRank: 5, mp: 18, cooldown: 5.5,
-    castTime: .42, anim: 'skill_whirlwind', effect: 'whirlwind',
+    id: 'whirlwind', classId: 'aerin', name: 'Whirlwind Slash', key: 'Q', unlockLevel: 3, maxRank: 10, mp: 18, cooldown: 5.5,
+    castTime: .42, anim: 'skill_whirlwind', animFallback: 'attack_4', effect: 'whirlwind',
     theme: 'windsteel', sfx: 'skill_blade', recipe: 'spinStorm',
     timeline: Object.freeze({ hits: Object.freeze([0.22, 0.48, 0.74]) }),
     combat: Object.freeze({
@@ -194,12 +194,29 @@ export const SKILLS = Object.freeze({
       invuln: 0.34,
       criticalBonus: 0.03,
     }),
+    evolution: Object.freeze({
+      forms: Object.freeze({
+        20: Object.freeze({ label: 'Crosswind', summary: 'Adds a reverse cut and final cross.', timeline: Object.freeze({ hits: Object.freeze([.12,.3,.48,.66,.84]) }), combat: Object.freeze({ hits: 5, finalCross: 1 }) }),
+        60: Object.freeze({ label: 'Roving Gale', summary: 'Movement leaves one travelled wind scar.', anim: 'attack_5', combat: Object.freeze({ rovingGale: 1, scarMult: .42 }) }),
+        100: Object.freeze({ label: 'Sovereign Tempest', summary: 'Six pulses end in a bounded perpendicular cross.', anim: 'skill_whirlwind', timeline: Object.freeze({ hits: Object.freeze([.1,.24,.38,.52,.68,.84]) }), combat: Object.freeze({ hits: 6, sovereign: 1, crossBudget: 2, crossMult: .48, apexFinisher: 1 }), presentation: Object.freeze({ apexMarker: 'sovereign_cross', apexAudio: 'whirlwind' }) }),
+      }),
+      mutations: Object.freeze({
+        40: Object.freeze({
+          cyclone: Object.freeze({ label: 'Cyclone', summary: 'Widens the storm and drags non-boss prey inward.', icon: 'vortex.breadth', combat: Object.freeze({ radiusMult: 1.25, inwardDrag: .55 }) }),
+          blood_wheel: Object.freeze({ label: 'Blood Wheel', summary: 'Tightens six fast cuts with bleed cadence.', icon: 'vortex.focus', timeline: Object.freeze({ hits: Object.freeze([.1,.24,.38,.52,.68,.84]) }), combat: Object.freeze({ hits: 6, radiusMult: .82, cadenceMult: .72, bleedEvery: 2, bleed: Object.freeze({ id: 'bleed', duration: 2.4, dps: .08, tick: .45, power: 1 }) }) }),
+        }),
+        80: Object.freeze({
+          storm_cage: Object.freeze({ label: 'Storm Cage', summary: 'Caps stronger pack grouping.', icon: 'vortex.flow', combat: Object.freeze({ cageDrag: .85, dragCap: 5 }) }),
+          giant_slayer: Object.freeze({ label: 'Giant Slayer', summary: 'Finale pressures and staggers durable prey.', icon: 'vortex.execution', combat: Object.freeze({ durableMult: 1.65, durableStagger: 24 }) }),
+        }),
+      }),
+    }),
     description: 'Cuts and knocks back nearby enemies in a flurry.',
     rankText: rank => `Damage ${Math.round((0.46 + rank * 0.055) * 100)}% ×3 · Range ${(4.1 + rank * 0.18).toFixed(1)}`,
   },
   crescent: {
-    id: 'crescent', classId: 'aerin', name: 'Crescent Blade', key: 'E', unlockLevel: 6, maxRank: 5, mp: 22, cooldown: 6.8,
-    castTime: .36, anim: 'skill_crescent', effect: 'crescent',
+    id: 'crescent', classId: 'aerin', name: 'Crescent Blade', key: 'E', unlockLevel: 6, maxRank: 10, mp: 22, cooldown: 6.8,
+    castTime: .36, anim: 'skill_crescent', animFallback: 'skill_whirlwind', effect: 'crescent',
     theme: 'bladewave', sfx: 'skill_blade', recipe: 'groundWave',
     timeline: Object.freeze({ hits: Object.freeze([0.38]) }),
     combat: Object.freeze({
@@ -215,12 +232,20 @@ export const SKILLS = Object.freeze({
       residualDelay: 0.42,
       residualRadius: 1.5,
     }),
+    evolution: Object.freeze({ forms: Object.freeze({
+      20: Object.freeze({ label:'Moon Scar', summary:'The visible path erupts in one delayed aftercut.', timeline:Object.freeze({hits:Object.freeze([.28,.72])}), combat:Object.freeze({ moonScar:1, scarMult:.42 }) }),
+      60: Object.freeze({ label:'Crosscurrent', summary:'Qualified pierces emit bounded perpendicular cuts.', anim:'attack_6', combat:Object.freeze({ crosscurrent:1, crossCap:6, crossPerEnemyCap:1, crossMult:.3 }) }),
+      100:Object.freeze({ label:'Worldsplitter', summary:'Three-act presentation protects one release and one rupture.', anim:'skill_crescent', timeline:Object.freeze({hits:Object.freeze([.18,.5,.82])}), combat:Object.freeze({ worldsplitter:1, ruptureMult:.75, apexFinisher:1 }), presentation:Object.freeze({apexMarker:'worldsplitter_rupture',apexAudio:'crescent'}) }),
+    }), mutations:Object.freeze({
+      40:Object.freeze({ wide_moon:Object.freeze({label:'Wide Moon',summary:'Three lower-focus waves cover a broad fan.',icon:'moon.breadth',combat:Object.freeze({waveCount:3,spread:.22,waveMult:.58})}), full_moon:Object.freeze({label:'Full Moon',summary:'One narrow focused wave lands with high impact.',icon:'moon.focus',combat:Object.freeze({waveCount:1,radiusMult:.72,damageMult:1.4})}) }),
+      80:Object.freeze({ rift_trail:Object.freeze({label:'Rift Trail',summary:'Bounded residual line ticks control packs.',icon:'moon.flow',combat:Object.freeze({riftTicks:3,riftCap:4,riftMult:.2})}), armor_sever:Object.freeze({label:'Armor Sever',summary:'Durable prey take focused damage and armor break.',icon:'moon.execution',combat:Object.freeze({severMult:.65,armorBreakDuration:3.5,armorBreakPower:.22})}) }),
+    }) }),
     description: 'Fires a piercing blade that rends the ground. Higher ranks leave a cutting scar.',
     rankText: rank => `Damage ${Math.round((1.5 + rank * 0.22) * 100)}% · Pierce ${3 + rank}${rank >= 3 ? ' · Scar residual' : ''}`,
   },
   skyfall: {
-    id: 'skyfall', classId: 'aerin', name: 'Skyfall', key: 'R', unlockLevel: 10, maxRank: 5, mp: 30, cooldown: 9.5,
-    castTime: .55, anim: 'skill_skyfall', effect: 'skyfall',
+    id: 'skyfall', classId: 'aerin', name: 'Iron Judgment', key: 'R', unlockLevel: 10, maxRank: 10, mp: 30, cooldown: 9.5,
+    castTime: .55, anim: 'skill_skyfall', animFallback: 'skill_whirlwind', effect: 'skyfall',
     theme: 'skyice', sfx: 'skill_leap', recipe: 'leapImpact',
     combat: Object.freeze({
       mult: Object.freeze([1.85, 0.28]),
@@ -232,12 +257,39 @@ export const SKILLS = Object.freeze({
       criticalBonus: 0.06,
       invuln: 0.55,
     }),
-    description: 'Leaps forward along facing and unleashes a shockwave.',
+    evolution: Object.freeze({
+      forms: Object.freeze({
+        20: Object.freeze({
+          label: 'Iron Judgment', summary: 'Plants the sword, gathers foes, then slams the safe ring.',
+          timeline: Object.freeze({ hits: Object.freeze([0.24, 0.72]) }),
+          combat: Object.freeze({ plantMult: Object.freeze([0.34, 0.025]), pullRadius: 7.2, pullStrength: 0.72, safeRing: 1.55, stunNormal: 1.8, stunElite: 0.8, bossStagger: 28 }),
+        }),
+        60: Object.freeze({
+          label: 'Hammered Oath', summary: 'Separates the sword plant and hilt slam into two heavy contacts.', anim: 'attack_7',
+          combat: Object.freeze({ plantMult: Object.freeze([0.42, 0.03]), stunNormal: 2.05, stunElite: 0.95, bossStagger: 36 }),
+        }),
+        100: Object.freeze({
+          label: 'Judgment of the Iron King', summary: 'Crowns the single slam with radial royal stone pillars.', anim: 'skill_skyfall',
+          combat: Object.freeze({ apexPullBonus: 1.2, apexStaggerBonus: 19, judgmentApex: 1, apexFinisher: 1 }), presentation: Object.freeze({ apexMarker: 'iron_king_slam', apexAudio: 'skyfall' }),
+        }),
+      }),
+      mutations: Object.freeze({
+        40: Object.freeze({
+          iron_vortex: Object.freeze({ label: 'Iron Vortex', summary: 'Widens the pull and strengthens enemy gathering.', icon: 'hammer.breadth', combat: Object.freeze({ pullRadius: 9, pullStrength: 0.95 }) }),
+          meteor_hammer: Object.freeze({ label: 'Meteor Hammer', summary: 'Tightens the pull for a more damaging slam.', icon: 'hammer.focus', combat: Object.freeze({ pullRadius: 6.2, pullStrength: 0.62, mult: Object.freeze([2.2, 0.32]) }) }),
+        }),
+        80: Object.freeze({
+          kings_command: Object.freeze({ label: "King's Command", summary: 'Maximizes reliable pack stun duration.', icon: 'hammer.flow', combat: Object.freeze({ stunNormal: 2.4, stunElite: 1.2 }) }),
+          earthbreaker: Object.freeze({ label: 'Earthbreaker', summary: 'Trades control duration for armor pierce and boss stagger.', icon: 'hammer.execution', combat: Object.freeze({ stunNormal: 1.7, stunElite: 0.7, armorPierce: 0.42, bossStagger: 72 }) }),
+        }),
+      }),
+    }),
+    description: 'Leaps forward; evolved forms plant the blade, gather foes, and deliver a stunning ground judgment.',
     rankText: rank => `Damage ${Math.round((1.85 + rank * 0.28) * 100)}% · Radius ${(4.5 + rank * 0.22).toFixed(1)}`,
   },
   starburst: {
-    id: 'starburst', classId: 'aerin', name: 'Starburst', key: 'C', unlockLevel: 16, maxRank: 5, mp: 42, cooldown: 15,
-    castTime: .72, anim: 'skill_starburst', effect: 'starburst',
+    id: 'starburst', classId: 'aerin', name: 'Starburst', key: 'C', unlockLevel: 16, maxRank: 10, mp: 42, cooldown: 15,
+    castTime: .72, anim: 'skill_starburst', animFallback: 'skill_whirlwind', effect: 'starburst',
     theme: 'starlight', sfx: 'skill_star', recipe: 'starBlade',
     combat: Object.freeze({
       mult: Object.freeze([0.63, 0.06]),
@@ -253,6 +305,14 @@ export const SKILLS = Object.freeze({
       finaleArmorPierce: 0.35,
       pattern: 'star',
     }),
+    evolution:Object.freeze({forms:Object.freeze({
+      20:Object.freeze({label:'Greatblade Seal',summary:'Regular impacts end in one bounded royal seal.',timeline:Object.freeze({hits:Object.freeze([.2,.68])}),combat:Object.freeze({greatbladeSeal:1,sealMult:.65})}),
+      60:Object.freeze({label:'Embedded Sky',summary:'Landed blades leave bounded delayed embedded strikes.',anim:'attack_7',combat:Object.freeze({embeddedCap:6,embeddedMult:.28})}),
+      100:Object.freeze({label:"Heaven's Arsenal",summary:'Ten blades, one royal blade, and three ring acts converge.',anim:'skill_starburst',timeline:Object.freeze({hits:Object.freeze([.16,.48,.82])}),combat:Object.freeze({arsenal:1,regularBlades:10,royalBlades:1,ringActs:3,arsenalFinaleMult:.85,apexFinisher:1}),presentation:Object.freeze({apexMarker:'arsenal_finale',apexAudio:'starburst'})}),
+    }),mutations:Object.freeze({
+      40:Object.freeze({constellation:Object.freeze({label:'Constellation',summary:'Distributes blades across distinct pack geometry.',icon:'arsenal.breadth',combat:Object.freeze({fieldRadius:6,distinctBladeCap:10,targetCap:8})}),execution_field:Object.freeze({label:'Execution Field',summary:'Concentrates a smaller field with higher center output.',icon:'arsenal.focus',combat:Object.freeze({fieldRadius:3.2,centerMult:1.4})})}),
+      80:Object.freeze({oath_prison:Object.freeze({label:'Oath Prison',summary:'Bounded prison control converts bosses to stagger.',icon:'arsenal.flow',combat:Object.freeze({prisonCap:6,prisonStun:.65,bossStagger:18})}),falling_crown:Object.freeze({label:'Falling Crown',summary:'A royal blade focuses durable prey.',icon:'arsenal.execution',combat:Object.freeze({crownMult:.7,crownStagger:24})})}),
+    })}),
     description: 'Summons many starlight blades ahead to purge a wide area.',
     rankText: rank => `Damage ${Math.round((0.63 + rank * 0.06) * 100)}% · Blades ${6 + rank}`,
   },
@@ -285,8 +345,8 @@ export const SKILLS = Object.freeze({
   },
   // —— Wizard actives ——
   fireball: {
-    id: 'fireball', classId: 'wizard', name: 'Fireball', key: 'Q', unlockLevel: 3, maxRank: 5, mp: 20, cooldown: 5.2,
-    castTime: .38, anim: 'skill_fireball', animFallback: 'skill_crescent', effect: 'fireball',
+    id: 'fireball', classId: 'wizard', name: 'Fireball', key: 'Q', unlockLevel: 3, maxRank: 10, mp: 20, cooldown: 5.2,
+    castTime: .38, anim: 'skill_fireball', animFallback: 'cast_2', effect: 'fireball',
     theme: 'ember', sfx: 'skill_fire', recipe: 'fireOrb',
     timeline: Object.freeze({ hits: Object.freeze([0.36]) }),
     combat: Object.freeze({
@@ -299,12 +359,22 @@ export const SKILLS = Object.freeze({
       scale: 1.45,
       status: Object.freeze({ id: 'burn', duration: 2.2, dps: 0.12, tick: 0.45, power: 1 }),
     }),
+    evolution: Object.freeze({
+      forms: Object.freeze({
+        20: Object.freeze({ label: 'Cinder Orbit', summary: 'Impact releases up to three seeking cinders.', combat: Object.freeze({ cinders: 3, cinderMult: 0.22 }) }),
+        60: Object.freeze({ label: 'Living Star', summary: 'Contact expands into a three-tick fire vortex.', anim: 'cast_2', combat: Object.freeze({ vortexTicks: 3, vortexMult: 0.18 }) }),
+        100: Object.freeze({ label: 'Prominence', summary: 'The star tunnels forward and erupts in a vertical solar flare.', anim: 'skill_fireball', combat: Object.freeze({ prominence: 1, flareMult: 0.8, overcastMult:.35, apexFinisher:1 }), presentation:Object.freeze({apexMarker:'prominence_flare',apexAudio:'fireball',overcastRecipe:'fire_overcast'}) }),
+      }), mutations: Object.freeze({
+        40: Object.freeze({ wildfire: Object.freeze({ label: 'Wildfire', summary: 'Widens the blast and spreads burning pressure.', icon: 'flame.breadth', combat: Object.freeze({ blastRadius: Object.freeze([3.1, 0.14]), cinderMult: 0.18 }) }), comet_core: Object.freeze({ label: 'Comet Core', summary: 'Narrows, accelerates, and pierces with a dense core.', icon: 'flame.focus', combat: Object.freeze({ speed: Object.freeze([17, 0.4]), pierce: 3, blastRadius: 2.2 }) }) }),
+        80: Object.freeze({ chain_ignition: Object.freeze({ label: 'Chain Ignition', summary: 'Burning targets relay one bounded ignition.', icon: 'flame.flow', combat: Object.freeze({ reaction: 'chain_ignition', reactionCap: 3 }) }), solar_brand: Object.freeze({ label: 'Solar Brand', summary: 'Repeated boss hits build a capped thermal brand.', icon: 'flame.execution', combat: Object.freeze({ bossBrandCap: 4, bossBrandMult: 0.12 }) }) }),
+      }),
+    }),
     description: 'Hurls a searing orb that explodes on impact.',
     rankText: rank => `Damage ${Math.round((1.55 + rank * 0.24) * 100)}% · Blast ${(2.4 + rank * 0.12).toFixed(1)}`,
   },
   frost_nova: {
-    id: 'frost_nova', classId: 'wizard', name: 'Frost Nova', key: 'E', unlockLevel: 6, maxRank: 5, mp: 24, cooldown: 7.2,
-    castTime: .36, anim: 'skill_frost_nova', animFallback: 'skill_whirlwind', effect: 'frost_nova',
+    id: 'frost_nova', classId: 'wizard', name: 'Frost Nova', key: 'E', unlockLevel: 6, maxRank: 10, mp: 24, cooldown: 7.2,
+    castTime: .36, anim: 'skill_frost_nova', animFallback: 'cast_3', effect: 'frost_nova',
     theme: 'frost', sfx: 'skill_ice', recipe: 'iceNova',
     timeline: Object.freeze({ hits: Object.freeze([0.28]) }),
     combat: Object.freeze({
@@ -318,12 +388,16 @@ export const SKILLS = Object.freeze({
       deepChillPower: 0.58,
       deepChillDuration: 1.55,
     }),
+    evolution: Object.freeze({
+      forms: Object.freeze({ 20: Object.freeze({ label: 'Ice Lances', summary: 'Six directional lances erupt after the outward ring.', combat: Object.freeze({ lances: 6, lanceMult: 0.24, lancePerEnemyCap: 2 }) }), 60: Object.freeze({ label: 'Crystal Dominion', summary: 'Deep chill grows a crystal proxy for the next heavy spell.', anim: 'cast_3', combat: Object.freeze({ crystalPrime: 1 }) }), 100: Object.freeze({ label: 'Frozen Dominion', summary: 'A crystal forest converges inward in a delayed shatter.', anim: 'skill_frost_nova', combat: Object.freeze({ dominion: 1, inwardMult: 0.75, overcastMult:.32, apexFinisher:1 }), presentation:Object.freeze({apexMarker:'frozen_shatter',apexAudio:'frost_nova',overcastRecipe:'frost_overcast'}) }) }),
+      mutations: Object.freeze({ 40: Object.freeze({ glacier_ring: Object.freeze({ label: 'Glacier Ring', summary: 'Expands control coverage.', icon: 'crystal.breadth', combat: Object.freeze({ radius: Object.freeze([5.4, 0.24]), lanceMult: 0.18 }) }), shatter_crown: Object.freeze({ label: 'Shatter Crown', summary: 'Tightens the ring for stronger shards.', icon: 'crystal.focus', combat: Object.freeze({ radius: Object.freeze([3.8, 0.16]), lanceMult: 0.38 }) }) }), 80: Object.freeze({ absolute_zero: Object.freeze({ label: 'Absolute Zero', summary: 'Chains bounded freeze pressure through normal enemies.', icon: 'crystal.flow', combat: Object.freeze({ freezeChainCap: 3 }) }), crystal_execution: Object.freeze({ label: 'Crystal Execution', summary: 'Focuses crystal shards into durable targets.', icon: 'crystal.execution', combat: Object.freeze({ crystalExecuteMult: 0.55 }) }) }) }),
+    }),
     description: 'Freezes the ground in a ring and slows foes outward. Higher ranks deepen chill.',
     rankText: rank => `Damage ${Math.round((1.2 + rank * 0.16) * 100)}% · Radius ${(4.4 + rank * 0.2).toFixed(1)} · Slow${rank >= 3 ? ' · Deep Chill' : ''}`,
   },
   arcane_blink: {
-    id: 'arcane_blink', classId: 'wizard', name: 'Arcane Blink', key: 'R', unlockLevel: 10, maxRank: 5, mp: 28, cooldown: 9.2,
-    castTime: .48, anim: 'skill_blink', animFallback: 'skill_skyfall', effect: 'arcane_blink',
+    id: 'arcane_blink', classId: 'wizard', name: 'Arcane Blink', key: 'R', unlockLevel: 10, maxRank: 10, mp: 28, cooldown: 9.2,
+    castTime: .48, anim: 'skill_blink', animFallback: 'dodge', effect: 'arcane_blink',
     theme: 'arcane', sfx: 'skill_arcane', recipe: 'blinkBurst',
     combat: Object.freeze({
       mult: Object.freeze([1.7, 0.26]),
@@ -335,12 +409,16 @@ export const SKILLS = Object.freeze({
       criticalBonus: 0.05,
       invuln: 0.55,
     }),
+    evolution: Object.freeze({
+      forms: Object.freeze({ 20: Object.freeze({ label: 'Route Cut', summary: 'The crossed route becomes a delayed arcane cut.', combat: Object.freeze({ routeMult: 0.32 }) }), 60: Object.freeze({ label: 'Rift Anchors', summary: 'Crossed enemies gain ordered rift anchors.', anim: 'dodge', combat: Object.freeze({ anchors: 6, anchorMult: 0.24 }) }), 100: Object.freeze({ label: 'Space Rend', summary: 'All route anchors fracture along one visible seam.', anim: 'skill_blink', combat: Object.freeze({ spaceRend: 1, seamMult: 0.8, overcastMult:.38, apexFinisher:1 }), presentation:Object.freeze({apexMarker:'space_seam',apexAudio:'arcane_blink',overcastRecipe:'arcane_overcast'}) }) }),
+      mutations: Object.freeze({ 40: Object.freeze({ echo_step: Object.freeze({ label: 'Echo Step', summary: 'An afterimage repeats the route cut.', icon: 'rift.breadth', combat: Object.freeze({ routeEchoes: 2 }) }), rift_lance: Object.freeze({ label: 'Rift Lance', summary: 'Arrival compresses damage into a forward lance.', icon: 'rift.focus', combat: Object.freeze({ lanceMult: 0.65 }) }) }), 80: Object.freeze({ twin_horizon: Object.freeze({ label: 'Twin Horizon', summary: 'Departure and arrival waves collide midway.', icon: 'rift.flow', combat: Object.freeze({ horizonMult: 0.55 }) }), void_break: Object.freeze({ label: 'Void Break', summary: 'Anchors focus armor-piercing damage on durable targets.', icon: 'rift.execution', combat: Object.freeze({ anchorArmorPierce: 0.55 }) }) }) }),
+    }),
     description: 'Teleport forward along facing and detonate a mana shock.',
     rankText: rank => `Damage ${Math.round((1.7 + rank * 0.26) * 100)}% · Radius ${(4.2 + rank * 0.2).toFixed(1)}`,
   },
   meteor_storm: {
-    id: 'meteor_storm', classId: 'wizard', name: 'Meteor Storm', key: 'C', unlockLevel: 16, maxRank: 5, mp: 46, cooldown: 15.5,
-    castTime: .76, anim: 'skill_meteor', animFallback: 'skill_starburst', effect: 'meteor_storm',
+    id: 'meteor_storm', classId: 'wizard', name: 'Meteor Storm', key: 'C', unlockLevel: 16, maxRank: 10, mp: 46, cooldown: 15.5,
+    castTime: .76, anim: 'skill_meteor', animFallback: 'cast_4', effect: 'meteor_storm',
     theme: 'meteor', sfx: 'skill_fire', recipe: 'meteorDrop',
     combat: Object.freeze({
       mult: Object.freeze([0.6, 0.055]),
@@ -357,6 +435,10 @@ export const SKILLS = Object.freeze({
       finaleArmorPierce: 0.3,
       pattern: 'fallCone',
       status: Object.freeze({ id: 'burn', duration: 1.4, dps: 0.08, tick: 0.5, power: 1 }),
+    }),
+    evolution: Object.freeze({
+      forms: Object.freeze({ 20: Object.freeze({ label: 'Molten Fall', summary: 'Impacts leave fractures and feed a larger final meteor.', combat: Object.freeze({ fractures: 1 }) }), 60: Object.freeze({ label: 'Gravity Lens', summary: 'A visible lens bends trajectories toward the aim area.', anim: 'cast_4', combat: Object.freeze({ gravityLens: 1 }) }), 100: Object.freeze({ label: 'Astral Cataclysm', summary: 'The lens collapses into a capped spiral cataclysm.', anim: 'skill_meteor', combat: Object.freeze({ astralCataclysm: 1, gravityReactionCap: 3, overcastMult:.42, apexFinisher:1 }), presentation:Object.freeze({apexMarker:'astral_collapse',apexAudio:'meteor_storm',overcastRecipe:'meteor_overcast'}) }) }),
+      mutations: Object.freeze({ 40: Object.freeze({ meteor_rain: Object.freeze({ label: 'Meteor Rain', summary: 'A broad barrage advances along facing.', icon: 'meteor.breadth', combat: Object.freeze({ pattern: 'movingRain', impactsCap: 10 }) }), extinction: Object.freeze({ label: 'Extinction', summary: 'Fewer impacts feed one enormous meteor.', icon: 'meteor.focus', combat: Object.freeze({ hits: 4, finaleMult: Object.freeze([1.8, 0.14]), impactsCap: 5 }) }) }), 80: Object.freeze({ orbit_fall: Object.freeze({ label: 'Orbit Fall', summary: 'Orbiting stones hunt distinct enemies once.', icon: 'meteor.flow', combat: Object.freeze({ orbitTargets: 6 }) }), world_ender: Object.freeze({ label: 'World Ender', summary: 'Trajectories compress onto an elite or boss zone.', icon: 'meteor.execution', combat: Object.freeze({ worldEnder: 1, finaleArmorPierce: 0.55 }) }) }) }),
     }),
     description: 'Calls a barrage of falling meteors onto the field ahead.',
     rankText: rank => `Damage ${Math.round((0.6 + rank * 0.055) * 100)}% · Meteors ${6 + rank}`,
@@ -394,7 +476,7 @@ export const SKILLS = Object.freeze({
   },
   // —— Rogue actives —— short reach · high tempo · critical focus
   twin_fang: {
-    id: 'twin_fang', classId: 'rogue', name: 'Twin Fang', key: 'Q', unlockLevel: 3, maxRank: 5, mp: 14, cooldown: 4.2,
+    id: 'twin_fang', classId: 'rogue', name: 'Twin Fang', key: 'Q', unlockLevel: 3, maxRank: 10, mp: 14, cooldown: 4.2,
     castTime: .3, anim: 'skill_twin_fang', animFallback: 'attack_2', effect: 'twin_fang',
     theme: 'venom', sfx: 'skill_dagger', recipe: 'fangRush',
     timeline: Object.freeze({ hits: Object.freeze([0.22, 0.52, 0.72]) }),
@@ -410,12 +492,29 @@ export const SKILLS = Object.freeze({
       status: Object.freeze({ id: 'bleed', duration: 2.6, dps: 0.1, tick: 0.4, power: 1 }),
       bleedDurationBonus: 0.9,
     }),
+    evolution: Object.freeze({
+      forms: Object.freeze({
+        20: Object.freeze({ label: 'Cross Fang', summary: 'Main, off-hand, then simultaneous cross contact.', timeline: Object.freeze({ hits: Object.freeze([.18,.46,.74]) }), combat: Object.freeze({ hits: 3 }) }),
+        60: Object.freeze({ label: 'Backbite', summary: 'One nonrecursive echo repeats the cross from behind.', anim: 'attack_6', combat: Object.freeze({ backbite: 1, backbiteMult: .42 }) }),
+        100: Object.freeze({ label: 'Thousand Fang', summary: 'Eight contacts end in capped crossing detonation.', anim: 'skill_twin_fang', timeline: Object.freeze({ hits: Object.freeze([.08,.18,.28,.38,.48,.58,.7,.84]) }), combat: Object.freeze({ hits: 8, thousandFang: 1, cutLineCap: 6, detonateMult: .65, apexFinisher:1 }), presentation:Object.freeze({apexMarker:'thousand_fang',apexAudio:'twin_fang'}) }),
+      }),
+      mutations: Object.freeze({
+        40: Object.freeze({
+          viper: Object.freeze({ label: 'Viper', summary: 'Extends and strengthens bleed.', icon: 'fang.breadth', combat: Object.freeze({ bleedMult: 1.4, bleedDurationBonus: 1.6 }) }),
+          raptor: Object.freeze({ label: 'Raptor', summary: 'Compresses cadence and focuses critical hits.', icon: 'fang.focus', combat: Object.freeze({ cadenceMult: .72, criticalBonus: .28 }) }),
+        }),
+        80: Object.freeze({
+          open_wound: Object.freeze({ label: 'Open Wound', summary: 'Consumes bleed once for a bounded burst.', icon: 'fang.flow', combat: Object.freeze({ consumeBleed: 1, woundMult: .8 }) }),
+          heartseeker: Object.freeze({ label: 'Heartseeker', summary: 'Concentrates bonus damage on durable prey.', icon: 'fang.execution', combat: Object.freeze({ durableMult: 1.55, durableStagger: 18 }) }),
+        }),
+      }),
+    }),
     description: 'Two lightning-fast dagger stabs that rend the target open. Higher ranks add a third cut.',
     rankText: rank => `Damage ${Math.round((0.72 + rank * 0.09) * 100)}% ×${rank >= 3 ? 3 : 2} · Crit +15% · Bleed`,
   },
   fan_of_knives: {
-    id: 'fan_of_knives', classId: 'rogue', name: 'Fan of Knives', key: 'E', unlockLevel: 5, maxRank: 5, mp: 20, cooldown: 6.4,
-    castTime: .32, anim: 'skill_fan_knives', animFallback: 'skill_crescent', effect: 'fan_of_knives',
+    id: 'fan_of_knives', classId: 'rogue', name: 'Fan of Knives', key: 'E', unlockLevel: 5, maxRank: 10, mp: 20, cooldown: 6.4,
+    castTime: .32, anim: 'skill_fan_knives', animFallback: 'skill_twin_fang', effect: 'fan_of_knives',
     theme: 'nightsteel', sfx: 'skill_dagger', recipe: 'daggerFan',
     timeline: Object.freeze({ hits: Object.freeze([0.34]) }),
     combat: Object.freeze({
@@ -430,11 +529,19 @@ export const SKILLS = Object.freeze({
       criticalBonus: 0.08,
       status: Object.freeze({ id: 'bleed', duration: 2, dps: 0.07, tick: 0.45, power: 1 }),
     }),
+    evolution:Object.freeze({ forms:Object.freeze({
+      20:Object.freeze({label:'Returning Steel',summary:'Outbound knives return once without recursion.',timeline:Object.freeze({hits:Object.freeze([.24,.68])}),combat:Object.freeze({returnPass:1,returnMult:.45})}),
+      60:Object.freeze({label:'Shadow Volley',summary:'Controlled source-excluded duplicates follow.',anim:'attack_5',combat:Object.freeze({duplicateCap:6,duplicateMult:.32})}),
+      100:Object.freeze({label:'Night Peacock',summary:'Spread, return, and one final direct detonation.',anim:'skill_fan_knives',timeline:Object.freeze({hits:Object.freeze([.18,.5,.82])}),combat:Object.freeze({nightPeacock:1,finaleMult:.8,finaleRadius:3.2,apexFinisher:1}),presentation:Object.freeze({apexMarker:'night_peacock',apexAudio:'fan_of_knives'})}),
+    }),mutations:Object.freeze({
+      40:Object.freeze({black_fan:Object.freeze({label:'Black Fan',summary:'A wide bounded fan covers packs.',icon:'knives.breadth',combat:Object.freeze({spreadMult:1.45,knifeCap:12})}),needle_line:Object.freeze({label:'Needle Line',summary:'A narrow piercing line focuses damage.',icon:'knives.focus',combat:Object.freeze({spreadMult:.38,pierce:3,damageMult:1.3})})}),
+      80:Object.freeze({ricochet:Object.freeze({label:'Ricochet',summary:'Knives bounce to unique targets without recursion.',icon:'knives.flow',combat:Object.freeze({bounceCap:3,bounceMult:.3})}),pinned_prey:Object.freeze({label:'Pinned Prey',summary:'Durable prey receive focused stagger while packs remain viable.',icon:'knives.execution',combat:Object.freeze({pinnedMult:.55,pinnedStagger:16})})}),
+    })}),
     description: 'Flings a fan of short-range knives that shred everything ahead.',
     rankText: rank => `Damage ${Math.round((0.55 + rank * 0.07) * 100)}% · Knives ${5 + rank}`,
   },
   shadowstep: {
-    id: 'shadowstep', classId: 'rogue', name: 'Shadowstep', key: 'R', unlockLevel: 9, maxRank: 5, mp: 26, cooldown: 8.6,
+    id: 'shadowstep', classId: 'rogue', name: 'Shadow Frenzy', key: 'R', unlockLevel: 9, maxRank: 10, mp: 26, cooldown: 8.6,
     castTime: .42, anim: 'skill_shadowstep', animFallback: 'dodge', effect: 'shadowstep',
     theme: 'shadow', sfx: 'skill_arcane', recipe: 'shadowDash',
     combat: Object.freeze({
@@ -446,12 +553,38 @@ export const SKILLS = Object.freeze({
       criticalBonus: 0.18,
       invuln: 0.5,
     }),
-    description: 'Blinks through enemies along facing, carving everything on the path.',
+    evolution: Object.freeze({
+      forms: Object.freeze({
+        20: Object.freeze({
+          label: 'Shadow Frenzy', summary: 'The damaging dash opens a four-second dual-blade overdrive.',
+          combat: Object.freeze({ frenzyDuration: 4, frenzyAttackHaste: 0.25, frenzyMoveHaste: 0.2, offhandEcho: 0.2 }),
+        }),
+        60: Object.freeze({
+          label: 'Feeding Tempo', summary: 'Kills extend the frenzy by half a second, up to two seconds.', anim: 'dodge',
+          combat: Object.freeze({ killExtension: 0.5, killExtensionCap: 2 }),
+        }),
+        100: Object.freeze({
+          label: 'Beyond the Eye', summary: 'A five-second overdrive ends in a contact-capped shadow explosion.', anim: 'skill_shadowstep',
+          combat: Object.freeze({ frenzyDuration: 5, contactCap: 12, exitMult: 0.12, frenzyExit: 1, apexFinisher:1 }), presentation:Object.freeze({apexMarker:'frenzy_exit',apexAudio:'shadowstep'}),
+        }),
+      }),
+      mutations: Object.freeze({
+        40: Object.freeze({
+          ghost_rush: Object.freeze({ label: 'Ghost Rush', summary: 'Maximizes movement and repositioning speed.', icon: 'shadow.breadth', combat: Object.freeze({ frenzyMoveHaste: 0.35, frenzyAttackHaste: 0.25, dash: Object.freeze([8.4, 0.3]) }) }),
+          red_tempo: Object.freeze({ label: 'Red Tempo', summary: 'Maximizes attack tempo and critical pressure.', icon: 'shadow.focus', combat: Object.freeze({ frenzyAttackHaste: 0.4, frenzyMoveHaste: 0.2, criticalBonus: 0.28 }) }),
+        }),
+        80: Object.freeze({
+          predator_flow: Object.freeze({ label: 'Predator Flow', summary: 'Frenzy contacts chain to up to two nearby enemies.', icon: 'shadow.flow', combat: Object.freeze({ chainCap: 2, chainMult: 0.22 }) }),
+          boss_killer: Object.freeze({ label: 'Boss Killer', summary: 'Repeated boss contacts build a capped damage ramp.', icon: 'shadow.execution', combat: Object.freeze({ bossRampCap: 5, bossRampStep: 0.04 }) }),
+        }),
+      }),
+    }),
+    description: 'Dashes through enemies with both blades, then accelerates attacks and movement.',
     rankText: rank => `Damage ${Math.round((1.55 + rank * 0.24) * 100)}% · Dash ${(7.5 + rank * 0.28).toFixed(1)} · Crit +18%`,
   },
   death_lotus: {
-    id: 'death_lotus', classId: 'rogue', name: 'Death Lotus', key: 'C', unlockLevel: 14, maxRank: 5, mp: 38, cooldown: 14,
-    castTime: .6, anim: 'skill_death_lotus', animFallback: 'skill_whirlwind', effect: 'death_lotus',
+    id: 'death_lotus', classId: 'rogue', name: 'Death Lotus', key: 'C', unlockLevel: 14, maxRank: 10, mp: 38, cooldown: 14,
+    castTime: .6, anim: 'skill_death_lotus', animFallback: 'attack_4', effect: 'death_lotus',
     theme: 'shadow', sfx: 'skill_dagger', recipe: 'lotusFlurry',
     combat: Object.freeze({
       mult: Object.freeze([0.42, 0.05]),
@@ -465,6 +598,14 @@ export const SKILLS = Object.freeze({
       invuln: 0.6,
       status: Object.freeze({ id: 'bleed', duration: 3, dps: 0.09, tick: 0.4, power: 1 }),
     }),
+    evolution:Object.freeze({forms:Object.freeze({
+      20:Object.freeze({label:'Eight Petal',summary:'Eight exact radial petal lines strike directly.',timeline:Object.freeze({hits:Object.freeze([.18,.62])}),combat:Object.freeze({petalLines:8})}),
+      60:Object.freeze({label:'Shadow Petals',summary:'Bounded delayed petals echo unique sources.',anim:'attack_5',combat:Object.freeze({echoCap:6,echoMult:.3})}),
+      100:Object.freeze({label:'Moonless Lotus',summary:'Eight lines end in one direct detonation.',anim:'skill_death_lotus',timeline:Object.freeze({hits:Object.freeze([.16,.5,.84])}),combat:Object.freeze({moonless:1,petalLines:8,moonlessFinaleMult:.9,apexFinisher:1}),presentation:Object.freeze({apexMarker:'moonless_finale',apexAudio:'death_lotus'})}),
+    }),mutations:Object.freeze({
+      40:Object.freeze({crimson_lotus:Object.freeze({label:'Crimson Lotus',summary:'Widens pack petals with bleed cadence.',icon:'lotus.breadth',combat:Object.freeze({radiusMult:1.3,bleedEvery:2})}),phantom_lotus:Object.freeze({label:'Phantom Lotus',summary:'Tightens shadow petals for focused center output.',icon:'lotus.focus',combat:Object.freeze({radiusMult:.72,damageMult:1.35})})}),
+      80:Object.freeze({harvest:Object.freeze({label:'Harvest',summary:'Executes weakened normal and elite prey, never bosses.',icon:'lotus.flow',combat:Object.freeze({executeThreshold:.28,executeMult:.65})}),one_target:Object.freeze({label:'One Target',summary:'Redirects bounded petals into durable prey.',icon:'lotus.execution',combat:Object.freeze({redirectCap:4,durableMult:.55,durableStagger:20})})}),
+    })}),
     description: 'A whirling close-range blade flurry where every cut can crit.',
     rankText: rank => `Damage ${Math.round((0.42 + rank * 0.05) * 100)}% ×${8 + rank} · Crit +22%`,
   },
@@ -501,7 +642,7 @@ export const SKILLS = Object.freeze({
   },
   // —— Ranger actives —— physical bow · mark & trap
   piercing_shot: {
-    id: 'piercing_shot', classId: 'ranger', name: 'Piercing Shot', key: 'Q', unlockLevel: 3, maxRank: 5, mp: 16, cooldown: 4.8,
+    id: 'piercing_shot', classId: 'ranger', name: 'Piercing Shot', key: 'Q', unlockLevel: 3, maxRank: 10, mp: 16, cooldown: 4.8,
     castTime: .34, anim: 'skill_pierce_shot', animFallback: 'cast_2', effect: 'piercing_shot',
     theme: 'hunt_amber', sfx: 'skill_bow', recipe: 'arrowStreak',
     timeline: Object.freeze({ hits: Object.freeze([0.34]) }),
@@ -516,11 +657,28 @@ export const SKILLS = Object.freeze({
       armorPierce: 0.18,
       status: Object.freeze({ id: 'bleed', duration: 2.2, dps: 0.09, tick: 0.45, power: 1 }),
     }),
+    evolution: Object.freeze({
+      forms: Object.freeze({
+        20: Object.freeze({ label: 'Fishbone Flight', summary: 'Pierces release perpendicular splinters.', combat: Object.freeze({ fishbone: 1, splinterCap: 12, splinterMult: .22 }) }),
+        60: Object.freeze({ label: 'Backward Release', summary: 'Stored pierce points fire backward once.', anim: 'cast_2', combat: Object.freeze({ backwardRelease: 1, storedPierceCap: 6, backwardMult: .3 }) }),
+        100: Object.freeze({ label: 'Horizon Breaker', summary: 'Pierce points rupture with capped repeats.', anim: 'skill_pierce_shot', combat: Object.freeze({ horizonBreaker: 1, ruptureCap: 6, rupturePerEnemyCap: 2, ruptureMult: .36, apexFinisher:1 }), presentation:Object.freeze({apexMarker:'horizon_rupture',apexAudio:'piercing_shot'}) }),
+      }),
+      mutations: Object.freeze({
+        40: Object.freeze({
+          rail_arrow: Object.freeze({ label: 'Rail Arrow', summary: 'Narrows and accelerates the pressure line.', icon: 'arrow.focus', combat: Object.freeze({ railArrow: 1, speedMult: 1.35, radiusMult: .72, damageMult: 1.22 }) }),
+          split_arrow: Object.freeze({ label: 'Split Arrow', summary: 'First pierce divides into three paths.', icon: 'arrow.breadth', combat: Object.freeze({ splitArrow: 1, splitPaths: 3, splitMult: .48 }) }),
+        }),
+        80: Object.freeze({
+          crowd_skewer: Object.freeze({ label: 'Crowd Skewer', summary: 'Extends bounded pack penetration.', icon: 'arrow.flow', combat: Object.freeze({ crowdPierce: 3 }) }),
+          dragon_piercer: Object.freeze({ label: 'Dragon Piercer', summary: 'Converts the draw into durable-target pressure.', icon: 'arrow.execution', combat: Object.freeze({ dragonPiercer: 1, bossStagger: 24, armorPierce: .52 }) }),
+        }),
+      }),
+    }),
     description: 'Looses a heavy arrow that punches through a line of foes.',
     rankText: rank => `Damage ${Math.round((1.65 + rank * 0.22) * 100)}% · Pierce ${Math.round(3 + rank * 0.4)}`,
   },
   caltrop_trap: {
-    id: 'caltrop_trap', classId: 'ranger', name: 'Caltrop Trap', key: 'E', unlockLevel: 6, maxRank: 5, mp: 22, cooldown: 8.2,
+    id: 'caltrop_trap', classId: 'ranger', name: 'Caltrop Trap', key: 'E', unlockLevel: 6, maxRank: 10, mp: 22, cooldown: 8.2,
     castTime: .4, anim: 'skill_trap', animFallback: 'cast_3', effect: 'caltrop_trap',
     theme: 'thorn', sfx: 'skill_trap', recipe: 'trapField',
     combat: Object.freeze({
@@ -532,11 +690,28 @@ export const SKILLS = Object.freeze({
       knockback: 1.1,
       status: Object.freeze({ id: 'slow', duration: 1.4, power: 0.4 }),
     }),
+    evolution: Object.freeze({
+      forms: Object.freeze({
+        20: Object.freeze({ label: 'Thornburst', summary: 'Opening and closing spikes deal direct damage.', combat: Object.freeze({ openClose: 1, burstMult: .7 }) }),
+        60: Object.freeze({ label: 'Planted Battery', summary: 'Every third contact fires a planted arrow.', anim: 'cast_3', combat: Object.freeze({ plantedEvery: 3, plantedCap: 4, plantedMult: .34 }) }),
+        100: Object.freeze({ label: 'Thousand Thorn Garden', summary: 'Facing grid lines end in one eruption.', anim: 'skill_trap', combat: Object.freeze({ thornGrid: 1, gridLines: 5, finaleMult: 1.25, apexFinisher:1 }), presentation:Object.freeze({apexMarker:'thorn_garden',apexAudio:'caltrop_trap'}) }),
+      }),
+      mutations: Object.freeze({
+        40: Object.freeze({
+          briar_field: Object.freeze({ label: 'Briar Field', summary: 'Expands repeated line coverage.', icon: 'thorn.breadth', combat: Object.freeze({ radiusMult: 1.35, lineCount: 5 }) }),
+          blast_seed: Object.freeze({ label: 'Blast Seed', summary: 'Compresses the field into immediate force.', icon: 'thorn.focus', combat: Object.freeze({ radiusMult: .72, seedMult: 1.35 }) }),
+        }),
+        80: Object.freeze({
+          snare_bloom: Object.freeze({ label: 'Snare Bloom', summary: 'Bounded lines guide normal prey inward.', icon: 'thorn.flow', combat: Object.freeze({ snareBloom: 1, snareCap: 4 }) }),
+          mine_garden: Object.freeze({ label: 'Mine Garden', summary: 'Durable prey trigger capped mines.', icon: 'thorn.execution', combat: Object.freeze({ mineGarden: 1, mineCap: 3, mineCooldown: .55, mineMult: .55 }) }),
+        }),
+      }),
+    }),
     description: 'Seeds a thorn field ahead that chips and slows everything inside.',
     rankText: rank => `Damage ${Math.round((0.38 + rank * 0.05) * 100)}% ×5 · Radius ${(3.2 + rank * 0.12).toFixed(1)} · Slow`,
   },
   vault_shot: {
-    id: 'vault_shot', classId: 'ranger', name: 'Vault Shot', key: 'R', unlockLevel: 10, maxRank: 5, mp: 26, cooldown: 9.0,
+    id: 'vault_shot', classId: 'ranger', name: 'Vault Shot', key: 'R', unlockLevel: 10, maxRank: 10, mp: 26, cooldown: 9.0,
     castTime: .42, anim: 'skill_vault_shot', animFallback: 'dodge', effect: 'vault_shot',
     theme: 'windleaf', sfx: 'skill_bow', recipe: 'vaultVolley',
     combat: Object.freeze({
@@ -551,11 +726,28 @@ export const SKILLS = Object.freeze({
       invuln: 0.4,
       criticalBonus: 0.06,
     }),
+    evolution: Object.freeze({
+      forms: Object.freeze({
+        20: Object.freeze({ label: 'Staged Vault', summary: 'Launch and landing gain direct shots.', combat: Object.freeze({ launchBlast: 1, landingShot: 1 }) }),
+        60: Object.freeze({ label: 'Air Volley', summary: 'A curved volley fires during the staged arc.', anim: 'dodge', combat: Object.freeze({ airVolley: 1, airArrows: 4 }) }),
+        100: Object.freeze({ label: 'Sky Hunter', summary: 'Three airborne layers synchronize at landing.', anim: 'skill_vault_shot', combat: Object.freeze({ skyHunter: 1, volleyLayers: 3, arrowCap: 12, apexFinisher:1 }), presentation:Object.freeze({apexMarker:'sky_hunter',apexAudio:'vault_shot'}) }),
+      }),
+      mutations: Object.freeze({
+        40: Object.freeze({
+          gale_vault: Object.freeze({ label: 'Gale Vault', summary: 'Longer movement and broader coverage.', icon: 'vault.breadth', combat: Object.freeze({ dashMult: 1.35, spreadMult: 1.35 }) }),
+          counter_volley: Object.freeze({ label: 'Counter Volley', summary: 'Shorter movement concentrates retaliation.', icon: 'vault.focus', combat: Object.freeze({ dashMult: .72, spreadMult: .68, damageMult: 1.2 }) }),
+        }),
+        80: Object.freeze({
+          escape_artist: Object.freeze({ label: 'Escape Artist', summary: 'Arrows redirect to distinct nearby prey.', icon: 'vault.flow', combat: Object.freeze({ redirect: 1, redirectCap: 6 }) }),
+          perfect_distance: Object.freeze({ label: 'Perfect Distance', summary: 'Seven to eleven meters pressures durable prey.', icon: 'vault.execution', combat: Object.freeze({ idealMin: 7, idealMax: 11, idealMult: 1.55 }) }),
+        }),
+      }),
+    }),
     description: 'Vaults backward along facing and fans arrows into the gap.',
     rankText: rank => `Damage ${Math.round((0.58 + rank * 0.07) * 100)}% · Arrows ${4 + rank} · Vault ${(3.6 + rank * 0.12).toFixed(1)}`,
   },
   hunter_mark: {
-    id: 'hunter_mark', classId: 'ranger', name: 'Hunter Mark', key: 'C', unlockLevel: 16, maxRank: 5, mp: 34, cooldown: 13.5,
+    id: 'hunter_mark', classId: 'ranger', name: 'Hunter Mark', key: 'C', unlockLevel: 16, maxRank: 10, mp: 34, cooldown: 13.5,
     castTime: .5, anim: 'skill_hunter_mark', animFallback: 'cast_4', effect: 'hunter_mark',
     theme: 'hunt_gold', sfx: 'skill_bow', recipe: 'markGlyph',
     combat: Object.freeze({
@@ -569,6 +761,23 @@ export const SKILLS = Object.freeze({
       criticalBonus: 0.08,
       // Rank 3+: re-mark detonates (B5).
       detonateMult: Object.freeze([1.35, 0.15]),
+    }),
+    evolution: Object.freeze({
+      forms: Object.freeze({
+        20: Object.freeze({ label: 'Stored Verdict', summary: 'Follow-up damage is stored to a capped detonation.', combat: Object.freeze({ verdictStore: .22, verdictCap: 2.2 }) }),
+        60: Object.freeze({ label: 'Piercing Verdict', summary: 'Recast atomically detonates and pierces.', anim: 'cast_4', combat: Object.freeze({ verdictPierce: 1, verdictPierceMult: .55 }) }),
+        100: Object.freeze({ label: 'Apex Predator', summary: 'Decorative convergence precedes one verdict event.', anim: 'skill_hunter_mark', combat: Object.freeze({ apexVerdict: 1, convergenceMult: .45, apexFinisher:1 }), presentation:Object.freeze({apexMarker:'predator_verdict',apexAudio:'hunter_mark'}) }),
+      }),
+      mutations: Object.freeze({
+        40: Object.freeze({
+          pack_hunt: Object.freeze({ label: 'Pack Hunt', summary: 'Detonation transfers weaker marks nearby.', icon: 'mark.breadth', combat: Object.freeze({ transferMarks: 2, transferMult: .45 }) }),
+          prime_target: Object.freeze({ label: 'Prime Target', summary: 'Raises storage and expose on one prey.', icon: 'mark.focus', combat: Object.freeze({ storeMult: 1.35, exposeMult: 1.25 }) }),
+        }),
+        80: Object.freeze({
+          chain_verdict: Object.freeze({ label: 'Chain Verdict', summary: 'Verdict chains twice without recursion.', icon: 'mark.flow', combat: Object.freeze({ verdictChains: 2, chainMult: .38 }) }),
+          trophy_shot: Object.freeze({ label: 'Trophy Shot', summary: 'Raises cap and staggers bosses on detonation.', icon: 'mark.execution', combat: Object.freeze({ capMult: 1.45, bossStagger: 26 }) }),
+        }),
+      }),
     }),
     description: 'Marks the nearest prey ahead — exposed and takes bonus damage. Higher ranks detonate on re-mark.',
     rankText: rank => `Tag ${Math.round((1.1 + rank * 0.14) * 100)}% · Amp +${Math.round((16 + rank * 2.5))}% · ${(5.2 + rank * 0.35).toFixed(1)}s${rank >= 3 ? ' · Detonate' : ''}`,
@@ -641,6 +850,7 @@ export const HERO_CLASSES = Object.freeze({
     activeSkills: Object.freeze(['whirlwind', 'crescent', 'skyfall', 'starburst']),
     passiveSkills: Object.freeze(['might', 'vitality', 'focus', 'fortune', 'executioner']),
     baseStatMods: Object.freeze({ attack: 1.06, mp: 0.95, skillPower: 0 }),
+    apexKeystone: Object.freeze({ id:'broken_crown', unlockLevel:100, trigger:'apex_finisher', requires:'armor_break', staggerBonus:22, perTargetCap:1 }),
     // Blades only — no staff/bow/dagger for the knight silhouette.
     weaponBias: Object.freeze({ preferred: Object.freeze(['sword', 'greatsword', 'saber', 'katana', 'leaf', 'relic']), mult: 1.8, otherMult: 0 }),
     // Rage charges mostly from damage taken and landed hits; the full gauge
@@ -688,6 +898,7 @@ export const HERO_CLASSES = Object.freeze({
     activeSkills: Object.freeze(['fireball', 'frost_nova', 'arcane_blink', 'meteor_storm']),
     passiveSkills: Object.freeze(['arcane_might', 'mana_ward', 'mana_font', 'star_luck', 'pyromancer']),
     baseStatMods: Object.freeze({ attack: .92, mp: 1.28, skillPower: .08 }),
+    apexKeystone: Object.freeze({ id:'overflow_overcast', unlockLevel:100, trigger:'apex_cast', overflowMax:100, overflowCost:100, reactionGain:25, perCastCap:1 }),
     // Staves only for the wizard silhouette.
     weaponBias: Object.freeze({ preferred: Object.freeze(['staff']), mult: 2.8, otherMult: 0 }),
     starterWeapon: Object.freeze({
@@ -721,6 +932,7 @@ export const HERO_CLASSES = Object.freeze({
     passiveSkills: Object.freeze(['keen_edge', 'swift_hands', 'shadow_veil', 'plunder', 'opportunist']),
     // Glass cannon: hits harder than the knight but folds faster.
     baseStatMods: Object.freeze({ attack: 1.12, mp: 1.05, skillPower: 0, hp: .82, defense: .85 }),
+    apexKeystone: Object.freeze({ id:'blood_echo', unlockLevel:100, trigger:'apex_finisher', bleedTierCap:3, duplicateMult:.22, targetCap:8, perTargetCap:3 }),
     // Daggers + light sabers only for the rogue.
     weaponBias: Object.freeze({ preferred: Object.freeze(['dagger', 'saber']), mult: 2.5, otherMult: 0 }),
     // Short-reach fast blades: each click bursts into a 2-hit flurry (human click rate is the cap, not the blades).
@@ -771,6 +983,7 @@ export const HERO_CLASSES = Object.freeze({
     activeSkills: Object.freeze(['piercing_shot', 'caltrop_trap', 'vault_shot', 'hunter_mark']),
     passiveSkills: Object.freeze(['eagle_eye', 'fleet_foot', 'barbed_tips', 'scavenger', 'predator']),
     baseStatMods: Object.freeze({ attack: 1.0, mp: 1.08, skillPower: 0.04, hp: 0.9, defense: 0.88 }),
+    apexKeystone: Object.freeze({ id:'marked_convergence', unlockLevel:100, trigger:'apex_finisher', convergenceMult:.35, markRequired:true, perCastCap:1 }),
     // Bows only — prevents ranger auto-equipping blades that break the hunt fantasy.
     weaponBias: Object.freeze({ preferred: Object.freeze(['bow']), mult: 2.6, otherMult: 0 }),
     basicAttack: Object.freeze({

@@ -1,58 +1,58 @@
-# 02 — 격파 보상 루프: 픽업, 멀티킬/스트릭, 사망 연출, 오버킬 (P0~P1)
+# 02 — Kill reward loop: pickups, multikill/streak, death FX, overkill (P0–P1)
 
-## 현재 상태 (증거)
+## Current state (evidence)
 
-- **보상 즉시 지급**: `Game.onEnemyKilled()`(`js/core/Game.js:659`)에서 XP/골드를 즉시 `addXp`/`addGold` 하고 `+N EXP · +NG` 플로트 텍스트만 출력. 바닥에 떨어지는 픽업이 없다.
-- **사망 연출 전 몬스터 동일**: `Enemy.#updateDeath` — 0.78초(보스 1.45초) 동안 줄어들며 가라앉기 + `onEnemyKilled`의 파티클 버스트. 아키타입별 차이 없음.
-- **오버킬 구분 없음**: `Enemy.#die`의 사망 넉백이 `direction × 4.8`(보스 2.2) 고정. 크리티컬 피니셔로 죽여도 일반 킬과 같은 반응.
-- **스트릭이 UI/연출로 이어지지 않음**: `HuntSystem.streak`은 contract 카운터로만 사용. 멀티킬(동시 다수 처치)은 아무 피드백이 없다.
-- 사운드: `audio.hit(critical, finisher)` 2단 + `audio.hurt/levelUp` 뿐. 킬 사운드의 연쇄 에스컬레이션 없음.
+- **Instant rewards**: `Game.onEnemyKilled()` (`js/core/Game.js`) immediately `addXp`/`addGold` with only `+N EXP · +NG` float text. No ground pickups.
+- **Same death for all monsters**: `Enemy.#updateDeath` — shrink/sink 0.78s (boss 1.45s) + particle burst from `onEnemyKilled`. No archetype variance.
+- **No overkill**: death knockback in `Enemy.#die` is fixed `direction × 4.8` (boss 2.2). Crit finishers look like normal kills.
+- **Streak not presented**: `HuntSystem.streak` only feeds contracts. Multikill (many kills in one window) has no feedback.
+- Audio: `audio.hit(critical, finisher)` two tiers + `audio.hurt/levelUp` only. No kill-sound escalation chain.
 
-## 설계 제안
+## Design proposal
 
-### A. XP젬 진공 픽업 (P0)
+### A. XP gem vacuum pickups (P0)
 
-물량 장르의 핵심 촉각 보상. "죽이면 쏟아지고, 다가가면 빨려온다."
+Core tactile reward of the horde genre: "kill → spill → walk near → vacuum in."
 
-- 킬 시 XP를 즉시 지급하지 않고 **XP젬 엔티티**로 드랍. 골드는 현행 즉시 지급 유지(젬은 XP만 — 루프를 단순하게).
-- 젬 티어: 소(1젬), 중(잡몹 5마리 상당, 파랑), 대(엘리트, 노랑). 다수 드랍 시 자동 병합(반경 1.2m 내 젬 합침 — 엔티티 수 억제).
-- **자석 반경** `player.pickupRadius` 기본 2.2m — 성장 스탯/장비 옵션으로 확장(성장 체감 축과 연결, [03](03-growth-loop.md)).
-- 렌더링: InstancedMesh 1개로 전체 젬 처리(옥타헤드론 + 가산 글로우). 상한 200개, 초과 시 오래된 것부터 근처 젬에 병합.
-- 흡수 순간: 젬이 곡선으로 가속하며 플레이어에 꽂히고 `+XP` 마이크로 플로트 + 픽업 사운드(연속 픽업 시 피치 상승 — 도레미 램프, 0.8초 내 연속 픽업마다 +반음, 최대 12단).
-- 보스/웨이브 클리어: 젬 분수 연출(수십 개가 포물선으로 쏟아짐) 후 일괄 진공.
+- On kill, do not grant XP immediately; drop **XP gem** entities. Keep gold instant (gems = XP only — keep the loop simple).
+- Gem tiers: small (1 gem), medium (~5 fodder, blue), large (elite, yellow). Auto-merge gems within 1.2m to cap entity count.
+- **Magnet radius** `player.pickupRadius` default 2.2m — grow via stats/gear ([03](03-growth-loop.md)).
+- Rendering: one InstancedMesh for all gems (octahedron + additive glow). Cap 200; overflow merges oldest into nearest.
+- On absorb: curved acceleration into the player, micro `+XP` float + pickup SFX (rising pitch on rapid pickups — solfege ramp, +semitone per pickup within 0.8s, max 12 steps).
+- Boss/wave clear: gem fountain (dozens on arcs) then bulk vacuum.
 
-### B. 멀티킬 / 킬스트릭 에스컬레이션 (P0)
+### B. Multikill / kill-streak escalation (P0)
 
-- **멀티킬**: 0.35초 윈도우 내 3킬 이상이면 개별 킬 버스트를 억제하고 **통합 연출** 1회 — 킬 중심점에 대형 스타버스트 + 충격 링 + `TRIPLE!`/`QUAD!`/`MASSACRE!` 플로트(3/4/6+ 킬). 성능 절약과 쾌감 강화를 동시에.
-- **킬스트릭(체인)**: 킬 간격 2.5초 이내면 체인 유지. HUD 우측에 체인 카운터(x12…) + 게이지. 체인 25/50/100 돌파 시 화면 하단 배너 + 전용 사운드 스팅.
-- 체인 보상(가벼운 인게임 효과): 체인 10+ 동안 이동속도 +6%, XP +10% — "멈추지 않고 계속 잡을" 동기.
-- 사운드 에스컬레이션: 킬 사운드에 체인 단계별 레이어 추가(기본 → +금속 링 → +합창 패드). `tools/audio/generate-combat-sfx.mjs`에 3단 킬 스팅 추가.
+- **Multikill**: ≥3 kills within 0.35s suppress individual kill bursts and play **one coalesced FX** at the kill centroid — large starburst + shock ring + `TRIPLE!`/`QUAD!`/`MASSACRE!` float (3/4/6+). Saves performance and reads stronger.
+- **Kill streak (chain)**: chain stays alive if kills are ≤2.5s apart. HUD right: chain counter (x12…) + gauge. Breaks at 25/50/100 show bottom banner + dedicated sting SFX.
+- Light in-game chain rewards: chain 10+ grants +6% move speed, +10% XP — motivation to keep clearing.
+- Audio escalation: layer kill SFX by chain step (base → metal ring → choir pad). Add 3-tier kill stings in `tools/audio/generate-combat-sfx.mjs`.
 
-### C. 아키타입별 사망 연출 (P1)
+### C. Per-archetype death FX (P1)
 
-`Enemy.#die`/`#updateDeath`에 archetype 분기. 각 1개의 시그니처 모션이면 충분:
+Branch in `Enemy.#die` / `#updateDeath` by archetype. One signature motion each is enough:
 
-| 아키타입 | 사망 연출 |
+| Archetype | Death presentation |
 |---|---|
-| slime | 납작해진 뒤 **터져서** 젤 파편 4~6개 산란(파편은 파티클, 물리 없음) + 바닥 젤 데칼 1.5초 |
-| hare/boar | 오버킬 시 런치(아래 D), 일반 킬은 옆으로 쓰러지며 슬라이드 |
-| wisp | 코어가 수축 → 섬광 팝 + 불씨 상승(기존 ember 재사용) |
-| humanoid | 무릎 꿇고 앞으로 쓰러짐(기존 death 클립 유지) + 무기/뿔 드랍 소품 |
-| colossus | 슬로우 붕괴: 룬 빛 소멸 → 부위 스케일 순차 축소 + 암석 파편 + 흙먼지 기둥 |
+| slime | Flatten then **pop** into 4–6 gel shards (particles, no physics) + floor gel decal 1.5s |
+| hare/boar | Overkill → launch (D below); normal kill → side flop + slide |
+| wisp | Core contracts → flash pop + rising embers (reuse existing ember) |
+| humanoid | Kneel and fall forward (keep death clip) + prop drop (weapon/horn) |
+| colossus | Slow collapse: rune light dies → sequential part scale-down + rock debris + dust pillar |
 
-- 구현: 사망 파편은 `Effects`에 `debris()` 풀 추가(소형 메시 6종 공유 지오메트리, 포물선 + 바운스 1회, 0.9초 페이드). 라이트/셰이더 변화 금지 원칙 준수.
+- Implementation: `Effects.debris()` pool (6 small shared meshes, arc + one bounce, 0.9s fade). Honor no dynamic light / no shader thrash rules.
 
-### D. 오버킬 런치 (P1)
+### D. Overkill launch (P1)
 
-- 판정: 마지막 타격이 `damage ≥ maxHp × 0.5` 또는 크리티컬 피니셔.
-- 연출: 사망 넉백을 4.8 → **9~12 + 상향 벡터(y 4~6)**, 몸이 포물선으로 날아가 착지 시 소형 흙먼지 + 바운스. `#updateDeath`에 수직 속도/중력 추가(현재 y는 가라앉기만 있음).
-- 잡몹은 오버킬이 매우 자주 발생하므로 각도/거리 랜덤 폭을 크게 — 무쌍류 "쓸려나가는" 그림.
-- 플로트 텍스트 `OVERKILL` 전용 스타일(대형, 주황).
+- Trigger: finishing hit `damage ≥ maxHp × 0.5` or critical finisher.
+- Presentation: death knockback 4.8 → **9–12 + up vector (y 4–6)**; body arcs, lands with dust + bounce. Add vertical velocity/gravity in `#updateDeath` (today y only sinks).
+- Fodder overkills often — wide random angle/distance for a "swept away" look.
+- Float text `OVERKILL` style (large, orange).
 
-## 수용 기준
+## Acceptance criteria
 
-1. 잡몹 무리를 스킬로 지우면: 통합 폭발 연출 1회 + 젬이 쏟아지고 + 걸어 들어가면 도레미 픽업음과 함께 빨려온다.
-2. 체인 카운터가 HUD에 살아 있고, 25체인 돌파 순간이 배너+사운드로 구분된다.
-3. 슬라임과 콜로서스의 죽음이 한눈에 다르다.
-4. 강한 한 방으로 죽인 적은 날아간다.
-5. 동시 10킬 프레임에서도 프레임 드랍이 없다(통합 연출 + 파티클 상한).
+1. Clearing a fodder pack with a skill: one coalesced explosion + gems spill + walking in vacuum-sucks them with rising pickup tones.
+2. Chain counter is live on HUD; breaking 25 chain is distinct via banner + audio.
+3. Slime death and colossus death read differently at a glance.
+4. Strong finishing hits launch enemies.
+5. 10 simultaneous kills in one frame do not tank FPS (coalesced FX + particle caps).

@@ -8,6 +8,12 @@ const UP = new THREE.Vector3(0, 1, 0);
 const TMP_A = new THREE.Vector3();
 const TMP_B = new THREE.Vector3();
 
+export const ENEMY_CONTROL_LIMITS = Object.freeze({
+  normal: Object.freeze({ stun: 2.4, pull: 4.0, break: 1.45, stagger: 60 }),
+  elite: Object.freeze({ stun: 1.2, pull: 2.2, break: 1.0, stagger: 85 }),
+  boss: Object.freeze({ stun: 0, pull: 0, break: 0.72, stagger: 100 }),
+});
+
 export class Enemy {
   constructor(scene, data, position, options = {}, monsterFactory, quality = 'medium') {
     this.scene = scene;
@@ -86,6 +92,9 @@ export class Enemy {
     /** Horizontal hit direction for directional squash (XZ). */
     this.hitDir = new THREE.Vector3(0, 0, 1);
     this.invulnerable = 0;
+    // Narrow same-cast authority bypasses (reactions/shards) may cross the short
+    // hit iframe a bounded number of times without disabling it globally.
+    this.sameCastHitIFrames = new Map();
     this.attackCooldown = rand(.35, 1.15);
     this.specialCooldown = rand(2.6, 5.2);
     this.wanderTimer = 0;
@@ -101,8 +110,13 @@ export class Enemy {
     this.strafeSign = Math.random() < .5 ? -1 : 1;
     this.lastHitAt = -999;
     this.enraged = false;
+    this.controlCategory = this.boss ? 'boss' : this.elite ? 'elite' : 'normal';
+    this.stunTimer = 0;
+    this.stagger = 0;
+    this.breakTimer = 0;
     /** @type {Record<string, { id: string, remaining: number, power?: number, dps?: number, tick?: number, tickAcc?: number }>} */
     this.statuses = {};
+    this.spellPrime = null;
 
     this.#setHealthBar(1);
   }
@@ -122,9 +136,16 @@ export class Enemy {
     this.hitTimer = Math.max(0, this.hitTimer - delta);
     if (this.fodder) this.healthBarTimer = Math.max(0, this.healthBarTimer - delta);
     this.invulnerable = Math.max(0, this.invulnerable - delta);
+    for (const [key, entry] of this.sameCastHitIFrames) {
+      entry.remaining -= delta;
+      if (entry.remaining <= 0) this.sameCastHitIFrames.delete(key);
+    }
     this.attackCooldown = Math.max(0, this.attackCooldown - delta);
     this.specialCooldown = Math.max(0, this.specialCooldown - delta);
     this.stateTimer = Math.max(0, this.stateTimer - delta);
+    this.stunTimer = Math.max(0, this.stunTimer - delta);
+    this.breakTimer = Math.max(0, this.breakTimer - delta);
+    this.tickSpellPrime(delta);
     this.knockback.multiplyScalar(Math.pow(.012, delta));
 
     if (!this.alive) {
@@ -143,7 +164,10 @@ export class Enemy {
       && Math.hypot(player.position.x, player.position.z) < GAME_CONFIG.campRadius;
     const engaged = player.alive && !playerSafe && (distance < this.aggroRadius || this.boss || this.hitTimer > 0 || this.defenseWave);
 
-    if (engaged) {
+    if (this.stunTimer > 0 || this.breakTimer > 0) {
+      this.state = this.breakTimer > 0 ? 'broken' : 'stunned';
+      this.#brake(delta, 2.2);
+    } else if (engaged) {
       this.#combatAI(delta, game, toPlayer, distance);
     } else {
       this.#wander(delta, game.world);
@@ -291,6 +315,142 @@ export class Enemy {
         game.effects.trail(this.position.clone().add(new THREE.Vector3(0, markH, 0)), 0xffe38a, 0.45, 0.4);
       }
     }
+  }
+
+  applyStun(duration = 0) {
+    const cap = ENEMY_CONTROL_LIMITS[this.controlCategory].stun;
+    if (!this.alive || cap <= 0) return 0;
+    const applied = Math.min(cap, Math.max(0, Number(duration) || 0));
+    this.stunTimer = Math.max(this.stunTimer, applied);
+    if (applied > 0) {
+      this.state = 'stunned';
+      this.stateTimer = Math.max(this.stateTimer, applied);
+      this.velocity.set(0, 0, 0);
+      if (this.animation?.has?.('hit')) {
+        this.animation.playOneShot('hit', { fade: .09, fadeOut: .12, timeScale: .82, fallback: 'idle' });
+      }
+    }
+    return applied;
+  }
+
+  setSpellPrime(id, data = {}) {
+    if (!this.alive || !id) return null;
+    this.spellPrime = {
+      ...data, id,
+      depth: Math.min(1, Math.max(0, Number(data.depth) || 0)),
+      remaining: Math.min(6, Math.max(.1, Number(data.remaining) || 3)),
+    };
+    return this.spellPrime;
+  }
+
+  consumeSpellPrime(expected = null) {
+    if (!this.spellPrime || (expected && this.spellPrime.id !== expected)) return null;
+    const consumed = this.spellPrime;
+    this.spellPrime = null;
+    return consumed;
+  }
+
+  tickSpellPrime(delta = 0) {
+    if (!this.spellPrime) return null;
+    this.spellPrime.remaining = Math.max(0, this.spellPrime.remaining - Math.max(0, delta));
+    if (this.spellPrime.remaining <= 0) this.spellPrime = null;
+    return this.spellPrime;
+  }
+
+  clearSpellPrime() { this.spellPrime = null; }
+
+  addStagger(amount = 0) {
+    if (!this.alive) return { added: 0, broken: false, stagger: this.stagger };
+    const limits = ENEMY_CONTROL_LIMITS[this.controlCategory];
+    const added = Math.max(0, Number(amount) || 0);
+    this.stagger += added;
+    let broken = false;
+    if (this.stagger >= limits.stagger) {
+      this.stagger %= limits.stagger;
+      this.breakTimer = Math.max(this.breakTimer, limits.break);
+      this.state = 'broken';
+      this.stateTimer = Math.max(this.stateTimer, this.breakTimer);
+      this.velocity.set(0, 0, 0);
+      broken = true;
+    }
+    return { added, broken, stagger: this.stagger };
+  }
+
+  /** Pull toward a collision-safe ring. Bosses never receive authoritative displacement. */
+  pullToward(target, safeRadius = 1.7, strength = 0.5, world = null, blockers = []) {
+    if (!this.alive || !target) return 0;
+    const limits = ENEMY_CONTROL_LIMITS[this.controlCategory];
+    if (limits.pull <= 0) return 0;
+    const dx = this.position.x - target.x;
+    const dz = this.position.z - target.z;
+    const distance = Math.hypot(dx, dz);
+    const ring = Math.max(0, Number(safeRadius) || 0) + this.radius;
+    const nx = distance > 1e-5 ? dx / distance : 1;
+    const nz = distance > 1e-5 ? dz / distance : 0;
+    const wanted = Math.min(limits.pull, Math.max(0, (distance - ring) * clamp(strength, 0, 1)));
+    const original = this.position.clone();
+    const intended = original.clone();
+    intended.x -= nx * wanted;
+    intended.z -= nz * wanted;
+    const liveBlockers = blockers.filter(other => other?.alive && other !== this);
+    const desiredDx = intended.x - target.x;
+    const desiredDz = intended.z - target.z;
+    const desiredRadius = Math.hypot(desiredDx, desiredDz);
+    const baseAngle = desiredRadius > 1e-5 ? Math.atan2(desiredDz, desiredDx) : Math.atan2(nz, nx);
+    const startRadius = Math.max(ring, desiredRadius);
+    const maxBlockerRadius = liveBlockers.reduce((max, other) => Math.max(max, other.radius ?? 0), 0);
+    const expansion = Math.max(4, limits.pull + this.radius, maxBlockerRadius * 4 + this.radius);
+    const angleOffsets = [0, 1, -1, 2, -2, 3, -3, 4, -4, 6, -6, 8, -8, 10, -10, 12]
+      .map(step => step * Math.PI / 12);
+    const radialOffsets = [0, 0.35, 0.75, 1.25, 2, 3, expansion];
+    let best = null;
+    let fallback = null;
+    let priority = 0;
+    search: for (const radialOffset of radialOffsets) {
+      const candidateRadius = startRadius + radialOffset;
+      for (const angleOffset of angleOffsets) {
+        const angle = baseAngle + angleOffset;
+        const candidate = new THREE.Vector3(
+          target.x + Math.cos(angle) * candidateRadius,
+          intended.y,
+          target.z + Math.sin(angle) * candidateRadius,
+        );
+        world?.resolvePosition?.(candidate, this.radius);
+        const radial = Math.hypot(candidate.x - target.x, candidate.z - target.z);
+        const inward = radial + 1e-5 < ring;
+        let minClearance = Infinity;
+        let blockersClear = true;
+        for (const other of liveBlockers) {
+          const clearance = Math.hypot(candidate.x - other.position.x, candidate.z - other.position.z)
+            - (this.radius + other.radius + 0.05);
+          minClearance = Math.min(minClearance, clearance);
+          if (clearance < -1e-5) blockersClear = false;
+        }
+        const intendedDistance = Math.hypot(candidate.x - intended.x, candidate.z - intended.z);
+        const entry = { candidate, intendedDistance, minClearance, priority };
+        priority += 1;
+        if (!inward && blockersClear
+          && (!best || intendedDistance < best.intendedDistance - 1e-5
+            || (Math.abs(intendedDistance - best.intendedDistance) <= 1e-5 && entry.priority < best.priority))) {
+          best = entry;
+          if (intendedDistance <= 1e-5) break search;
+        }
+        if (!inward && (!fallback || minClearance > fallback.minClearance + 1e-5
+          || (Math.abs(minClearance - fallback.minClearance) <= 1e-5
+            && (intendedDistance < fallback.intendedDistance - 1e-5
+              || (Math.abs(intendedDistance - fallback.intendedDistance) <= 1e-5
+                && entry.priority < fallback.priority))))) {
+          fallback = entry;
+        }
+      }
+    }
+    if (!best && !fallback) {
+      const candidate = original.clone();
+      world?.resolvePosition?.(candidate, this.radius);
+      fallback = { candidate };
+    }
+    this.position.copy((best ?? fallback).candidate);
+    return Math.hypot(this.position.x - original.x, this.position.z - original.z);
   }
 
   #tickStatuses(delta, game) {
@@ -470,7 +630,17 @@ export class Enemy {
   }
 
   takeDamage(rawAmount, game, options = {}) {
-    if (!this.alive || this.invulnerable > 0) return { amount: 0, killed: false };
+    if (!this.alive) return { amount: 0, killed: false };
+    if (this.invulnerable > 0) {
+      const contract = options.sameCastHit;
+      const key = typeof contract?.key === 'string' ? contract.key : '';
+      const cap = clamp(Math.floor(Number(contract?.maxHits) || 0), 0, 8);
+      const entry = key ? (this.sameCastHitIFrames.get(key) ?? { hits: 0, remaining: .75 }) : null;
+      if (!entry || entry.hits >= cap) return { amount: 0, killed: false };
+      entry.hits += 1;
+      entry.remaining = .75;
+      this.sameCastHitIFrames.set(key, entry);
+    }
     let incoming = rawAmount;
     // Shielded elite: absorb first N hits (halved damage) until shield breaks.
     if (this.shieldHitsLeft > 0 && !options.dot) {
@@ -545,6 +715,8 @@ export class Enemy {
   #die(game, direction = null, deathOpts = {}) {
     if (!this.alive) return;
     this.alive = false;
+    this.sameCastHitIFrames.clear();
+    this.clearSpellPrime();
     this.overkill = Boolean(deathOpts.overkill);
     this.deathArchetype = this.#deathArchetype();
     // Slime/colossus need a bit more stage time for signature collapse.

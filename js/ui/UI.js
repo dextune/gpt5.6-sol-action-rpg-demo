@@ -2,9 +2,10 @@ import * as THREE from 'three';
 import { GAME_CONFIG, GEAR_ENHANCE, PLAYER_CONFIG } from '../config.js';
 import { gearEnhanceCost, gearEnhanceSuccessChance, gearSellValue } from '../systems/LootSystem.js';
 import {
-  DEFAULT_HERO_CLASS_ID, RARITIES, SKILLS, ZONES,
+  DEFAULT_HERO_CLASS_ID, HERO_CLASSES, RARITIES, SKILLS, ZONES,
   getClassActiveSkills, getClassPassiveSkills, getHeroClass, resolveHeroClassId,
 } from '../data/content.js';
+import { resolveSkillForm, skillMutationOptions } from '../data/skillCombat.js';
 import { clamp, formatTime } from '../core/Utils.js';
 
 const STAT_LABELS = Object.freeze({
@@ -23,6 +24,39 @@ const CLASS_ACCENT = Object.freeze({
   rogue: '#35e0b8',
   ranger: '#e8b040',
 });
+const HUD_FORM_TIERS = Object.freeze({
+  20: Object.freeze({ text: 'I', className: 'evolution-tier-i' }),
+  60: Object.freeze({ text: 'II', className: 'evolution-tier-ii' }),
+  100: Object.freeze({ text: 'APEX', className: 'evolution-tier-apex' }),
+});
+const MUTATION_FAMILY_GLYPHS = Object.freeze({
+  vortex: '↻', moon: '◒', hammer: '◆', arsenal: '✦',
+  flame: '▲', crystal: '◇', rift: '⌁', meteor: '●',
+  fang: '⋀', knives: '✣', shadow: '◩', lotus: '✤',
+  arrow: '➤', thorn: '⌗', vault: '⌃', mark: '◎',
+});
+const MUTATION_ROLE_MARKERS = Object.freeze({
+  breadth: '•••', focus: '•', flow: '↝', execution: '▼',
+});
+const NEUTRAL_MUTATION_ICON = Object.freeze({ token: 'neutral.unknown', glyph: '·', marker: '?' });
+const COMBAT_VALUE_LABELS = Object.freeze({
+  mult: ['Damage', 'percent'], finaleMult: ['Finale', 'percent'], blastMult: ['Blast', 'percent'],
+  residualMult: ['Aftershock', 'percent'], detonateMult: ['Detonate', 'percent'],
+  radius: ['Radius', 'decimal'], blastRadius: ['Blast Radius', 'decimal'], hitRadius: ['Hit Radius', 'decimal'],
+  finaleRadius: ['Finale Radius', 'decimal'], residualRadius: ['Aftershock Radius', 'decimal'],
+  range: ['Range', 'decimal'], dash: ['Dash', 'decimal'], leap: ['Leap', 'decimal'], speed: ['Speed', 'decimal'],
+  hits: ['Hits', 'integer'], knives: ['Knives', 'integer'], arrows: ['Arrows', 'integer'], ticks: ['Ticks', 'integer'],
+  pierce: ['Pierce', 'integer'], markDuration: ['Duration', 'seconds'],
+  damageAmp: ['Damage Amp', 'percent'], exposePower: ['Expose', 'percent'], criticalBonus: ['Crit', 'percent'],
+  plantMult: ['Plant Damage', 'percent'], pullRadius: ['Pull Radius', 'decimal'],
+  pullStrength: ['Pull Strength', 'percent'], apexPullBonus: ['Apex Pull', 'decimal'],
+  stunNormal: ['Normal Stun', 'seconds'], stunElite: ['Elite Stun', 'seconds'],
+  bossStagger: ['Boss Stagger', 'integer'], armorPierce: ['Armor Pierce', 'percent'],
+  frenzyDuration: ['Frenzy', 'seconds'], frenzyAttackHaste: ['Attack Haste', 'percent'],
+  frenzyMoveHaste: ['Move Haste', 'percent'], offhandEcho: ['Offhand Echo', 'percent'],
+  killExtension: ['Kill Extend', 'seconds'], contactCap: ['Contact Cap', 'integer'],
+  exitMult: ['Exit / Contact', 'percent'], chainCap: ['Chain Cap', 'integer'], bossRampCap: ['Boss Ramp', 'integer'],
+});
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>'"]/g, character => ({
@@ -37,6 +71,51 @@ function hexColor(value) {
 function itemIcon(item) {
   const icon = item?.slot === 'weapon' ? (item.model ?? 'sword') : (item?.slot ?? 'charm');
   return `./assets/textures/ui/icon_${icon}.png`;
+}
+
+function titleCaseId(value) {
+  return String(value ?? '').split(/[_-]+/).filter(Boolean)
+    .map(word => word[0]?.toUpperCase() + word.slice(1)).join(' ');
+}
+
+function mutationIconView(value) {
+  const token = String(value ?? '').trim().toLowerCase();
+  const match = /^([a-z][a-z0-9_-]*)\.(breadth|focus|flow|execution)$/.exec(token);
+  if (!match) return NEUTRAL_MUTATION_ICON;
+  const glyph = MUTATION_FAMILY_GLYPHS[match[1]];
+  const marker = MUTATION_ROLE_MARKERS[match[2]];
+  return glyph && marker ? Object.freeze({ token, glyph, marker }) : NEUTRAL_MUTATION_ICON;
+}
+
+function mutationAccessibleText(label, summary, gate = null) {
+  const prefix = gate ? `Level ${gate} mutation: ` : '';
+  return `${prefix}${label}${summary ? `. ${summary}` : ''}`;
+}
+
+function formatCombatValue(key, value) {
+  if (!Number.isFinite(value) || !COMBAT_VALUE_LABELS[key]) return null;
+  const [label, kind] = COMBAT_VALUE_LABELS[key];
+  if (kind === 'percent') return `${label} ${Math.round(value * 100)}%`;
+  if (kind === 'integer') return `${label} ${Math.round(value)}`;
+  if (kind === 'seconds') return `${label} ${value.toFixed(1)}s`;
+  return `${label} ${value.toFixed(1)}`;
+}
+
+function formatCombatSnapshot(combat, limit = 12) {
+  return Object.keys(COMBAT_VALUE_LABELS)
+    .map(key => formatCombatValue(key, combat?.[key]))
+    .filter(Boolean).slice(0, limit);
+}
+
+function formatCombatDeltas(current, next, limit = 4) {
+  const changed = [];
+  for (const key of Object.keys(COMBAT_VALUE_LABELS)) {
+    if (!Number.isFinite(current?.[key]) || !Number.isFinite(next?.[key]) || current[key] === next[key]) continue;
+    const from = formatCombatValue(key, current[key]);
+    const to = formatCombatValue(key, next[key]);
+    if (from && to) changed.push(`${from} → ${to.replace(/^[^ ]+(?: [^ ]+)? /, '')}`);
+  }
+  return changed.slice(0, limit);
 }
 
 /** Relative age for Continue meta (localStorage savedAt). */
@@ -89,6 +168,8 @@ export class UI {
       'loading-screen', 'loading-text', 'loading-bar', 'title-screen', 'class-select', 'new-game-btn', 'defense-btn', 'continue-btn', 'continue-meta',
       'hud', 'player-name', 'portrait-level', 'hunter-title', 'hp-fill', 'hp-text', 'mp-fill', 'mp-text', 'xp-fill', 'xp-text',
       'energy-bar', 'energy-fill', 'energy-text',
+      'class-state-row', 'frenzy-chip', 'overflow-chip',
+      'ranger-state-row', 'thorns-chip', 'verdict-chip',
       'world-tier', 'zone-name', 'zone-subtitle', 'defense-wave-panel', 'defense-wave-label', 'defense-wave-remaining',
       'kill-count', 'streak-count', 'elite-count', 'boss-count',
       'boss-charge-text', 'boss-charge-fill', 'contract-title', 'contract-fill', 'contract-progress', 'contract-hint',
@@ -104,6 +185,7 @@ export class UI {
     );
     this.boundSkillSlots = {};
     this.lastAbilityClassId = null;
+    this.lastAbilitySignature = null;
     this.panelButtons = [...document.querySelectorAll('[data-panel]')];
     this.classCards = [...document.querySelectorAll('[data-class-id]')];
     this.#bindEvents();
@@ -246,6 +328,7 @@ export class UI {
     this.elements['defense-wave-panel']?.classList.toggle('hidden', mode !== 'defense');
     this.lastZoneId = null;
     this.lastAbilityClassId = null;
+    this.lastAbilitySignature = null;
     this.update(1);
   }
 
@@ -274,6 +357,7 @@ export class UI {
     const zone = this.game.world.currentZone;
     const isDefense = this.game.mode === 'defense';
     const defenseHud = this.game.defense?.hud;
+    this.elements.hud.classList.toggle('defense-active', isDefense);
     this.elements['player-name'].textContent = player.name;
     this.elements['portrait-level'].textContent = player.level;
     this.elements['hunter-title'].textContent = isDefense ? 'Wave Survival' : hunt.hunterTitle;
@@ -296,6 +380,45 @@ export class UI {
           ? (player.energyComboHits > 0 ? `COMBO READY ×${player.energyComboHits}` : `${label.toUpperCase()} READY`)
           : `${label} ${Math.floor(player.energy)} / ${player.maxEnergy}`;
       }
+    }
+    if (this.elements['class-state-row']) {
+      const frenzyVisible = Boolean(player.frenzyActive);
+      const overflowVisible = player.classId === 'wizard';
+      const thornsVisible = player.classId === 'ranger' && Boolean(player.thornField);
+      const verdictVisible = player.classId === 'ranger' && Boolean(player.predatorVerdict);
+      const rangerVisible = thornsVisible || verdictVisible;
+      const stateCount = Number(frenzyVisible) + Number(overflowVisible)
+        + Number(thornsVisible) + Number(verdictVisible);
+      this.elements.hud.classList.toggle('class-state-active', stateCount > 0);
+      this.elements.hud.dataset.classStateCount = String(stateCount);
+      const frenzy = this.elements['frenzy-chip'];
+      const overflow = this.elements['overflow-chip'];
+      const ranger = this.elements['ranger-state-row'];
+      frenzy.classList.toggle('hidden', !frenzyVisible);
+      overflow.classList.toggle('hidden', !overflowVisible);
+      ranger.classList.toggle('hidden', !rangerVisible);
+      this.elements['thorns-chip'].classList.toggle('hidden', !thornsVisible);
+      this.elements['verdict-chip'].classList.toggle('hidden', !verdictVisible);
+      if (frenzyVisible) {
+        frenzy.querySelector('span').textContent = `${player.shadowFrenzy.remaining.toFixed(1)}s`;
+        frenzy.style.setProperty('--frenzy-ratio', player.frenzyRatio);
+        frenzy.setAttribute('aria-label', `Shadow Frenzy: ${player.shadowFrenzy.remaining.toFixed(1)} seconds remaining`);
+      }
+      if (overflowVisible) {
+        const value = clamp(Number(player.arcaneOverflow) || 0, 0, 100);
+        const ready = value >= 100;
+        overflow.classList.toggle('is-ready', ready);
+        overflow.querySelector('span').textContent = ready ? 'READY' : `${Math.floor(value)}/100`;
+        overflow.style.setProperty('--overflow-ratio', value / 100);
+        overflow.setAttribute('aria-label', ready ? 'Arcane Overflow ready' : `Arcane Overflow: ${Math.floor(value)} of 100`);
+      }
+      if (thornsVisible) {
+        this.elements['thorns-chip'].querySelector('span').textContent = `${player.thornField.planted ?? 0}/4`;
+      }
+      if (verdictVisible) {
+        this.elements['verdict-chip'].querySelector('span').textContent = `${Math.round(100 * player.predatorVerdict.stored / Math.max(1, player.predatorVerdict.cap))}%`;
+      }
+      this.elements['class-state-row'].classList.toggle('hidden', !(frenzyVisible || overflowVisible || rangerVisible));
     }
     if (isDefense) {
       const wave = defenseHud?.wave ?? 1;
@@ -352,7 +475,7 @@ export class UI {
 
     this.#updateAbility('dash', player.cooldownRatio('dash'), player.dashCooldown);
     this.#updateAbility('potion', player.cooldownRatio('potion'), player.potionCooldown);
-    this.#syncAbilityBarForClass(player.classId);
+    this.#syncAbilityBar(player);
     for (const skill of getClassActiveSkills(player.classId)) {
       const unlocked = player.skillRank(skill.id) > 0;
       const slot = this.boundSkillSlots[skill.id] ?? this.skillKeySlots[skill.key];
@@ -376,25 +499,42 @@ export class UI {
     }
   }
 
-  #syncAbilityBarForClass(classId) {
-    if (this.lastAbilityClassId === classId) return;
+  #abilityBarSignature(player) {
+    const skills = getClassActiveSkills(player.classId).map(skill => {
+      const choices = player.skillEvolution?.[skill.id] ?? {};
+      return `${skill.id}:${player.skillRank(skill.id)}:${choices.tier40 ?? ''}:${choices.tier80 ?? ''}`;
+    });
+    return `${player.classId}|${player.level}|${skills.join('|')}`;
+  }
+
+  #syncAbilityBar(player) {
+    const classId = player.classId;
+    const signature = this.#abilityBarSignature(player);
+    if (this.lastAbilitySignature === signature) return;
+    this.lastAbilitySignature = signature;
+    const classChanged = this.lastAbilityClassId !== classId;
     this.lastAbilityClassId = classId;
     const hero = getHeroClass(classId);
-    const attackLabel = document.getElementById('attack-slot-label');
-    if (attackLabel) attackLabel.textContent = hero.attackLabel ?? 'Attack';
-    const attackSlot = this.abilitySlots.attack;
-    if (attackSlot) {
-      const icon = attackSlot.querySelector('.ability-icon');
-      if (icon) {
-        icon.classList.toggle('sword-icon', hero.attackStyle !== 'magic');
-        icon.classList.toggle('starburst-icon', hero.attackStyle === 'magic');
+    if (classChanged) {
+      const attackLabel = document.getElementById('attack-slot-label');
+      if (attackLabel) attackLabel.textContent = hero.attackLabel ?? 'Attack';
+      const attackSlot = this.abilitySlots.attack;
+      if (attackSlot) {
+        const icon = attackSlot.querySelector('.ability-icon');
+        if (icon) {
+          icon.classList.toggle('sword-icon', hero.attackStyle !== 'magic');
+          icon.classList.toggle('starburst-icon', hero.attackStyle === 'magic');
+        }
       }
+      for (const skillId of Object.keys(this.boundSkillSlots)) delete this.abilitySlots[skillId];
+      this.boundSkillSlots = {};
     }
-    this.boundSkillSlots = {};
     for (const skill of getClassActiveSkills(classId)) {
       const slot = this.skillKeySlots[skill.key];
       if (!slot) continue;
-      slot.dataset.slot = skill.id;
+      // data-slot is the stable touch binding/CSS position. The class skill id is metadata only.
+      slot.dataset.slot = `skill-${skill.key.toLowerCase()}`;
+      slot.dataset.skillId = skill.id;
       this.boundSkillSlots[skill.id] = slot;
       this.abilitySlots[skill.id] = slot;
       const nameEl = slot.querySelector('b');
@@ -403,6 +543,54 @@ export class UI {
       if (lock) lock.textContent = `LV.${skill.unlockLevel}`;
       const kbd = slot.querySelector('kbd');
       if (kbd) kbd.textContent = skill.key;
+
+      const rank = player.skillRank(skill.id);
+      const unlocked = rank > 0;
+      const bundle = resolveSkillForm(
+        skill, Math.max(1, rank), player.level, player.skillEvolution?.[skill.id] ?? {},
+      );
+      const highestForm = unlocked ? (bundle.activeForms.at(-1) ?? 0) : 0;
+      const tier = HUD_FORM_TIERS[highestForm] ?? null;
+      slot.classList.remove('evolution-tier-i', 'evolution-tier-ii', 'evolution-tier-apex');
+      if (tier) slot.classList.add(tier.className);
+      slot.dataset.formTier = tier?.text ?? '';
+      slot.dataset.skillRank = String(rank);
+
+      const tierBadge = slot.querySelector('.skill-tier-badge');
+      const form = tier ? skill.evolution?.forms?.[highestForm] : null;
+      if (tierBadge) {
+        tierBadge.textContent = tier?.text ?? '';
+        tierBadge.classList.toggle('hidden', !tier);
+        tierBadge.title = tier ? `Level ${highestForm} form: ${form?.label ?? tier.text}` : '';
+      }
+
+      const mutationLabels = [];
+      const mutationContainer = slot.querySelector('.skill-mutation-badges');
+      for (const gate of [40, 80]) {
+        const badge = mutationContainer?.querySelector(`[data-mutation-tier="${gate}"]`);
+        if (!badge) continue;
+        const mutationId = unlocked ? bundle.mutations?.[`tier${gate}`] : null;
+        const mutation = mutationId ? skill.evolution?.mutations?.[gate]?.[mutationId] : null;
+        const fullLabel = mutation?.label ?? '';
+        const summary = mutation?.summary ?? '';
+        const icon = mutationIconView(mutation?.icon);
+        badge.textContent = fullLabel ? `${icon.glyph}${icon.marker}` : '';
+        badge.dataset.icon = fullLabel ? icon.token : '';
+        badge.classList.toggle('hidden', !fullLabel);
+        badge.title = fullLabel ? mutationAccessibleText(fullLabel, summary, gate) : '';
+        if (fullLabel) {
+          badge.setAttribute('aria-label', mutationAccessibleText(fullLabel, summary, gate));
+          mutationLabels.push(`Level ${gate} mutation ${fullLabel}`);
+        } else {
+          badge.removeAttribute('aria-label');
+        }
+      }
+      mutationContainer?.classList.toggle('hidden', mutationLabels.length === 0);
+
+      const formLabel = form?.label ? `, ${form.label} ${tier.text}` : '';
+      const mutationDescription = mutationLabels.length ? `, ${mutationLabels.join(', ')}` : '';
+      slot.setAttribute('aria-label', `${skill.key}: ${skill.name}, rank ${rank}${formLabel}${mutationDescription}`);
+      slot.title = `${skill.name}${form?.label ? ` · ${form.label}` : ''}${mutationLabels.length ? ` · ${mutationLabels.join(' · ')}` : ''}`;
     }
   }
 
@@ -422,6 +610,7 @@ export class UI {
 
   #updateBossHUD() {
     const boss = this.game.enemies.activeBoss;
+    this.elements.hud.classList.toggle('boss-active', Boolean(boss));
     if (!boss) {
       this.elements['boss-hud'].classList.add('hidden');
       return;
@@ -736,8 +925,10 @@ export class UI {
     this.elements['panel-title'].textContent = hero.skillPanelTitle ?? 'Skills';
     const active = getClassActiveSkills(player.classId).map(skill => this.#skillCard(skill)).join('');
     const passive = getClassPassiveSkills(player.classId).map(skill => this.#skillCard(skill)).join('');
+    const debugControls = this.game.debugEnabled ? this.#debugSkillControls() : '';
     this.elements['panel-content'].innerHTML = `
       <div class="skills-layout">
+        ${debugControls}
         <div class="skill-points-banner"><div><span>AVAILABLE POINTS</span><strong>Earned from level-ups and hunt milestones.</strong></div><b>${player.skillPoints} SP</b></div>
         <section class="skill-group"><h3>Active Arts</h3>${active}</section>
         <section class="skill-group"><h3>Passives</h3>${passive}</section>
@@ -750,13 +941,79 @@ export class UI {
     const rank = player.skillRank(skill.id);
     const displayRank = skill.passive ? rank : unlocked ? Math.max(1, rank) : 0;
     const canUpgrade = unlocked && player.skillPoints > 0 && displayRank < skill.maxRank;
+    const bundle = skill.passive ? null : resolveSkillForm(
+      skill, displayRank, player.level, player.skillEvolution?.[skill.id] ?? {},
+    );
+    const currentValues = bundle ? formatCombatSnapshot(bundle.combat).join(' · ') : '';
+    const evolution = skill.passive ? '' : this.#skillEvolution(skill, displayRank, bundle);
     return `<article class="skill-card ${unlocked ? '' : 'locked'}">
       <span class="skill-key">${skill.key ?? '◆'}</span>
       <h4>${escapeHtml(skill.name)} <small>Lv.${displayRank}/${skill.maxRank}</small></h4>
-      <p>${escapeHtml(skill.description)} ${skill.passive ? '' : `MP ${skill.mp} · CD ${skill.cooldown}s`}</p>
-      <div class="rank-line"><span>${unlocked ? skill.rankText(Math.max(1, displayRank)) : `Unlocks at Lv.${skill.unlockLevel}`}</span><div class="rank-pips">${Array.from({ length: skill.maxRank }, (_, i) => `<i class="${i < displayRank ? 'active' : ''}"></i>`).join('')}</div></div>
+      <p>${escapeHtml(skill.description)} ${skill.passive ? '' : `MP ${bundle.mp} · CD ${bundle.cooldown}s`}</p>
+      <div class="rank-line"><span>${unlocked ? escapeHtml(skill.passive ? skill.rankText(Math.max(1, displayRank)) : currentValues) : `Unlocks at Lv.${skill.unlockLevel}`}</span><div class="rank-pips">${Array.from({ length: skill.maxRank }, (_, i) => `<i class="${i < displayRank ? 'active' : ''}"></i>`).join('')}</div></div>
+      ${evolution}
       <button data-action="upgrade-skill" data-skill="${skill.id}" ${canUpgrade ? '' : 'disabled'}>${displayRank >= skill.maxRank ? 'Max Rank' : 'Spend 1 SP'}</button>
     </article>`;
+  }
+
+  #skillEvolution(skill, rank, bundle) {
+    const player = this.game.player;
+    const choices = player.skillEvolution?.[skill.id] ?? {};
+    const formLevel = bundle.activeForms.at(-1) ?? 0;
+    const formOverlay = skill.evolution?.forms?.[formLevel];
+    const currentForm = formOverlay?.label ?? (formLevel >= 100 ? 'Apex Form' : formLevel >= 60 ? 'Form II' : formLevel >= 20 ? 'Form I' : 'Base Form');
+    const gates = [
+      ...Object.keys(skill.evolution?.forms ?? {}),
+      ...Object.keys(skill.evolution?.mutations ?? {}),
+    ].map(Number).filter(Number.isFinite).sort((a, b) => a - b);
+    const nextGate = gates.find(gate => gate > player.level);
+    const nextBundle = nextGate ? resolveSkillForm(skill, rank, nextGate, choices) : null;
+    const nextFormLevel = nextBundle?.activeForms?.at(-1) ?? 0;
+    const nextMutationId = nextBundle?.mutations?.[`tier${nextGate}`];
+    const nextOverlay = nextMutationId
+      ? skill.evolution?.mutations?.[nextGate]?.[nextMutationId]
+      : skill.evolution?.forms?.[nextFormLevel];
+    const nextLabel = nextOverlay?.label ?? (nextMutationId ? titleCaseId(nextMutationId) : nextGate ? `Lv.${nextGate} Form` : '');
+    const nextText = nextGate ? `Next · Lv.${nextGate} ${nextLabel}` : gates.length ? 'All configured milestones unlocked' : 'No evolution milestones configured';
+    const selectedOverlays = [40, 80].map(gate => {
+      const id = bundle.mutations[`tier${gate}`];
+      return id ? skill.evolution?.mutations?.[gate]?.[id] : null;
+    }).filter(Boolean);
+    const currentSummary = [formOverlay?.summary, ...selectedOverlays.map(option => option.summary)].filter(Boolean).join(' ');
+    const nextSummary = nextOverlay?.summary ?? '';
+    const nextDeltas = nextBundle ? formatCombatDeltas(bundle.combat, nextBundle.combat).join(' · ') : '';
+    const mutationRows = [40, 80].map(gate => {
+      const options = skillMutationOptions(skill, gate);
+      if (!options.length) return '';
+      const key = `tier${gate}`;
+      const selected = bundle.mutations[key] ?? null;
+      const selectedOption = selected ? skill.evolution.mutations[gate][selected] : null;
+      const unlocked = player.level >= gate;
+      const buttons = options.map(optionId => {
+        const option = skill.evolution.mutations[gate][optionId];
+        const label = option.label ?? titleCaseId(optionId);
+        const summary = option.summary ?? '';
+        const icon = mutationIconView(option.icon);
+        const accessible = mutationAccessibleText(label, summary);
+        return `<button type="button" data-action="select-mutation" data-skill="${escapeHtml(skill.id)}" data-milestone="${gate}" data-choice="${escapeHtml(optionId)}" data-icon="${icon.token}" class="${selected === optionId ? 'selected' : ''}" aria-label="${escapeHtml(accessible)}" title="${escapeHtml(accessible)}" aria-pressed="${selected === optionId ? 'true' : 'false'}" ${unlocked ? '' : 'disabled'}><span class="mutation-icon" aria-hidden="true"><i>${icon.glyph}</i><em>${icon.marker}</em></span><span class="mutation-copy"><b>${escapeHtml(label)}</b><small>${escapeHtml(summary)}</small></span></button>`;
+      }).join('');
+      return `<div class="mutation-row"><span>Lv.${gate} ${unlocked ? (selectedOption ? `· ${escapeHtml(selectedOption.label)}` : '· Choose one') : '· Locked'}</span><div class="mutation-options">${buttons}</div></div>`;
+    }).join('');
+    return `<div class="skill-evolution"><div class="form-status"><b>${escapeHtml(currentForm)}</b><span>${escapeHtml(nextText)}</span></div>${currentSummary ? `<p class="current-summary">${escapeHtml(currentSummary)}</p>` : ''}${nextSummary || nextDeltas ? `<p class="next-summary">${escapeHtml([nextSummary, nextDeltas].filter(Boolean).join(' · '))}</p>` : ''}${mutationRows}${mutationRows ? '<small>Select another option to respec this tier.</small>' : ''}</div>`;
+  }
+
+  #debugSkillControls() {
+    const player = this.game.player;
+    const classButtons = Object.entries(HERO_CLASSES).map(([id, hero]) => (
+      `<button type="button" data-action="debug-skill-state" data-debug-class="${id}" class="${id === player.classId ? 'active' : ''}">${escapeHtml(hero.name)}</button>`
+    )).join('');
+    const levelButtons = [20, 40, 60, 80, 100].map(level => (
+      `<button type="button" data-action="debug-skill-state" data-debug-level="${level}" class="${player.level === level ? 'active' : ''}">Lv.${level}</button>`
+    )).join('');
+    const rankButtons = [1, 5, 10].map(rank => (
+      `<button type="button" data-action="debug-skill-state" data-debug-rank="${rank}">Rank ${rank}</button>`
+    )).join('');
+    return `<aside class="skill-debug"><strong>DEBUG · Skill Evolution</strong><span>Class</span><div>${classButtons}</div><span>Level</span><div>${levelButtons}</div><span>All active ranks</span><div>${rankButtons}</div></aside>`;
   }
 
   #renderHunter() {
@@ -869,6 +1126,27 @@ export class UI {
         this.game.audio.levelUp();
         this.notify(`${SKILLS[button.dataset.skill].name} upgraded`, 'level');
         this.game.requestSave();
+        this.#renderSkills();
+      }
+    } else if (action === 'select-mutation') {
+      const skill = SKILLS[button.dataset.skill];
+      const milestone = Number(button.dataset.milestone);
+      if (this.game.player.setSkillMutation(button.dataset.skill, milestone, button.dataset.choice)) {
+        const option = skill?.evolution?.mutations?.[milestone]?.[button.dataset.choice];
+        this.game.audio.click();
+        this.notify(`${skill.name} · Lv.${milestone} ${option?.label ?? titleCaseId(button.dataset.choice)}`, 'level');
+        this.game.requestSave();
+        this.#renderSkills();
+      }
+    } else if (action === 'debug-skill-state') {
+      if (!this.game.debugEnabled) return;
+      const changed = this.game.debugSetSkillState({
+        classId: button.dataset.debugClass,
+        level: button.dataset.debugLevel,
+        rank: button.dataset.debugRank,
+      });
+      if (changed) {
+        this.notify('Debug skill state updated.', 'level', 1.8);
         this.#renderSkills();
       }
     } else if (action === 'quality') {

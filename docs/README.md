@@ -34,6 +34,7 @@ Guides for small and large agents to safely modify the **GPT-5.6: Sol / Action R
 | [plan/ranger-class.md](./plan/ranger-class.md) | **plan: Ranger (archer / huntress) 4th hero class** |
 | [plan/short-session-polish.md](./plan/short-session-polish.md) | **plan: short-session content/visual polish (Tier A–B, no long-term sprawl)** |
 | [plan/skill-motion-spectacle.md](./plan/skill-motion-spectacle.md) | **implemented standard: skill content, motion & spectacle** |
+| [plan/level-100-skill-evolution/README.md](./plan/level-100-skill-evolution/README.md) | **implemented active-skill evolution and completed Phase 9 acceptance; deferred scope remains explicit** |
 
 ## Agent working rules (summary)
 

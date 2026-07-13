@@ -1,46 +1,46 @@
-# 물량 격파(Horde-Clear) 로드맵 — 개요
+# Horde-Clear Roadmap — Overview
 
-> 작성일: 2026-07-12. 그래픽 고도화 패스(커밋 `2e541a9`, `841a698`) 직후의 코드베이스 기준 분석.  
-> **V1 구현 상태 (2026-07-12, plan `61d603d3`):** 01–04 문서의 실용 범위 완료 — fodder/팩 스폰·밀도, XP젬/멀티킬/스트릭/오버킬, 킬 CDR·레벨업 노바·자동 스킬, 멀티히트 통합·방향 스태거·스윙 트레일. LOD2/VAT/풀 드래프트 UI/스킬 진화는 후속.
+> Written: 2026-07-12. Analysis against the codebase after the graphics upgrade pass (commits `2e541a9`, `841a698`).  
+> **V1 implementation status (2026-07-12, plan `61d603d3`):** Practical scope of docs 01–04 complete — fodder/pack spawn and density, XP gems/multikill/streak/overkill, kill CDR / level-up nova / auto skills, multihit coalesce / directional stagger / swing trail. LOD2/VAT/full draft UI/skill evolution remain follow-ups.
 
-## 게임의 목표 정의
+## Goal definition
 
-**"빠르게 성장하면서, 물량으로 몰려오는 적을 타격감 있게 격파하는 재미"**
+**"Grow quickly while clearing dense packs of enemies with satisfying hit feedback."**
 
-이 문장을 세 개의 축으로 분해하면:
+Broken into three axes:
 
-1. **물량** — 화면에 적이 많고, 무리 지어 몰려온다.
-2. **타격감** — 한 대 한 대가 시각·청각·물리적으로 통쾌하다.
-3. **빠른 성장** — 잡을수록 강해지고, 강해진 것이 즉시 체감된다. 세 축이 서로를 증폭한다(많이 잡음 → 빨리 성장 → 더 많이, 더 시원하게 잡음).
+1. **Horde density** — Many enemies on screen, approaching in packs.
+2. **Hit feel** — Each strike feels strong visually, sonically, and physically.
+3. **Fast growth** — Killing makes you stronger, and that strength is felt immediately. The three axes reinforce each other (more kills → faster growth → more kills, more satisfying clears).
 
-## 현재 상태 진단 (한 줄 요약)
+## Current diagnosis (one-line)
 
-타격 "순간"의 연출은 기본기가 갖춰졌으나(스타버스트/글로우/스쿼시, `js/graphics/Effects.js`),
-**(a) 물량 자체가 없고**(Hunt 상한 42마리, Defense 웨이브당 5~36마리),
-**(b) 격파가 성장으로 되돌아오는 루프의 체감이 약하다**(즉시 지급 XP, 고정 쿨다운, 메뉴 안의 스킬 포인트).
+The hit *moment* already has basics (starburst/glow/squash in `js/graphics/Effects.js`), but  
+**(a) density is too low** (Hunt cap 42, Defense 5–36 per wave), and  
+**(b) the kill → growth feedback loop is weak** (instant XP, fixed cooldowns, skill points only in the menu).
 
-## 문서 구성
+## Document map
 
-| 문서 | 카테고리 | 우선순위 |
+| Doc | Category | Priority |
 |---|---|---|
-| [01-horde-density.md](01-horde-density.md) | 물량 인프라 — 잡몹 티어, 팩 스폰, 성능 예산 | **P0** |
-| [02-kill-reward-loop.md](02-kill-reward-loop.md) | 격파 보상 루프 — 픽업, 멀티킬/스트릭, 사망 연출, 오버킬 | **P0~P1** |
-| [03-growth-loop.md](03-growth-loop.md) | 성장 루프 — 킬 기반 쿨환급, 레벨업 드래프트, 런 내 성장, 스킬 진화 | **P1** |
-| [04-hit-feel-polish.md](04-hit-feel-polish.md) | 타격감 마감 — 스윙 트레일, 스태거, 다중 히트 통합, 사운드 | **P2** |
+| [01-horde-density.md](01-horde-density.md) | Horde infrastructure — fodder tier, pack spawn, performance budget | **P0** |
+| [02-kill-reward-loop.md](02-kill-reward-loop.md) | Kill reward loop — pickups, multikill/streak, death FX, overkill | **P0–P1** |
+| [03-growth-loop.md](03-growth-loop.md) | Growth loop — kill CDR, level-up draft, in-run growth, skill evolution | **P1** |
+| [04-hit-feel-polish.md](04-hit-feel-polish.md) | Hit-feel polish — swing trail, stagger, multihit coalesce, audio | **P2** |
 
-## 우선순위 로드맵
+## Priority roadmap
 
-| 순위 | 항목 | 근거 |
+| Priority | Item | Rationale |
 |---|---|---|
-| P0 | 잡몹 티어(경량 렌더링) + 밀도 상향 + 팩 스폰 | "물량" 판타지의 성립 조건. 다른 모든 항목의 전제 |
-| P0 | XP젬 진공 픽업 + 멀티킬/스트릭 에스컬레이션 | 격파→보상의 촉각 루프. 물량과 동시 도입 시 시너지 최대 |
-| P1 | 아키타입별 사망 연출 + 오버킬 런치 | "한 방"의 쾌감 |
-| P1 | 킬 시 쿨다운 환급/자원 회복 | 물량↔스킬 가동률 증폭 루프 |
-| P1 | 레벨업 노바 + 즉석 선택 드래프트 | 성장의 순간을 전투 안으로 |
-| P2 | 무기 스윙 트레일, 다중 히트 통합 연출, 스킬 진화 | 마감 품질 |
+| P0 | Fodder tier (cheap rendering) + density up + pack spawn | Required for the "horde" fantasy; prerequisite for everything else |
+| P0 | XP gem vacuum pickups + multikill/streak escalation | Kill → reward tactile loop; max synergy when shipped with density |
+| P1 | Per-archetype death FX + overkill launch | "One big hit" satisfaction |
+| P1 | On-kill cooldown refund / resource regain | Horde ↔ skill uptime amplification loop |
+| P1 | Level-up nova + instant pick draft | Put growth moments inside combat |
+| P2 | Weapon swing trail, multihit coalesced FX, skill evolution | Finish quality |
 
-## 절대 규칙 (이 코드베이스의 확정 결정)
+## Hard rules (settled for this codebase)
 
-- **카메라 셰이크 / 히트스톱 금지** — `js/core/Game.js:186,385`에 의도적으로 무력화되어 있음. 타격감은 반드시 월드 내 연출로 해결한다.
-- **VFX용 동적 씬 라이트 금지** — 라이트 개수가 변하면 three.js가 보이는 모든 머티리얼 셰이더를 재컴파일하여 프레임 멈춤이 발생한다(커밋 `841a698`에서 수정한 사고). 가짜 라이트(가산 스프라이트)로 대체한다.
-- **GLB는 직접 수정하지 않는다** — 전부 `tools/assets/generate_assets.mjs`가 굽는다. 지오메트리 변경은 생성기를 고치고 재생성한다.
+- **No camera shake / hit-stop** — intentionally no-ops in `js/core/Game.js` (around 186, 385). Hit feel must come from in-world presentation.
+- **No dynamic scene lights for VFX** — changing light counts forces three.js to recompile all visible material shaders and freezes frames (fixed in commit `841a698`). Use fake lights (additive sprites) instead.
+- **Do not edit GLBs by hand** — all baked by `tools/assets/generate_assets.mjs`. Geometry changes go through the generator, then regenerate.

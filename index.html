@@ -145,12 +145,20 @@
         <div class="ability-slot attack-slot" data-slot="attack"><span class="ability-icon sword-icon"></span><b id="attack-slot-label">Attack</b><kbd>J</kbd><i class="cooldown"></i></div>
         <div class="ability-slot" data-slot="dash"><span class="ability-icon dash-icon"></span><b>Dodge</b><kbd>SPACE</kbd><i class="cooldown"></i></div>
         <div class="ability-divider"></div>
-        <div class="ability-slot locked" data-key="Q" data-slot="skill-q"><span class="ability-icon whirlwind-icon"></span><b>Skill</b><kbd>Q</kbd><i class="cooldown"></i><em class="lock-level">LV.3</em></div>
-        <div class="ability-slot locked" data-key="E" data-slot="skill-e"><span class="ability-icon crescent-icon"></span><b>Skill</b><kbd>E</kbd><i class="cooldown"></i><em class="lock-level">LV.6</em></div>
-        <div class="ability-slot locked" data-key="R" data-slot="skill-r"><span class="ability-icon skyfall-icon"></span><b>Skill</b><kbd>R</kbd><i class="cooldown"></i><em class="lock-level">LV.10</em></div>
-        <div class="ability-slot locked" data-key="C" data-slot="skill-c"><span class="ability-icon starburst-icon"></span><b>Skill</b><kbd>C</kbd><i class="cooldown"></i><em class="lock-level">LV.16</em></div>
+        <div class="ability-slot locked" data-key="Q" data-slot="skill-q"><span class="ability-icon whirlwind-icon"></span><span class="skill-tier-badge hidden"></span><span class="skill-mutation-badges hidden"><em data-mutation-tier="40"></em><em data-mutation-tier="80"></em></span><b>Skill</b><kbd>Q</kbd><i class="cooldown"></i><em class="lock-level">LV.3</em></div>
+        <div class="ability-slot locked" data-key="E" data-slot="skill-e"><span class="ability-icon crescent-icon"></span><span class="skill-tier-badge hidden"></span><span class="skill-mutation-badges hidden"><em data-mutation-tier="40"></em><em data-mutation-tier="80"></em></span><b>Skill</b><kbd>E</kbd><i class="cooldown"></i><em class="lock-level">LV.6</em></div>
+        <div class="ability-slot locked" data-key="R" data-slot="skill-r"><span class="ability-icon skyfall-icon"></span><span class="skill-tier-badge hidden"></span><span class="skill-mutation-badges hidden"><em data-mutation-tier="40"></em><em data-mutation-tier="80"></em></span><b>Skill</b><kbd>R</kbd><i class="cooldown"></i><em class="lock-level">LV.10</em></div>
+        <div class="ability-slot locked" data-key="C" data-slot="skill-c"><span class="ability-icon starburst-icon"></span><span class="skill-tier-badge hidden"></span><span class="skill-mutation-badges hidden"><em data-mutation-tier="40"></em><em data-mutation-tier="80"></em></span><b>Skill</b><kbd>C</kbd><i class="cooldown"></i><em class="lock-level">LV.16</em></div>
         <div class="ability-divider"></div>
         <div class="ability-slot potion-slot" data-slot="potion"><span class="ability-icon potion-icon"></span><b>Potion <strong id="potion-count">3</strong></b><kbd>1</kbd><i class="cooldown"></i></div>
+      </div>
+      <div id="class-state-row" class="class-state-row hidden" role="status" aria-live="polite" aria-label="Class combat state">
+        <div id="frenzy-chip" class="class-state-chip frenzy-chip hidden"><b>FRENZY</b><span>0.0s</span><i></i></div>
+        <div id="overflow-chip" class="class-state-chip overflow-chip hidden"><b>OVERFLOW</b><span>0/100</span><i></i></div>
+        <div id="ranger-state-row" class="ranger-state-row hidden">
+          <div id="thorns-chip" class="class-state-chip ranger-chip hidden"><b>THORNS</b><span>0/4</span></div>
+          <div id="verdict-chip" class="class-state-chip ranger-chip hidden"><b>VERDICT</b><span>0%</span></div>
+        </div>
       </div>
 
       <!-- Mobile / touch: left move stick + menu (skills use .ability-bar repositioned by CSS) -->

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
-import { SKILLS, getClassBasicAttack, getHeroClass, isRangedAttackStyle } from '../data/content.js';
+import { getClassBasicAttack, getHeroClass, isRangedAttackStyle } from '../data/content.js';
 import { getFxTheme } from '../data/fxThemes.js';
-import { resolveSkillHitRaw, skillCombatAtRank, skillDamage } from '../data/skillCombat.js';
+import { resolveSkillHitRaw, skillDamage } from '../data/skillCombat.js';
 import {
   createProjectileVisual, disposeProjectileVisual, orientProjectile,
 } from '../graphics/ProjectileMeshes.js';
@@ -18,24 +18,40 @@ export class CombatSystem {
     this.telegraphs = [];
     this.delayed = [];
     this.charges = [];
-    /** effect id → handler(player, rank, phase?) — phase for anim-synced skills */
+    this.skillCastState = new WeakMap();
+    this.frenzyTerminalGeneration = new WeakMap();
+    this.spellCastSerial = 0;
+    this.wizardCastState = new WeakMap();
+    this.wizardCastGeneration = new WeakMap();
+    this.rangerGeneration = new WeakMap();
+    this.rangerSerial = 0;
+    this.apexAudioStates = new WeakMap();
+    this.apexAudioSerial = 0;
+    this.ownedCastGenerations = new WeakMap();
+    this.whirlwindStates = new WeakMap();
+    this.twinFangStates = new WeakMap();
+    this.crescentStates = new WeakMap();
+    this.fanStates = new WeakMap();
+    this.starburstStates = new WeakMap();
+    this.lotusStates = new WeakMap();
+    /** effect id → handler(player, immutable bundle, phase?) */
     this.skillHandlers = {
-      whirlwind: (p, r, phase) => this.#whirlwind(p, r, phase),
-      crescent: (p, r, phase) => this.#crescent(p, r, phase),
-      skyfall: (p, r) => this.#skyfall(p, r),
-      starburst: (p, r) => this.#starburst(p, r),
-      fireball: (p, r, phase) => this.#fireball(p, r, phase),
-      frost_nova: (p, r, phase) => this.#frostNova(p, r, phase),
-      arcane_blink: (p, r) => this.#arcaneBlink(p, r),
-      meteor_storm: (p, r) => this.#meteorStorm(p, r),
-      twin_fang: (p, r, phase) => this.#twinFang(p, r, phase),
-      fan_of_knives: (p, r, phase) => this.#fanOfKnives(p, r, phase),
-      shadowstep: (p, r) => this.#shadowstep(p, r),
-      death_lotus: (p, r) => this.#deathLotus(p, r),
-      piercing_shot: (p, r, phase) => this.#piercingShot(p, r, phase),
-      caltrop_trap: (p, r) => this.#caltropTrap(p, r),
-      vault_shot: (p, r) => this.#vaultShot(p, r),
-      hunter_mark: (p, r) => this.#hunterMark(p, r),
+      whirlwind: (p, bundle, phase, audio) => this.#whirlwind(p, bundle, phase, audio),
+      crescent: (p, bundle, phase, audio) => this.#crescent(p, bundle, phase, audio),
+      skyfall: (p, bundle, phase, audio) => this.#skyfall(p, bundle, phase, audio),
+      starburst: (p, bundle, phase, audio) => this.#starburst(p, bundle, phase, audio),
+      fireball: (p, bundle, phase, audio) => this.#fireball(p, bundle, phase, audio),
+      frost_nova: (p, bundle, phase, audio) => this.#frostNova(p, bundle, phase, audio),
+      arcane_blink: (p, bundle, _phase, audio) => this.#arcaneBlink(p, bundle, audio),
+      meteor_storm: (p, bundle, _phase, audio) => this.#meteorStorm(p, bundle, audio),
+      twin_fang: (p, bundle, phase, audio) => this.#twinFang(p, bundle, phase, audio),
+      fan_of_knives: (p, bundle, phase, audio) => this.#fanOfKnives(p, bundle, phase, audio),
+      shadowstep: (p, bundle, _phase, audio) => this.#shadowstep(p, bundle, audio),
+      death_lotus: (p, bundle, phase, audio) => this.#deathLotus(p, bundle, phase, audio),
+      piercing_shot: (p, bundle, phase, audio) => this.#piercingShot(p, bundle, phase, audio),
+      caltrop_trap: (p, bundle, _phase, audio) => this.#caltropTrap(p, bundle, audio),
+      vault_shot: (p, bundle, _phase, audio) => this.#vaultShot(p, bundle, audio),
+      hunter_mark: (p, bundle, _phase, audio) => this.#hunterMark(p, bundle, audio),
     };
     /** Energy (Focus/Rage) burst id → handler(player, def) → { duration, anim, sfx, floatText } */
     this.energyHandlers = {
@@ -45,11 +61,133 @@ export class CombatSystem {
     };
   }
 
-  #skillBundle(skillId, rank) {
-    const skill = SKILLS[skillId];
-    const combat = skillCombatAtRank(skill, rank);
-    const theme = getFxTheme(skill?.theme);
-    return { skill, combat, theme };
+  #skillBundle(bundle) {
+    return {
+      skill: bundle,
+      combat: bundle.combat,
+      theme: getFxTheme(bundle.presentation?.theme),
+    };
+  }
+
+  #beginOwnedCast(player, skillId) {
+    const owned = this.ownedCastGenerations.get(player) ?? {};
+    const generation = (owned[skillId] ?? 0) + 1;
+    owned[skillId] = generation; this.ownedCastGenerations.set(player, owned);
+    return Object.freeze({ skillId, generation, classId: player.classId });
+  }
+
+  #ownsCast(player, cast) {
+    return player.alive && player.classId === cast.classId
+      && this.ownedCastGenerations.get(player)?.[cast.skillId] === cast.generation;
+  }
+
+  #consumeHitBudget(budget, enemy, cap = 1) {
+    const key = enemy.id;
+    const used = budget.get(key) ?? 0;
+    if (used >= cap) return false;
+    budget.set(key, used + 1); return true;
+  }
+
+  #beginApexAudio(player, bundle) {
+    if (!player?.alive || bundle?.playerLevel < 100 || !bundle?.combat?.apexFinisher
+      || bundle?.classId !== player.classId || bundle?.presentation?.apexAudio !== bundle.id) return null;
+    const states = this.apexAudioStates.get(player) ?? new Map();
+    const state = { id: ++this.apexAudioSerial, bundle, classId: player.classId, phases: new Set(['anticipate']) };
+    states.set(bundle.id, state); this.apexAudioStates.set(player, states);
+    this.game.audio?.apex?.(bundle.id, 'anticipate');
+    return state;
+  }
+
+  #apexAudioPhase(player, state, phase) {
+    if (!state || (phase !== 'impact' && phase !== 'finisher') || !player?.alive
+      || player.classId !== state.classId || state.bundle.classId !== player.classId
+      || this.apexAudioStates.get(player)?.get(state.bundle.id) !== state || state.phases.has(phase)) return false;
+    if (phase === 'finisher' && !state.phases.has('impact')) return false;
+    state.phases.add(phase); this.game.audio?.apex?.(state.bundle.id, phase); return true;
+  }
+
+  #applyApexKeystone(player, enemy, context = {}) {
+    const bundle = context.bundle;
+    const keystone = getHeroClass(player.classId).apexKeystone;
+    const expectedTrigger=player.classId==='wizard'?'apex_cast':'apex_finisher';
+    if (!keystone || !bundle?.classId || bundle.classId!==player.classId || keystone.trigger!==expectedTrigger
+      || bundle.playerLevel < keystone.unlockLevel || !bundle.combat?.apexFinisher
+      || !player.alive || !enemy?.alive) return false;
+    const budget = context.budget ?? (context.budget = { targets:new Map(), casts:new Set() });
+    budget.targets ??= new Map(); budget.casts ??= new Set();
+    const castKey = context.castKey ?? bundle.id;
+    const theme = context.theme ?? getFxTheme(bundle.presentation?.theme);
+    if (keystone.id === 'broken_crown') {
+      const armorBreak=enemy.statuses?.armor_break;
+      if (!armorBreak || armorBreak.remaining <= 0 || !this.#consumeHitBudget(budget.targets, enemy, keystone.perTargetCap)) return false;
+      enemy.addStagger?.(keystone.staggerBonus);
+      this.game.effects.recipeApexKeystone?.(enemy.position, player.classId, theme, 1); return true;
+    }
+    if (keystone.id === 'overflow_overcast') {
+      if (!context.overcast || budget.casts.has(castKey)) return false;
+      budget.casts.add(castKey);
+      const result=this.#damageEnemy(enemy,(context.rawDamage??skillDamage(player.attackPower,bundle.combat))*bundle.combat.overcastMult,{multiHit:true,skill:true,cannotCrit:true,keystoneDerived:true,sameCastHit:{key:`${castKey}:overcast`,maxHits:1}});
+      if(result.amount>0)this.game.effects.recipeApexKeystone?.(enemy.position,player.classId,theme,1);return result.amount>0;
+    }
+    if (keystone.id === 'blood_echo') {
+      const tiers=Math.min(keystone.bleedTierCap,Math.max(0,enemy.statuses?.bleed?.stacks??0));
+      if(!tiers||budget.targets.size>=keystone.targetCap||budget.targets.has(enemy.id))return false;
+      budget.targets.set(enemy.id,tiers);let landed=0;
+      for(let tier=0;tier<Math.min(tiers,keystone.perTargetCap);tier+=1){const result=this.#damageEnemy(enemy,(context.rawDamage??0)*keystone.duplicateMult,{multiHit:true,skill:true,cannotCrit:true,keystoneDerived:true,sameCastHit:{key:`${castKey}:blood-echo:${enemy.id}:${tier}`,maxHits:1}});if(result.amount>0)landed+=1;}
+      if(landed)this.game.effects.recipeApexKeystone?.(enemy.position,player.classId,theme,landed);return landed>0;
+    }
+    if (keystone.id === 'marked_convergence') {
+      if(budget.casts.has(castKey))return false;
+      const marked=context.capturedMarkedTarget??player.predatorVerdict?.target;
+      if(marked!==enemy||!marked.alive)return false;
+      budget.casts.add(castKey);const result=this.#damageEnemy(marked,(context.rawDamage??0)*keystone.convergenceMult,{multiHit:true,skill:true,cannotCrit:true,keystoneDerived:true,verdictDerived:true,sameCastHit:{key:`${castKey}:marked-convergence`,maxHits:1}});
+      if(result.amount>0)this.game.effects.recipeApexKeystone?.(marked.position,player.classId,theme,1);return result.amount>0;
+    }
+    return false;
+  }
+
+  #segmentDamage(from, to, width, rawDamage, options = {}, key = 'segment') {
+    const segment = to.clone().sub(from).setY(0); const lengthSq = Math.max(1e-6, segment.lengthSq()); let hits = 0;
+    for (const enemy of this.game.enemies.enemies) {
+      if (!enemy.alive) continue;
+      const relative = enemy.position.clone().sub(from).setY(0); const t = clamp(relative.dot(segment)/lengthSq,0,1);
+      if (enemy.position.distanceTo(from.clone().addScaledVector(segment,t)) > width+enemy.radius) continue;
+      const result=this.#damageEnemy(enemy,rawDamage,{...options,sameCastHit:{key:`${key}:${enemy.id}`,maxHits:1}});if(result.amount>0)hits+=1;
+    }
+    return hits;
+  }
+
+  #beginWizardCast(player, skillId, bundle = null) {
+    const generations = this.wizardCastGeneration.get(player) ?? {};
+    const generation = (generations[skillId] ?? 0) + 1;
+    generations[skillId] = generation;
+    this.wizardCastGeneration.set(player, generations);
+    const casts = this.wizardCastState.get(player) ?? new Map();
+    const keystone=getHeroClass(player.classId).apexKeystone;
+    const overcast=Boolean(bundle?.playerLevel>=keystone?.unlockLevel&&bundle?.combat?.apexFinisher
+      && player.consumeArcaneOverflow?.(keystone.overflowCost));
+    const state = { skillId, generation, reactions: new Set(), terminal: false, overcast, apexBudget:{targets:new Map(),casts:new Set()} };
+    casts.set(skillId, state);
+    this.wizardCastState.set(player, casts);
+    return state;
+  }
+
+  #endWizardCast(player, state) {
+    if (!state || state.terminal) return false;
+    const casts = this.wizardCastState.get(player);
+    state.terminal = true;
+    if (casts?.get(state.skillId) !== state) return false;
+    casts.delete(state.skillId);
+    if (casts && casts.size === 0) this.wizardCastState.delete(player);
+    return true;
+  }
+
+  #isWizardCastCurrent(player, state) {
+    return Boolean(state && !state.terminal && this.wizardCastState.get(player)?.get(state.skillId) === state);
+  }
+
+  #isWizardGenerationCurrent(player, state) {
+    return this.wizardCastGeneration.get(player)?.[state?.skillId] === state?.generation;
   }
 
   #quality() {
@@ -75,6 +213,21 @@ export class CombatSystem {
     return dir.normalize();
   }
 
+  #handContactOrigin(player, offhand, direction, forward = 0.12) {
+    const refs = player.refs ?? {};
+    const source = offhand
+      ? (refs.offhandBladeTip ?? refs.offhandSocket)
+      : (refs.mainBladeTip ?? refs.bladeTip ?? refs.socket);
+    const origin = new THREE.Vector3();
+    if (source?.getWorldPosition) {
+      player.mesh?.updateWorldMatrix?.(true, true);
+      source.getWorldPosition(origin);
+    } else {
+      origin.copy(player.position).add(new THREE.Vector3(0, 1.02, 0));
+    }
+    return origin.addScaledVector(direction, forward);
+  }
+
   #meleeAttack(player, combo, comboLength = 4) {
     const direction = this.#facingDir(player);
     // Class basic-attack profile — reach/damage/flurry are data, not code.
@@ -84,6 +237,9 @@ export class CombatSystem {
     const last = Math.max(0, comboLength - 1);
     const finisher = combo >= last;
     const color = player.weapon?.rarityColor ?? 0xeef8ff;
+    const rogue = player.classId === 'rogue';
+    const offhandColor = 0x9a6be8;
+    const timingScale = rogue ? player.frenzyTimingScale : 1;
     // Level + chain depth push dust/trail read for heavier knight swings.
     const levelBoost = clamp((player.level - 1) * .04, 0, .8);
     const chain = combo / Math.max(1, last);
@@ -113,15 +269,19 @@ export class CombatSystem {
       * (finisher ? profile.finisherMult + (comboLength - 3) * .08 : 1);
 
     for (let pulse = 0; pulse < pulses; pulse += 1) {
-      const delay = (finisher ? .06 : .02 + combo * .005) + pulse * (finisher ? .07 : .05);
+      const delay = ((finisher ? .06 : .02 + combo * .005) + pulse * (finisher ? .07 : .05)) * timingScale;
       this.#delay(delay, () => {
         if (!player.alive) return;
         const range = ((finisher ? profile.finisherRange : profile.range) + combo * profile.rangePerCombo + levelBoost * .25) * rangeMult;
         const arc = (finisher ? Math.PI * (1.05 + chain * .12) : Math.PI * (.58 + combo * .05)) * arcMult;
-        const hitOrigin = player.position.clone().addScaledVector(direction, .35 + pulse * .08);
+        const offhand = rogue && (combo + pulse) % 2 === 1;
+        const hitOrigin = rogue
+          ? this.#handContactOrigin(player, offhand, direction, .12 + pulse * .03)
+          : player.position.clone().addScaledVector(direction, .35 + pulse * .08);
         const pulseDamage = player.attackPower * baseMult * (pulses > 1 ? (.72 + pulse * .12) : 1);
+        const handColor = offhand ? offhandColor : color;
 
-        this.game.effects.swingArc(hitOrigin, direction, color, range * (finisher ? 1.35 : 1.15), {
+        this.game.effects.swingArc(hitOrigin, direction, handColor, range * (finisher ? 1.35 : 1.15), {
           heavy: finisher || combo >= 2,
           height: finisher ? 1.3 : 1.02,
           spin: (combo + pulse) % 2 ? -3.1 : 2.9,
@@ -131,7 +291,7 @@ export class CombatSystem {
         this.game.effects.swingTrail?.(
           hitOrigin.clone().add(new THREE.Vector3(0, 0.08, 0)),
           direction,
-          color,
+          handColor,
           range * (finisher ? 1.25 : 1.05),
           {
             heavy: finisher || combo >= 2,
@@ -164,7 +324,50 @@ export class CombatSystem {
           combo,
           finisher: finisher && pulse === pulses - 1,
           multiHit: pulses > 1,
+          onHit: rogue ? enemy => this.#applyFrenzyContact(player, enemy, pulseDamage, direction) : null,
         });
+        if (rogue && finisher && pulse === pulses - 1) {
+          const main = this.#handContactOrigin(player, false, direction, .1);
+          const off = this.#handContactOrigin(player, true, direction, .1);
+          this.game.effects.recipeDualBladeCross?.(main.add(off).multiplyScalar(.5), direction, color, offhandColor, swingRange);
+        }
+      });
+    }
+    if (rogue && player.frenzyActive && player.shadowFrenzy.offhandEcho > 0) {
+      const echoDelay = ((finisher ? .09 : .055) + pulses * .045) * timingScale;
+      this.#delay(echoDelay, () => {
+        if (!player.alive || !player.frenzyActive) return;
+        const range = ((finisher ? profile.finisherRange : profile.range) + combo * profile.rangePerCombo) * rangeMult;
+        const origin = this.#handContactOrigin(player, true, direction, .16);
+        this.game.effects.recipeShadowCuts?.(origin, direction, offhandColor, range);
+        this.#hitEnemiesInCone(origin, direction, range, Math.PI * .7 * arcMult,
+          player.attackPower * baseMult * player.shadowFrenzy.offhandEcho, {
+            knockback: 0.8, multiHit: true,
+            onHit: enemy => this.#applyFrenzyContact(player, enemy, player.attackPower * baseMult, direction),
+          });
+      });
+    }
+  }
+
+  #applyFrenzyContact(player, enemy, rawDamage, direction) {
+    const contact = player.registerFrenzyContact?.(enemy);
+    if (!contact) return;
+    const frenzy = player.shadowFrenzy;
+    if (enemy.boss && contact.bossStacks > 1 && frenzy.bossRampStep > 0) {
+      this.#damageEnemy(enemy, rawDamage * frenzy.bossRampStep * (contact.bossStacks - 1), {
+        direction, knockback: 0, multiHit: true,
+      });
+    }
+    if (contact.chainCap <= 0 || frenzy.chainMult <= 0) return;
+    const nearby = this.game.enemies.enemies
+      .filter(other => other.alive && other !== enemy && other.position.distanceTo(enemy.position) <= 4 + other.radius)
+      .sort((a, b) => a.position.distanceToSquared(enemy.position) - b.position.distanceToSquared(enemy.position))
+      .slice(0, contact.chainCap);
+    for (const other of nearby) {
+      const chainDirection = other.position.clone().sub(enemy.position).setY(0).normalize();
+      this.game.effects.recipeShadowCuts?.(enemy.position, chainDirection, 0x9a6be8, 2.2);
+      this.#damageEnemy(other, rawDamage * frenzy.chainMult, {
+        direction: chainDirection, knockback: 0.4, multiHit: true,
       });
     }
   }
@@ -224,16 +427,19 @@ export class CombatSystem {
   }
 
   /**
-   * @param {string} skillId
+   * @param {Readonly<object>} bundle resolved once by Player.trySkill
    * @param {*} player
-   * @param {number} rank
    * @param {number|null} [phase] anim-synced pulse index; null = full skill / non-phased
    */
-  usePlayerSkill(skillId, player, rank, phase = null) {
-    const skill = SKILLS[skillId];
-    const effectId = skill?.effect ?? skillId;
+  usePlayerSkill(bundle, player, phase = null) {
+    const effectId = bundle?.effect ?? bundle?.id;
     const handler = this.skillHandlers[effectId];
-    if (handler) handler(player, rank, phase);
+    if (!handler) return;
+    const starts = phase == null || phase === 'full' || Number(phase) === 0;
+    const activeFrenzyRecast = bundle?.id === 'shadowstep' && player?.frenzyActive;
+    const audio = starts ? (activeFrenzyRecast ? player.shadowFrenzy?.apexAudio ?? null : this.#beginApexAudio(player, bundle))
+      : this.apexAudioStates.get(player)?.get(bundle.id) ?? null;
+    handler(player, bundle, phase, audio);
   }
 
   #spawnFriendlyOrb(start, direction, options = {}) {
@@ -244,7 +450,7 @@ export class CombatSystem {
     visual.root.position.copy(start);
     if (visual.orient) orientProjectile(visual.root, dir, 0);
     this.game.scene.add(visual.root);
-    this.projectiles.push({
+    const projectile = {
       mesh: visual.root,
       materials: visual.materials,
       friendly: true,
@@ -252,8 +458,8 @@ export class CombatSystem {
       orient: visual.orient,
       spin: visual.spin,
       spinRoll: 0,
-      trailRate: visual.trailRate,
-      trailSize: visual.trailSize,
+      trailRate: options.trailRate ?? visual.trailRate,
+      trailSize: options.trailSize ?? visual.trailSize,
       velocity: dir.clone().multiplyScalar(options.speed ?? 15),
       damage: options.damage ?? 10,
       radius: options.radius ?? .9,
@@ -272,100 +478,240 @@ export class CombatSystem {
       armorPierce: options.armorPierce ?? 0,
       criticalBonus: options.criticalBonus ?? 0,
       energyCombo: Boolean(options.energyCombo),
-    });
+      onHit: typeof options.onHit === 'function' ? options.onHit : null,
+      onRetire: typeof options.onRetire === 'function' ? options.onRetire : null,
+      retired: false,
+      retireCallbackFired: false,
+      reactionDepth: Math.min(1, Math.max(0, Number(options.reactionDepth) || 0)),
+      castId: options.castId ?? null,
+      castMeta: options.castMeta ? Object.freeze({ ...options.castMeta }) : null,
+      homingTarget: options.homingTarget ?? null,
+      ownerGuard: typeof options.ownerGuard === 'function' ? options.ownerGuard : null,
+    };
+    this.projectiles.push(projectile);
+    return projectile;
   }
 
   #applyHitStatus(enemy, status) {
     if (!status?.id || !enemy?.applyStatus) return;
+    const rogueBleed = status.id === 'bleed' && this.game.player?.classId === 'rogue';
     enemy.applyStatus(status.id, {
       duration: status.duration ?? 2,
       power: status.power ?? 0.4,
       dps: status.dps ?? 0,
       tick: status.tick ?? 0.5,
       damageAmp: status.damageAmp ?? 0,
+      stackDelta: rogueBleed ? 1 : status.stackDelta,
+      stackCap: rogueBleed ? 3 : status.stackCap,
     }, this.game);
   }
 
-  #whirlwindPulse(player, rank, hitIndex) {
-    const { combat, theme } = this.#skillBundle('whirlwind', rank);
-    const radius = combat.radius;
+  #reactSpellPrime(enemy, detonator, player, rawDamage, castMeta = {}) {
+    const prime = enemy.spellPrime;
+    if (!prime || (prime.depth ?? 0) >= 1) return false;
+    const valid = (detonator === 'fire' && prime.id === 'deep_chill')
+      || (detonator === 'frost' && prime.id === 'burn')
+      || (detonator === 'arcane' && prime.id === 'crystal');
+    if (!valid) return false;
+    const consumed = enemy.consumeSpellPrime?.(prime.id);
+    if (!consumed) return false;
+    if (detonator === 'frost' && enemy.statuses?.burn) {
+      enemy.statuses.burn.remaining = Math.max(0, enemy.statuses.burn.remaining * .5);
+      if (enemy.statuses.burn.remaining <= .05) delete enemy.statuses.burn;
+    }
+    if (detonator === 'fire' && enemy.statuses?.slow) {
+      enemy.statuses.slow.remaining = Math.max(0, enemy.statuses.slow.remaining * .5);
+      if (enemy.statuses.slow.remaining <= .05) delete enemy.statuses.slow;
+    }
+    const facing = this.#facingDir(player);
+    const reactionKind = detonator === 'frost' ? 'thermal_shock'
+      : detonator === 'fire' ? 'steam'
+        : 'crystal_shards';
+    this.game.effects.recipeSpellReaction?.(enemy.position, reactionKind, facing);
+    const castId = castMeta.castId ?? `spell-${++this.spellCastSerial}`;
+    if (detonator === 'arcane') {
+      const coneOrigin = enemy.position.clone().addScaledVector(facing, -.3);
+      this.#hitEnemiesInCone(coneOrigin, facing, 4.2, 1.05, rawDamage * .28, {
+        knockback: .6, multiHit: true, skill: true, reactionDepth: 1, castMeta,
+        sameCastHit: { key: `${castId}:crystal-shards`, maxHits: 1 },
+      });
+    } else if (detonator === 'fire') {
+      const steamTargets = this.game.enemies.enemies.filter(target => target.alive
+        && target.position.distanceTo(enemy.position) <= 2.6 + target.radius)
+        .sort((a, b) => a.position.distanceToSquared(enemy.position) - b.position.distanceToSquared(enemy.position))
+        .slice(0, 4);
+      for (const target of steamTargets) this.#damageEnemy(target, rawDamage * .28, {
+        direction: target === enemy
+          ? facing
+          : target.position.clone().sub(enemy.position).setY(0).normalize(),
+        knockback: .6, multiHit: true, skill: true, reactionDepth: 1, castMeta,
+        sameCastHit: { key: `${castId}:steam:${target.id}`, maxHits: 1 },
+      });
+    } else {
+      this.#damageEnemy(enemy, rawDamage * .28, {
+        direction: facing, knockback: 0.6, multiHit: true, skill: true,
+        reactionDepth: 1, castMeta,
+        sameCastHit: { key: `${castId}:${reactionKind}`, maxHits: 1 },
+      });
+    }
+    if (!castMeta.keystoneDerived && player.level >= 50) {
+      const overflow = getHeroClass('wizard').apexKeystone;
+      player.gainArcaneOverflow?.(overflow.reactionGain, overflow.overflowMax);
+    }
+    return true;
+  }
+
+  #whirlwindPulse(player, bundle, hitIndex, state = null) {
+    const { combat, theme } = this.#skillBundle(bundle);
+    const radius = combat.radius * (combat.radiusMult ?? 1);
     const hits = Math.max(1, Math.round(combat.hits ?? 3));
     const finale = hitIndex >= hits - 1;
+    if (state && !this.#ownsCast(player, state.cast)) return;
+    if (state && hitIndex === 0) this.#apexAudioPhase(player, state.apexAudio, 'impact');
+    if (state && finale) this.#apexAudioPhase(player, state.apexAudio, 'finisher');
     if (hitIndex === 0) player.invulnerable = Math.max(player.invulnerable, combat.invuln ?? 0.34);
     this.game.effects.recipeSpinStorm(player.position, player.facing, theme, radius, hitIndex, finale);
+    this.game.audio.swing?.(hitIndex % 4);
     this.#hitEnemiesInRadius(player.position, radius, skillDamage(player.attackPower, combat), {
       knockback: finale ? combat.knockbackFinale : combat.knockbackPulse,
       multiHit: true,
       criticalBonus: combat.criticalBonus ?? 0.03,
       skill: true,
+      status: combat.bleedEvery && (hitIndex + 1) % combat.bleedEvery === 0 ? combat.bleed : null,
+      onHit: enemy => {
+        if(finale&&state)this.#applyApexKeystone(player,enemy,{bundle,theme,rawDamage:skillDamage(player.attackPower,combat),castKey:`whirl-${state.cast.generation}`,budget:state.apexBudget});
+        const dragAllowed = !combat.dragCap || state.dragTargets.has(enemy.id) || state.dragTargets.size < combat.dragCap;
+        if ((combat.inwardDrag || combat.cageDrag) && enemy.controlCategory !== 'boss' && dragAllowed) {
+          state.dragTargets.add(enemy.id);
+          enemy.pullToward?.(player.position, 1.45, combat.cageDrag ?? combat.inwardDrag, this.game.world, this.game.enemies.enemies);
+        }
+        if (finale && combat.durableMult && (enemy.elite || enemy.boss)) {
+          this.#damageEnemy(enemy, skillDamage(player.attackPower, combat) * (combat.durableMult - 1), {
+            multiHit: true, skill: true, sameCastHit: { key: `whirl-${state.cast.generation}:durable`, maxHits: 1 },
+          });
+          enemy.addStagger?.(combat.durableStagger ?? 0);
+        }
+      },
     });
+    if (finale && state && combat.rovingGale && !state.scarred) {
+      state.scarred = true;
+      const from = state.origin.clone(); const to = player.position.clone(); const scarFacing = state.facing.clone();
+      this.#delay(.1, () => {
+        if (!this.#ownsCast(player, state.cast)) return;
+        this.game.effects.recipeWhirlwindScar?.(from, to, theme);
+        const segment = to.clone().sub(from).setY(0); const lengthSq = Math.max(1e-6, segment.lengthSq());
+        for (const enemy of this.game.enemies.enemies) {
+          if (!enemy.alive) continue;
+          const relative = enemy.position.clone().sub(from).setY(0);
+          const t = clamp(relative.dot(segment) / lengthSq, 0, 1);
+          const nearest = from.clone().addScaledVector(segment, t);
+          if (enemy.position.distanceTo(nearest) > .75 + enemy.radius) continue;
+          this.#damageEnemy(enemy, skillDamage(player.attackPower, combat) * combat.scarMult, {
+            direction: scarFacing, multiHit: true, skill: true,
+            sameCastHit: { key: `whirl-${state.cast.generation}:scar:${enemy.id}`, maxHits: 1 },
+          });
+        }
+      });
+    }
+    if (finale && state && (combat.finalCross || combat.sovereign)) {
+      const facing = this.#facingDir(player); const side = new THREE.Vector3(-facing.z, 0, facing.x);
+      for (const enemy of this.game.enemies.enemies) {
+        if (!enemy.alive) continue;
+        const offset = enemy.position.clone().sub(player.position).setY(0);
+        const axes = [
+          Math.abs(offset.dot(side)) <= .65 && Math.abs(offset.dot(facing)) <= radius,
+          Math.abs(offset.dot(facing)) <= .65 && Math.abs(offset.dot(side)) <= radius,
+        ];
+        axes.forEach((onAxis, axis) => {
+          if (onAxis && this.#consumeHitBudget(state.crossBudget, enemy, Math.min(2, combat.crossBudget ?? 2))) this.#damageEnemy(enemy,
+            skillDamage(player.attackPower, combat) * (combat.crossMult ?? .35), {
+              multiHit: true, skill: true, sameCastHit: { key: `whirl-${state.cast.generation}:cross-${axis}:${enemy.id}`, maxHits: 1 },
+            });
+        });
+      }
+      this.game.effects.recipeSovereignCross?.(player.position, facing, theme, radius);
+    }
   }
 
-  #whirlwind(player, rank, phase = null) {
-    const { combat } = this.#skillBundle('whirlwind', rank);
+  #whirlwind(player, bundle, phase = null, apexAudio = null) {
+    const { combat } = this.#skillBundle(bundle);
     const hits = Math.max(1, Math.round(combat.hits ?? 3));
     if (phase != null && phase !== 'full') {
       if (!player.alive) return;
-      this.#whirlwindPulse(player, rank, Number(phase) || 0);
+      const index = Number(phase);
+      if (!Number.isInteger(index) || index < 0 || index >= hits) return;
+      let state = this.whirlwindStates.get(player);
+      if (index === 0) {
+        state = { cast: this.#beginOwnedCast(player, bundle.id), bundle, completed: new Set(), origin: player.position.clone(),
+          facing: this.#facingDir(player), dragTargets: new Set(), crossBudget: new Map(), scarred: false, apexAudio, apexBudget:{targets:new Map(),casts:new Set()} };
+        this.whirlwindStates.set(player, state);
+      }
+      if (!state || state.bundle !== bundle || !this.#ownsCast(player, state.cast) || state.completed.has(index)) return;
+      state.completed.add(index);
+      this.#whirlwindPulse(player, bundle, index, state);
+      if (index >= hits - 1) this.whirlwindStates.delete(player);
       return;
     }
+    const state = { cast: this.#beginOwnedCast(player, bundle.id), bundle, completed: new Set(), origin: player.position.clone(),
+      facing: this.#facingDir(player), dragTargets: new Set(), crossBudget: new Map(), scarred: false, apexAudio, apexBudget:{targets:new Map(),casts:new Set()} };
+    this.whirlwindStates.set(player, state);
     // Fallback absolute delays if anim timeline not used
     for (let hit = 0; hit < hits; hit += 1) {
-      this.#delay(0.06 + hit * 0.15, () => {
-        if (!player.alive) return;
-        this.#whirlwindPulse(player, rank, hit);
+      this.#delay(0.06 + hit * 0.15 * (combat.cadenceMult ?? 1), () => {
+        if (!this.#ownsCast(player, state.cast)) return;
+        if (state.completed.has(hit)) return;
+        state.completed.add(hit);
+        this.#whirlwindPulse(player, bundle, hit, state);
+        if (hit === hits - 1) this.whirlwindStates.delete(player);
       });
     }
   }
 
-  #crescent(player, rank, phase = null) {
-    const fire = () => {
-      if (!player.alive) return;
-      const { combat, theme } = this.#skillBundle('crescent', rank);
-      const direction = this.#facingDir(player);
-      const start = player.position.clone().addScaledVector(direction, 1.2);
-      start.y += 1;
-      this.game.effects.recipeGroundWave(player.position, direction, theme, 3.6);
-      this.#spawnFriendlyOrb(start, direction, {
-        style: 'blade_wave',
-        color: theme.primary,
-        damage: skillDamage(player.attackPower, combat),
-        speed: combat.speed,
-        radius: combat.radius ?? 1.25,
-        life: 1.35,
-        pierce: Math.round(combat.pierce ?? 3),
-        knockback: combat.knockback ?? 4.2,
-        skill: true,
-        wave: true,
-        scale: 1.15 + rank * 0.05,
-        statusOnHit: combat.status ?? null,
-      });
-      // Rank 3+: residual scar along the wave path (B5).
-      if (rank >= 3 && combat.residualMult > 0) {
-        const scarCenter = this.#aimAlongFacing(player, 4.2);
-        this.#delay(combat.residualDelay ?? 0.42, () => {
-          if (!player.alive) return;
-          this.game.effects.groundDecal?.(scarCenter, theme.accent, combat.residualRadius ?? 1.5, {
-            life: 1.6, opacity: 0.45, startScale: 0.2,
-          });
-          this.game.effects.ring?.(scarCenter, theme.primary, combat.residualRadius ?? 1.5, {
-            life: 0.4, startScale: 0.25, height: 0.08, opacity: 0.55,
-          });
-          this.#hitEnemiesInRadius(
-            scarCenter,
-            combat.residualRadius ?? 1.5,
-            skillDamage(player.attackPower, combat, 'residualMult'),
-            { knockback: 1.2, multiHit: true, skill: true },
-          );
-        });
+  #crescent(player, bundle, phase = null, apexAudio = null) {
+    const { combat, theme } = this.#skillBundle(bundle);
+    const acts = bundle.playerLevel >= 100 ? 3 : bundle.playerLevel >= 20 ? 2 : 1;
+    const execute = index => {
+      let state = this.crescentStates.get(player);
+      if (index === 0) {
+        state = { cast:this.#beginOwnedCast(player,bundle.id), bundle, completed:new Set(), origin:player.position.clone(),
+          facing:this.#facingDir(player), points:[], crossHits:new Map(), released:false, apexAudio, apexBudget:{targets:new Map(),casts:new Set()} };
+        this.crescentStates.set(player,state);
       }
+      if (!state || state.bundle !== bundle || !this.#ownsCast(player,state.cast) || index<0 || index>=acts || state.completed.has(index)) return;
+      state.completed.add(index);
+      if(index===0)this.#apexAudioPhase(player,state.apexAudio,'impact');
+      if(index===acts-1)this.#apexAudioPhase(player,state.apexAudio,'finisher');
+      if (index === 0 && !state.released) {
+        this.game.audio.swing?.(0);
+        state.released=true; const waves=Math.min(3,combat.waveCount??1); const yaw0=Math.atan2(state.facing.x,state.facing.z);
+        this.game.effects.recipeWorldsplitterAct?.(state.origin,state.facing,theme,0,Boolean(combat.worldsplitter));
+        for(let wave=0;wave<waves;wave+=1){const yaw=yaw0+(wave-(waves-1)/2)*(combat.spread??0);const dir=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw));
+          const start=state.origin.clone().addScaledVector(dir,1.2).add(new THREE.Vector3(0,1,0));
+          this.#spawnFriendlyOrb(start,dir,{style:'blade_wave',color:theme.primary,damage:skillDamage(player.attackPower,combat)*(combat.damageMult??combat.waveMult??1),speed:combat.speed,
+            radius:(combat.radius??1.25)*(combat.radiusMult??1),life:1.35,pierce:Math.round(combat.pierce??3),knockback:combat.knockback??4.2,skill:true,wave:true,
+            ownerGuard:()=>this.#ownsCast(player,state.cast),
+            statusOnHit:combat.status??null,onHit:enemy=>{if(state.points.length<Math.min(6,combat.crossCap??6))state.points.push(enemy.position.clone());
+              if(combat.crosscurrent&&!state.crossHits.has(enemy.id)&&state.crossHits.size<Math.min(6,combat.crossCap??6)){state.crossHits.set(enemy.id,1);const side=new THREE.Vector3(-dir.z,0,dir.x);
+                this.#delay(.08,()=>{if(!this.#ownsCast(player,state.cast))return;this.#damageEnemy(enemy,skillDamage(player.attackPower,combat)*combat.crossMult,{multiHit:true,skill:true,sameCastHit:{key:`cres-${state.cast.generation}:cross:${enemy.id}`,maxHits:1}});this.game.effects.recipeCrosscurrent?.(enemy.position,side,theme);});}
+              if(combat.severMult&&(enemy.elite||enemy.boss)){this.#damageEnemy(enemy,skillDamage(player.attackPower,combat)*combat.severMult,{multiHit:true,skill:true,sameCastHit:{key:`cres-${state.cast.generation}:sever:${enemy.id}`,maxHits:1}});enemy.applyStatus?.('armor_break',{duration:combat.armorBreakDuration,power:combat.armorBreakPower},this.game);}},
+          });}
+        if(bundle.playerLevel<20&&bundle.rank>=3&&combat.residualMult>0){const scarCenter=state.origin.clone().addScaledVector(state.facing,4.2);this.#delay(combat.residualDelay??.42,()=>{if(!this.#ownsCast(player,state.cast))return;this.game.effects.groundDecal?.(scarCenter,theme.accent,combat.residualRadius??1.5,{life:1.6,opacity:.45,startScale:.2});this.#hitEnemiesInRadius(scarCenter,combat.residualRadius??1.5,skillDamage(player.attackPower,combat,'residualMult'),{knockback:1.2,multiHit:true,skill:true});});}
+      } else if(index===1){this.game.audio.swing?.(1);this.game.effects.recipeWorldsplitterAct?.(state.origin,state.facing,theme,1,Boolean(combat.worldsplitter));
+        if(combat.moonScar||bundle.rank>=3)this.#delay(combat.residualDelay??.42,()=>{if(!this.#ownsCast(player,state.cast))return;this.#segmentDamage(state.origin,state.origin.clone().addScaledVector(state.facing,8),.8,skillDamage(player.attackPower,combat)*(combat.scarMult??combat.residualMult??.3),{multiHit:true,skill:true},`cres-${state.cast.generation}:scar`);});
+        if(combat.riftTicks)for(let tick=0;tick<Math.min(3,combat.riftTicks);tick+=1)this.#delay(.18+tick*.16,()=>{if(!this.#ownsCast(player,state.cast))return;
+          const to=state.origin.clone().addScaledVector(state.facing,8);const segment=to.clone().sub(state.origin);const lengthSq=segment.lengthSq();let targets=0;
+          for(const enemy of this.game.enemies.enemies){if(!enemy.alive||targets>=Math.min(4,combat.riftCap??4))continue;const rel=enemy.position.clone().sub(state.origin).setY(0);const t=clamp(rel.dot(segment)/lengthSq,0,1);if(enemy.position.distanceTo(state.origin.clone().addScaledVector(segment,t))>.9+enemy.radius)continue;
+            const result=this.#damageEnemy(enemy,skillDamage(player.attackPower,combat)*combat.riftMult,{multiHit:true,skill:true,sameCastHit:{key:`cres-${state.cast.generation}:rift-${tick}:${enemy.id}`,maxHits:1}});if(result.amount>0){targets+=1;if(enemy.boss)enemy.addStagger?.(4);else enemy.applyStun?.(.2);}}
+        });
+      } else if(index===2){this.game.audio.swing?.(2);this.game.effects.recipeWorldsplitterAct?.(state.origin,state.facing,theme,2,true);this.#delay(.16,()=>{if(!this.#ownsCast(player,state.cast))return;const raw=skillDamage(player.attackPower,combat)*combat.ruptureMult;this.#segmentDamage(state.origin,state.origin.clone().addScaledVector(state.facing,10),1,raw,{multiHit:true,skill:true,onHit:enemy=>this.#applyApexKeystone(player,enemy,{bundle,theme,rawDamage:raw,castKey:`cres-${state.cast.generation}`,budget:state.apexBudget})},`cres-${state.cast.generation}:rupture`);});}
+      if(index===acts-1)this.crescentStates.delete(player);
     };
-    if (phase != null && phase !== 'full') fire();
-    else fire();
+    if(phase!=null&&phase!=='full'){const index=Number(phase);if(Number.isInteger(index))execute(index);return;}
+    const chain=index=>{execute(index);if(index+1<acts)this.#delay(.18,()=>chain(index+1));};chain(0);
   }
 
-  #skyfall(player, rank) {
-    const { combat, theme } = this.#skillBundle('skyfall', rank);
+  #skyfallLegacy(player, bundle) {
+    const { combat, theme } = this.#skillBundle(bundle);
     const target = this.#aimAlongFacing(player, combat.leap ?? 10.5);
     const direction = this.#facingDir(player);
     const radius = combat.radius;
@@ -384,47 +730,156 @@ export class CombatSystem {
     }, { fillOpacity: 0.12 });
   }
 
-  #starburst(player, rank) {
-    const { combat, theme } = this.#skillBundle('starburst', rank);
-    const center = this.#aimAlongFacing(player, combat.aim ?? 9.5);
-    const hits = Math.round(combat.hits ?? 6);
-    // Star pattern: fixed radial arms (not random scatter like meteor)
-    for (let i = 0; i < hits; i += 1) {
-      const arm = i % 6;
-      const ring = Math.floor(i / 6);
-      const angle = (arm / 6) * Math.PI * 2 + ring * 0.22;
-      const dist = i === 0 ? 0 : 1.6 + ring * 1.7 + (arm % 2) * 0.55;
-      const point = center.clone().add(new THREE.Vector3(Math.cos(angle) * dist, 0, Math.sin(angle) * dist));
-      point.y = this.game.world.heightAt(point.x, point.z);
-      this.#delay(0.1 + i * 0.095, () => {
-        this.#telegraphCircle(point, combat.hitRadius * 0.9, combat.telegraph ?? 0.28, theme.primary, () => {
-          this.game.effects.recipeStarBlade(point, theme, i);
-          this.#hitEnemiesInRadius(point, combat.hitRadius, skillDamage(player.attackPower, combat), {
-            knockback: combat.knockback ?? 2.5,
-            multiHit: true,
-            armorPierce: combat.armorPierce ?? 0.2,
-            skill: true,
-          });
-        }, { fillOpacity: 0.12 });
-      });
+  #skyfall(player, bundle, phase = null, apexAudio = null) {
+    if (bundle.playerLevel < 20) {
+      this.#skyfallLegacy(player, bundle);
+      return;
     }
-    this.#delay(0.22 + hits * 0.095, () => {
-      this.game.effects.recipeStarFinale(center, theme, combat.finaleRadius ?? 5.8);
-      this.#hitEnemiesInRadius(center, combat.finaleRadius ?? 5.8, skillDamage(player.attackPower, combat, 'finaleMult'), {
+    const runPhase = index => {
+      let cast = this.skillCastState.get(player);
+      if (!cast || cast.bundle !== bundle) {
+        if (index !== 0) return false;
+        cast = {
+          bundle,
+          target: this.#aimAlongFacing(player, bundle.combat.leap ?? 10.5),
+          direction: this.#facingDir(player),
+          completed: new Set(),
+          apexAudio,
+          apexBudget: { targets:new Map(), casts:new Set() },
+        };
+        this.skillCastState.set(player, cast);
+      }
+      if (cast.completed.has(index)) return false;
+      if (!player.alive) {
+        if (index === 1) this.skillCastState.delete(player);
+        return false;
+      }
+      cast.completed.add(index);
+      if(index===0)this.#apexAudioPhase(player,cast.apexAudio,'impact');
+      if(index===1)this.#apexAudioPhase(player,cast.apexAudio,'finisher');
+      const { combat, theme } = this.#skillBundle(bundle);
+      const enemies = this.game.enemies.enemies;
+      const pullRadius = (combat.pullRadius ?? combat.radius) + (combat.apexPullBonus ?? 0);
+      if (index === 0) {
+        player.position.copy(cast.target);
+        this.game.world.resolvePosition(player.position, 0.48);
+        cast.target.copy(player.position);
+        player.invulnerable = Math.max(player.invulnerable, combat.invuln ?? 0.55);
+        this.game.effects.recipeVortexPull?.(cast.target, theme, pullRadius);
+        for (const enemy of enemies) {
+          if (!enemy.alive || enemy.position.distanceTo(cast.target) > pullRadius + enemy.radius) continue;
+          const direction = enemy.position.clone().sub(cast.target).setY(0).normalize();
+          this.#damageEnemy(enemy, skillDamage(player.attackPower, combat, 'plantMult'), {
+            direction, knockback: 0, armorPierce: combat.armorPierce ?? 0.25, multiHit: true, skill: true,
+          });
+          if (enemy.controlCategory === 'boss') {
+            this.game.effects.recipeBossPullResist?.(enemy.position, cast.target, theme);
+          } else {
+            enemy.pullToward?.(cast.target, combat.safeRing ?? 1.55, combat.pullStrength ?? 0.72, this.game.world, enemies);
+          }
+        }
+        return true;
+      }
+      this.game.effects.recipeGroundFracture?.(cast.target, cast.direction, theme, combat.radius);
+      for (const enemy of enemies) {
+        if (!enemy.alive || enemy.position.distanceTo(cast.target) > combat.radius + enemy.radius) continue;
+        const direction = enemy.position.clone().sub(cast.target).setY(0).normalize();
+        const slamRaw=skillDamage(player.attackPower,combat);const slamResult=this.#damageEnemy(enemy, slamRaw, {
+          direction,
+          knockback: Math.min(3.2, combat.knockback ?? 7.2),
+          armorPierce: combat.armorPierce ?? 0.25,
+          criticalBonus: combat.criticalBonus ?? 0.06,
+          multiHit: true,
+          finisher: true,
+          skill: true,
+        });
+        if(slamResult.amount>0)this.#applyApexKeystone(player,enemy,{bundle,theme,rawDamage:slamRaw,castKey:`judgment-${bundle.id}`,budget:cast.apexBudget});
+        if (enemy.controlCategory === 'boss') {
+          enemy.addStagger?.((combat.bossStagger ?? 28) + (combat.apexStaggerBonus ?? 0));
+        }
+        else enemy.applyStun?.(enemy.controlCategory === 'elite' ? combat.stunElite : combat.stunNormal);
+      }
+      if (combat.judgmentApex) this.game.effects.recipeJudgmentApex?.(cast.target, theme, combat.radius);
+      this.skillCastState.delete(player);
+      return true;
+    };
+    if (phase == null || phase === 'full') {
+      runPhase(0);
+      runPhase(1);
+      return;
+    }
+    const index = Number(phase);
+    if (index === 0 || index === 1) runPhase(index);
+  }
+
+  #starburst(player, bundle, phase = null, apexAudio = null) {
+    const { combat, theme } = this.#skillBundle(bundle);
+    const center = this.#aimAlongFacing(player, combat.aim ?? 9.5);
+    const legacy = bundle.playerLevel < 20;
+    const acts = legacy ? 1 : bundle.playerLevel >= 100 ? 3 : 2;
+    const execute = index => {
+      let state=this.starburstStates.get(player);
+      if(index===0){state={cast:this.#beginOwnedCast(player,bundle.id),bundle,completed:new Set(),center:center.clone(),landed:[],controlled:new Set(),finale:false,apexAudio,apexBudget:{targets:new Map(),casts:new Set()}};this.starburstStates.set(player,state);}
+      if(!state||state.bundle!==bundle||!this.#ownsCast(player,state.cast)||index<0||index>=acts||state.completed.has(index))return;state.completed.add(index);this.game.audio.swing?.(index);
+      if(index===0)this.#apexAudioPhase(player,state.apexAudio,'impact');
+      if(index===acts-1)this.#apexAudioPhase(player,state.apexAudio,'finisher');
+      if(index===0){const hits=combat.arsenal?10:Math.min(Math.round(combat.hits??6),combat.distinctBladeCap??99);const field=combat.fieldRadius??5;
+        const bladePoint=i=>{const arm=i%6,ring=Math.floor(i/6),angle=arm/6*Math.PI*2+ring*.22;const dist=i===0?0:legacy?Math.min(field,1.3+ring*1.4+(arm%2)*.5):field*(.38+.58*i/Math.max(1,hits-1));const point=state.center.clone().add(new THREE.Vector3(Math.cos(angle)*dist,0,Math.sin(angle)*dist));point.y=this.game.world.heightAt(point.x,point.z);return point;};
+        const landBlade=(i,after=null)=>{if(!this.#ownsCast(player,state.cast))return;const point=bladePoint(i),warningTime=legacy?(combat.telegraph??.28):Math.min(.05,combat.telegraph??.05);this.#telegraphCircle(point,combat.hitRadius*.9,warningTime,theme.primary,()=>{if(!this.#ownsCast(player,state.cast))return;this.game.effects.recipeStarBlade(point,theme,i);this.#hitEnemiesInRadius(point,combat.hitRadius,skillDamage(player.attackPower,combat)*(combat.centerMult??1),{knockback:combat.knockback??2.5,multiHit:true,armorPierce:combat.armorPierce??.2,skill:true,onHit:enemy=>{if(!state.landed.includes(enemy)&&state.landed.length<(combat.targetCap??10))state.landed.push(enemy);}});after?.();},{fillOpacity:.12});};
+        if(legacy){const finale=()=>{if(!this.#ownsCast(player,state.cast))return;this.game.effects.recipeStarFinale(state.center,theme,combat.finaleRadius??5.8);this.#hitEnemiesInRadius(state.center,combat.finaleRadius??5.8,skillDamage(player.attackPower,combat,'finaleMult'),{multiHit:true,skill:true,knockback:combat.finaleKnockback??6.2,armorPierce:combat.finaleArmorPierce??.35});};const launch=i=>{if(!this.#ownsCast(player,state.cast)||i>=hits)return;this.#delay(i===0?.1:.095,()=>{if(!this.#ownsCast(player,state.cast))return;if(i+1<hits)launch(i+1);landBlade(i,()=>{if(i===hits-1&&this.#ownsCast(player,state.cast))finale();});});};launch(0);}
+        else for(let i=0;i<hits;i+=1)this.#delay(.01+i*.012,()=>landBlade(i));
+      }else if(index===1){this.game.effects.recipeArsenalAct?.(state.center,theme,1,Boolean(combat.arsenal));const royal=state.landed.find(enemy=>enemy.alive&&(enemy.elite||enemy.boss))??state.landed[0];if(royal){this.#damageEnemy(royal,skillDamage(player.attackPower,combat)*(combat.sealMult??.5),{multiHit:true,skill:true,sameCastHit:{key:`star-${state.cast.generation}:royal`,maxHits:1}});if(combat.crownMult&&(royal.elite||royal.boss)){this.#damageEnemy(royal,skillDamage(player.attackPower,combat)*combat.crownMult,{multiHit:true,skill:true,sameCastHit:{key:`star-${state.cast.generation}:crown`,maxHits:1}});royal.addStagger?.(combat.crownStagger??0);}}
+        state.landed.slice(0,Math.min(6,combat.embeddedCap??0)).forEach((enemy,i)=>this.#delay(.12+i*.04,()=>{if(this.#ownsCast(player,state.cast)&&enemy.alive)this.#damageEnemy(enemy,skillDamage(player.attackPower,combat)*combat.embeddedMult,{multiHit:true,skill:true,sameCastHit:{key:`star-${state.cast.generation}:embed:${enemy.id}`,maxHits:1}});}));
+        if(combat.prisonCap)for(const enemy of state.landed.slice(0,combat.prisonCap)){if(enemy.boss)enemy.addStagger?.(combat.bossStagger);else enemy.applyStun?.(combat.prisonStun);}
+      }else if(index===2&&!state.finale){state.finale=true;for(let ring=0;ring<3;ring+=1)this.game.effects.recipeArsenalAct?.(state.center,theme,2+ring,true);this.game.effects.recipeStarFinale(state.center, theme, combat.finaleRadius ?? 5.8);this.#hitEnemiesInRadius(state.center, combat.finaleRadius ?? 5.8, skillDamage(player.attackPower, combat)*(combat.arsenalFinaleMult??combat.finaleMult), {
         knockback: combat.finaleKnockback ?? 6.2,
         multiHit: true,
         armorPierce: combat.finaleArmorPierce ?? 0.35,
         skill: true,
+        onHit:enemy=>this.#applyApexKeystone(player,enemy,{bundle,theme,rawDamage:skillDamage(player.attackPower,combat)*(combat.arsenalFinaleMult??combat.finaleMult),castKey:`star-${state.cast.generation}`,budget:state.apexBudget}),
       });
-    });
+      }if(index===acts-1)this.starburstStates.delete(player);
+    };
+    if(phase!=null&&phase!=='full'){const i=Number(phase);if(Number.isInteger(i))execute(i);return;}
+    execute(0);
+    if(acts>1)this.#delay(.42,()=>this.#delay(0,()=>{execute(1);if(acts>2)this.#delay(.2,()=>this.#delay(0,()=>execute(2)));}));
   }
 
-  #fireball(player, rank, phase = null) {
+  #fireball(player, bundle, phase = null, apexAudio = null) {
     const fire = () => {
       if (!player.alive) return;
-      const { combat, theme } = this.#skillBundle('fireball', rank);
+      const { combat, theme } = this.#skillBundle(bundle);
       const direction = this.#facingDir(player);
       const start = player.position.clone().add(new THREE.Vector3(0, 1.2, 0)).addScaledVector(direction, 1.05);
+      const castState = this.#beginWizardCast(player, bundle.id, bundle);
+      castState.apexAudio = apexAudio;
+      const castId = `fire-${castState.generation}-${++this.spellCastSerial}`;
+      const handleFireLanded = enemy => {
+        this.#apexAudioPhase(player, castState.apexAudio, 'impact');
+        if (castState.reactions.has(enemy.id)) return;
+        castState.reactions.add(enemy.id);
+        const reacted = this.#reactSpellPrime(enemy, 'fire', player, skillDamage(player.attackPower, combat), { castId });
+        if (!reacted) enemy.setSpellPrime?.('burn', { depth: 0, castId, remaining: combat.status?.duration ?? 2.2 });
+        if (combat.reaction === 'chain_ignition' && enemy.statuses?.burn) {
+          const relays = this.game.enemies.enemies.filter(other => other.alive && other !== enemy && other.statuses?.burn)
+            .sort((a, b) => a.position.distanceToSquared(enemy.position) - b.position.distanceToSquared(enemy.position))
+            .slice(0, Math.min(3, combat.reactionCap ?? 3));
+          for (const other of relays) this.#damageEnemy(other, skillDamage(player.attackPower, combat) * .18, {
+            direction: other.position.clone().sub(enemy.position).setY(0).normalize(), knockback: .4, multiHit: true, skill: true,
+          });
+        }
+        if (combat.bossBrandCap && enemy.boss) {
+          enemy.solarBrandStacks = Math.min(combat.bossBrandCap, (enemy.solarBrandStacks ?? 0) + 1);
+          if (enemy.solarBrandStacks >= combat.bossBrandCap) {
+            const detonation = this.#damageEnemy(enemy,
+              skillDamage(player.attackPower, combat) * combat.bossBrandMult * combat.bossBrandCap, {
+              direction, knockback: 0, multiHit: true, skill: true,
+              sameCastHit: { key: `${castId}:solar-brand-detonation`, maxHits: 1 },
+            });
+            if (detonation.amount > 0) enemy.solarBrandStacks = 0;
+          }
+        }
+      };
       this.game.effects.recipeFireOrb(player.position, direction, theme);
       this.#spawnFriendlyOrb(start, direction, {
         style: 'fireball',
@@ -433,12 +888,49 @@ export class CombatSystem {
         speed: combat.speed,
         radius: combat.radius ?? 1.15,
         life: 1.4,
-        pierce: 1,
+        pierce: Math.min(3, Math.max(1, Math.round(combat.pierce ?? 1))),
         knockback: combat.knockback ?? 4.5,
         skill: true,
         skillPowerApplied: true,
         scale: combat.scale ?? 1.35,
         statusOnHit: combat.status ?? null,
+        castId,
+        castMeta: { skillId: bundle.id, playerLevel: bundle.playerLevel },
+        onHit: handleFireLanded,
+        onRetire: projectile => {
+          if (!this.#endWizardCast(player, castState)) return;
+          if (this._clearing || projectile.suppressRetireAuthority) return;
+          this.#apexAudioPhase(player, castState.apexAudio, 'finisher');
+          const at = projectile.mesh.position.clone();
+          this.game.effects.recipeLivingStar?.(at, theme, combat.cinders ?? 0, Boolean(combat.prominence));
+          const cinders = Math.min(3, Math.max(0, Math.round(combat.cinders ?? 0)));
+          const targets = this.game.enemies.enemies.filter(enemy => enemy.alive)
+            .sort((a, b) => a.position.distanceToSquared(at) - b.position.distanceToSquared(at)).slice(0, cinders);
+          for (const target of targets) {
+            const cinderDirection = target.position.clone().sub(at).setY(0).normalize();
+            this.#spawnFriendlyOrb(at.clone().add(new THREE.Vector3(0, .65, 0)), cinderDirection, {
+              style: 'fireball', color: theme.secondary,
+              damage: skillDamage(player.attackPower, combat) * (combat.cinderMult ?? 0),
+              speed: 11, radius: .55, life: .55, pierce: 1, skill: true,
+              skillPowerApplied: false, reactionDepth: 1, castId, homingTarget: target,
+            });
+          }
+          const ticks = Math.min(3, Math.max(0, Math.round(combat.vortexTicks ?? 0)));
+          for (let tick = 0; tick < ticks; tick += 1) this.#delay(0.12 + tick * 0.16, () => {
+            if (!this.#isWizardGenerationCurrent(player, castState)) return;
+            this.#hitEnemiesInRadius(at, combat.blastRadius, skillDamage(player.attackPower, combat) * (combat.vortexMult ?? 0), {
+              knockback: 0.4, multiHit: true, skill: true,
+            });
+          });
+          if (combat.prominence) this.#hitEnemiesInRadius(at, combat.blastRadius * 1.35,
+            skillDamage(player.attackPower, combat) * (combat.flareMult ?? 0), {
+              knockback: 2.8, multiHit: true, armorPierce: .3, skill: true,
+              sameCastHit: { key: `${castId}:prominence-flare`, maxHits: 1 },
+            });
+          const apexTarget=this.game.enemies.enemies.filter(enemy=>enemy.alive&&enemy.position.distanceTo(at)<=combat.blastRadius*1.35+enemy.radius)
+            .sort((a,b)=>a.position.distanceToSquared(at)-b.position.distanceToSquared(at))[0];
+          if(apexTarget)this.#applyApexKeystone(player,apexTarget,{bundle,theme,rawDamage:skillDamage(player.attackPower,combat),castKey:castId,budget:castState.apexBudget,overcast:castState.overcast});
+        },
         explode: {
           radius: combat.blastRadius,
           damage: skillDamage(player.attackPower, combat, 'blastMult') * player.skillPower,
@@ -446,6 +938,8 @@ export class CombatSystem {
           theme,
           status: combat.status ?? null,
           skillPowerApplied: true,
+          onHit: handleFireLanded,
+          sameCastHit: { key: `${castId}:blast`, maxHits: 1 },
         },
       });
     };
@@ -453,17 +947,23 @@ export class CombatSystem {
     else fire();
   }
 
-  #frostNova(player, rank, phase = null) {
+  #frostNova(player, bundle, phase = null, apexAudio = null) {
     const fire = () => {
       if (!player.alive) return;
-      const { combat, theme } = this.#skillBundle('frost_nova', rank);
+      const castState = this.#beginWizardCast(player, bundle.id, bundle);
+      castState.apexAudio = apexAudio;
+      const { combat, theme } = this.#skillBundle(bundle);
+      const rank = bundle.rank;
       const radius = combat.radius;
+      const center = player.position.clone();
+      const castFacing = this.#facingDir(player);
       player.invulnerable = Math.max(player.invulnerable, combat.invuln ?? 0.28);
-      this.game.effects.recipeIceNova(player.position, theme, radius);
+      this.game.effects.recipeIceNova(center, theme, radius);
+      this.#apexAudioPhase(player, castState.apexAudio, 'impact');
       // Rank 3+: deepen chill on already-slowed targets (B5).
       for (const enemy of this.game.enemies.enemies) {
         if (!enemy.alive) continue;
-        if (enemy.position.distanceTo(player.position) > radius + enemy.radius) continue;
+        if (enemy.position.distanceTo(center) > radius + enemy.radius) continue;
         if (rank >= 3 && enemy.statuses?.slow?.remaining > 0) {
           enemy.applyStatus?.('slow', {
             duration: combat.deepChillDuration ?? 1.55,
@@ -471,8 +971,15 @@ export class CombatSystem {
           }, this.game);
         }
       }
+      const frostCastId = `frost-${++this.spellCastSerial}`;
+      const executionCrystals = new Set(combat.crystalExecuteMult
+        ? this.game.enemies.enemies.filter(enemy => enemy.alive
+          && (enemy.elite || enemy.boss)
+          && enemy.spellPrime?.id === 'crystal')
+        : []);
+      if (combat.lances) this.game.effects.recipeCrystalDominion?.(center, theme, radius, Math.min(6, combat.lances), Boolean(combat.dominion));
       this.#hitEnemiesInRadius(
-        player.position,
+        center,
         radius,
         skillDamage(player.attackPower, combat),
         {
@@ -481,34 +988,178 @@ export class CombatSystem {
           criticalBonus: combat.criticalBonus ?? 0.04,
           skill: true,
           status: combat.status ?? null,
+          onHit: enemy => {
+            const reacted = this.#reactSpellPrime(enemy, 'frost', player, skillDamage(player.attackPower, combat), { castId: frostCastId });
+            const executes = !reacted && executionCrystals.has(enemy)
+              && enemy.consumeSpellPrime?.('crystal');
+            if (executes) {
+              executionCrystals.delete(enemy);
+              this.game.effects.recipeSpellReaction?.(enemy.position, 'crystal_execution', castFacing);
+              this.#damageEnemy(enemy, skillDamage(player.attackPower, combat) * combat.crystalExecuteMult, {
+                direction: enemy.position.clone().sub(center).setY(0).normalize(),
+                knockback: .8, armorPierce: .35, multiHit: true, skill: true,
+                sameCastHit: { key: `${frostCastId}:crystal-execution`, maxHits: 1 },
+              });
+            } else if (!reacted) {
+              if (combat.crystalPrime) enemy.setSpellPrime?.('crystal', { depth: 0, remaining: 4 });
+              else if (rank >= 3 && enemy.statuses?.slow?.remaining > 0) enemy.setSpellPrime?.('deep_chill', { depth: 0, remaining: 3 });
+            }
+          },
         },
       );
+      if (combat.lances) this.#delay(.18, () => {
+        if (!this.#isWizardGenerationCurrent(player, castState)) return;
+        const lanceHits = new Map();
+        for (let lance = 0; lance < Math.min(6, combat.lances); lance += 1) {
+          const angle = lance / 6 * Math.PI * 2;
+          const lanceDir = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
+          for (const enemy of this.game.enemies.enemies) {
+            if (!enemy.alive || (lanceHits.get(enemy.id) ?? 0) >= Math.min(2, combat.lancePerEnemyCap ?? 2)) continue;
+            const offset = enemy.position.clone().sub(center).setY(0);
+            const along = offset.dot(lanceDir);
+            const lateral = offset.addScaledVector(lanceDir, -along).length();
+            if (along < 0 || along > radius + 2.4 || lateral > .62 + enemy.radius) continue;
+            lanceHits.set(enemy.id, (lanceHits.get(enemy.id) ?? 0) + 1);
+            this.#damageEnemy(enemy, skillDamage(player.attackPower, combat) * (combat.lanceMult ?? 0), {
+              direction: lanceDir, knockback: 1, multiHit: true, skill: true,
+            });
+          }
+        }
+      });
+      if (combat.freezeChainCap) {
+        const targets = this.game.enemies.enemies.filter(enemy => enemy.alive && enemy.position.distanceTo(center) <= radius + enemy.radius)
+          .slice(0, Math.min(3, combat.freezeChainCap));
+        for (const enemy of targets) {
+          if (enemy.controlCategory === 'normal') enemy.applyStun?.(.65);
+          else enemy.addStagger?.(enemy.controlCategory === 'boss' ? 22 : 16);
+        }
+      }
+      if (combat.dominion) this.#delay(.42, () => {
+        if (!player.alive || !this.#isWizardCastCurrent(player, castState)) {
+          this.#endWizardCast(player, castState);
+          return;
+        }
+        const facing = castFacing;
+        for (const enemy of this.game.enemies.enemies) {
+          if (!enemy.alive) continue;
+          const offset = enemy.position.clone().sub(center).setY(0);
+          const along = offset.dot(facing);
+          const lateral = offset.addScaledVector(facing, -along).length();
+          if (along < -1 || along > radius || lateral > 1.05 + enemy.radius) continue;
+          const inwardRaw=skillDamage(player.attackPower,combat)*combat.inwardMult;const inwardResult=this.#damageEnemy(enemy, inwardRaw, {
+            direction: facing.clone().negate(), knockback: 1.4, multiHit: true, skill: true,
+          });
+          if(inwardResult.amount>0)this.#applyApexKeystone(player,enemy,{bundle,theme,rawDamage:inwardRaw,castKey:frostCastId,budget:castState.apexBudget,overcast:castState.overcast});
+        }
+        this.#apexAudioPhase(player, castState.apexAudio, 'finisher');
+        this.#endWizardCast(player, castState);
+      });
       for (let i = 0; i < 3; i += 1) {
         this.#delay(0.1 + i * 0.08, () => {
           if (!player.alive) return;
-          this.game.effects.ring(player.position, theme.secondary, radius * (0.5 + i * 0.16), {
+          this.game.effects.ring(center, theme.secondary, radius * (0.5 + i * 0.16), {
             life: 0.28, startScale: 0.35, height: 0.06, opacity: 0.5,
           });
         });
       }
+      if (!combat.dominion) this.#endWizardCast(player, castState);
     };
     if (phase != null && phase !== 'full') fire();
     else fire();
   }
 
-  #arcaneBlink(player, rank) {
-    const { combat, theme } = this.#skillBundle('arcane_blink', rank);
+  #arcaneBlink(player, bundle, apexAudio = null) {
+    const castState = this.#beginWizardCast(player, bundle.id, bundle);
+    castState.apexAudio = apexAudio;
+    const blinkCastId = `blink-${castState.generation}-${++this.spellCastSerial}`;
+    const { combat, theme } = this.#skillBundle(bundle);
     const target = this.#aimAlongFacing(player, combat.leap ?? 11);
     const from = player.position.clone();
     const radius = combat.radius;
     this.#telegraphCircle(target, radius, combat.telegraph ?? 0.42, theme.primary, () => {
-      if (!player.alive) return;
+      if (!player.alive || !this.#isWizardCastCurrent(player, castState)) {
+        this.#endWizardCast(player, castState);
+        return;
+      }
       player.position.copy(target);
       this.game.world.resolvePosition(player.position, 0.48);
+      const to = player.position.clone();
       player.invulnerable = Math.max(player.invulnerable, combat.invuln ?? 0.55);
-      this.game.effects.recipeBlinkBurst(from, target, theme, radius);
+      this.game.effects.recipeBlinkBurst(from, to, theme, radius);
+      this.#apexAudioPhase(player, castState.apexAudio, 'impact');
+      if (combat.routeMult) {
+        const route = to.clone().sub(from).setY(0);
+        const length = Math.max(0.001, route.length());
+        const routeDir = route.normalize();
+        let anchors = 0;
+        const anchored = [];
+        this.game.effects.recipeSpaceSeam?.(from, to, theme, Boolean(combat.spaceRend));
+        const crossed = [];
+        for (const enemy of this.game.enemies.enemies) {
+          if (!enemy.alive) continue;
+          const offset = enemy.position.clone().sub(from).setY(0);
+          const along = clamp(offset.dot(routeDir), 0, length);
+          if (offset.addScaledVector(routeDir, -along).length() > 1.2 + enemy.radius) continue;
+          crossed.push({ enemy, along });
+        }
+        crossed.sort((a, b) => a.along - b.along);
+        this.#delay(.12, () => {
+          if (!this.#isWizardGenerationCurrent(player, castState)) return;
+          for (const { enemy } of crossed) {
+            this.#damageEnemy(enemy, skillDamage(player.attackPower, combat) * combat.routeMult, {
+              direction: routeDir, knockback: 0.5, multiHit: true, skill: true,
+              onHit: landed => {
+                if (!this.#reactSpellPrime(landed, 'arcane', player, skillDamage(player.attackPower, combat), { castId: blinkCastId })
+                  && anchors < Math.min(6, combat.anchors ?? 0)) {
+                  landed.setSpellPrime?.('rift_anchor', { depth: 0, order: anchors, remaining: 4 });
+                  anchored.push(landed); anchors += 1;
+                }
+              },
+            });
+          }
+          anchored.forEach((enemy, order) => this.#delay(.14 + order * .07, () => {
+            if (!enemy.alive || !this.#isWizardGenerationCurrent(player, castState)) return;
+            this.#damageEnemy(enemy, skillDamage(player.attackPower, combat) * (combat.anchorMult ?? 0), {
+              direction: routeDir, knockback: 0.4,
+              armorPierce: combat.anchorArmorPierce && (enemy.elite || enemy.boss) ? combat.anchorArmorPierce : .3,
+              multiHit: true, skill: true,
+            });
+          }));
+        });
+        const echoes = Math.min(2, Math.max(1, combat.routeEchoes ?? 1));
+        if (echoes > 1) this.#delay(.26, () => {
+          if (!this.#isWizardGenerationCurrent(player, castState)) return;
+          for (const { enemy } of crossed) this.#damageEnemy(enemy, skillDamage(player.attackPower, combat) * combat.routeMult * .65, {
+            direction: routeDir, knockback: .3, multiHit: true, skill: true,
+          });
+        });
+        if (combat.spaceRend) this.#delay(.42, () => {
+          if (!this.#isWizardGenerationCurrent(player, castState)) return;
+          let apexTarget=null;for (const { enemy } of crossed){const seamRaw=skillDamage(player.attackPower,combat)*combat.seamMult;const seamResult=this.#damageEnemy(enemy, seamRaw, {
+            direction: routeDir, knockback: .6, armorPierce: .4, multiHit: true, skill: true,
+          });if(seamResult.amount>0&&!apexTarget)apexTarget=enemy;}
+          if(apexTarget)this.#applyApexKeystone(player,apexTarget,{bundle,theme,rawDamage:skillDamage(player.attackPower,combat)*combat.seamMult,castKey:blinkCastId,budget:castState.apexBudget,overcast:castState.overcast});
+          this.#apexAudioPhase(player, castState.apexAudio, 'finisher');
+        });
+      }
+      if (combat.lanceMult) {
+        for (const enemy of this.game.enemies.enemies) {
+          const offset = enemy.position.clone().sub(to).setY(0);
+          const along = offset.dot(this.#facingDir(player));
+          if (enemy.alive && along >= 0 && along <= radius + 3 && offset.length() <= radius + 3) this.#damageEnemy(enemy,
+            skillDamage(player.attackPower, combat) * combat.lanceMult, { direction: this.#facingDir(player), knockback: 2, armorPierce: .4, skill: true });
+        }
+      }
+      if (combat.horizonMult) {
+        const midpoint = from.clone().add(to).multiplyScalar(.5);
+        this.#delay(.22, () => {
+          if (!this.#isWizardGenerationCurrent(player, castState)) return;
+          this.#hitEnemiesInRadius(midpoint, radius * .75,
+            skillDamage(player.attackPower, combat) * combat.horizonMult, { knockback: 1.5, multiHit: true, skill: true });
+        });
+      }
       this.#hitEnemiesInRadius(
-        target,
+        to,
         radius,
         skillDamage(player.attackPower, combat),
         {
@@ -518,31 +1169,78 @@ export class CombatSystem {
           skill: true,
         },
       );
+      this.#endWizardCast(player, castState);
     }, { fillOpacity: 0.14 });
   }
 
-  #meteorStorm(player, rank) {
-    const { combat, theme } = this.#skillBundle('meteor_storm', rank);
+  #meteorStorm(player, bundle, apexAudio = null) {
+    const castState = this.#beginWizardCast(player, bundle.id, bundle);
+    castState.apexAudio = apexAudio;
+    const { combat, theme } = this.#skillBundle(bundle);
     const facing = this.#facingDir(player);
     const center = this.#aimAlongFacing(player, combat.aim ?? 10);
-    const hits = Math.round(combat.hits ?? 6);
+    if (combat.worldEnder) {
+      const durable = this.game.enemies.enemies.filter(enemy => enemy.alive && (enemy.elite || enemy.boss))
+        .sort((a, b) => a.position.distanceToSquared(center) - b.position.distanceToSquared(center))[0];
+      if (durable) center.copy(durable.position);
+    }
+    const hits = Math.min(10, Math.max(1, Math.round(combat.hits ?? 6), Math.round(combat.impactsCap ?? 0)));
     const fallHeight = combat.fallHeight ?? 8.5;
+    let gravityReactions = 0;
+    const reservedRifts = new Set();
+    castState.impactsResolved = 0;
+    castState.authoritiesExpected = hits * (combat.fractures ? 2 : 1);
+    const meteorCastId = `meteor-${castState.generation}-${++this.spellCastSerial}`;
+    const orbitTargets = combat.orbitTargets
+      ? this.game.enemies.enemies.filter(enemy => enemy.alive)
+        .sort((a, b) => a.position.distanceToSquared(center) - b.position.distanceToSquared(center))
+        .slice(0, Math.min(6, combat.orbitTargets)) : [];
     // Fall-cone pattern along facing (distinct from star radial blades)
     for (let i = 0; i < hits; i += 1) {
       const row = Math.floor(i / 3);
       const col = i % 3;
-      const lateral = (col - 1) * (1.8 + row * 0.35) + rand(-0.35, 0.35);
-      const forward = 0.6 + row * 2.1 + (i * 0.15);
+      const lateral = (col - 1) * (1.8 + row * 0.35);
+      const forward = 0.6 + row * 2.1 + i * 0.15 + (combat.pattern === 'movingRain' ? row * .7 : 0);
       const side = new THREE.Vector3(-facing.z, 0, facing.x);
       const point = center.clone()
         .addScaledVector(facing, forward - 2.2)
         .addScaledVector(side, lateral);
+      if (orbitTargets.length) {
+        const targetEnemy = orbitTargets[i % orbitTargets.length];
+        const spiralAngle = i * 1.37;
+        point.copy(targetEnemy.position).add(new THREE.Vector3(Math.cos(spiralAngle) * .55, 0, Math.sin(spiralAngle) * .55));
+      }
       point.y = this.game.world.heightAt(point.x, point.z);
       this.#delay(0.08 + i * 0.11, () => {
-        this.#telegraphCircle(point, combat.hitRadius * 0.95, combat.telegraph ?? 0.26, theme.primary, () => {
-          this.game.effects.recipeMeteorDrop(point, theme, fallHeight);
+        if (!this.#isWizardGenerationCurrent(player, castState)) return;
+        const impactPoint = point.clone();
+        let riftTarget = null;
+        if (gravityReactions < Math.min(3, combat.gravityReactionCap ?? 3)) {
+          riftTarget = this.game.enemies.enemies.filter(enemy => enemy.alive
+            && enemy.spellPrime?.id === 'rift_anchor' && !reservedRifts.has(enemy)
+            && enemy.position.distanceTo(impactPoint) <= combat.hitRadius + enemy.radius + 1.25)
+            .sort((a, b) => a.position.distanceToSquared(impactPoint) - b.position.distanceToSquared(impactPoint))[0] ?? null;
+          if (riftTarget) {
+            reservedRifts.add(riftTarget);
+            const shift = riftTarget.position.clone().sub(impactPoint).setY(0);
+            if (shift.lengthSq() > 1.25 * 1.25) shift.setLength(1.25);
+            impactPoint.add(shift);
+            impactPoint.y = this.game.world.heightAt(impactPoint.x, impactPoint.z);
+          }
+        }
+        if (combat.gravityLens) {
+          const fallStart = impactPoint.clone().add(new THREE.Vector3(0, fallHeight, 0));
+          this.game.effects.recipeGravityLens?.(fallStart, impactPoint, theme, i, hits, Boolean(combat.astralCataclysm));
+        }
+        this.#telegraphCircle(impactPoint, combat.hitRadius * 0.95, combat.telegraph ?? 0.26, theme.primary, () => {
+          if (!this.#isWizardGenerationCurrent(player, castState)) return;
+          this.#apexAudioPhase(player, castState.apexAudio, 'impact');
+          this.game.effects.recipeMeteorDrop(impactPoint, theme, fallHeight);
+          if (combat.fractures && (this.#quality() === 'high' || i % 2 === 0)) {
+            this.game.effects.recipeGroundFracture?.(impactPoint, facing, theme, combat.hitRadius * 1.15);
+          }
           this.#hitEnemiesInRadius(
-            point,
+            impactPoint,
             combat.hitRadius,
             skillDamage(player.attackPower, combat),
             {
@@ -551,13 +1249,39 @@ export class CombatSystem {
               armorPierce: combat.armorPierce ?? 0.18,
               skill: true,
               status: combat.status ?? null,
+              onHit: enemy => {
+                if (enemy === riftTarget && gravityReactions < Math.min(3, combat.gravityReactionCap ?? 3)
+                  && enemy.consumeSpellPrime?.('rift_anchor')) {
+                  gravityReactions += 1;
+                  this.game.effects.recipeSpellReaction?.(enemy.position, 'rift_impact', facing);
+                }
+              },
             },
           );
+          if (riftTarget?.spellPrime?.id === 'rift_anchor') reservedRifts.delete(riftTarget);
+          castState.impactsResolved += 1;
+          if (combat.fractures) this.#delay(.16, () => {
+            if (!this.#isWizardGenerationCurrent(player, castState)) return;
+            this.#hitEnemiesInRadius(impactPoint, combat.hitRadius * .72, skillDamage(player.attackPower, combat) * .16, {
+              knockback: .4, multiHit: true, skill: true,
+              sameCastHit: { key: `${meteorCastId}:fracture-${i}`, maxHits: 1 },
+            });
+            castState.impactsResolved += 1;
+          });
         }, { fillOpacity: 0.13 });
       });
     }
-    this.#delay(0.2 + hits * 0.11, () => {
+    const resolveFinale = () => {
+      if (!this.#isWizardCastCurrent(player, castState)) {
+        this.#endWizardCast(player, castState);
+        return;
+      }
+      if (castState.impactsResolved < castState.authoritiesExpected) {
+        this.#delay(.035, resolveFinale);
+        return;
+      }
       this.game.effects.recipeMeteorFinale(center, theme, combat.finaleRadius ?? 5.6);
+      this.#apexAudioPhase(player, castState.apexAudio, 'finisher');
       this.#hitEnemiesInRadius(
         center,
         combat.finaleRadius ?? 5.6,
@@ -568,9 +1292,20 @@ export class CombatSystem {
           armorPierce: combat.finaleArmorPierce ?? 0.3,
           skill: true,
           status: combat.status ?? null,
+          sameCastHit: { key: `${meteorCastId}:finale`, maxHits: 1 },
+          onHit:enemy=>this.#applyApexKeystone(player,enemy,{bundle,theme,rawDamage:skillDamage(player.attackPower,combat,'finaleMult'),castKey:meteorCastId,budget:castState.apexBudget,overcast:castState.overcast}),
         },
       );
-    });
+      if (combat.astralCataclysm) {
+        this.game.effects.recipeGroundFracture?.(center, facing, theme, combat.finaleRadius * 1.25);
+        this.#hitEnemiesInRadius(center, combat.finaleRadius * 1.15, skillDamage(player.attackPower, combat) * .35, {
+          knockback: 2, multiHit: true, armorPierce: .35, skill: true,
+          sameCastHit: { key: `${meteorCastId}:apex-fracture`, maxHits: 1 },
+        });
+      }
+      this.#endWizardCast(player, castState);
+    };
+    this.#delay(0.2 + hits * 0.11, resolveFinale);
   }
 
   /** Dispatch a class energy burst from a full Focus/Rage gauge. Returns presentation hints for Player. */
@@ -583,16 +1318,19 @@ export class CombatSystem {
   #daggerRushBurst(player, def) {
     const hits = player.energyComboHits;
     const theme = getFxTheme('venom');
-    const interval = def.comboInterval ?? .085;
+    const interval = (def.comboInterval ?? .085) * player.frenzyTimingScale;
     const range = def.comboRange ?? 3.1;
     for (let i = 0; i < hits; i += 1) {
       const finale = i === hits - 1;
       this.#delay(.04 + i * interval, () => {
         if (!player.alive) return;
         const direction = this.#facingDir(player);
+        const hand = i % 2;
         // Micro-lunge per strike keeps the rush surging into the pack.
         player.velocity.addScaledVector(direction, finale ? 2.4 : 1.2);
-        this.game.effects.recipeFangRush(player.position, direction, theme, range * (finale ? 1.3 : 1), i, finale);
+        const origin = this.#handContactOrigin(player, hand === 1, direction, .14);
+        this.game.effects.recipeFangRush(origin, direction, theme, range * (finale ? 1.3 : 1), i, finale);
+        this.game.effects.recipeShadowCuts?.(origin, direction, hand ? theme.secondary : theme.primary, range);
         if (finale) {
           this.game.effects.ring(player.position, theme.core, 3.8, { life: .4, startScale: .15, height: .12, opacity: .8 });
           this.game.effects.pillar(player.position.clone().addScaledVector(direction, 1.1), theme.primary, 4.6, { life: .34, bottom: .6, opacity: .45 });
@@ -602,7 +1340,6 @@ export class CombatSystem {
           );
           this.game.effects.dust(player.position, theme.dust, 16, .44);
         }
-        const origin = player.position.clone().addScaledVector(direction, .35);
         this.#hitEnemiesInCone(origin, direction, range * (finale ? 1.3 : 1), (def.comboArc ?? 1.5) * (finale ? 1.35 : 1),
           player.attackPower * (def.comboMult ?? .62) * (finale ? 1.6 : 1), {
             knockback: finale ? 5.5 : 1.4,
@@ -610,7 +1347,13 @@ export class CombatSystem {
             multiHit: true,
             finisher: finale,
             energyCombo: true,
+            onHit: enemy => this.#applyFrenzyContact(player, enemy, player.attackPower * (def.comboMult ?? .62), direction),
           });
+        if (finale) {
+          const main = this.#handContactOrigin(player, false, direction, .1);
+          const off = this.#handContactOrigin(player, true, direction, .1);
+          this.game.effects.recipeDualBladeCross?.(main.add(off).multiplyScalar(.5), direction, theme.primary, theme.secondary, range * 1.35);
+        }
         this.game.audio.swing(Math.min(3, i % 4));
       });
     }
@@ -693,42 +1436,142 @@ export class CombatSystem {
     };
   }
 
-  #piercingShot(player, rank, phase = null) {
+  #piercingShot(player, bundle, phase = null, apexAudio = null) {
     const fire = () => {
       if (!player.alive) return;
-      const { combat, theme } = this.#skillBundle('piercing_shot', rank);
+      const { combat, theme } = this.#skillBundle(bundle);
       const direction = this.#facingDir(player);
-      this.game.effects.recipeArrowStreak?.(player.position, direction, theme);
+      const side = new THREE.Vector3(-direction.z, 0, direction.x);
+      const points = [];
+      let splinters = 0;
+      let split = false;
+      const apexBudget={targets:new Map(),casts:new Set()};
+      const generations=this.rangerGeneration.get(player)??{};const generation=(generations.pierce??0)+1;generations.pierce=generation;this.rangerGeneration.set(player,generations);
+      const current=()=>player.alive&&player.classId==='ranger'&&this.rangerGeneration.get(player)?.pierce===generation;
+      const castId = `ranger-q-${++this.rangerSerial}`;
+      this.game.effects.recipeArrowStreak?.(player.position, direction, theme, Boolean(combat.railArrow));
       const start = player.position.clone().add(new THREE.Vector3(0, 1.2, 0)).addScaledVector(direction, 1.0);
       this.#spawnFriendlyOrb(start, direction, {
         style: 'heavy_arrow',
         color: theme.primary,
-        damage: skillDamage(player.attackPower, combat),
-        speed: combat.speed ?? 18,
-        radius: combat.radius ?? 0.95,
+        damage: skillDamage(player.attackPower, combat) * (combat.damageMult ?? 1),
+        speed: (combat.speed ?? 18) * (combat.speedMult ?? 1),
+        radius: (combat.radius ?? 0.95) * (combat.radiusMult ?? 1),
         life: combat.life ?? 1.15,
-        pierce: Math.max(1, Math.round(combat.pierce ?? 3)),
+        pierce: Math.max(1, Math.round((combat.pierce ?? 3) + (combat.crowdPierce ?? 0))),
         knockback: combat.knockback ?? 3.2,
         skill: true,
         scale: combat.scale ?? 1.1,
         armorPierce: combat.armorPierce ?? 0.18,
         statusOnHit: combat.status ?? null,
+        castId,
+        ownerGuard:current,
+        onHit: enemy => {
+          this.#apexAudioPhase(player,apexAudio,'impact');
+          if (points.length < Math.min(6, combat.storedPierceCap ?? 6)) points.push(enemy.position.clone());
+          if (combat.fishbone && splinters < Math.min(12, combat.splinterCap ?? 12)) {
+            for (const sign of [-1, 1]) {
+              if (splinters >= 12) break;
+              const splinterDir = side.clone().multiplyScalar(sign);
+              this.#spawnFriendlyOrb(enemy.position.clone().add(new THREE.Vector3(0, .8, 0)).addScaledVector(splinterDir, enemy.radius + .7), splinterDir, {
+                style: 'arrow', color: theme.secondary, damage: skillDamage(player.attackPower, combat) * combat.splinterMult,
+                speed: 13, radius: .45, life: .34, pierce: 1, skill: true, reactionDepth: 1, castId,
+              });
+              splinters += 1;
+            }
+          }
+          if (combat.splitArrow && !split) {
+            split = true;
+            for (const angle of [-.18, .18]) {
+              const dir = direction.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), angle);
+              this.#spawnFriendlyOrb(enemy.position.clone().add(new THREE.Vector3(0, .8, 0)).addScaledVector(dir, enemy.radius + .7), dir, {
+                style: 'arrow', color: theme.accent, damage: skillDamage(player.attackPower, combat) * combat.splitMult,
+                speed: 16, radius: .5, life: .55, pierce: 1, skill: true, reactionDepth: 1, castId,
+              });
+            }
+          }
+          if (combat.dragonPiercer && (enemy.elite || enemy.boss)) enemy.addStagger?.(combat.bossStagger ?? 24);
+        },
+        onRetire: projectile => {
+          if (projectile.suppressRetireAuthority || this._clearing || !current()) return;
+          this.#apexAudioPhase(player,apexAudio,'finisher');
+          if (combat.backwardRelease && points.length) {
+            const corridor = points.slice(0, 6);
+            this.game.effects.recipeRangerBackwardCorridor?.(corridor, direction, theme);
+            for (const enemy of this.game.enemies.enemies) {
+              if (!enemy.alive) continue;
+              const crossed = corridor.some(point => {
+                const offset = enemy.position.clone().sub(point).setY(0);
+                const along = offset.dot(direction.clone().negate());
+                return along >= 0 && along <= 4.5 && offset.addScaledVector(direction, along).length() <= .7 + enemy.radius;
+              });
+              if (crossed) this.#damageEnemy(enemy, skillDamage(player.attackPower, combat) * combat.backwardMult, {
+                multiHit: true, skill: true, sameCastHit: { key: `${castId}:backward:${enemy.id}`, maxHits: 1 },
+              });
+            }
+          }
+          if (combat.horizonBreaker) {
+            const ruptureHits = new Map();
+            points.slice(0, Math.min(6, combat.ruptureCap ?? 6)).forEach((point, index) => this.#delay(.08 + index * .05, () => {
+            if(!current())return;
+            this.game.effects.recipeRangerRupture?.(point, direction, theme);
+            for (const enemy of this.game.enemies.enemies) {
+              if (!enemy.alive || (ruptureHits.get(enemy.id) ?? 0) >= Math.min(2, combat.rupturePerEnemyCap ?? 2)
+                || enemy.position.distanceTo(point) > 1.25 + enemy.radius) continue;
+              const result = this.#damageEnemy(enemy, skillDamage(player.attackPower, combat) * combat.ruptureMult, {
+                multiHit: true, skill: true, sameCastHit: { key: `${castId}:rupture:${enemy.id}`, maxHits: 1 },
+              });
+              if(result.amount>0)this.#applyApexKeystone(player,enemy,{bundle,theme,rawDamage:skillDamage(player.attackPower,combat)*combat.ruptureMult,castKey:castId,budget:apexBudget});
+              if (result.amount > 0) ruptureHits.set(enemy.id, (ruptureHits.get(enemy.id) ?? 0) + 1);
+            }
+          }));
+          }
+        },
       });
     };
     if (phase != null && phase !== 'full') fire();
     else fire();
   }
 
-  #caltropTrap(player, rank) {
-    const { combat, theme } = this.#skillBundle('caltrop_trap', rank);
-    const center = this.#aimAlongFacing(player, combat.aim ?? 7.5);
-    const radius = combat.radius ?? 3.2;
+  #caltropTrap(player, bundle, apexAudio = null) {
+    const { combat, theme } = this.#skillBundle(bundle);
+    if (!combat.seedLanded) {
+      const direction = this.#facingDir(player);
+      const distance = combat.aim ?? 7.5;
+      const start = player.position.clone().add(new THREE.Vector3(0, 1, 0));
+      this.#spawnFriendlyOrb(start, direction, {
+        style: 'arrow', color: theme.primary, damage: skillDamage(player.attackPower, combat) * .35,
+        speed: 15, radius: .4, life: distance / 15, pierce: 1, skill: true,
+        onRetire: projectile => {
+          if (projectile.suppressRetireAuthority || this._clearing || !player.alive || player.classId !== 'ranger') return;
+          const impactCenter = projectile.mesh.position.clone(); impactCenter.y = this.game.world.heightAt(impactCenter.x, impactCenter.z);
+          this.#caltropTrap(player, { ...bundle, combat: { ...combat, seedLanded: 1, impactCenter, seedFacing: direction } }, apexAudio);
+        },
+      });
+      return;
+    }
+    const center = combat.impactCenter.clone();
+    const castFacing = combat.seedFacing.clone();
+    const radius = (combat.radius ?? 3.2) * (combat.radiusMult ?? 1);
     const ticks = Math.max(1, Math.round(combat.ticks ?? 5));
     const interval = combat.tickInterval ?? 0.55;
+    const generation = (this.rangerGeneration.get(player)?.thorn ?? 0) + 1;
+    const apexBudget={targets:new Map(),casts:new Set()};
+    const generations = this.rangerGeneration.get(player) ?? {};
+    generations.thorn = generation; this.rangerGeneration.set(player, generations);
+    player.thornField = { generation, remaining: .08 + ticks * interval + .2, contacts: 0, planted: 0 };
+    const current = () => player.alive && player.classId === 'ranger' && player.thornField?.generation === generation;
     this.game.effects.recipeTrapField?.(center, theme, radius);
+    this.#apexAudioPhase(player,apexAudio,'impact');
+    this.#hitEnemiesInRadius(center, 1.1, skillDamage(player.attackPower, combat) * (combat.seedMult ?? 1), {
+      multiHit: true, skill: true, sameCastHit: { key: `thorn-${generation}:seed-impact`, maxHits: 1 },
+    });
+    if (combat.openClose) this.#delay(.05, () => current() && this.#hitEnemiesInRadius(center, radius,
+      skillDamage(player.attackPower, combat) * combat.burstMult, { multiHit: true, skill: true,
+        sameCastHit: { key: `thorn-${generation}:open`, maxHits: 1 } }));
     for (let i = 0; i < ticks; i += 1) {
       this.#delay(0.08 + i * interval, () => {
-        if (!player.alive) return;
+        if (!current()) return;
         this.game.effects.ring(center, i % 2 ? theme.secondary : theme.primary, radius * (0.55 + i * 0.08), {
           life: 0.32, startScale: 0.3, height: 0.06, opacity: 0.55,
         });
@@ -737,32 +1580,134 @@ export class CombatSystem {
           multiHit: true,
           skill: true,
           status: combat.status ?? null,
+          sameCastHit: { key: `thorn-${generation}:tick-${i}`, maxHits: 1 },
+          onHit: enemy => {
+            player.thornField.contacts += 1;
+            if (combat.snareBloom && enemy.controlCategory === 'normal'
+              && (player.thornField.snares ?? 0) < Math.min(4, combat.snareCap ?? 4)) {
+              player.thornField.snares = (player.thornField.snares ?? 0) + 1;
+              enemy.pullToward?.(center, 0, .45, this.game.world, this.game.enemies.enemies);
+            }
+            const fieldTime = i * interval;
+            if (combat.mineGarden && (enemy.elite || enemy.boss)
+              && fieldTime >= (player.thornField.mineReadyAt ?? 0)
+              && (player.thornField.mines ?? 0) < Math.min(3, combat.mineCap ?? 3)) {
+              player.thornField.mines = (player.thornField.mines ?? 0) + 1;
+              player.thornField.mineReadyAt = fieldTime + (combat.mineCooldown ?? .55);
+              this.#damageEnemy(enemy, skillDamage(player.attackPower, combat) * combat.mineMult, {
+                multiHit: true, skill: true, sameCastHit: { key: `thorn-${generation}:mine-${player.thornField.mines}`, maxHits: 1 },
+              });
+            }
+            if (combat.plantedEvery && player.thornField.contacts % combat.plantedEvery === 0
+              && player.thornField.planted < Math.min(4, combat.plantedCap ?? 4)) {
+              player.thornField.planted += 1;
+              const dir = castFacing;
+              this.#spawnFriendlyOrb(center.clone().add(new THREE.Vector3(0, .6, 0)), dir, {
+                style: 'arrow', color: theme.secondary, damage: skillDamage(player.attackPower, combat) * combat.plantedMult,
+                speed: 15, radius: .45, life: .5, pierce: 2, skill: true, reactionDepth: 1,
+              });
+            }
+          },
         });
+        if (combat.lineCount) {
+          const side = new THREE.Vector3(-castFacing.z, 0, castFacing.x);
+          const lineHits = new Map();
+          for (let line = 0; line < Math.min(5, combat.lineCount); line += 1) {
+            const lineCenter = center.clone().addScaledVector(side, (line - (combat.lineCount - 1) / 2) * 1.05);
+            for (const enemy of this.game.enemies.enemies) {
+              if (!enemy.alive || (lineHits.get(enemy.id) ?? 0) >= 2) continue;
+              const offset = enemy.position.clone().sub(lineCenter).setY(0);
+              if (Math.abs(offset.dot(side)) > .42 + enemy.radius || Math.abs(offset.dot(castFacing)) > radius) continue;
+              const result = this.#damageEnemy(enemy, skillDamage(player.attackPower, combat) * .32, {
+                multiHit: true, skill: true, sameCastHit: { key: `thorn-${generation}:line-${i}-${line}:${enemy.id}`, maxHits: 1 },
+              });
+              if (result.amount > 0) lineHits.set(enemy.id, (lineHits.get(enemy.id) ?? 0) + 1);
+            }
+          }
+        }
       });
     }
+    this.#delay(.1 + ticks * interval, () => {
+      if (!current()) return;
+      if (combat.openClose) this.#hitEnemiesInRadius(center, radius, skillDamage(player.attackPower, combat) * combat.burstMult, {
+        multiHit: true, skill: true, sameCastHit: { key: `thorn-${generation}:close`, maxHits: 1 },
+      });
+      if (combat.thornGrid) this.#delay(.08, () => {
+        if (!current()) return;
+        this.#apexAudioPhase(player,apexAudio,'finisher');
+        this.game.effects.recipeThornGrid?.(center, castFacing, theme, combat.gridLines ?? 0);
+        const side = new THREE.Vector3(-castFacing.z, 0, castFacing.x);
+        const axisHits = new Map();
+        for (const enemy of this.game.enemies.enemies) {
+          if (!enemy.alive) continue;
+          const offset = enemy.position.clone().sub(center).setY(0);
+          const row = Math.abs(offset.dot(side)) <= .55 && Math.abs(offset.dot(castFacing)) <= radius;
+          const column = Math.abs(offset.dot(castFacing)) <= .55 && Math.abs(offset.dot(side)) <= radius;
+          for (const [axis, hit] of [['row', row], ['column', column]]) if (hit && (axisHits.get(enemy.id) ?? 0) < 2) {
+            const result = this.#damageEnemy(enemy, skillDamage(player.attackPower, combat) * combat.finaleMult * .5, {
+              multiHit: true, skill: true, sameCastHit: { key: `thorn-${generation}:grid:${axis}:${enemy.id}`, maxHits: 1 },
+            });
+            if(result.amount>0)this.#applyApexKeystone(player,enemy,{bundle,theme,rawDamage:skillDamage(player.attackPower,combat)*combat.finaleMult*.5,castKey:`thorn-${generation}`,budget:apexBudget});
+            if (result.amount > 0) axisHits.set(enemy.id, (axisHits.get(enemy.id) ?? 0) + 1);
+          }
+        }
+        player.thornField = null;
+      }); else player.thornField = null;
+    });
   }
 
-  #vaultShot(player, rank) {
-    const { combat, theme } = this.#skillBundle('vault_shot', rank);
+  #vaultShot(player, bundle, apexAudio = null) {
+    const { combat, theme } = this.#skillBundle(bundle);
     const forward = this.#facingDir(player);
     const back = forward.clone().multiplyScalar(-1);
     const from = player.position.clone();
-    const dash = combat.dash ?? 3.6;
-    player.position.addScaledVector(back, dash);
-    this.game.world.resolvePosition(player.position, 0.48);
+    if (bundle.playerLevel < 20) {
+      player.position.addScaledVector(back, combat.dash ?? 3.6);
+      this.game.world.resolvePosition(player.position, .48);
+      player.invulnerable = Math.max(player.invulnerable, combat.invuln ?? .4);
+      this.game.effects.recipeVaultVolley?.(from, player.position, forward, theme);
+      const count = Math.min(12, Math.max(1, Math.round(combat.arrows ?? 4)));
+      const yaw0 = Math.atan2(forward.x, forward.z);
+      for (let i = 0; i < count; i += 1) {
+        const yaw = yaw0 + (i - (count - 1) / 2) * (combat.spread ?? .14);
+        const dir = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
+        this.#spawnFriendlyOrb(player.position.clone().add(new THREE.Vector3(0, 1.15, 0)), dir, {
+          style: 'arrow', color: theme.primary, damage: skillDamage(player.attackPower, combat), speed: combat.speed,
+          radius: combat.radius, life: combat.life, pierce: 1, skill: true, criticalBonus: combat.criticalBonus,
+        });
+      }
+      return;
+    }
+    const generations = this.rangerGeneration.get(player) ?? {};
+    const generation = (generations.vault ?? 0) + 1;
+    generations.vault = generation; this.rangerGeneration.set(player, generations);
+    const current = () => player.alive && player.classId === 'ranger' && this.rangerGeneration.get(player)?.vault === generation;
+    const dash = (combat.dash ?? 3.6) * (combat.dashMult ?? 1);
+    const landing = from.clone().addScaledVector(back, dash);
+    this.game.world.resolvePosition(landing, 0.48);
     player.invulnerable = Math.max(player.invulnerable, combat.invuln ?? 0.4);
-    this.game.effects.recipeVaultVolley?.(from, player.position, forward, theme);
-    const arrows = Math.max(1, Math.round(combat.arrows ?? 4));
+    this.game.effects.recipeVaultVolley?.(from, landing, forward, theme);
+    this.game.effects.recipeSkyHunterArc?.(from, landing, forward, theme, combat.volleyLayers ?? 1);
+    const arrows = Math.min(12, Math.max(1, Math.round(combat.arrows ?? 4)));
     const baseYaw = Math.atan2(forward.x, forward.z);
-    const spread = combat.spread ?? 0.14;
-    for (let i = 0; i < arrows; i += 1) {
-      const yaw = baseYaw + (i - (arrows - 1) / 2) * spread;
-      const dir = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
-      const start = player.position.clone().add(new THREE.Vector3(0, 1.15, 0)).addScaledVector(dir, 0.55);
+    const spread = (combat.spread ?? 0.14) * (combat.spreadMult ?? 1);
+    const usedRedirects = new Set();
+    const apexBudget={targets:new Map(),casts:new Set()};
+    const shootLayer = (origin, count, layer = 0, landingLayer = false) => { for (let i = 0; i < count; i += 1) {
+      const yaw = baseYaw + (i - (count - 1) / 2) * spread;
+      let dir = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
+      if (combat.redirect && usedRedirects.size < Math.min(combat.redirectCap ?? 6, 6)) {
+        const target = this.game.enemies.enemies.filter(enemy => enemy.alive && !usedRedirects.has(enemy.id))
+          .map(enemy => ({ enemy, offset: enemy.position.clone().sub(origin).setY(0) }))
+          .filter(entry => entry.offset.length() <= 12 && entry.offset.normalize().dot(dir) >= Math.cos(35 * Math.PI / 180))
+          .sort((a, b) => a.enemy.position.distanceToSquared(origin) - b.enemy.position.distanceToSquared(origin))[0]?.enemy;
+        if (target) { usedRedirects.add(target.id); dir = target.position.clone().sub(origin).setY(0).normalize(); }
+      }
+      const start = origin.clone().add(new THREE.Vector3(0, 1.15 + layer * .3, 0)).addScaledVector(dir, 0.55);
       this.#spawnFriendlyOrb(start, dir, {
         style: 'arrow',
         color: i % 2 ? theme.secondary : theme.primary,
-        damage: skillDamage(player.attackPower, combat),
+        damage: skillDamage(player.attackPower, combat) * (combat.damageMult ?? 1),
         speed: combat.speed ?? 16.5,
         radius: combat.radius ?? 0.88,
         life: combat.life ?? 0.85,
@@ -771,12 +1716,96 @@ export class CombatSystem {
         skill: true,
         scale: 0.95,
         criticalBonus: combat.criticalBonus ?? 0.06,
+        onHit: landingLayer ? enemy => {
+          const distance = enemy.position.distanceTo(landing);
+          if (combat.idealMin&&(enemy.elite || enemy.boss) && distance >= combat.idealMin && distance <= combat.idealMax) this.#damageEnemy(enemy,
+            skillDamage(player.attackPower, combat) * (combat.idealMult - 1), { multiHit: true, skill: true,
+              sameCastHit: { key: `vault-${generation}:ideal:${enemy.id}`, maxHits: 1 } });
+          if(combat.skyHunter)this.#applyApexKeystone(player,enemy,{bundle,theme,rawDamage:skillDamage(player.attackPower,combat)*(combat.damageMult??1),castKey:`vault-${generation}`,budget:apexBudget});
+        } : null,
       });
-    }
+    }};
+    const landingCount = combat.landingShot ? (combat.skyHunter ? Math.min(4, arrows) : 1) : 0;
+    const airCount = combat.airVolley ? Math.min(4, Math.max(0, arrows - landingCount - 1)) : 0;
+    const launchCount = Math.max(1, arrows - airCount - landingCount);
+    this.#delay(.05, () => {
+      if (!current()) return;
+      this.#apexAudioPhase(player,apexAudio,'impact');
+      if (combat.launchBlast) this.#hitEnemiesInRadius(from, 2.1, skillDamage(player.attackPower, combat) * .7, { multiHit: true, skill: true });
+      shootLayer(from, launchCount, 0);
+    });
+    this.#delay(.14, () => {
+      if (!current()) return;
+      player.position.copy(landing); // one authoritative movement
+      if (airCount) shootLayer(from.clone().add(landing).multiplyScalar(.5), airCount, 1);
+    });
+    this.#delay(.3, () => {
+      if (!current()) return;
+      if (landingCount) shootLayer(landing, landingCount, 2, true);
+      this.#apexAudioPhase(player,apexAudio,'finisher');
+    });
   }
 
-  #hunterMark(player, rank) {
-    const { combat, theme } = this.#skillBundle('hunter_mark', rank);
+  expirePredatorVerdict(player, generation) {
+    const verdict = player.predatorVerdict;
+    if (!verdict || verdict.generation !== generation) return false;
+    return this.#detonateVerdict(player, verdict);
+  }
+
+  #detonateVerdict(player, verdict) {
+    if (!verdict || player.predatorVerdict !== verdict) return false;
+    const capturedMarkedTarget=verdict.target;
+    player.predatorVerdict = null; // atomic before any derived authority
+    const enemy = verdict.target;
+    if (!enemy?.alive) return false;
+    const { combat, theme } = this.#skillBundle(verdict.bundle);
+    this.game.effects.recipePredatorConvergence?.(enemy.position, this.#facingDir(player), theme, Boolean(combat.apexVerdict));
+    const detonationScale = verdict.detonationScale ?? 1;
+    const raw = (skillDamage(player.attackPower, combat, 'detonateMult') + verdict.stored) * detonationScale;
+    this.#damageEnemy(enemy, raw, { multiHit: true, skill: true, armorPierce: combat.verdictPierce ? .5 : .25, verdictDerived: true,
+      sameCastHit: { key: `verdict-${verdict.generation}:primary`, maxHits: 1 } });
+    if (combat.bossStagger && enemy.boss) enemy.addStagger?.(combat.bossStagger);
+    for (const linked of verdict.linked ?? []) if (linked.target?.alive) this.#damageEnemy(linked.target,
+      (skillDamage(player.attackPower, combat, 'detonateMult') + linked.stored) * linked.detonationScale, {
+        multiHit: true, skill: true, verdictDerived: true,
+        sameCastHit: { key: `verdict-${verdict.generation}:transfer:${linked.target.id}`, maxHits: 1 },
+      });
+    if (combat.verdictPierce) {
+      const facing = this.#facingDir(player);
+      this.#hitEnemiesInCone(enemy.position.clone().addScaledVector(facing, -.25), facing, 6, .7,
+        raw * combat.verdictPierceMult, { multiHit: true, skill: true, verdictDerived: true,
+          sameCastHit: { key: `verdict-${verdict.generation}:pierce`, maxHits: 1 } });
+    }
+    const chains = Math.min(2, combat.verdictChains ?? 0);
+    if (chains) this.game.enemies.enemies.filter(other => other.alive && other !== enemy)
+      .sort((a, b) => a.position.distanceToSquared(enemy.position) - b.position.distanceToSquared(enemy.position))
+      .slice(0, chains).forEach((other, index) => this.#damageEnemy(other, raw * combat.chainMult, {
+        multiHit: true, skill: true, verdictDerived: true, sameCastHit: { key: `verdict-${verdict.generation}:chain-${index}`, maxHits: 1 },
+      }));
+    if (combat.transferMarks && (verdict.depth ?? 0) < 1) {
+      const transfers = this.game.enemies.enemies.filter(other => other.alive && other !== enemy)
+        .sort((a, b) => a.position.distanceToSquared(enemy.position) - b.position.distanceToSquared(enemy.position))
+        .slice(0, Math.min(2, combat.transferMarks));
+      if (transfers.length) {
+        for (const transfer of transfers) transfer.applyStatus?.('expose', { duration: 2.2, power: .12, damageAmp: .08 }, this.game);
+        const [primary, ...linked] = transfers.map(transfer => ({ target: transfer,
+          stored: Math.min(verdict.cap * combat.transferMult, verdict.stored * combat.transferMult),
+          detonationScale: combat.transferMult }));
+        player.predatorVerdict = { ...verdict, generation: ++this.rangerSerial, target: primary.target, remaining: 2.2,
+          stored: primary.stored, cap: verdict.cap * combat.transferMult, detonationScale: primary.detonationScale,
+          linked, depth: 1 };
+      }
+    }
+    if (combat.apexVerdict) this.#hitEnemiesInRadius(enemy.position, 2.4, raw * combat.convergenceMult, {
+      multiHit: true, skill: true, verdictDerived: true, sameCastHit: { key: `verdict-${verdict.generation}:convergence`, maxHits: 1 },
+    });
+    this.#applyApexKeystone(player,enemy,{bundle:verdict.bundle,theme,rawDamage:raw,castKey:`verdict-${verdict.generation}`,budget:{targets:new Map(),casts:new Set()},capturedMarkedTarget});
+    return true;
+  }
+
+  #hunterMark(player, bundle, apexAudio = null) {
+    const { combat, theme } = this.#skillBundle(bundle);
+    const rank = bundle.rank;
     const direction = this.#facingDir(player);
     const range = combat.range ?? 14;
     const cosThreshold = Math.cos((combat.arc ?? 1.4) * 0.5);
@@ -809,110 +1838,156 @@ export class CombatSystem {
       this.game.effects.recipeMarkGlyph?.(player.position.clone().addScaledVector(direction, 4), theme, 2.2);
       return;
     }
-    // Rank 3+: re-mark detonates existing expose (B5).
-    const alreadyMarked = rank >= 3 && best.statuses?.expose?.remaining > 0;
-    if (alreadyMarked && combat.detonateMult > 0) {
-      this.game.effects.recipeMarkGlyph?.(best.position, theme, 3.4);
-      this.game.effects.burst?.(best.position.clone().add(new THREE.Vector3(0, 1.2, 0)), theme.core, 22, {
-        speed: 5.5, size: 0.3, life: 0.5, upward: 0.5,
-      });
-      this.#damageEnemy(best, skillDamage(player.attackPower, combat, 'detonateMult'), {
-        direction: TMP_B.copy(best.position).sub(player.position).setY(0).normalize(),
-        knockback: (combat.knockback ?? 2) + 2.5,
-        criticalBonus: (combat.criticalBonus ?? 0.08) + 0.1,
-        skill: true,
-        multiHit: true,
-      });
-      // Clear mark so it must be reapplied.
-      if (best.statuses?.expose) delete best.statuses.expose;
+    if (player.predatorVerdict) {
+      this.#apexAudioPhase(player,apexAudio,'impact');
+      this.#detonateVerdict(player, player.predatorVerdict);
+      this.#apexAudioPhase(player,apexAudio,'finisher');
+      return;
     }
     this.game.effects.recipeMarkGlyph?.(best.position, theme, 2.8);
-    this.#damageEnemy(best, skillDamage(player.attackPower, combat), {
+    const landed = this.#damageEnemy(best, skillDamage(player.attackPower, combat), {
       direction: TMP_B.copy(best.position).sub(player.position).setY(0).normalize(),
       knockback: combat.knockback ?? 2,
       criticalBonus: combat.criticalBonus ?? 0.08,
       skill: true,
     });
+    if (landed.amount <= 0) return;
+    this.#apexAudioPhase(player,apexAudio,'impact');
     best.applyStatus?.('expose', {
       duration: combat.markDuration ?? 5.2,
-      power: combat.exposePower ?? 0.22,
-      damageAmp: combat.damageAmp ?? 0.16,
+      power: (combat.exposePower ?? 0.22) * (combat.exposeMult ?? 1),
+      damageAmp: (combat.damageAmp ?? 0.16) * (combat.exposeMult ?? 1),
     }, this.game);
+    const generation = ++this.rangerSerial;
+    const storeMult = (combat.verdictStore ?? 0) * (combat.storeMult ?? 1);
+    const cap = skillDamage(player.attackPower, combat) * (combat.verdictCap ?? 0) * (combat.capMult ?? 1);
+    player.predatorVerdict = { generation, target: best, bundle, remaining: combat.markDuration ?? 5.2, stored: 0, storeMult, cap };
+    this.#apexAudioPhase(player,apexAudio,'finisher');
   }
 
-  #twinFangStab(player, rank, hitIndex) {
-    const { combat, theme } = this.#skillBundle('twin_fang', rank);
+  #twinFangStab(player, bundle, hitIndex, state = null) {
+    const { combat, theme } = this.#skillBundle(bundle);
+    const rank = bundle.rank;
     const direction = this.#facingDir(player);
     let hits = Math.max(1, Math.round(combat.hits ?? 2));
     if (rank >= 3) hits = Math.max(hits, Math.round(combat.hitsAtRank3 ?? 3));
     const finale = hitIndex >= hits - 1;
-    const origin = player.position.clone().addScaledVector(direction, .3);
-    this.game.effects.recipeFangRush(player.position, direction, theme, combat.range, hitIndex, finale);
-    let status = finale ? (combat.status ? { ...combat.status } : null) : null;
+    if (state && !this.#ownsCast(player, state.cast)) return;
+    if(state&&hitIndex===0)this.#apexAudioPhase(player,state.apexAudio,'impact');
+    if(state&&finale)this.#apexAudioPhase(player,state.apexAudio,'finisher');
+    const offhand = hitIndex % 2 === 1;
+    let origin = this.#handContactOrigin(player, offhand, direction, .18);
+    if (hitIndex === 2 && hits >= 3) {
+      const other = this.#handContactOrigin(player, true, direction, .18);
+      origin = origin.add(other).multiplyScalar(.5);
+    }
+    this.game.effects.recipeFangRush(origin, direction, theme, combat.range, hitIndex, finale, offhand);
+    this.game.audio.swing?.(offhand ? 1 : 0);
+    let status = combat.status ? { ...combat.status } : null;
     if (status && rank >= 3 && combat.bleedDurationBonus) {
       status = { ...status, duration: (status.duration ?? 2.6) + combat.bleedDurationBonus };
     }
+    if (status && combat.bleedMult) status = { ...status, dps: (status.dps ?? .1) * combat.bleedMult };
     this.#hitEnemiesInCone(origin, direction, combat.range, combat.arc ?? 1.15, skillDamage(player.attackPower, combat), {
       knockback: combat.knockback ?? 1.6,
       criticalBonus: combat.criticalBonus ?? 0.15,
       multiHit: true,
       skill: true,
       status,
+      onHit: enemy => {
+        if(finale&&state)this.#applyApexKeystone(player,enemy,{bundle,theme,rawDamage:skillDamage(player.attackPower,combat),castKey:`fang-${state.cast.generation}`,budget:state.apexBudget});
+        if (state && combat.thousandFang && state.cutLines < Math.min(6, combat.cutLineCap ?? 6)) {
+          state.cutLines += 1; state.targets.add(enemy);
+          this.game.effects.recipeFangCutLine?.(origin, enemy.position, theme, state.cutLines);
+        }
+        if (finale && combat.consumeBleed && enemy.statuses?.bleed && !state.consumed.has(enemy.id)) {
+          state.consumed.add(enemy.id); delete enemy.statuses.bleed;
+          this.#damageEnemy(enemy, skillDamage(player.attackPower, combat) * combat.woundMult, {
+            multiHit: true, skill: true, sameCastHit: { key: `fang-${state.cast.generation}:wound`, maxHits: 1 },
+          });
+        }
+        if (finale && combat.durableMult && (enemy.elite || enemy.boss)) {
+          this.#damageEnemy(enemy, skillDamage(player.attackPower, combat) * (combat.durableMult - 1), {
+            multiHit: true, skill: true, sameCastHit: { key: `fang-${state.cast.generation}:heart`, maxHits: 1 },
+          });
+          enemy.addStagger?.(combat.durableStagger ?? 0);
+        }
+      },
     });
+    if (finale && state && combat.backbite && !state.backbite) {
+      state.backbite = true;
+      this.#delay(.1, () => {
+        if (!this.#ownsCast(player, state.cast)) return;
+        const behind = player.position.clone().addScaledVector(direction, combat.range * .8);
+        this.game.effects.recipeBackbite?.(behind, direction, theme);
+        this.#hitEnemiesInCone(behind, direction.clone().negate(), combat.range, combat.arc ?? 1.15,
+          skillDamage(player.attackPower, combat) * combat.backbiteMult, { multiHit: true, skill: true,
+            sameCastHit: { key: `fang-${state.cast.generation}:backbite`, maxHits: 1 } });
+      });
+    }
+    if (finale && state && combat.thousandFang) {
+      for (const enemy of state.targets) if (enemy.alive) this.#damageEnemy(enemy,
+        skillDamage(player.attackPower, combat) * combat.detonateMult, { multiHit: true, skill: true,
+          sameCastHit: { key: `fang-${state.cast.generation}:detonate:${enemy.id}`, maxHits: 1 } });
+      this.game.effects.recipeThousandFangFinale?.(player.position, direction, theme, state.cutLines);
+    }
   }
 
-  #twinFang(player, rank, phase = null) {
-    const { combat } = this.#skillBundle('twin_fang', rank);
+  #twinFang(player, bundle, phase = null, apexAudio = null) {
+    const { combat } = this.#skillBundle(bundle);
+    const rank = bundle.rank;
     let hits = Math.max(1, Math.round(combat.hits ?? 2));
     if (rank >= 3) hits = Math.max(hits, Math.round(combat.hitsAtRank3 ?? 3));
     if (phase != null && phase !== 'full') {
       if (!player.alive) return;
-      this.#twinFangStab(player, rank, Number(phase) || 0);
+      const index = Number(phase);
+      if (!Number.isInteger(index) || index < 0 || index >= hits) return;
+      let state = this.twinFangStates.get(player);
+      if (index === 0) {
+        state = { cast: this.#beginOwnedCast(player, bundle.id), bundle, completed: new Set(), backbite: false, cutLines: 0, targets: new Set(), consumed: new Set(), apexAudio, apexBudget:{targets:new Map(),casts:new Set()} };
+        this.twinFangStates.set(player, state);
+      }
+      if (!state || state.bundle !== bundle || !this.#ownsCast(player, state.cast) || state.completed.has(index)) return;
+      state.completed.add(index);
+      this.#twinFangStab(player, bundle, index, state);
+      if (index >= hits - 1) this.twinFangStates.delete(player);
       return;
     }
+    const state = { cast: this.#beginOwnedCast(player, bundle.id), bundle, completed: new Set(), backbite: false, cutLines: 0, targets: new Set(), consumed: new Set(), apexAudio, apexBudget:{targets:new Map(),casts:new Set()} };
+    this.twinFangStates.set(player, state);
     // Fallback absolute delays if anim timeline not used
     for (let hit = 0; hit < hits; hit += 1) {
-      this.#delay(0.05 + hit * 0.12, () => {
-        if (!player.alive) return;
-        this.#twinFangStab(player, rank, hit);
+      this.#delay(0.05 + hit * 0.12 * (combat.cadenceMult ?? 1), () => {
+        if (!this.#ownsCast(player, state.cast)) return;
+        if (state.completed.has(hit)) return;
+        state.completed.add(hit);
+        this.#twinFangStab(player, bundle, hit, state);
+        if (hit === hits - 1) this.twinFangStates.delete(player);
       });
     }
   }
 
-  #fanOfKnives(player, rank, phase = null) {
-    const fire = () => {
-      if (!player.alive) return;
-      const { combat, theme } = this.#skillBundle('fan_of_knives', rank);
-      const direction = this.#facingDir(player);
-      this.game.effects.recipeDaggerFan(player.position, direction, theme);
-      const knives = Math.max(1, Math.round(combat.knives ?? 5));
-      const baseYaw = Math.atan2(direction.x, direction.z);
-      const spread = combat.spread ?? 0.16;
-      for (let i = 0; i < knives; i += 1) {
-        const yaw = baseYaw + (i - (knives - 1) / 2) * spread;
-        const dir = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
-        const start = player.position.clone().add(new THREE.Vector3(0, 1.1, 0)).addScaledVector(dir, .6);
-        this.#spawnFriendlyOrb(start, dir, {
-          style: 'dagger',
-          color: i % 2 ? theme.secondary : theme.primary,
-          damage: skillDamage(player.attackPower, combat),
-          speed: combat.speed,
-          radius: combat.radius ?? 0.85,
-          life: combat.life ?? 0.62, // short flight — daggers stay close-range
-          pierce: Math.round(combat.pierce ?? 1),
-          knockback: combat.knockback ?? 2.4,
-          skill: true,
-          scale: 0.95,
-          statusOnHit: combat.status ?? null,
-        });
-      }
-    };
-    if (phase != null && phase !== 'full') fire();
-    else fire();
+  #fanOfKnives(player, bundle, phase = null, apexAudio = null) {
+    const {combat,theme}=this.#skillBundle(bundle);const acts=bundle.playerLevel>=100?3:bundle.playerLevel>=20?2:1;
+    const daggerTrailRate=this.#quality()==='low'?6:this.#quality()==='medium'?10:16;
+    const execute=index=>{let state=this.fanStates.get(player);if(index===0){state={cast:this.#beginOwnedCast(player,bundle.id),bundle,completed:new Set(),origin:player.position.clone(),facing:this.#facingDir(player),outbound:[],targets:[],bounced:new Set(),pinned:new Set(),finale:false,apexAudio,apexBudget:{targets:new Map(),casts:new Set()}};this.fanStates.set(player,state);}
+      if(!state||state.bundle!==bundle||!this.#ownsCast(player,state.cast)||index<0||index>=acts||state.completed.has(index))return;state.completed.add(index);
+      if(index===0)this.#apexAudioPhase(player,state.apexAudio,'impact');
+      if(index===acts-1)this.#apexAudioPhase(player,state.apexAudio,'finisher');
+      if(index===0){const knives=Math.min(combat.knifeCap??18,Math.max(1,Math.round(combat.knives??5)));const spread=(combat.spread??.16)*(combat.spreadMult??1);const yaw0=Math.atan2(state.facing.x,state.facing.z);this.game.effects.recipeNightPeacockAct?.(state.origin,state.facing,theme,0,Boolean(combat.nightPeacock));
+        for(let i=0;i<knives;i+=1){const yaw=yaw0+(i-(knives-1)/2)*spread;const dir=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw));const start=state.origin.clone().add(new THREE.Vector3(0,1.1,0)).addScaledVector(dir,.6);
+          const projectile=this.#spawnFriendlyOrb(start,dir,{style:'dagger',color:i%2?theme.secondary:theme.primary,damage:skillDamage(player.attackPower,combat)*(combat.damageMult??1),speed:combat.speed,radius:combat.radius??.85,life:combat.life??.62,pierce:Math.round(combat.pierce??1),knockback:combat.knockback??2.4,skill:true,trailRate:daggerTrailRate,statusOnHit:combat.status??null,ownerGuard:()=>this.#ownsCast(player,state.cast),
+            onHit:enemy=>{if(!state.targets.includes(enemy))state.targets.push(enemy);if(combat.pinnedMult&&(enemy.elite||enemy.boss)&&!state.pinned.has(enemy.id)){state.pinned.add(enemy.id);this.#damageEnemy(enemy,skillDamage(player.attackPower,combat)*combat.pinnedMult,{multiHit:true,skill:true,sameCastHit:{key:`fan-${state.cast.generation}:pinned:${enemy.id}`,maxHits:1}});enemy.addStagger?.(combat.pinnedStagger??0);}
+              if(combat.bounceCap&&state.bounced.size<combat.bounceCap){const next=this.game.enemies.enemies.filter(other=>other.alive&&other!==enemy&&!state.bounced.has(other.id)).sort((a,b)=>a.position.distanceToSquared(enemy.position)-b.position.distanceToSquared(enemy.position))[0];if(next){state.bounced.add(next.id);this.#damageEnemy(next,skillDamage(player.attackPower,combat)*combat.bounceMult,{multiHit:true,skill:true,sameCastHit:{key:`fan-${state.cast.generation}:bounce:${next.id}`,maxHits:1}});}}},});state.outbound.push(projectile);}
+      }else if(index===1){this.game.effects.recipeNightPeacockAct?.(state.origin,state.facing,theme,1,Boolean(combat.nightPeacock));if(combat.returnPass){const survivors=state.outbound.filter(projectile=>!projectile.retired&&projectile.life>0&&this.projectiles.includes(projectile)&&(!projectile.ownerGuard||projectile.ownerGuard())).map(projectile=>projectile.mesh.position.clone());for(const from of survivors){const dir=state.origin.clone().sub(from).setY(0).normalize();this.#spawnFriendlyOrb(from.addScaledVector(dir,.7),dir,{style:'dagger',color:theme.secondary,damage:skillDamage(player.attackPower,combat)*combat.returnMult,speed:combat.speed,radius:.65,life:.6,pierce:1,skill:true,trailRate:daggerTrailRate,reactionDepth:1,ownerGuard:()=>this.#ownsCast(player,state.cast)});}}
+        for(const enemy of state.targets.slice(0,Math.min(6,combat.duplicateCap??0))){const dir=state.facing;this.#spawnFriendlyOrb(enemy.position.clone().add(new THREE.Vector3(0,.8,0)).addScaledVector(dir,enemy.radius+.7),dir,{style:'dagger',color:theme.core,damage:skillDamage(player.attackPower,combat)*combat.duplicateMult,speed:15,radius:.5,life:.45,pierce:1,skill:true,trailRate:daggerTrailRate,reactionDepth:1,ownerGuard:()=>this.#ownsCast(player,state.cast)});}
+      }else if(index===2&&!state.finale){state.finale=true;this.game.effects.recipeNightPeacockAct?.(state.origin,state.facing,theme,2,true);const raw=skillDamage(player.attackPower,combat)*combat.finaleMult;this.#hitEnemiesInRadius(state.origin,combat.finaleRadius??3.2,raw,{multiHit:true,skill:true,sameCastHit:{key:`fan-${state.cast.generation}:finale`,maxHits:1},onHit:enemy=>this.#applyApexKeystone(player,enemy,{bundle,theme,rawDamage:raw,castKey:`fan-${state.cast.generation}`,budget:state.apexBudget})});}
+      if(index===acts-1)this.fanStates.delete(player);};
+    if(phase!=null&&phase!=='full'){const index=Number(phase);if(Number.isInteger(index))execute(index);return;}const chain=index=>{execute(index);if(index+1<acts)this.#delay(.18,()=>chain(index+1));};chain(0);
   }
 
-  #shadowstep(player, rank) {
-    const { combat, theme } = this.#skillBundle('shadowstep', rank);
+  #shadowstep(player, bundle, apexAudio = null) {
+    const { combat, theme } = this.#skillBundle(bundle);
     const direction = this.#facingDir(player);
     const from = player.position.clone();
     const target = this.#aimAlongFacing(player, combat.dash ?? 7.5);
@@ -921,6 +1996,7 @@ export class CombatSystem {
     player.invulnerable = Math.max(player.invulnerable, combat.invuln ?? 0.5);
     const to = player.position.clone();
     this.game.effects.recipeShadowDash(from, to, direction, theme);
+    this.#apexAudioPhase(player,apexAudio,'impact');
     // Carve every enemy near the dash segment.
     const path = TMP_B.copy(to).sub(from).setY(0);
     const pathLength = Math.max(0.001, path.length());
@@ -943,36 +2019,48 @@ export class CombatSystem {
         skill: true,
       });
     }
+    this.game.effects.recipeDualBladeCross?.(to, direction, theme.primary, theme.secondary, combat.width * 1.4);
+    if (bundle.playerLevel >= 20) {
+      const frenzy=player.activateShadowFrenzy?.(combat,bundle);
+      if(frenzy&&!frenzy.apexAudio)frenzy.apexAudio=apexAudio;
+    }
   }
 
-  #deathLotus(player, rank) {
-    const { combat, theme } = this.#skillBundle('death_lotus', rank);
-    const hits = Math.max(1, Math.round(combat.hits ?? 8));
-    const radius = combat.radius;
-    player.invulnerable = Math.max(player.invulnerable, combat.invuln ?? 0.6);
-    for (let i = 0; i < hits; i += 1) {
-      this.#delay(0.05 + i * 0.09, () => {
-        if (!player.alive) return;
-        this.game.effects.recipeLotusFlurry(player.position, theme, radius, i, false);
-        this.#hitEnemiesInRadius(player.position, radius, skillDamage(player.attackPower, combat), {
-          knockback: combat.knockback ?? 1.2,
-          criticalBonus: combat.criticalBonus ?? 0.22,
-          multiHit: true,
-          skill: true,
-        });
-      });
-    }
-    this.#delay(0.14 + hits * 0.09, () => {
-      if (!player.alive) return;
-      this.game.effects.recipeLotusFlurry(player.position, theme, combat.finaleRadius ?? 3.9, hits, true);
-      this.#hitEnemiesInRadius(player.position, combat.finaleRadius ?? 3.9, skillDamage(player.attackPower, combat, 'finaleMult'), {
-        knockback: combat.finaleKnockback ?? 5,
-        criticalBonus: combat.criticalBonus ?? 0.22,
-        multiHit: true,
-        skill: true,
-        status: combat.status ?? null,
-      });
+  endShadowFrenzy(player, state) {
+    if (!player?.alive || !state?.exitMult || !state.contactCap) return 0;
+    const generation = Math.max(0, Math.round(Number(state.generation) || 0));
+    if (generation <= (this.frenzyTerminalGeneration.get(player) ?? -1)) return 0;
+    this.frenzyTerminalGeneration.set(player, generation);
+    this.#apexAudioPhase(player,state.apexAudio,'finisher');
+    const contacts = Math.min(state.contactCap, Math.max(0, state.contactCount || 0));
+    this.game.effects.recipeFrenzyExit?.(player.position, getFxTheme('shadow'), contacts, state.contactCap);
+    if (contacts <= 0) return 0;
+    const raw=player.attackPower*state.exitMult*contacts;const budget={targets:new Map(),casts:new Set()};
+    this.#hitEnemiesInRadius(player.position, 4.4, raw, {
+      knockback: 3.2, multiHit: true, finisher: true, skill: true,
+      onHit:enemy=>state.apexBundle&&this.#applyApexKeystone(player,enemy,{bundle:state.apexBundle,theme:getFxTheme('shadow'),rawDamage:raw,castKey:`frenzy-${generation}`,budget}),
     });
+    return contacts;
+  }
+
+  #deathLotus(player, bundle, phase = null, apexAudio = null) {
+    const { combat, theme } = this.#skillBundle(bundle);
+    const legacy=bundle.playerLevel<20,acts=legacy?1:bundle.playerLevel>=100?3:2;
+    const execute=index=>{let state=this.lotusStates.get(player);if(index===0){state={cast:this.#beginOwnedCast(player,bundle.id),bundle,completed:new Set(),origin:player.position.clone(),targets:[],echoed:new Set(),finale:false,apexAudio,apexBudget:{targets:new Map(),casts:new Set()}};this.lotusStates.set(player,state);}
+      if(!state||state.bundle!==bundle||!this.#ownsCast(player,state.cast)||index<0||index>=acts||state.completed.has(index))return;state.completed.add(index);this.game.audio.swing?.(index);player.invulnerable=Math.max(player.invulnerable,combat.invuln??.6);
+      if(index===0)this.#apexAudioPhase(player,state.apexAudio,'impact');
+      if(index===acts-1)this.#apexAudioPhase(player,state.apexAudio,'finisher');
+      if(index===0){const lines=legacy?Math.max(1,Math.round(combat.hits??8)):8;const radius=(combat.radius??3)*(combat.radiusMult??1);
+        const landLine=i=>{if(!this.#ownsCast(player,state.cast))return;const angle=i/lines*Math.PI*2,dir=new THREE.Vector3(Math.cos(angle),0,Math.sin(angle));this.game.effects.recipeMoonlessAct?.(state.origin,dir,theme,0,Boolean(combat.moonless));for(const enemy of this.game.enemies.enemies){if(!enemy.alive)continue;const offset=enemy.position.clone().sub(state.origin).setY(0),along=offset.dot(dir),lateral=offset.addScaledVector(dir,-along).length();if(along<0||along>radius||lateral>.42+enemy.radius)continue;const result=this.#damageEnemy(enemy,skillDamage(player.attackPower,combat)*(combat.damageMult??1),{multiHit:true,skill:true,status:combat.bleedEvery&&(i+1)%combat.bleedEvery===0?combat.status:null,sameCastHit:{key:`lotus-${state.cast.generation}:line-${i}:${enemy.id}`,maxHits:1}});if(result.amount>0&&!state.targets.includes(enemy))state.targets.push(enemy);}};
+        if(legacy){this.#delay(.14+lines*.09,()=>{if(!this.#ownsCast(player,state.cast))return;this.game.effects.recipeLotusFlurry?.(state.origin,theme,combat.finaleRadius??3.9,lines,true);this.#hitEnemiesInRadius(state.origin,combat.finaleRadius??3.9,skillDamage(player.attackPower,combat,'finaleMult'),{multiHit:true,skill:true,status:combat.status});});for(let i=lines-1;i>=0;i-=1)this.#delay(.04+i*.07,()=>{if(this.#ownsCast(player,state.cast))landLine(i);});}
+        else for(let i=0;i<lines;i+=1)this.#delay(.02+i*.03,()=>landLine(i));
+      }else if(index===1){this.game.effects.recipeMoonlessAct?.(state.origin,this.#facingDir(player),theme,1,Boolean(combat.moonless));state.targets.slice(0,Math.min(6,combat.echoCap??0)).forEach((enemy,i)=>this.#delay(.1+i*.04,()=>{if(this.#ownsCast(player,state.cast)&&enemy.alive)this.#damageEnemy(enemy,skillDamage(player.attackPower,combat)*combat.echoMult,{multiHit:true,skill:true,sameCastHit:{key:`lotus-${state.cast.generation}:echo:${enemy.id}`,maxHits:1}});}));
+        if(combat.executeThreshold)for(const enemy of state.targets){if(!enemy.boss&&enemy.hp/Math.max(1,enemy.maxHp)<=combat.executeThreshold)this.#damageEnemy(enemy,skillDamage(player.attackPower,combat)*combat.executeMult,{multiHit:true,skill:true,sameCastHit:{key:`lotus-${state.cast.generation}:harvest:${enemy.id}`,maxHits:1}});}
+        const durable=state.targets.find(enemy=>enemy.alive&&(enemy.elite||enemy.boss));if(durable&&combat.redirectCap)for(let i=0;i<Math.min(4,combat.redirectCap);i+=1)this.#damageEnemy(durable,skillDamage(player.attackPower,combat)*combat.durableMult,{multiHit:true,skill:true,sameCastHit:{key:`lotus-${state.cast.generation}:redirect-${i}`,maxHits:1}});if(durable&&combat.durableStagger)durable.addStagger?.(combat.durableStagger);
+      }else if(index===2&&!state.finale){state.finale=true;this.game.effects.recipeMoonlessAct?.(state.origin,this.#facingDir(player),theme,2,true);const raw=skillDamage(player.attackPower,combat)*combat.moonlessFinaleMult;this.#hitEnemiesInRadius(state.origin,combat.finaleRadius??3.9,raw,{multiHit:true,skill:true,sameCastHit:{key:`lotus-${state.cast.generation}:finale`,maxHits:1},onHit:enemy=>this.#applyApexKeystone(player,enemy,{bundle,theme,rawDamage:raw,castKey:`lotus-${state.cast.generation}`,budget:state.apexBudget})});}
+      if(index===acts-1)this.lotusStates.delete(player);};if(phase!=null&&phase!=='full'){const i=Number(phase);if(Number.isInteger(i))execute(i);return;}
+    execute(0);
+    if(acts>1)this.#delay(.32,()=>this.#delay(0,()=>{execute(1);if(acts>2)this.#delay(.18,()=>this.#delay(0,()=>execute(2)));}));
   }
 
   enemyMelee(enemy, options = {}) {
@@ -1281,7 +2369,7 @@ export class CombatSystem {
     const statusAfflicted = enemy.statuses?.slow?.remaining > 0 || enemy.statuses?.bleed?.remaining > 0;
     const slowCritBonus = enemy.statuses?.slow?.remaining > 0 ? 0.04 : 0;
     const opportunistBonus = statusAfflicted ? player.passiveEffects.statusCrit : 0;
-    const critical = Math.random() < clamp(player.critChance + (options.criticalBonus ?? 0) + slowCritBonus + opportunistBonus, 0, .8);
+    const critical = !options.cannotCrit && Math.random() < clamp(player.critChance + (options.criticalBonus ?? 0) + slowCritBonus + opportunistBonus, 0, .8);
     const finisher = Boolean(options.finisher);
     let armorPierce = options.armorPierce ?? 0;
     if (enemy.statuses?.expose?.remaining > 0) {
@@ -1309,11 +2397,17 @@ export class CombatSystem {
       knockback: (options.knockback ?? 2) * (critical ? 1.25 : 1),
       armorPierce,
       multiHit: options.multiHit,
+      sameCastHit: options.sameCastHit,
       critical,
       finisher,
     });
-    if (result.amount <= 0) return;
+    if (result.amount <= 0) return result;
+    const verdict = player.predatorVerdict;
+    if (!options.verdictDerived && verdict?.target === enemy && verdict.remaining > 0 && verdict.storeMult > 0) {
+      verdict.stored = Math.min(verdict.cap, verdict.stored + result.amount * verdict.storeMult);
+    }
     if (options.status) this.#applyHitStatus(enemy, options.status);
+    options.onHit?.(enemy, result);
     // Focus builds only on landed rogue basic-attack hits, not skills or the combo itself.
     const energyDef = getHeroClass(player.classId).energy;
     if (energyDef && !options.skill && !options.energyCombo) {
@@ -1351,6 +2445,7 @@ export class CombatSystem {
     this.game.audio.hit(critical, finisher);
 
     if (player.leech > 0) player.heal(result.amount * player.leech);
+    return result;
   }
 
   #damagePlayer(rawDamage, direction, force = 4) {
@@ -1503,8 +2598,21 @@ export class CombatSystem {
         if (i >= 0 && i < this.projectiles.length) this.projectiles.splice(i, 1);
         continue;
       }
+      if (projectile.ownerGuard && !projectile.ownerGuard()) {
+        const ground = this.game.world.heightAt(projectile.mesh.position.x, projectile.mesh.position.z);
+        this.#retireProjectile(i, projectile, ground);
+        continue;
+      }
 
       projectile.life -= delta;
+      if (projectile.friendly && projectile.homingTarget?.alive) {
+        const desired = TMP_A.copy(projectile.homingTarget.position).sub(projectile.mesh.position).setY(0);
+        if (desired.lengthSq() > 1e-6) {
+          const speed = projectile.velocity.length();
+          projectile.velocity.lerp(desired.normalize().multiplyScalar(speed), Math.min(1, delta * 8));
+          projectile.direction.copy(projectile.velocity).setY(0).normalize();
+        }
+      }
       if (projectile.homing && !projectile.friendly && this.game.player.alive) {
         const targetDirection = TMP_A.copy(this.game.player.position).sub(projectile.mesh.position).setY(0);
         if (targetDirection.lengthSq() > 1e-6) {
@@ -1566,6 +2674,7 @@ export class CombatSystem {
             skillPowerApplied: Boolean(projectile.skillPowerApplied),
             status: projectile.statusOnHit ?? null,
             energyCombo: projectile.energyCombo,
+            onHit: (landedEnemy, result) => projectile.onHit?.(landedEnemy, projectile, result),
           });
           // clear() may have wiped the list (e.g. death mid-hit) — abandon this pass.
           if (!this.projectiles[i] || this.projectiles[i] !== projectile) return;
@@ -1592,7 +2701,8 @@ export class CombatSystem {
   }
 
   #retireProjectile(index, projectile, groundY) {
-    if (!projectile || this.projectiles[index] !== projectile) return;
+    if (!projectile || projectile.retired || this.projectiles[index] !== projectile) return;
+    projectile.retired = true;
     try {
       if (projectile.explode && projectile.friendly && projectile.mesh) {
         const blast = projectile.explode;
@@ -1613,12 +2723,21 @@ export class CombatSystem {
           skillPowerApplied: Boolean(blast.skillPowerApplied),
           armorPierce: .12,
           status: blast.status ?? null,
+          onHit: blast.onHit ?? null,
+          sameCastHit: blast.sameCastHit ?? null,
         });
       } else if (projectile.mesh) {
         this.game.effects.burst(projectile.mesh.position, projectile.color, 5, { speed: 2.2, size: .2, life: .3 });
       }
     } catch (error) {
       console.error('Projectile retire FX failed:', error);
+    }
+    // Terminal fire authority follows the base blast so its flare cannot claim
+    // the Enemy iframe before the projectile's actual impact damage.
+    if (!projectile.retireCallbackFired) {
+      projectile.retireCallbackFired = true;
+      projectile.suppressRetireAuthority = this.projectiles[index] !== projectile;
+      projectile.onRetire?.(projectile, groundY);
     }
     // Nested clear may have already emptied the array.
     if (this.projectiles[index] !== projectile) return;
@@ -1632,10 +2751,31 @@ export class CombatSystem {
   clear() {
     if (this._clearing) return;
     this._clearing = true;
+    if (this.game.player) {
+      this.game.player.thornField = null;
+      this.game.player.predatorVerdict = null;
+      this.game.player.clearArcaneOverflow?.();
+      this.rangerGeneration.delete(this.game.player);
+      this.ownedCastGenerations.delete(this.game.player);
+      this.whirlwindStates.delete(this.game.player);
+      this.twinFangStates.delete(this.game.player);
+      this.crescentStates.delete(this.game.player);
+      this.fanStates.delete(this.game.player);
+      this.starburstStates.delete(this.game.player);
+      this.lotusStates.delete(this.game.player);
+    }
     try {
       const projectiles = this.projectiles.splice(0, this.projectiles.length);
       for (const projectile of projectiles) {
         if (!projectile?.mesh) continue;
+        if (!projectile.retired) {
+          projectile.retired = true;
+          if (!projectile.retireCallbackFired) {
+            projectile.retireCallbackFired = true;
+            projectile.suppressRetireAuthority = true;
+            projectile.onRetire?.(projectile, this.game.world.heightAt(projectile.mesh.position.x, projectile.mesh.position.z));
+          }
+        }
         this.game.scene.remove(projectile.mesh);
         disposeProjectileVisual(projectile.mesh, projectile.materials ?? (projectile.material ? [projectile.material] : []));
       }
@@ -1647,6 +2787,7 @@ export class CombatSystem {
       }
       this.delayed.length = 0;
       this.charges.length = 0;
+      this.wizardCastState = new WeakMap();
     } finally {
       this._clearing = false;
     }
