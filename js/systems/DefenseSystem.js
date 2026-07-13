@@ -1,8 +1,5 @@
 import * as THREE from 'three';
-import {
-  DEFENSE_CONFIG,
-  defenseRarityFloor,
-} from '../config.js';
+import { DEFENSE_CONFIG } from '../config.js';
 import { ENEMY_TYPES, ZONE_BOSSES, ZONE_SPAWNS } from '../data/content.js';
 import { chance, clamp, weightedPick } from '../core/Utils.js';
 
@@ -257,8 +254,8 @@ export class DefenseSystem {
     this.#autoSpendSkillPoints();
     this.#recoverBetweenWaves();
 
-    if (cleared > 0 && cleared % cfg.gearEveryWaves === 0) {
-      this.#grantGearReward(cleared);
+    if (cleared > 0 && cleared % cfg.goldMilestoneEveryWaves === 0) {
+      this.#grantGoldMilestone(cleared);
     }
     if (cleared > 0 && cleared % cfg.powerShardEvery === 0) {
       this.#grantPowerShard(cleared);
@@ -394,56 +391,25 @@ export class DefenseSystem {
     void level;
   }
 
-  #grantGearReward(cleared) {
+  #grantGoldMilestone(cleared) {
     const loot = this.game.loot;
     const player = this.game.player;
     if (!loot || !player) return;
-
-    const floor = defenseRarityFloor(cleared);
-    const itemLevel = Math.round(
-      player.level + Math.floor(cleared * DEFENSE_CONFIG.gearLevelPerWave) + Math.floor(cleared / 10),
-    );
-    const powerScale = 1 + cleared * DEFENSE_CONFIG.gearPowerPerWave;
-    const gear = loot.generateGear(itemLevel, {
-      floor,
-      powerScale,
-      defenseWave: cleared,
-      // Nudge legendary odds deep in the climb.
-      boss: cleared >= 100,
-      elite: cleared >= 25,
-    });
-    const result = player.addGear?.(gear);
-
-    if (result?.added) {
-      const equipNote = result.equipped ? ' equipped' : ' acquired';
-      this.game.ui?.notify?.(`Defense reward · ${gear.name}${equipNote}`, gear.rarity === 'legendary' ? 'legendary' : 'contract', 3.6);
-      if (gear.rarity === 'legendary') this.game.audio?.legendary?.();
-      else if (gear.rarity === 'epic') this.game.audio?.pickup?.('epic');
-      this.#gearSpectacle(gear);
-      return;
-    }
-
-    // Inventory full or addGear missing — drop beside the player like contract rewards.
-    const angle = Math.random() * Math.PI * 2;
-    const dropPos = player.position.clone();
-    dropPos.x += Math.cos(angle) * 1.8;
-    dropPos.z += Math.sin(angle) * 1.8;
-    loot.spawnGear?.(gear, dropPos);
-    this.game.ui?.notify?.(`Defense reward · ${gear.name} dropped`, 'contract', 3.6);
-    this.#gearSpectacle(gear);
+    const gold = player.addGold(Math.round(
+      DEFENSE_CONFIG.clearGoldBase * 2 + cleared * (DEFENSE_CONFIG.clearGoldPerWave + 4),
+    ));
+    this.game.ui?.notify?.(`Defense milestone · +${gold}G`, 'contract', 3.6);
+    this.#gearSpectacle(gold);
   }
 
-  #gearSpectacle(gear) {
+  #gearSpectacle(gold) {
     const pos = this.game.player.position;
-    const color = gear.rarityColor ?? 0xffd36d;
-    if (gear.rarity === 'legendary') {
-      this.game.effects?.pillar?.(pos, color, 12, { life: 1.4, bottom: 1.5, opacity: .55 });
-      this.game.effects?.burst?.(pos.clone().addScaledVector(TMP_UP, .5), color, 24, {
-        speed: 4.5, size: .32, life: .7, upward: .4,
-      });
-    } else if (gear.rarity === 'epic') {
-      this.game.effects?.pillar?.(pos, color, 8, { life: 1.0, bottom: 1.1, opacity: .42 });
-    }
+    const color = 0xffd36d;
+    const intensity = Math.min(28, 10 + Math.round(Math.log10(Math.max(1, gold)) * 5));
+    this.game.effects?.pillar?.(pos, color, 6 + intensity * .2, { life: 1.0, bottom: 1.1, opacity: .42 });
+    this.game.effects?.burst?.(pos.clone().addScaledVector(TMP_UP, .5), color, intensity, {
+      speed: 3.8, size: .25, life: .6, upward: .35,
+    });
   }
 
   #zoneForWave(wave) {

@@ -25,14 +25,14 @@ Query params:
 ## Save
 
 - Key: `GAME_CONFIG.saveKey` (`gpt5.6-sol-arpg-demo-v1`)
-- Version: `saveVersion: 4` (player `classId`; missing → `aerin`)
+- Version: `saveVersion: 5` (player `classId` plus one signature weapon; missing → `aerin`)
 - Auto-save: `autoSaveSeconds`
 - Continue: title `continue-btn`
 
 When changing save schema:
 
 1. Increment `saveVersion`
-2. Handle old versions in load branch or show reset notice
+2. Handle old versions in load branch or show reset notice. Version 5 folds legacy equipment into one legal signature weapon and converts discarded legacy gear to gold.
 3. Note in docs/README
 
 ## Verify

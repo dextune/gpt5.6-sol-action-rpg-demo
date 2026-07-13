@@ -1,10 +1,11 @@
 import * as THREE from 'three';
-import { GEAR_ENHANCE, PLAYER_CONFIG, defenseRarityFloor } from '../config.js';
 import {
-  AFFIXES, ARMOR_BASES, CHARM_BASES, RARITIES, WEAPON_BASES, getHeroClass,
+  GEAR_ENHANCE, PLAYER_CONFIG, WEAPON_ENHANCE, WEAPON_OPTION_ENHANCE, defenseRarityFloor,
+} from '../config.js';
+import {
+  AFFIXES, ARMOR_BASES, CHARM_BASES, RARITIES, WEAPON_BASES, getHeroClass, getWeaponEvolution,
 } from '../data/content.js';
 import { chance, clamp, pick, rand, randInt, uid, weightedPick } from '../core/Utils.js';
-import { createLootMesh } from '../graphics/ModelFactory.js';
 
 const RARITY_ORDER = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
 const STAT_KEYS = ['power', 'defense', 'hp', 'crit', 'haste', 'leech', 'xpBonus', 'goldBonus', 'skillPower', 'moveSpeed', 'luck'];
@@ -67,12 +68,12 @@ export function gearEnhanceCost(item) {
   ));
 }
 
-/** Success rate for the next enhance attempt (0–1). */
+/** Enhancement is deterministic; a failed attempt never lowers the item level. */
 export function gearEnhanceSuccessChance(item) {
   if (!item) return 0;
   const next = Math.max(0, Number(item.enhanceLevel) || 0) + 1;
   if (next > GEAR_ENHANCE.maxLevel) return 0;
-  return GEAR_ENHANCE.successByTarget[next] ?? Math.max(0.12, 0.96 - next * 0.08);
+  return 1;
 }
 
 /** Sell / salvage gold value. */
@@ -81,6 +82,90 @@ export function gearSellValue(item) {
   const rarity = RARITIES[item.rarity] ?? RARITIES.common;
   const enhanceBonus = 1 + (Number(item.enhanceLevel) || 0) * 0.12;
   return Math.max(2, Math.round((item.itemLevel + (item.score ?? 0) * .35) * rarity.salvage * enhanceBonus));
+}
+
+/** Gold cost for the next signature-weapon evolution level. */
+export function weaponEnhanceCost(item) {
+  if (!item) return 0;
+  const level = Math.max(0, Number(item.weaponEnhanceLevel ?? item.enhanceLevel) || 0);
+  if (level >= WEAPON_ENHANCE.maxLevel) return 0;
+  return Math.round(
+    (WEAPON_ENHANCE.costBase + Math.max(1, Number(item.itemLevel) || 1) * WEAPON_ENHANCE.costPerLevel)
+      * (level + 1) ** WEAPON_ENHANCE.costPow,
+  );
+}
+
+/** Success rate for the next signature-weapon enhancement; failure preserves state. */
+export function weaponEnhanceSuccessChance(item) {
+  if (!item) return 0;
+  const next = Math.max(0, Number(item.weaponEnhanceLevel ?? item.enhanceLevel) || 0) + 1;
+  if (next > WEAPON_ENHANCE.maxLevel) return 0;
+  return WEAPON_ENHANCE.successByTarget[next] ?? Math.max(0.12, 0.96 - next * 0.08);
+}
+
+/** Gold cost for the next weapon-option level. */
+export function weaponOptionEnhanceCost(item) {
+  if (!item) return 0;
+  const level = Math.max(0, Number(item.optionEnhanceLevel) || 0);
+  if (level >= WEAPON_OPTION_ENHANCE.maxLevel) return 0;
+  return Math.round(
+    (WEAPON_OPTION_ENHANCE.costBase + Math.max(1, Number(item.itemLevel) || 1) * WEAPON_OPTION_ENHANCE.costPerLevel)
+      * (level + 1) ** WEAPON_OPTION_ENHANCE.costPow,
+  );
+}
+
+const OPTION_ORDER = ['crit', 'haste', 'skillPower', 'goldBonus', 'luck', 'leech'];
+
+/** Apply both enhancement tracks and the class-specific weapon evolution visual. */
+export function recomputeWeaponFromEnhance(item) {
+  if (!item) return item;
+  ensureGearBaseStats(item);
+  item.slot = 'weapon';
+  item.weaponEnhanceLevel = Math.max(
+    0,
+    Math.min(WEAPON_ENHANCE.maxLevel, Number(item.weaponEnhanceLevel ?? item.enhanceLevel) || 0),
+  );
+  item.optionEnhanceLevel = Math.max(
+    0,
+    Math.min(WEAPON_OPTION_ENHANCE.maxLevel, Number(item.optionEnhanceLevel) || 0),
+  );
+  item.enhanceLevel = item.weaponEnhanceLevel;
+  const flatMul = 1 + item.weaponEnhanceLevel * WEAPON_ENHANCE.powerStep;
+  const evolution = getWeaponEvolution(item.classId, item.weaponEnhanceLevel);
+  item.evolutionStage = evolution.level;
+  item.name = evolution.name;
+  item.model = evolution.model;
+  item.color = evolution.color;
+  item.rarity = evolution.rarity;
+  item.rarityColor = evolution.color;
+  item.power = Math.round((Number(item.baseStats.power) || 0) * flatMul);
+  item.speed = (Number(item.baseSpeed) || Number(item.speed) || 1)
+    * (1 + item.weaponEnhanceLevel * WEAPON_ENHANCE.speedStep);
+  for (const key of STAT_KEYS) {
+    if (key === 'power') continue;
+    item[key] = Number(item.baseStats[key]) || 0;
+  }
+  const optionStats = item.optionStats && typeof item.optionStats === 'object' ? item.optionStats : {};
+  item.optionStats = optionStats;
+  for (const key of OPTION_ORDER) item[key] += Number(optionStats[key]) || 0;
+  item.affixes = OPTION_ORDER
+    .filter(key => Number(optionStats[key]) > 0)
+    .map(key => ({ id: `weapon-${key}`, name: key, stat: key, value: Number(optionStats[key]) }));
+  item.score = scoreGear(item);
+  return item;
+}
+
+/** Apply one deterministic level of weapon option growth. */
+export function enhanceWeaponOptions(item) {
+  if (!item) return { ok: false, reason: 'missing' };
+  recomputeWeaponFromEnhance(item);
+  const level = item.optionEnhanceLevel;
+  if (level >= WEAPON_OPTION_ENHANCE.maxLevel) return { ok: false, reason: 'max', level };
+  const stat = OPTION_ORDER[level % OPTION_ORDER.length];
+  item.optionEnhanceLevel = level + 1;
+  item.optionStats[stat] = (Number(item.optionStats[stat]) || 0) + WEAPON_OPTION_ENHANCE.steps[stat];
+  recomputeWeaponFromEnhance(item);
+  return { ok: true, level: item.optionEnhanceLevel, stat };
 }
 
 const BASE_LEVELS = Object.freeze({
@@ -206,84 +291,36 @@ export class LootSystem {
   }
 
   dropFromEnemy(enemy) {
-    const drops = [];
-    const level = enemy.level;
     const defense = this.game.mode === 'defense';
     const wave = defense ? Math.max(1, Number(enemy.wave ?? this.game.defense?.wave) || 1) : 0;
-    const luck = this.game.player.luck;
-    const tier = defense ? 0 : this.game.hunt.worldTier * .006;
-    // Defense drops more often and floors rarity by wave so deep climbs stay gear-fed.
-    const gearChance = enemy.boss ? 1 : enemy.elite
-      ? (defense ? .88 : .78)
-      : clamp((defense ? .16 : .105) + luck * .42 + tier + (defense ? wave * .0012 : 0), defense ? .16 : .105, defense ? .48 : .34);
-    const gearCount = enemy.boss ? (defense ? 2 : 3) : chance(gearChance) ? 1 : 0;
-    for (let i = 0; i < gearCount; i += 1) {
-      let floor = enemy.boss ? (i === 0 ? 'epic' : 'rare') : enemy.elite ? 'uncommon' : 'common';
-      if (defense) {
-        const waveFloor = defenseRarityFloor(wave);
-        if (RARITY_ORDER.indexOf(waveFloor) > RARITY_ORDER.indexOf(floor)) floor = waveFloor;
-      }
-      const powerScale = defense ? 1 + wave * 0.0085 : 1;
-      const itemLevel = defense ? level + Math.floor(wave * 0.35) : level;
-      const item = this.generateGear(itemLevel, {
-        boss: enemy.boss,
-        elite: enemy.elite,
-        floor,
-        powerScale,
-        defenseWave: defense ? wave : 0,
-      });
-      const offset = new THREE.Vector3(rand(-1.2, 1.2), 0, rand(-1.2, 1.2));
-      drops.push(this.spawnGear(item, enemy.position.clone().add(offset)));
-    }
-
-    const potionChance = this.game.player.potions < 2 ? .18 : (defense ? .09 : .055);
-    if (chance(potionChance + (enemy.elite ? .08 : 0) + (enemy.boss ? .25 : 0))) {
-      drops.push(this.spawnConsumable('potion', enemy.position.clone().add(new THREE.Vector3(rand(-.8, .8), 0, rand(-.8, .8)))));
-    }
-    if ((enemy.elite && chance(.28)) || enemy.boss) {
-      const amount = enemy.boss ? randInt(4, 8) : randInt(1, 2);
-      drops.push(this.spawnConsumable('essence', enemy.position.clone().add(new THREE.Vector3(rand(-.7, .7), 0, rand(-.7, .7))), amount));
-    }
-    return drops;
+    const [minGold, maxGold] = enemy.goldRange ?? [1, 3];
+    const waveBonus = defense ? 1 + wave * .035 : 1 + this.game.hunt.worldTier * .04;
+    const multiplier = (enemy.elite ? 2.2 : 1) * (enemy.boss ? 5 : 1) * waveBonus;
+    const amount = Math.max(1, Math.round(randInt(minGold, maxGold) * multiplier));
+    const offset = new THREE.Vector3(rand(-1.2, 1.2), 0, rand(-1.2, 1.2));
+    // Every enemy reward is now a gold pickup. Gear, potion and essence drops are gone.
+    return [this.spawnConsumable('gold', enemy.position.clone().add(offset), amount)];
   }
 
   spawnGear(item, position) {
-    const quality = this.game.quality ?? 'high';
-    const refs = createLootMesh(item, {
-      assets: this.game.assets,
-      // Low/mobile quality still clones weapons; outlines stay off via loot mesh path.
-      quality: quality === 'low' ? 'low' : 'medium',
-    });
-    const ground = this.game.world.heightAt(position.x, position.z);
-    refs.group.position.set(position.x, ground + .08, position.z);
-    this.game.scene.add(refs.group);
-    const pickup = {
-      id: uid('loot'), kind: 'gear', item, refs, group: refs.group,
-      baseY: ground + .08, age: 0,
-      life: item.rarity === 'legendary' ? 300 : item.rarity === 'epic' ? 180 : 120,
-      collected: false,
-    };
-    this.pickups.push(pickup);
-    if (item.rarity === 'legendary') {
-      this.game.audio.legendary();
-      this.game.ui.notify(`Legendary gear appears · ${item.name}`, 'legendary', 5);
-      this.game.effects.pillar(position, item.rarityColor, 12, { life: 1.55, bottom: 1.45, opacity: .55 });
-      this.game.effects.burst(position.clone().add(new THREE.Vector3(0, .4, 0)), item.rarityColor, 22, {
-        speed: 4.2, size: .32, life: .7, upward: .35,
-      });
-    } else if (item.rarity === 'epic') {
-      this.game.effects.pillar(position, item.rarityColor, 7.5, { life: .95, bottom: 1.05, opacity: .42 });
-    }
-    return pickup;
+    const amount = Math.max(1, Math.round((Number(item?.itemLevel) || 1) + (Number(item?.score) || 0) * .35));
+    return this.spawnConsumable('gold', position, amount);
   }
 
   spawnConsumable(kind, position, amount = 1) {
+    // Legacy callers that ask for potion/essence are intentionally converted to gold.
+    kind = 'gold';
     const group = new THREE.Group();
-    const color = kind === 'potion' ? 0x62f29b : 0xc18aff;
+    const color = kind === 'gold' ? 0xffd36d : kind === 'potion' ? 0x62f29b : 0xc18aff;
     const material = new THREE.MeshToonMaterial({ color, emissive: color, emissiveIntensity: .5 });
     const dark = new THREE.MeshToonMaterial({ color: new THREE.Color(color).multiplyScalar(.55), emissive: color, emissiveIntensity: .1 });
     let core;
-    if (kind === 'potion') {
+    if (kind === 'gold') {
+      core = new THREE.Mesh(new THREE.CylinderGeometry(.34, .34, .1, 12), material);
+      core.rotation.x = Math.PI / 2;
+      core.position.y = .5;
+      group.add(core);
+    } else if (kind === 'potion') {
       core = new THREE.Mesh(new THREE.SphereGeometry(.28, 10, 8), material);
       core.scale.y = 1.15;
       core.position.y = .48;
@@ -314,16 +351,8 @@ export class LootSystem {
   }
 
   grantContractReward(tier = 1) {
-    // Slight tier floors: T1 uncommon, T2–3 rare, T4–5 epic. Higher tiers roll a bit over player level.
-    const rarityFloor = tier >= 4 ? 'epic' : tier >= 2 ? 'rare' : 'uncommon';
-    const itemLevel = this.game.player.level + tier + (tier >= 4 ? 1 : 0);
-    const gear = this.generateGear(itemLevel, { floor: rarityFloor });
-    const angle = Math.random() * Math.PI * 2;
-    const position = this.game.player.position.clone().add(new THREE.Vector3(Math.cos(angle) * 1.8, 0, Math.sin(angle) * 1.8));
-    this.spawnGear(gear, position);
     const gold = this.game.player.addGold(50 + tier * 60 + this.game.player.level * 8);
-    this.game.player.essence += Math.max(1, Math.floor(tier / 2) + (tier >= 4 ? 1 : 0));
-    return { gear, gold };
+    return { gold };
   }
 
   update(delta) {
@@ -365,7 +394,11 @@ export class LootSystem {
 
   #collect(pickup) {
     if (pickup.collected) return;
-    if (pickup.kind === 'potion') {
+    if (pickup.kind === 'gold') {
+      const amount = this.game.player.addGold(pickup.amount);
+      this.game.ui.notify(`Gold +${amount}`, 'loot');
+      this.game.audio.pickup('common');
+    } else if (pickup.kind === 'potion') {
       if (this.game.player.potions >= this.game.player.maxPotions) return;
       this.game.player.potions += 1;
       this.game.ui.notify('Recovery potion +1', 'loot');
@@ -387,7 +420,7 @@ export class LootSystem {
         this.game.audio.pickup(pickup.item.rarity);
       }
     }
-    const color = pickup.kind === 'gear' ? pickup.item.rarityColor : pickup.kind === 'potion' ? 0x62f29b : 0xc18aff;
+    const color = pickup.kind === 'gold' ? 0xffd36d : pickup.kind === 'gear' ? pickup.item.rarityColor : pickup.kind === 'potion' ? 0x62f29b : 0xc18aff;
     this.game.effects.burst(pickup.group.position, color, 14, { speed: 3.5, size: .27, life: .48 });
     pickup.collected = true;
     this.game.requestSave?.();

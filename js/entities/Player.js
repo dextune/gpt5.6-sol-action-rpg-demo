@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { GEAR_ENHANCE, PLAYER_CONFIG } from '../config.js';
+import { GEAR_ENHANCE, PLAYER_CONFIG, WEAPON_ENHANCE, WEAPON_OPTION_ENHANCE } from '../config.js';
 import {
   DEFAULT_HERO_CLASS_ID, RARITIES, SKILLS,
   canClassUseWeapon, createClassStarterWeapon, createEmptySkillCooldowns, createEmptySkillRanks,
@@ -11,7 +11,8 @@ import {
 import { clamp, disposeObject } from '../core/Utils.js';
 import { setMaterialHitPulse } from '../graphics/StylizedMaterial.js';
 import {
-  ensureGearBaseStats, gearEnhanceCost, gearEnhanceSuccessChance, gearSellValue, recomputeGearFromEnhance,
+  enhanceWeaponOptions, ensureGearBaseStats, gearSellValue, recomputeWeaponFromEnhance,
+  weaponEnhanceCost, weaponEnhanceSuccessChance, weaponOptionEnhanceCost,
 } from '../systems/LootSystem.js';
 
 const NUMERIC_GEAR_STATS = Object.freeze([
@@ -62,8 +63,8 @@ export class Player {
       this.facing.copy(facing);
       // Title preview: always show this class's starter weapon (never a leftover blade on ranger).
       const starter = createClassStarterWeapon(this.classId);
-      if (!this.inventory.some(item => item.id === starter.id)) this.inventory.unshift(starter);
-      this.equipped.weapon = starter.id;
+      this.inventory = [starter];
+      this.equipped = { weapon: starter.id };
     } else {
       this.#sanitizeEquippedWeapon();
     }
@@ -98,7 +99,7 @@ export class Player {
     this.skills = createEmptySkillRanks(this.classId);
     this.skillEvolution = {};
     this.inventory = [starter];
-    this.equipped = { weapon: starter.id, armor: null, charm: null };
+    this.equipped = { weapon: starter.id };
     this.potions = 3;
     this.maxPotions = 5;
     this.hp = this.maxHp;
@@ -141,8 +142,8 @@ export class Player {
   get position() { return this.mesh.position; }
   get xpNeeded() { return Math.round(92 + Math.pow(this.level, 1.52) * 58 + this.level * 22); }
   get weapon() { return this.getItem(this.equipped.weapon) ?? this.inventory[0]; }
-  get armor() { return this.getItem(this.equipped.armor); }
-  get charm() { return this.getItem(this.equipped.charm); }
+  get armor() { return null; }
+  get charm() { return null; }
   get isDashing() { return this.dashTimer > 0; }
   get potionCount() { return this.potions; }
 
@@ -156,7 +157,7 @@ export class Player {
     if (this._equipmentStatsCache) return this._equipmentStatsCache;
     const stats = Object.fromEntries(NUMERIC_GEAR_STATS.map(key => [key, 0]));
     let weaponSpeed = 1;
-    for (const item of [this.weapon, this.armor, this.charm]) {
+    for (const item of [this.weapon]) {
       if (!item) continue;
       for (const key of NUMERIC_GEAR_STATS) stats[key] += Number(item[key]) || 0;
       if (item.slot === 'weapon') weaponSpeed = Number(item.speed) || 1;
@@ -738,26 +739,17 @@ export class Player {
   }
 
   addGear(item) {
-    if (!item?.id || !item.slot) return { added: false, reason: 'invalid' };
-    if (this.inventory.length >= PLAYER_CONFIG.inventoryLimit) return { added: false, reason: 'full' };
-    this.inventory.push(item);
-    const current = this.getItem(this.equipped[item.slot]);
-    const better = !current || (item.score ?? 0) > (current.score ?? 0) * 1.08;
-    // Never auto-equip weapons this class cannot wield (e.g. sword on ranger).
-    const autoEquip = better && this.canEquipItem(item) && this.equip(item.id);
-    return { added: true, equipped: Boolean(autoEquip) };
+    return { added: false, reason: 'weapon-only' };
   }
 
-  /** Class weapon allow-list (armor/charm always ok). */
+  /** Class weapon allow-list; non-weapon gear is no longer equipable. */
   canEquipItem(item) {
-    if (!item || !['weapon', 'armor', 'charm'].includes(item.slot)) return false;
-    if (item.slot === 'weapon') return canClassUseWeapon(this.classId, item);
-    return true;
+    return Boolean(item?.slot === 'weapon' && canClassUseWeapon(this.classId, item));
   }
 
   equip(itemId) {
     const item = this.getItem(itemId);
-    if (!item || !['weapon', 'armor', 'charm'].includes(item.slot)) return false;
+    if (!item || item.slot !== 'weapon') return false;
     if (!this.canEquipItem(item)) return false;
     this.equipped[item.slot] = item.id;
     this.invalidateStats();
@@ -770,18 +762,51 @@ export class Player {
   /** Ensure held weapon model matches class; used after load / class change. */
   #sanitizeEquippedWeapon() {
     const starter = createClassStarterWeapon(this.classId);
-    if (!this.inventory.some(item => item.id === starter.id)) {
-      this.inventory.unshift(starter);
+    const weapon = this.inventory.find(item => item?.slot === 'weapon' && this.canEquipItem(item)) ?? starter;
+    weapon.classId = this.classId;
+    this.inventory = [weapon];
+    this.equipped = { weapon: weapon.id };
+    recomputeWeaponFromEnhance(weapon);
+  }
+
+  weaponEnhanceCost() { return weaponEnhanceCost(this.weapon); }
+
+  weaponOptionEnhanceCost() { return weaponOptionEnhanceCost(this.weapon); }
+
+  /** Spend gold on a signature-weapon evolution attempt. Failure preserves all weapon state. */
+  enhanceWeapon() {
+    const weapon = this.weapon;
+    const level = Number(weapon?.weaponEnhanceLevel ?? weapon?.enhanceLevel) || 0;
+    if (!weapon) return { ok: false, reason: 'missing', level };
+    if (level >= WEAPON_ENHANCE.maxLevel) return { ok: false, reason: 'max', level };
+    const cost = weaponEnhanceCost(weapon);
+    if (this.gold < cost) return { ok: false, reason: 'gold', cost, level };
+    const chance = weaponEnhanceSuccessChance(weapon);
+    this.gold -= cost;
+    if (Math.random() >= chance) {
+      return { ok: true, success: false, cost, level, chance };
     }
-    const equipped = this.getItem(this.equipped.weapon);
-    if (equipped && this.canEquipItem(equipped)) return;
-    // Prefer best legal weapon in bag, else starter.
-    let best = null;
-    for (const item of this.inventory) {
-      if (item.slot !== 'weapon' || !this.canEquipItem(item)) continue;
-      if (!best || (item.score ?? 0) > (best.score ?? 0)) best = item;
-    }
-    this.equipped.weapon = best?.id ?? starter.id;
+    weapon.weaponEnhanceLevel = level + 1;
+    recomputeWeaponFromEnhance(weapon);
+    this.invalidateStats();
+    this.hp = Math.min(this.hp, this.maxHp);
+    this.#updateWeaponVisual();
+    return { ok: true, cost, level: weapon.weaponEnhanceLevel, stage: weapon.evolutionStage };
+  }
+
+  /** Spend gold on the weapon's deterministic option-growth track. */
+  enhanceWeaponOptions() {
+    const weapon = this.weapon;
+    const level = Number(weapon?.optionEnhanceLevel) || 0;
+    if (!weapon) return { ok: false, reason: 'missing', level };
+    if (level >= WEAPON_OPTION_ENHANCE.maxLevel) return { ok: false, reason: 'max', level };
+    const cost = weaponOptionEnhanceCost(weapon);
+    if (this.gold < cost) return { ok: false, reason: 'gold', cost, level };
+    this.gold -= cost;
+    const result = enhanceWeaponOptions(weapon);
+    this.invalidateStats();
+    this.hp = Math.min(this.hp, this.maxHp);
+    return { ...result, cost };
   }
 
   /** Gold value if sold (0 if not sellable). */
@@ -831,47 +856,21 @@ export class Player {
   }
 
   enhanceCost(itemId) {
-    const item = this.getItem(itemId);
-    if (!item) return 0;
-    return gearEnhanceCost(item);
+    return itemId === this.weapon?.id ? this.weaponEnhanceCost() : 0;
   }
 
   enhanceChance(itemId) {
-    const item = this.getItem(itemId);
-    if (!item) return 0;
-    return gearEnhanceSuccessChance(item);
+    return itemId === this.weapon?.id ? weaponEnhanceSuccessChance(this.weapon) : 0;
   }
 
   /**
-   * Spend gold to enhance gear. Success raises stats; failure drops 1 enhance level (min 0).
+   * Spend gold to enhance the equipped weapon. Enhancement is deterministic;
+   * an unsuccessful attempt never lowers the current enhancement level.
    * @returns {{ ok: boolean, success?: boolean, reason?: string, cost?: number, level?: number, chance?: number }}
    */
   enhance(itemId) {
-    const item = this.getItem(itemId);
-    if (!item) return { ok: false, reason: 'missing' };
-    ensureGearBaseStats(item);
-    const level = Number(item.enhanceLevel) || 0;
-    if (level >= GEAR_ENHANCE.maxLevel) return { ok: false, reason: 'max', level };
-    const cost = gearEnhanceCost(item);
-    if (this.gold < cost) return { ok: false, reason: 'gold', cost, level };
-    const chanceRate = gearEnhanceSuccessChance(item);
-    this.gold -= cost;
-    const rolled = Math.random() < chanceRate;
-    if (rolled) {
-      item.enhanceLevel = level + 1;
-      recomputeGearFromEnhance(item);
-      this.invalidateStats();
-      this.hp = Math.min(this.hp, this.maxHp);
-      if (this.equipped[item.slot] === item.id && item.slot === 'weapon') this.#updateWeaponVisual();
-      return { ok: true, success: true, cost, level: item.enhanceLevel, chance: chanceRate };
-    }
-    // Fail: drop one enhance step (or stay at +0).
-    item.enhanceLevel = Math.max(0, level - 1);
-    recomputeGearFromEnhance(item);
-    this.invalidateStats();
-    this.hp = Math.min(this.hp, this.maxHp);
-    if (this.equipped[item.slot] === item.id && item.slot === 'weapon') this.#updateWeaponVisual();
-    return { ok: true, success: false, cost, level: item.enhanceLevel, chance: chanceRate };
+    if (itemId !== this.weapon?.id) return { ok: false, reason: 'weapon-only' };
+    return this.enhanceWeapon();
   }
 
   upgradeSkill(skillId) {
@@ -963,7 +962,10 @@ export class Player {
       this.#sanitizeEquippedWeapon();
     }
     const rarity = RARITIES[this.weapon?.rarity] ?? RARITIES.common;
-    this.characterFactory.equipWeapon(this.refs, { ...this.weapon, rarityColor: rarity.color });
+    this.characterFactory.equipWeapon(this.refs, {
+      ...this.weapon,
+      rarityColor: this.weapon?.rarityColor ?? rarity.color,
+    });
   }
 
   dispose() {
@@ -990,7 +992,11 @@ export class Player {
         ...item,
         affixes: [...(item.affixes ?? [])],
         baseStats: item.baseStats ? { ...item.baseStats } : undefined,
+        optionStats: item.optionStats ? { ...item.optionStats } : undefined,
+        baseSpeed: Number(item.baseSpeed ?? item.speed) || 1,
         enhanceLevel: Number(item.enhanceLevel) || 0,
+        weaponEnhanceLevel: Number(item.weaponEnhanceLevel ?? item.enhanceLevel) || 0,
+        optionEnhanceLevel: Number(item.optionEnhanceLevel) || 0,
       })),
       equipped: { ...this.equipped },
       potions: this.potions,
@@ -1011,7 +1017,8 @@ export class Player {
     this.level = Math.max(1, Number(state.level) || 1);
     this.xp = Math.max(0, Number(state.xp) || 0);
     this.gold = Math.max(0, Number(state.gold) || 0);
-    this.essence = Math.max(0, Number(state.essence) || 0);
+    // Essence and equipment inventory were legacy systems; current progression is gold + one weapon.
+    this.essence = 0;
     this.skillPoints = Math.max(0, Number(state.skillPoints) || 0);
     // Only merge ranks for this class tree (ignore leftover hunter keys on a wizard save, etc.).
     const ranks = createEmptySkillRanks(classId);
@@ -1023,36 +1030,46 @@ export class Player {
     }
     this.skills = ranks;
     this.skillEvolution = normalizeSkillEvolutionState(state.skillEvolution, SKILLS, getClassSkillIds(classId));
-    const loadedInventory = Array.isArray(state.inventory) ? state.inventory.filter(item => item?.id && item?.slot) : [];
-    if (!loadedInventory.some(item => item.id === starter.id)) loadedInventory.unshift(starter);
-    this.inventory = loadedInventory.length ? loadedInventory.slice(0, PLAYER_CONFIG.inventoryLimit) : [starter];
-    for (const item of this.inventory) {
-      item.enhanceLevel = Math.max(0, Math.min(GEAR_ENHANCE.maxLevel, Number(item.enhanceLevel) || 0));
-      if (item.baseStats && typeof item.baseStats === 'object') {
-        recomputeGearFromEnhance(item);
-      } else {
-        ensureGearBaseStats(item);
-        // Old saves: current stats are the live values at enhance 0 (or unknown enhance).
-        // Treat them as already-enhanced display; back out base when enhanceLevel > 0.
-        if (item.enhanceLevel > 0) {
-          const flatMul = 1 + item.enhanceLevel * GEAR_ENHANCE.flatStep;
-          const pctMul = 1 + item.enhanceLevel * GEAR_ENHANCE.pctStep;
-          for (const key of NUMERIC_GEAR_STATS) {
-            const live = Number(item[key]) || 0;
-            const mul = (key === 'power' || key === 'defense' || key === 'hp' || key === 'moveSpeed') ? flatMul : pctMul;
-            item.baseStats[key] = mul > 0 ? live / mul : 0;
-          }
-          recomputeGearFromEnhance(item);
+    const loadedInventory = Array.isArray(state.inventory)
+      ? state.inventory.filter(item => item?.id && item?.slot)
+      : [];
+    const equippedId = state.equipped?.weapon;
+    const legacyWeapon = loadedInventory.find(item => item.id === equippedId && item.slot === 'weapon')
+      ?? loadedInventory
+        .filter(item => item.slot === 'weapon')
+        .sort((a, b) => (Number(b.score) || 0) - (Number(a.score) || 0))[0];
+    const weapon = legacyWeapon ? { ...legacyWeapon } : starter;
+    weapon.classId = classId;
+    weapon.slot = 'weapon';
+    const oldLevel = Math.max(0, Number(weapon.weaponEnhanceLevel ?? weapon.enhanceLevel) || 0);
+    if (!weapon.baseStats || typeof weapon.baseStats !== 'object') {
+      ensureGearBaseStats(weapon);
+      // Legacy gear stored post-enhance values without a base snapshot.
+      if (oldLevel > 0) {
+        const flatMul = 1 + oldLevel * GEAR_ENHANCE.flatStep;
+        const pctMul = 1 + oldLevel * GEAR_ENHANCE.pctStep;
+        for (const key of NUMERIC_GEAR_STATS) {
+          const live = Number(weapon[key]) || 0;
+          const mul = (key === 'power' || key === 'defense' || key === 'hp' || key === 'moveSpeed') ? flatMul : pctMul;
+          weapon.baseStats[key] = mul > 0 ? live / mul : 0;
         }
       }
     }
-    this.equipped = { weapon: starter.id, armor: null, charm: null, ...(state.equipped ?? {}) };
-    for (const slot of ['weapon', 'armor', 'charm']) {
-      const item = this.getItem(this.equipped[slot]);
-      if (!item || item.slot !== slot) this.equipped[slot] = slot === 'weapon' ? starter.id : null;
+    weapon.baseSpeed = Number(weapon.baseSpeed) || Number(weapon.speed) || 1;
+    weapon.weaponEnhanceLevel = Math.min(WEAPON_ENHANCE.maxLevel, oldLevel);
+    weapon.optionEnhanceLevel = Math.min(WEAPON_OPTION_ENHANCE.maxLevel, Number(weapon.optionEnhanceLevel) || 0);
+    weapon.optionStats = weapon.optionStats && typeof weapon.optionStats === 'object' ? { ...weapon.optionStats } : {};
+    for (const affix of weapon.affixes ?? []) {
+      if (affix?.stat) weapon.optionStats[affix.stat] = Number(weapon.optionStats[affix.stat]) || Number(affix.value) || 0;
     }
-    // Drop illegal weapons from the hand (old saves / wrong-class loot).
-    this.#sanitizeEquippedWeapon();
+    if (!weapon.optionEnhanceLevel && Object.keys(weapon.optionStats).length) {
+      weapon.optionEnhanceLevel = Math.min(WEAPON_OPTION_ENHANCE.maxLevel, Object.keys(weapon.optionStats).length);
+    }
+    recomputeWeaponFromEnhance(weapon);
+    const discarded = loadedInventory.filter(item => item !== legacyWeapon);
+    this.gold += discarded.reduce((sum, item) => sum + gearSellValue(item), 0);
+    this.inventory = [weapon];
+    this.equipped = { weapon: weapon.id };
     this.potions = clamp(Number(state.potions) || 0, 0, Number(state.maxPotions) || 5);
     this.maxPotions = Math.max(5, Number(state.maxPotions) || 5);
     const position = Array.isArray(state.position) ? state.position : [0, 0, 6];

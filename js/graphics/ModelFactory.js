@@ -682,7 +682,7 @@ export function createEnemyModel(data, elite = false) {
     crab: 1.35, raptor: 2.0, cyclops: 2.75, scorpion: 2.5, knight: 2.7, imp: 2.35,
     lizard: 1.45, panther: 1.75, colossus: 3.3, drake: 3.4 })[data.shape] ?? 2;
   refs.shadow = createShadow(group, (data.boss ? 1.65 : elite ? 1.05 : .78) * (data.scale ?? 1), data.boss ? .3 : .2);
-  const health = createHealthBar(group, modelHeight + .38, data.boss ? 2.7 : elite ? 2 : 1.45);
+  const health = createHealthBar(group, modelHeight + .38, data.boss ? 2.2 : elite ? 2 : 1.45);
   Object.assign(refs, { healthGroup: health.group, healthBack: health.back, healthFill: health.fill, healthWidth: health.width, modelHeight });
 
   if (elite || data.boss) {

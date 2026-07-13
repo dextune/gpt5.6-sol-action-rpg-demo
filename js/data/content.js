@@ -900,7 +900,7 @@ export const HERO_CLASSES = Object.freeze({
     baseStatMods: Object.freeze({ attack: .92, mp: 1.28, skillPower: .08 }),
     apexKeystone: Object.freeze({ id:'overflow_overcast', unlockLevel:100, trigger:'apex_cast', overflowMax:100, overflowCost:100, reactionGain:25, perCastCap:1 }),
     // Staves only for the wizard silhouette.
-    weaponBias: Object.freeze({ preferred: Object.freeze(['staff']), mult: 2.8, otherMult: 0 }),
+    weaponBias: Object.freeze({ preferred: Object.freeze(['staff', 'relic']), mult: 2.8, otherMult: 0 }),
     starterWeapon: Object.freeze({
       id: 'starter-apprentice-staff',
       baseId: 'oak_staff',
@@ -934,7 +934,7 @@ export const HERO_CLASSES = Object.freeze({
     baseStatMods: Object.freeze({ attack: 1.12, mp: 1.05, skillPower: 0, hp: .82, defense: .85 }),
     apexKeystone: Object.freeze({ id:'blood_echo', unlockLevel:100, trigger:'apex_finisher', bleedTierCap:3, duplicateMult:.22, targetCap:8, perTargetCap:3 }),
     // Daggers + light sabers only for the rogue.
-    weaponBias: Object.freeze({ preferred: Object.freeze(['dagger', 'saber']), mult: 2.5, otherMult: 0 }),
+    weaponBias: Object.freeze({ preferred: Object.freeze(['dagger', 'saber', 'relic']), mult: 2.5, otherMult: 0 }),
     // Short-reach fast blades: each click bursts into a 2-hit flurry (human click rate is the cap, not the blades).
     meleeProfile: Object.freeze({ rangeMult: .78, arcMult: 1.05, flurry: 2 }),
     // Focus charges on landed basic hits; when full, the next attack unleashes a level-scaled combo rush.
@@ -985,7 +985,7 @@ export const HERO_CLASSES = Object.freeze({
     baseStatMods: Object.freeze({ attack: 1.0, mp: 1.08, skillPower: 0.04, hp: 0.9, defense: 0.88 }),
     apexKeystone: Object.freeze({ id:'marked_convergence', unlockLevel:100, trigger:'apex_finisher', convergenceMult:.35, markRequired:true, perCastCap:1 }),
     // Bows only — prevents ranger auto-equipping blades that break the hunt fantasy.
-    weaponBias: Object.freeze({ preferred: Object.freeze(['bow']), mult: 2.6, otherMult: 0 }),
+    weaponBias: Object.freeze({ preferred: Object.freeze(['bow', 'relic']), mult: 2.6, otherMult: 0 }),
     basicAttack: Object.freeze({
       bolts: 4,
       comboMults: Object.freeze([1.0, 1.08, 1.18, 1.42]),
@@ -1020,6 +1020,47 @@ export const HERO_CLASSES = Object.freeze({
     }),
   }),
 });
+
+/**
+ * Signature-weapon evolution stages. The stage is selected by Weapon Enhance;
+ * no hero receives a replacement drop. Models stay inside each class allow-list.
+ */
+export const WEAPON_EVOLUTIONS = Object.freeze({
+  aerin: Object.freeze([
+    Object.freeze({ level: 0, name: 'Knight Longsword', model: 'sword', color: 0xd8e4f0, rarity: 'common' }),
+    Object.freeze({ level: 6, name: 'Oathbound Saber', model: 'saber', color: 0xf0d48a, rarity: 'uncommon' }),
+    Object.freeze({ level: 12, name: 'Sunsteel Greatblade', model: 'greatsword', color: 0xffb95f, rarity: 'rare' }),
+    Object.freeze({ level: 20, name: 'Crownbreaker', model: 'greatsword', color: 0xff805c, rarity: 'epic' }),
+    Object.freeze({ level: 30, name: 'Apex Aegis', model: 'relic', color: 0xe1b4ff, rarity: 'legendary' }),
+  ]),
+  wizard: Object.freeze([
+    Object.freeze({ level: 0, name: 'Apprentice Staff', model: 'staff', color: 0xc8b4ff, rarity: 'common' }),
+    Object.freeze({ level: 6, name: 'Crystal Rod', model: 'staff', color: 0x9ed8ff, rarity: 'uncommon' }),
+    Object.freeze({ level: 12, name: 'Astral Scepter', model: 'staff', color: 0xc09aff, rarity: 'rare' }),
+    Object.freeze({ level: 20, name: 'Void Conduit', model: 'staff', color: 0xe18bff, rarity: 'epic' }),
+    Object.freeze({ level: 30, name: 'Starforged Focus', model: 'relic', color: 0xf1c2ff, rarity: 'legendary' }),
+  ]),
+  rogue: Object.freeze([
+    Object.freeze({ level: 0, name: 'Fledgling Dagger', model: 'dagger', color: 0x9fe8d8, rarity: 'common' }),
+    Object.freeze({ level: 6, name: 'Viper Kris', model: 'dagger', color: 0x68e6b3, rarity: 'uncommon' }),
+    Object.freeze({ level: 12, name: 'Moonfang', model: 'saber', color: 0xa8f0dc, rarity: 'rare' }),
+    Object.freeze({ level: 20, name: 'Night Lotus', model: 'saber', color: 0xd86fff, rarity: 'epic' }),
+    Object.freeze({ level: 30, name: 'Eclipse Fang', model: 'relic', color: 0xff98d8, rarity: 'legendary' }),
+  ]),
+  ranger: Object.freeze([
+    Object.freeze({ level: 0, name: 'Fledgling Bow', model: 'bow', color: 0xc4a574, rarity: 'common' }),
+    Object.freeze({ level: 6, name: 'Ash Longbow', model: 'bow', color: 0xe0bf82, rarity: 'uncommon' }),
+    Object.freeze({ level: 12, name: 'Storm Recurve', model: 'bow', color: 0x9ad0a8, rarity: 'rare' }),
+    Object.freeze({ level: 20, name: 'Wildstar Bow', model: 'bow', color: 0xffc46b, rarity: 'epic' }),
+    Object.freeze({ level: 30, name: 'Convergence Arc', model: 'relic', color: 0xf2dc9a, rarity: 'legendary' }),
+  ]),
+});
+
+export function getWeaponEvolution(classId, enhanceLevel = 0) {
+  const stages = WEAPON_EVOLUTIONS[resolveHeroClassId(classId)] ?? WEAPON_EVOLUTIONS.aerin;
+  const level = Math.max(0, Number(enhanceLevel) || 0);
+  return stages.reduce((current, stage) => (stage.level <= level ? stage : current), stages[0]);
+}
 
 export function resolveHeroClassId(classId) {
   if (classId && HERO_CLASSES[classId]) return classId;
@@ -1130,7 +1171,8 @@ export function createClassStarterWeapon(classId = DEFAULT_HERO_CLASS_ID) {
   const item = {
     defense: 0, hp: 0, haste: 0, leech: 0, xpBonus: 0, goldBonus: 0,
     skillPower: 0, moveSpeed: 0, luck: 0, score: 20, affixes: [],
-    enhanceLevel: 0, locked: false,
+    classId: def.id, weaponEnhanceLevel: 0, optionEnhanceLevel: 0,
+    enhanceLevel: 0, locked: true,
     ...base,
     rarityColor: rarity.color,
   };
@@ -1139,5 +1181,8 @@ export function createClassStarterWeapon(classId = DEFAULT_HERO_CLASS_ID) {
     baseStats[key] = Number(item[key]) || 0;
   }
   item.baseStats = baseStats;
+  item.baseSpeed = Number(item.speed) || 1;
+  item.evolutionStage = getWeaponEvolution(def.id, 0).level;
+  item.optionStats = {};
   return item;
 }

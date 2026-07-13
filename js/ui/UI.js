@@ -1,9 +1,13 @@
 import * as THREE from 'three';
-import { GAME_CONFIG, GEAR_ENHANCE, PLAYER_CONFIG } from '../config.js';
-import { gearEnhanceCost, gearEnhanceSuccessChance, gearSellValue } from '../systems/LootSystem.js';
+import {
+  GAME_CONFIG, GEAR_ENHANCE, PLAYER_CONFIG, WEAPON_ENHANCE, WEAPON_OPTION_ENHANCE,
+} from '../config.js';
+import {
+  gearEnhanceCost, gearEnhanceSuccessChance, gearSellValue, weaponEnhanceCost, weaponEnhanceSuccessChance, weaponOptionEnhanceCost,
+} from '../systems/LootSystem.js';
 import {
   DEFAULT_HERO_CLASS_ID, HERO_CLASSES, RARITIES, SKILLS, ZONES,
-  getClassActiveSkills, getClassPassiveSkills, getHeroClass, resolveHeroClassId,
+  WEAPON_EVOLUTIONS, getClassActiveSkills, getClassPassiveSkills, getHeroClass, resolveHeroClassId,
 } from '../data/content.js';
 import { resolveSkillForm, skillMutationOptions } from '../data/skillCombat.js';
 import { clamp, formatTime } from '../core/Utils.js';
@@ -173,7 +177,7 @@ export class UI {
       'world-tier', 'zone-name', 'zone-subtitle', 'defense-wave-panel', 'defense-wave-label', 'defense-wave-remaining',
       'kill-count', 'streak-count', 'elite-count', 'boss-count',
       'boss-charge-text', 'boss-charge-fill', 'contract-title', 'contract-fill', 'contract-progress', 'contract-hint',
-      'boss-hud', 'boss-name', 'boss-level', 'boss-health-fill', 'gold-count', 'essence-count', 'bag-count', 'potion-count',
+      'boss-hud', 'boss-name', 'boss-level', 'boss-health-fill', 'gold-count', 'weapon-level', 'potion-count',
       'minimap', 'minimap-zone', 'notifications', 'float-layer', 'aim-reticle', 'zone-toast',
       'panel-layer', 'panel-title', 'panel-content', 'panel-close', 'death-screen', 'death-timer-fill',
       'damage-flash', 'fatal-error', 'debug-hud',
@@ -437,7 +441,7 @@ export class UI {
       const clearRatio = clamp(wave / Math.max(1, maxWave), 0, 1);
       this.elements['contract-fill'].style.width = `${clearRatio * 100}%`;
       if (this.elements['contract-hint']) {
-        this.elements['contract-hint'].textContent = 'Clear waves · gear & power shards scale up';
+        this.elements['contract-hint'].textContent = 'Clear waves · gold & power shards scale up';
       }
       const defenseKills = defenseHud?.kills ?? defenseHud?.totalKills;
       this.elements['kill-count'].textContent = (defenseKills ?? hunt.totalKills ?? 0).toLocaleString('en-US');
@@ -469,8 +473,9 @@ export class UI {
     this.elements['boss-charge-text'].textContent = `${Math.floor(hunt.bossCharge)}%`;
     this.elements['boss-charge-fill'].style.width = `${hunt.bossCharge}%`;
     this.elements['gold-count'].textContent = player.gold.toLocaleString('en-US');
-    this.elements['essence-count'].textContent = player.essence.toLocaleString('en-US');
-    this.elements['bag-count'].textContent = `${player.inventory.length} / ${PLAYER_CONFIG.inventoryLimit}`;
+    if (this.elements['weapon-level']) {
+      this.elements['weapon-level'].textContent = `WPN +${Number(player.weapon?.weaponEnhanceLevel ?? player.weapon?.enhanceLevel) || 0}`;
+    }
     this.elements['potion-count'].textContent = player.potions;
 
     this.#updateAbility('dash', player.cooldownRatio('dash'), player.dashCooldown);
@@ -768,42 +773,52 @@ export class UI {
   }
 
   #renderInventory() {
-    this.elements['panel-title'].textContent = 'Equipment & Loot';
+    this.elements['panel-title'].textContent = 'Weapon Forge';
     const player = this.game.player;
-    const equipped = ['weapon', 'armor', 'charm'].map(slot => this.#equipmentSlot(slot)).join('');
-    const list = player.inventory
-      .filter(item => this.inventoryFilter === 'all' || item.slot === this.inventoryFilter)
-      .sort((a, b) => ((b.enhanceLevel ?? 0) - (a.enhanceLevel ?? 0))
-        || (RARITY_RANK[b.rarity] - RARITY_RANK[a.rarity])
-        || ((b.score ?? 0) - (a.score ?? 0)));
-    const cards = list.length ? list.map(item => this.#itemCard(item)).join('') : '<div class="empty-inventory">No loot of this type.</div>';
-    const sellableCount = player.inventory.filter(item => !item.locked && player.equipped[item.slot] !== item.id).length;
+    const weapon = player.weapon;
+    const weaponLevel = Number(weapon.weaponEnhanceLevel ?? weapon.enhanceLevel) || 0;
+    const optionLevel = Number(weapon.optionEnhanceLevel) || 0;
+    const weaponMax = weaponLevel >= WEAPON_ENHANCE.maxLevel;
+    const optionMax = optionLevel >= WEAPON_OPTION_ENHANCE.maxLevel;
+    const weaponCost = weaponEnhanceCost(weapon);
+    const weaponChance = weaponEnhanceSuccessChance(weapon);
+    const optionCost = weaponOptionEnhanceCost(weapon);
+    const stages = WEAPON_EVOLUTIONS[player.classId] ?? [];
+    const stageTrack = stages.map(stage => `<span class="weapon-stage ${weaponLevel >= stage.level ? 'is-complete' : ''}${weaponLevel === stage.level ? ' is-current' : ''}"><i></i><small>+${stage.level}</small><b>${escapeHtml(stage.name)}</b></span>`).join('');
+    const options = Object.entries(weapon.optionStats ?? {})
+      .filter(([, value]) => Number(value) > 0)
+      .map(([key, value]) => `<span>${STAT_LABELS[key] ?? titleCaseId(key)} +${PERCENT_STATS.has(key) ? `${(Number(value) * 100).toFixed(1)}%` : Math.round(value)}</span>`)
+      .join('') || '<span>No weapon options yet.</span>';
     this.elements['panel-content'].innerHTML = `
-      <div class="panel-grid inventory-layout">
-        <section class="equipment-column">
-          <p class="section-label"><span>EQUIPPED</span><b>Power ${Math.round(player.attackPower + player.defense + player.maxHp * .08)}</b></p>
-          ${equipped}
+      <div class="weapon-forge-layout">
+        <section class="equipment-column weapon-forge-card">
+          <p class="section-label"><span>SIGNATURE WEAPON</span><b>Score ${Math.round(weapon.score ?? 0)}</b></p>
+          <article class="equipment-slot weapon-slot" style="--rarity:${hexColor(weapon.rarityColor)}">
+            <img class="equipment-icon" src="${itemIcon(weapon)}" alt="">
+            <small>${escapeHtml(getHeroClass(player.classId).title)} · ${escapeHtml(weapon.model)}</small>
+            <strong style="color:${hexColor(weapon.rarityColor)}">${escapeHtml(weapon.name)}</strong>
+            <div class="item-stats">${this.#itemStats(weapon, 8)}</div>
+          </article>
+          <div class="weapon-option-list"><p class="section-label"><span>WEAPON OPTIONS · ${optionLevel}/${WEAPON_OPTION_ENHANCE.maxLevel}</span></p>${options}</div>
           <div class="character-stats">
             <span>Attack <b>${Math.round(player.attackPower)}</b></span><span>Defense <b>${Math.round(player.defense)}</b></span>
             <span>Health <b>${player.maxHp}</b></span><span>Crit <b>${(player.critChance * 100).toFixed(1)}%</b></span>
             <span>Atk Speed <b>${player.attackSpeed.toFixed(2)}</b></span><span>Skill Power <b>${Math.round(player.skillPower * 100)}%</b></span>
             <span>Lifesteal <b>${(player.leech * 100).toFixed(1)}%</b></span><span>Luck <b>${(player.luck * 100).toFixed(1)}%</b></span>
-            <span>Gold <b>${player.gold.toLocaleString('en-US')}</b></span><span>Bag <b>${player.inventory.length}/${PLAYER_CONFIG.inventoryLimit}</b></span>
+            <span>Gold <b>${player.gold.toLocaleString('en-US')}</b></span><span>Weapon <b>1 / 1</b></span>
           </div>
-          <p class="enhance-hint">Sell spare gear for gold, then <b>Enhance</b> keepers. Success raises stats; fail drops 1 level.</p>
         </section>
-        <section class="inventory-column">
-          <div class="inventory-toolbar">
-            <p class="section-label inventory-count"><span>INVENTORY</span><b>${player.inventory.length} / ${PLAYER_CONFIG.inventoryLimit}</b></p>
-            <div class="inventory-filters" role="group" aria-label="Filter gear">
-              ${['all', 'weapon', 'armor', 'charm'].map(id => `<button type="button" class="filter-button ${this.inventoryFilter === id ? 'active' : ''}" data-action="filter" data-filter="${id}">${{ all: 'All', weapon: 'Weapon', armor: 'Armor', charm: 'Charm' }[id]}</button>`).join('')}
-            </div>
-            <div class="inventory-bulk-actions" role="group" aria-label="Bulk sell">
-              <button type="button" class="small-button" data-action="sell-junk" title="Sell Common and Uncommon unequipped gear">Sell Junk</button>
-              <button type="button" class="small-button accent-button" data-action="sell-all" ${sellableCount ? '' : 'disabled'} title="Sell every unequipped item (keeps equipped)">Sell All${sellableCount ? ` · ${sellableCount}` : ''}</button>
-            </div>
-          </div>
-          <div class="item-grid">${cards}</div>
+        <section class="enhancement-column">
+          <div class="enhancement-banner"><span>GOLD RESOURCES</span><strong>${player.gold.toLocaleString('en-US')}G</strong><small>Hunting rewards are gold only. Your signature weapon never drops.</small></div>
+          <article class="enhancement-card weapon-enhancement-card">
+            <div><span class="enhancement-kicker">WEAPON ENHANCE</span><h3>Evolution ${weaponLevel} / ${WEAPON_ENHANCE.maxLevel}</h3><p>Raises attack and advances the weapon's name, model, color, and rarity at milestone levels. Failure keeps the current level.</p></div>
+            <div class="weapon-stage-track">${stageTrack}</div>
+            <button type="button" class="forge-button" data-action="weapon-enhance" ${weaponMax || player.gold < weaponCost ? 'disabled' : ''}>${weaponMax ? 'Evolution Complete' : `Weapon Enhance · ${weaponCost.toLocaleString('en-US')}G · ${Math.round(weaponChance * 100)}%`}</button>
+          </article>
+          <article class="enhancement-card option-enhancement-card">
+            <div><span class="enhancement-kicker">WEAPON OPTION ENHANCE</span><h3>Options ${optionLevel} / ${WEAPON_OPTION_ENHANCE.maxLevel}</h3><p>Unlocks and improves secondary weapon stats. This track does not change the weapon model.</p></div>
+            <button type="button" class="forge-button option-button" data-action="weapon-option-enhance" ${optionMax || player.gold < optionCost ? 'disabled' : ''}>${optionMax ? 'Options Complete' : `Option Enhance · ${optionCost.toLocaleString('en-US')}G`}</button>
+          </article>
         </section>
       </div>`;
   }
@@ -846,7 +861,7 @@ export class UI {
     const enhanceTitle = maxed
       ? 'Already at max enhance'
       : canAfford
-        ? `Spend ${cost}G. Success ${chancePct}%. Fail drops 1 level.`
+        ? `Spend ${cost}G. Failure keeps the current level.`
         : `Need ${cost}G (have ${player.gold})`;
     return `<article class="item-card ${equipped ? 'equipped' : ''}${canEquip ? '' : ' wrong-class'}${plus > 0 ? ' enhanced' : ''}" style="--rarity:${hexColor(item.rarityColor)}">
       <img class="item-icon" src="${itemIcon(item)}" alt="">
@@ -1096,6 +1111,33 @@ export class UI {
       if (result.count) this.game.audio.click();
       this.game.requestSave();
       this.#renderInventory();
+    } else if (action === 'weapon-enhance') {
+      const result = this.game.player.enhanceWeapon();
+      if (!result.ok) {
+        this.notify(result.reason === 'gold' ? `Need ${result.cost.toLocaleString('en-US')}G to evolve the weapon.` : 'Weapon evolution is complete.', 'danger', 2.8);
+        return;
+      }
+      if (result.success === false) {
+        this.game.audio.click();
+        this.notify(`Weapon enhance failed · remains at +${result.level}`, 'danger', 3.2);
+        this.game.requestSave();
+        this.#renderInventory();
+        return;
+      }
+      this.game.audio.levelUp?.();
+      this.notify(`Weapon evolved · ${this.game.player.weapon.name} · +${result.level}`, 'level', 3.6);
+      this.game.requestSave();
+      this.#renderInventory();
+    } else if (action === 'weapon-option-enhance') {
+      const result = this.game.player.enhanceWeaponOptions();
+      if (!result.ok) {
+        this.notify(result.reason === 'gold' ? `Need ${result.cost.toLocaleString('en-US')}G to enhance weapon options.` : 'Weapon options are complete.', 'danger', 2.8);
+        return;
+      }
+      this.game.audio.click();
+      this.notify(`Weapon option improved · ${titleCaseId(result.stat)} · Lv.${result.level}`, 'loot', 3.2);
+      this.game.requestSave();
+      this.#renderInventory();
     } else if (action === 'enhance') {
       const item = this.game.player.getItem(button.dataset.item);
       const name = item?.name ?? 'Gear';
@@ -1107,18 +1149,8 @@ export class UI {
         return;
       }
       this.game.audio.click();
-      if (result.success) {
-        this.game.audio.levelUp?.();
-        this.notify(`Enhance success · ${name} → +${result.level}`, 'level', 3.2);
-      } else {
-        this.notify(
-          result.level > 0
-            ? `Enhance failed · ${name} dropped to +${result.level}`
-            : `Enhance failed · ${name} stays +0`,
-          'danger',
-          3.4,
-        );
-      }
+      this.game.audio.levelUp?.();
+      this.notify(`Enhance complete · ${name} → +${result.level}`, 'level', 3.2);
       this.game.requestSave();
       this.#renderInventory();
     } else if (action === 'upgrade-skill') {

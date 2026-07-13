@@ -187,10 +187,10 @@ Inside the Defense run only:
 
 1. Kill XP → existing `Player.addXp` / level / skills  
 2. Wave-clear XP/gold from `DEFENSE_CONFIG`  
-3. Gear drip every `gearEveryWaves` via existing loot grant helpers if available  
+3. Gold milestone every `goldMilestoneEveryWaves`; the player spends it in Weapon Forge
 4. Optional short-lived run buffs on `DefenseSystem` (never written into Hunt save)
 
-Hero “must get stronger” is satisfied by XP + clear rewards + gear — not by permanently buffing `PLAYER_CONFIG`.
+Hero “must get stronger” is satisfied by XP + clear rewards + weapon enhancement — not by permanently buffing `PLAYER_CONFIG`.
 
 ### 4.5 Arena (V1)
 
@@ -213,8 +213,8 @@ export const DEFENSE_CONFIG = Object.freeze({
   maxCount: 36,
   hpPerWave: 0.055,       // soft linear; late ramp via defenseWaveHpMul()
   dmgPerWave: 0.032,
-  // startLevel / runMods / power shards / gear floors — see live config
-  gearEveryWaves: 2,
+  // startLevel / runMods / power shards / gold milestone — see live config
+  goldMilestoneEveryWaves: 2,
   spawnInner: 10,
   spawnOuter: 22,
 });
@@ -222,7 +222,7 @@ export const DEFENSE_CONFIG = Object.freeze({
 ```
 
 Balance only via this table after playtest — not by editing Hunt spawn rates.
-Hero runMods (`player.runMods`) and gear `powerScale` are Defense-run only and reset on title.
+Hero runMods (`player.runMods`) are Defense-run only and reset on title. Weapon enhancement is persistent and uses the shared gold economy.
 
 ---
 

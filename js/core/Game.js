@@ -505,19 +505,6 @@ export class Game {
     player.skillPoints += Math.max(0, cfg.startSkillPoints ?? 0);
     player.potions = Math.max(player.potions, cfg.startPotions ?? 5);
     player.maxPotions = Math.max(player.maxPotions, 6);
-    // Starter uncommon kit so wave 1 is not naked-blade only.
-    if (this.loot?.generateGear) {
-      for (const slot of ['armor', 'charm']) {
-        const gear = this.loot.generateGear(player.level + 1, {
-          slot, floor: 'uncommon', powerScale: 1.08,
-        });
-        player.addGear?.(gear);
-      }
-      const weapon = this.loot.generateGear(player.level + 2, {
-        slot: 'weapon', floor: 'uncommon', powerScale: 1.12,
-      });
-      player.addGear?.(weapon);
-    }
     player.hp = player.maxHp;
     player.mp = player.maxMp;
     player.energy = 40;
@@ -688,10 +675,6 @@ export class Game {
     enemy.deathHandled = true;
     this.player.extendShadowFrenzyOnKill?.();
 
-    // Gold still grants immediately; XP is deferred to floor gems.
-    const [minGold, maxGold] = enemy.goldRange;
-    const goldRaw = randInt(minGold, maxGold) * (enemy.elite ? 2.2 : 1) * (enemy.boss ? 5 : 1);
-    const gold = this.player.addGold(goldRaw);
     if (this.mode === 'defense') this.defense.onKill(enemy);
     else this.hunt.onKill(enemy);
     this.loot.dropFromEnemy(enemy);
@@ -701,7 +684,6 @@ export class Game {
     this.#applyKillSkillRefund(enemy);
 
     const position = enemy.position.clone().add(new THREE.Vector3(0, Math.max(.7, enemy.refs.modelHeight * .45), 0));
-    if (gold > 0) this.ui.floatText(position, `+${gold}G`, 'heal');
 
     // Kill chain (2.5s window) — shared HUD counter for hunt + defense.
     if (this.killChainTimer > 0) this.killChain += 1;

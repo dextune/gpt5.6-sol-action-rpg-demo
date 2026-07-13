@@ -3,11 +3,11 @@ import { clamp, randInt, uid, weightedPick } from '../core/Utils.js';
 
 /** English reward preview lines by contract reward tier (1–5). */
 const CONTRACT_REWARD_HINTS = Object.freeze({
-  1: 'Modest gold · Uncommon gear',
-  2: 'Solid gold · Rare gear chance',
-  3: 'Rich gold · Rare gear guaranteed floor',
-  4: 'Premium gold · Epic floor · Skill Point chance',
-  5: 'Jackpot gold · Epic floor · Skill Point',
+  1: 'Modest gold · Weapon forge fund',
+  2: 'Solid gold · Weapon forge fund',
+  3: 'Rich gold · Weapon forge fund',
+  4: 'Premium gold · Option forge fund · Skill Point chance',
+  5: 'Jackpot gold · Option forge fund · Skill Point',
 });
 
 function rewardHintForTier(tier) {
@@ -111,10 +111,9 @@ export class HuntSystem {
     contract.complete = true;
     this.completedContracts += 1;
     const reward = this.game.loot.grantContractReward(contract.rewardTier);
-    const gearName = reward.gear?.name ? ` · ${reward.gear.name}` : '';
     const spNote = contract.rewardTier >= 4 ? ' · Skill Point' : '';
     this.game.ui.notify(
-      `Contract complete · ${contract.label} · +${reward.gold}G${gearName}${spNote}`,
+      `Contract complete · ${contract.label} · +${reward.gold}G${spNote}`,
       'contract',
       5.2,
     );

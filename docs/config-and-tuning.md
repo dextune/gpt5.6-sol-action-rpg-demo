@@ -29,7 +29,7 @@ All values are `Object.freeze`d. After you **add or modify** a field, keep the f
 | `moveSpeed` / `acceleration` / `friction` | movement feel |
 | `dashSpeed` / `dashDuration` / `dashCooldown` | dodge |
 | `potionHealRatio` | potion heal ratio (vs maxHp) |
-| `inventoryLimit` | bag slots |
+| `inventoryLimit` | legacy save compatibility; live game keeps one signature weapon |
 
 Level-up scaling lives in the getters of `js/entities/Player.js` (`maxHp`, `attackPower`, etc.). Changing `config` alone gives a strong feel change, but to alter the **growth curve** also read the `Player` getters.
 

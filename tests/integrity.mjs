@@ -61,7 +61,7 @@ ok(content.HERO_CLASSES.wizard.activeSkills.includes('fireball'), 'wizard has fi
 ok(content.HERO_CLASSES.wizard.attackStyle === 'magic', 'wizard attackStyle magic');
 ok(content.HERO_CLASSES.aerin.attackStyle === 'melee', 'knight (aerin) attackStyle melee');
 ok(config.GAME_CONFIG.maxEnemies >= 42, 'max concurrent enemies setting');
-ok(config.GAME_CONFIG.saveVersion === 4, 'save data version 4');
+ok(config.GAME_CONFIG.saveVersion === 5, 'save data version 5');
 
 const storage = new Map();
 globalThis.localStorage = {

@@ -27,11 +27,11 @@ UI bindings: kill / streak / boss charge / contract elements.
 
 File: `js/systems/LootSystem.js`
 
-- Drop generation (rarity, affix)
-- World pickup mesh
-- Inventory add / gold · essence
+- Drop generation (legacy compatibility only)
+- Gold-only world pickup mesh
+- Signature weapon enhancement cost and option growth
 
-Equipment base / affix tables live in `content.js`.
+Legacy equipment tables remain in `content.js` for save migration and compatibility; live hunting no longer adds equipment to inventory.
 
 ## CombatSystem
 
@@ -60,14 +60,15 @@ If you bump the version, add old-save compatibility logic or document the loss.
 Enemy dies
   → Game.onEnemyKilled(enemy)
       HuntSystem.onKill   // streak, boss gauge, contract, title milestone
-      LootSystem drop     // pickup spawn
-      XP / gold grant     // check Game/Player path
+      LootSystem drop     // one gold pickup
+      XP grant            // XP gem path
 ```
 
 Where to put reward logic:
 
 - **Meta progress** → HuntSystem.onKill
-- **Items** → LootSystem
+- **Gold pickups** → LootSystem
+- **Weapon growth** → Player + LootSystem enhancement helpers
 - **Instant stats** → Player method
 
 Three systems overlap on one event, so watch for `ui.notify` spam.

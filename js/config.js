@@ -1,7 +1,7 @@
 export const GAME_CONFIG = Object.freeze({
   title: 'GPT-5.6: Sol / Action RPG DEMO',
   saveKey: 'gpt5.6-sol-arpg-demo-v1',
-  saveVersion: 4,
+  saveVersion: 5,
   worldRadius: 172,
   terrainSize: 360,
   terrainSegments: 144,
@@ -57,7 +57,7 @@ export const DEFENSE_CONFIG = Object.freeze({
   clearXpPerWave: 28,
   clearGoldBase: 18,
   clearGoldPerWave: 9,
-  gearEveryWaves: 2,
+  goldMilestoneEveryWaves: 2,
   // Start-of-run hero pad (Defense only; applied in Game.startDefense).
   startLevel: 3,
   startPotions: 5,
@@ -78,9 +78,6 @@ export const DEFENSE_CONFIG = Object.freeze({
   // Between-wave recovery.
   clearHealRatio: 0.38,
   clearMpRatio: 0.55,
-  // Gear item-level / stat scale vs wave.
-  gearLevelPerWave: 0.55,
-  gearPowerPerWave: 0.009,
   spawnInner: 10,
   spawnOuter: 22,
 });
@@ -175,10 +172,51 @@ export const PLAYER_CONFIG = Object.freeze({
   potionCooldown: 2,
   // Fraction of defense subtracted from incoming damage.
   defenseSoak: 0.46,
-  inventoryLimit: 48,
+  // Kept for save/UI compatibility; the live game has one signature weapon.
+  inventoryLimit: 1,
 });
 
-/** Inventory gear enhance (sell gold → upgrade; fail drops 1 level). */
+/** Signature weapon growth. Every class uses the same progression rules. */
+export const WEAPON_ENHANCE = Object.freeze({
+  maxLevel: 30,
+  powerStep: 0.075,
+  speedStep: 0.004,
+  costBase: 42,
+  costPerLevel: 8,
+  costPow: 1.32,
+  /** Success chance when attempting to reach the next weapon level. */
+  successByTarget: Object.freeze({
+    1: 0.95,
+    2: 0.90,
+    3: 0.82,
+    4: 0.72,
+    5: 0.60,
+    6: 0.48,
+    7: 0.38,
+    8: 0.30,
+    9: 0.24,
+    10: 0.18,
+  }),
+});
+
+/** Weapon option growth. Options unlock and improve independently of evolution. */
+export const WEAPON_OPTION_ENHANCE = Object.freeze({
+  maxLevel: 20,
+  optionSlots: 4,
+  costBase: 64,
+  costPerLevel: 11,
+  costPow: 1.38,
+  steps: Object.freeze({
+    crit: 0.012,
+    haste: 0.012,
+    leech: 0.006,
+    skillPower: 0.016,
+    goldBonus: 0.018,
+    luck: 0.014,
+  }),
+});
+
+/** Legacy inventory enhance tuning kept for save/UI compatibility. */
 export const GEAR_ENHANCE = Object.freeze({
   maxLevel: 10,
   /** Flat stats (power/defense/hp/moveSpeed) scale from base by this per level. */
@@ -195,19 +233,6 @@ export const GEAR_ENHANCE = Object.freeze({
     rare: 1.65,
     epic: 2.2,
     legendary: 3,
-  }),
-  /** Success chance when attempting to reach level `next` (1..maxLevel). */
-  successByTarget: Object.freeze({
-    1: 0.95,
-    2: 0.90,
-    3: 0.82,
-    4: 0.72,
-    5: 0.60,
-    6: 0.48,
-    7: 0.38,
-    8: 0.30,
-    9: 0.24,
-    10: 0.18,
   }),
 });
 
