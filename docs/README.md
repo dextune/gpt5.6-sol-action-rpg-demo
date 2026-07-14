@@ -35,7 +35,7 @@ Guides for small and large agents to safely modify the **GPT-5.6: Sol / Action R
 | [plan/short-session-polish.md](./plan/short-session-polish.md) | **plan: short-session content/visual polish (Tier A–B, no long-term sprawl)** |
 | [plan/skill-motion-spectacle.md](./plan/skill-motion-spectacle.md) | **implemented standard: skill content, motion & spectacle** |
 | [plan/level-100-skill-evolution/README.md](./plan/level-100-skill-evolution/README.md) | **implemented active-skill evolution and completed Phase 9 acceptance; deferred scope remains explicit** |
-| [plan/weapon-enhancement-gold-progression.md](./plan/weapon-enhancement-gold-progression.md) | **implemented gold-only loot, one signature weapon, and two enhancement tracks** |
+| [plan/weapon-enhancement-gold-progression.md](./plan/weapon-enhancement-gold-progression.md) | **implemented gold-primary loot with survival potions, one signature weapon, and two enhancement tracks** |
 
 ## Agent working rules (summary)
 

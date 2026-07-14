@@ -1,4 +1,4 @@
-# Gold-only loot and signature weapon progression
+# Gold-primary loot and signature weapon progression
 
 Status: implemented in save schema version 5.
 
@@ -17,7 +17,8 @@ This document defines the progression change in which hunting rewards are gold a
 ```text
 Enemy defeated
   └─ LootSystem.dropFromEnemy()
-       └─ one gold pickup (enemy / elite / boss / wave-scaled amount)
+       ├─ one gold pickup (enemy / elite / boss / wave-scaled amount)
+       └─ optional recovery potion (only while below potion capacity)
 
 Contract or Defense milestone
   └─ direct gold reward
@@ -27,7 +28,7 @@ Player opens Weapon Forge
   └─ Weapon Option Enhance   → secondary option slots and option values
 ```
 
-XP gems remain a separate XP system. Potions remain a starting/Defense supply and are not enemy loot. No gear, potion, essence, or salvage pickup is spawned from enemy loot.
+XP gems remain a separate XP system. Recovery potions are the only survival-item exception to gold-only enemy rewards. Gear, essence, and salvage pickups are not spawned from enemy loot.
 
 ## Enhancement tracks
 
@@ -95,7 +96,7 @@ The old Equipment & Loot panel is now `Weapon Forge`:
 
 - `js/config.js` — save version and both enhancement tuning tables.
 - `js/data/content.js` — class weapon evolution stages and starter weapon fields.
-- `js/systems/LootSystem.js` — gold-only drops, cost helpers, weapon recomputation, option growth.
+- `js/systems/LootSystem.js` — gold-primary drops with potion exception, cost helpers, weapon recomputation, option growth.
 - `js/entities/Player.js` — one-weapon invariant, enhancement methods, serialization, legacy migration.
 - `js/systems/HuntSystem.js` — contract reward copy and gold-only completion reward.
 - `js/systems/DefenseSystem.js` — Defense milestone gold reward and gold VFX.
@@ -105,7 +106,7 @@ The old Equipment & Loot panel is now `Weapon Forge`:
 
 ## Acceptance checklist
 
-- [x] Kill normal, elite, and boss enemies: only gold pickup is created.
+- [x] Kill normal, elite, and boss enemies: gold always drops, with capacity-aware potion drops at configured rates.
 - [x] Complete a contract: gold is granted and no gear pickup appears.
 - [x] Clear Defense milestones: gold is granted and no gear is added.
 - [x] Open Weapon Forge for each hero class: exactly one weapon is shown.

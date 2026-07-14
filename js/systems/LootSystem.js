@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-  GEAR_ENHANCE, PLAYER_CONFIG, WEAPON_ENHANCE, WEAPON_OPTION_ENHANCE, defenseRarityFloor,
+  GEAR_ENHANCE, LOOT_CONFIG, PLAYER_CONFIG, WEAPON_ENHANCE, WEAPON_OPTION_ENHANCE, defenseRarityFloor,
 } from '../config.js';
 import {
   AFFIXES, ARMOR_BASES, CHARM_BASES, RARITIES, WEAPON_BASES, getHeroClass, getWeaponEvolution,
@@ -298,8 +298,18 @@ export class LootSystem {
     const multiplier = (enemy.elite ? 2.2 : 1) * (enemy.boss ? 5 : 1) * waveBonus;
     const amount = Math.max(1, Math.round(randInt(minGold, maxGold) * multiplier));
     const offset = new THREE.Vector3(rand(-1.2, 1.2), 0, rand(-1.2, 1.2));
-    // Every enemy reward is now a gold pickup. Gear, potion and essence drops are gone.
-    return [this.spawnConsumable('gold', enemy.position.clone().add(offset), amount)];
+    const drops = [this.spawnConsumable('gold', enemy.position.clone().add(offset), amount)];
+    const player = this.game.player;
+    const potionChance = enemy.boss
+      ? LOOT_CONFIG.potionDropChance.boss
+      : enemy.elite
+        ? LOOT_CONFIG.potionDropChance.elite
+        : LOOT_CONFIG.potionDropChance.normal;
+    if (player.potions < player.maxPotions && chance(potionChance)) {
+      const potionOffset = new THREE.Vector3(rand(-1.2, 1.2), 0, rand(-1.2, 1.2));
+      drops.push(this.spawnConsumable('potion', enemy.position.clone().add(potionOffset), LOOT_CONFIG.potionDropAmount));
+    }
+    return drops;
   }
 
   spawnGear(item, position) {
@@ -308,8 +318,8 @@ export class LootSystem {
   }
 
   spawnConsumable(kind, position, amount = 1) {
-    // Legacy callers that ask for potion/essence are intentionally converted to gold.
-    kind = 'gold';
+    // Gear and essence remain gold-only; potion drops are the survival exception.
+    kind = kind === 'potion' ? 'potion' : 'gold';
     const group = new THREE.Group();
     const color = kind === 'gold' ? 0xffd36d : kind === 'potion' ? 0x62f29b : 0xc18aff;
     const material = new THREE.MeshToonMaterial({ color, emissive: color, emissiveIntensity: .5 });

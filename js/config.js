@@ -176,6 +176,16 @@ export const PLAYER_CONFIG = Object.freeze({
   inventoryLimit: 1,
 });
 
+/** Consumable drops are the one survival exception to gold-only enemy rewards. */
+export const LOOT_CONFIG = Object.freeze({
+  potionDropChance: Object.freeze({
+    normal: 0.12,
+    elite: 0.30,
+    boss: 1,
+  }),
+  potionDropAmount: 1,
+});
+
 /** Signature weapon growth. Every class uses the same progression rules. */
 export const WEAPON_ENHANCE = Object.freeze({
   maxLevel: 30,

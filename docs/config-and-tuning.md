@@ -33,6 +33,15 @@ All values are `Object.freeze`d. After you **add or modify** a field, keep the f
 
 Level-up scaling lives in the getters of `js/entities/Player.js` (`maxHp`, `attackPower`, etc.). Changing `config` alone gives a strong feel change, but to alter the **growth curve** also read the `Player` getters.
 
+## `LOOT_CONFIG`
+
+| Key | Meaning |
+|-----|---------|
+| `potionDropChance.normal` / `elite` / `boss` | chance for an enemy to drop one recovery potion when the player is below capacity |
+| `potionDropAmount` | potions created by one eligible drop |
+
+Enemy gear and essence remain converted to gold. Recovery potions are the intentional survival exception.
+
 ## `COLORS`
 
 Shared colors (hex numbers) used by UI, floating text, and some effects.
