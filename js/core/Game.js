@@ -21,6 +21,7 @@ import { LootSystem } from '../systems/LootSystem.js';
 import { XpGemSystem } from '../systems/XpGemSystem.js';
 import { HuntSystem } from '../systems/HuntSystem.js';
 import { DefenseSystem } from '../systems/DefenseSystem.js';
+import { RushSystem } from '../systems/RushSystem.js';
 import { UI } from '../ui/UI.js';
 import { TouchControls } from '../ui/TouchControls.js';
 
@@ -60,7 +61,7 @@ export class Game {
     this.touchControls = new TouchControls(this);
 
     this.state = 'loading';
-    /** @type {'hunt' | 'defense'} */
+    /** @type {'hunt' | 'defense' | 'rush'} */
     this.mode = 'hunt';
     this.defenseMeta = { bestWave: 0, runs: 0, lastWave: 0 };
     this.elapsed = 0;
@@ -134,6 +135,7 @@ export class Game {
     this.player = new Player(this.scene, this.characterFactory, this.quality);
     this.hunt = new HuntSystem(this);
     this.defense = new DefenseSystem(this);
+    this.rush = new RushSystem(this);
     this.combat = new CombatSystem(this);
     this.loot = new LootSystem(this);
     this.xpGems = new XpGemSystem(this);
@@ -156,8 +158,17 @@ export class Game {
     this.mode = 'hunt';
     this.ui.showTitle();
     this.ui.setDebugVisible(this.debugVisible);
+    this.renderSingleFrame();
+    window.__gameReady = true;
     this.startLoop();
-    if (this.query.get('autostart') === '1') setTimeout(() => this.newGame(), 100);
+    if (this.query.get('autostart') === '1') {
+      setTimeout(() => {
+        const mode = this.query.get('mode');
+        if (mode === 'rush') this.startRush({ daily: this.query.get('daily') === '1' });
+        else if (mode === 'defense') this.startDefense();
+        else this.newGame();
+      }, 100);
+    }
   }
 
   startLoop() {
@@ -244,12 +255,21 @@ export class Game {
     this.playTime += delta;
     this.#handleMenus();
     if (this.state !== 'playing') return;
+    if (this.mode === 'rush' && this.rush?.blocksSimulation) {
+      this.#updateDeferred(delta);
+      this.rush.update(delta);
+      this.#updateKillFeedback(delta);
+      this.effects.update(delta);
+      this.world.update(delta * .2, this);
+      return;
+    }
     this.#handleInput(delta);
     this.#updateAim();
     this.#updateDeferred(delta);
 
     this.player.update(delta, this);
     if (this.mode === 'defense') this.defense.update(delta);
+    else if (this.mode === 'rush') this.rush.update(delta);
     else this.hunt.update(delta);
     this.enemies.update(delta);
     this.combat.update(delta);
@@ -294,6 +314,7 @@ export class Game {
   }
 
   #handleMenus() {
+    if (this.mode === 'rush' && this.rush?.active) return;
     if (this.state === 'paused') {
       if (this.input.consume('Escape')) this.ui.closePanel();
       else if (this.input.consume('KeyI')) this.ui.openPanel('inventory');
@@ -377,7 +398,8 @@ export class Game {
 
   #cameraOffsetHeight(distance = this.cameraDistance) {
     const lift = (distance - GAME_CONFIG.cameraDistance) * (GAME_CONFIG.cameraHeightPerDistance ?? .42);
-    return GAME_CONFIG.cameraHeight + lift;
+    const rushLift = this.mode === 'rush' ? 7 : 0;
+    return GAME_CONFIG.cameraHeight + lift + rushLift;
   }
 
   #updateCamera(delta) {
@@ -443,6 +465,7 @@ export class Game {
     this.mode = 'hunt';
     this.defense.reset();
     this.player.reset(classId);
+    const pendingReward = this.rush?.consumePendingRewards?.(this.player) ?? { gold: 0, skillPoints: 0 };
     this.hunt.reset();
     this.playTime = 0;
     this.autoSaveTimer = GAME_CONFIG.autoSaveSeconds;
@@ -456,6 +479,13 @@ export class Game {
     this.enemies.populate(52);
     const heroName = this.player.name;
     this.ui.notify(`Hunt started · ${heroName} enters the field.`, 'contract', 4.5);
+    if (pendingReward.gold > 0 || pendingReward.skillPoints > 0) {
+      this.ui.notify(
+        `Rift trophies claimed · ${pendingReward.gold}G${pendingReward.skillPoints ? ` · Skill Point +${pendingReward.skillPoints}` : ''}`,
+        'legendary',
+        4.5,
+      );
+    }
     // Immediate localStorage write so Continue is available even if the tab closes early.
     this.saveGame(false);
   }
@@ -487,6 +517,46 @@ export class Game {
       'contract',
       4.2,
     );
+  }
+
+  /** 75–90 second spectacle run; temporary hero state never writes the Hunt continuation save. */
+  startRush(options = {}) {
+    const classId = options.classId ?? this.ui?.selectedClassId ?? this.query.get('class');
+    this.#clearRun();
+    this.mode = 'rush';
+    this.defense.reset();
+    this.hunt.reset();
+    this.player.reset(classId);
+    this.playTime = 0;
+    this.saveRequested = false;
+    this.cameraYaw = .55;
+    this.cameraDistance = Math.max(GAME_CONFIG.cameraDistance, 17.2);
+    this.state = 'playing';
+    this.rush.start(options);
+    this.ui.showHUD();
+    this.#snapCamera();
+    return true;
+  }
+
+  retryRush() {
+    const result = this.rush?.result;
+    return this.startRush({
+      classId: this.player?.classId ?? this.ui?.selectedClassId,
+      daily: Boolean(result?.daily),
+      seed: result?.daily ? result.seed : undefined,
+    });
+  }
+
+  nextRush() {
+    return this.startRush({ classId: this.player?.classId ?? this.ui?.selectedClassId, daily: false });
+  }
+
+  chooseRushMutation(choiceId) {
+    return this.rush?.chooseMutation?.(choiceId) ?? false;
+  }
+
+  claimRushTrophy(trophyId) {
+    return this.rush?.claimTrophy?.(trophyId) ?? { ok: false, reason: 'unavailable' };
   }
 
   /**
@@ -590,6 +660,7 @@ export class Game {
     this.multikillBuffer = [];
     this.multikillTimer = 0;
     this.#applyKillChainMods(false);
+    this.rush?.reset?.();
     this.ui.hideDeath();
     this.saveRequested = false;
   }
@@ -609,7 +680,7 @@ export class Game {
         if (this.defense?.phase !== 'failed' && this.defense?.phase !== 'idle') {
           this.#persistDefenseMeta(true);
         }
-      } else {
+      } else if (this.mode === 'hunt') {
         this.saveGame(false);
       }
     }
@@ -623,6 +694,13 @@ export class Game {
   }
 
   handlePlayerDeath() {
+    if (this.mode === 'rush') {
+      if (this.rush?.phase === 'finishing' || this.rush?.phase === 'result') return;
+      this.player.setMoveDirection(TMP_MOVE.set(0, 0, 0));
+      this.combat.clear();
+      this.rush?.finish?.(false, 'The hunter fell before the apex was defeated.');
+      return;
+    }
     if (this.state === 'dead') return;
     this.state = 'dead';
     this.deathTimer = this.mode === 'defense' ? 2.8 : this.deathDuration;
@@ -676,9 +754,12 @@ export class Game {
     this.player.extendShadowFrenzyOnKill?.();
 
     if (this.mode === 'defense') this.defense.onKill(enemy);
+    else if (this.mode === 'rush') this.rush.onKill(enemy);
     else this.hunt.onKill(enemy);
-    this.loot.dropFromEnemy(enemy);
-    this.xpGems?.spawnFromKill(enemy);
+    if (this.mode !== 'rush') {
+      this.loot.dropFromEnemy(enemy);
+      this.xpGems?.spawnFromKill(enemy);
+    }
 
     // Kill → skill uptime: CDR + MP (immediate, independent of XP gems).
     this.#applyKillSkillRefund(enemy);
@@ -930,8 +1011,8 @@ export class Game {
   }
 
   saveGame(showFailure = false) {
-    // Never serialize a Defense run as Hunt continue progress.
-    if (this.mode === 'defense') return false;
+    // Never serialize temporary Defense/Rush heroes as Hunt continue progress.
+    if (this.mode !== 'hunt') return false;
     if (!this.player || !this.hunt || this.state === 'title' || this.state === 'loading') return false;
     const success = this.save.save({
       player: this.player.serialize(),
@@ -1016,6 +1097,7 @@ export class Game {
     const stats = this.renderPipeline.stats;
     return {
       state: this.state,
+      mode: this.mode,
       quality: this.quality,
       fps: Number(stats.fps || 0),
       calls: Number(stats.calls || 0),
@@ -1026,6 +1108,7 @@ export class Game {
       enemies: this.enemies?.enemies?.filter(enemy => enemy.alive).length ?? 0,
       assets: this.assets?.getStats?.() ?? null,
       player: this.player ? { level: this.player.level, hp: this.player.hp, x: this.player.position.x, z: this.player.position.z } : null,
+      rush: this.mode === 'rush' ? this.rush?.hud ?? null : null,
     };
   }
 

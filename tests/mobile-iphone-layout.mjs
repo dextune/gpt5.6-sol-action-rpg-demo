@@ -239,7 +239,43 @@ async function main() {
   if (!rects.ranger) failures.push('simultaneous THORNS + VERDICT row missing');
   if (!rects.menu) failures.push('menu button missing');
   if (!rects.minimap) failures.push('minimap missing');
-  if (rects.hunt) failures.push('hunt-card should be hidden on mobile');
+  if (rects.hunt) failures.push('Hunt record should be collapsed by default');
+
+  await page.click('#profile-toggle');
+  await sleep(80);
+  const huntToggle = await page.evaluate(() => {
+    const pick = selector => {
+      const node = document.querySelector(selector);
+      if (!node || getComputedStyle(node).display === 'none') return null;
+      const rect = node.getBoundingClientRect();
+      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+    };
+    return {
+      expanded: document.getElementById('profile-toggle')?.getAttribute('aria-expanded'),
+      player: pick('.player-card'),
+      hunt: pick('.hunt-card'),
+      weapon: pick('#combat-weapon-enhance'),
+      option: pick('#combat-option-enhance'),
+    };
+  });
+  if (huntToggle.expanded !== 'true' || !huntToggle.hunt) failures.push('profile click did not expand Hunt record');
+  if (!huntToggle.weapon || !huntToggle.option) failures.push('WPN/OPT buttons disappeared while Hunt record was expanded');
+  if (huntToggle.hunt && huntToggle.player
+    && (huntToggle.hunt.x < huntToggle.player.x - 1 || huntToggle.hunt.y < huntToggle.player.y - 1
+      || huntToggle.hunt.x + huntToggle.hunt.width > huntToggle.player.x + huntToggle.player.width + 1
+      || huntToggle.hunt.y + huntToggle.hunt.height > huntToggle.player.y + huntToggle.player.height + 1)) {
+    failures.push('expanded Hunt record is not contained by merged player profile');
+  }
+  await page.click('#profile-toggle');
+  await sleep(80);
+  const huntCollapsed = await page.evaluate(() => ({
+    expanded: document.getElementById('profile-toggle')?.getAttribute('aria-expanded'),
+    hidden: getComputedStyle(document.getElementById('hunt-record-panel')).display === 'none',
+    weaponVisible: getComputedStyle(document.getElementById('combat-weapon-enhance')).display !== 'none',
+    optionVisible: getComputedStyle(document.getElementById('combat-option-enhance')).display !== 'none',
+  }));
+  if (huntCollapsed.expanded !== 'false' || !huntCollapsed.hidden) failures.push('second profile click did not collapse Hunt record');
+  if (!huntCollapsed.weaponVisible || !huntCollapsed.optionVisible) failures.push('WPN/OPT buttons disappeared after Hunt record collapsed');
 
   // Geometry rules (iPhone mini)
   if (rects.stick && rects.stick.x > vw * 0.45) failures.push('stick not on left half');

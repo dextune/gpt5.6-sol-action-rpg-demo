@@ -136,7 +136,9 @@ ok(typeof content.resolveHeroClassId === 'function' && content.resolveHeroClassI
 ok(allFiles.includes(join(root, 'assets/models/hero/wizard_lod0.glb')), 'wizard lod0 glb exists');
 ok(allFiles.includes(join(root, 'assets/models/hero/wizard_lod1.glb')), 'wizard lod1 glb exists');
 ok(html.includes('data-class-id="rogue"'), 'title rogue class card');
-ok(html.includes('id="energy-bar"'), 'HUD energy gauge');
+ok(html.includes('class="vital-orb hp-orb"') && html.includes('class="vital-orb mp-orb"'), 'HUD HP/MP orbs');
+ok(html.includes('id="mobile-hp-fill"') && html.includes('id="mobile-mp-fill"'), 'mobile profile HP/MP gauges');
+ok(!html.includes('character-vitals-overlay') && !html.includes('hp-arc-fill') && !html.includes('mp-arc-fill'), 'HUD curved gauges removed');
 ok(Boolean(content.HERO_CLASSES?.rogue), 'HERO_CLASSES rogue');
 ok(allFiles.includes(join(root, 'assets/models/hero/rogue_lod0.glb')), 'rogue lod0 glb exists');
 ok(allFiles.includes(join(root, 'assets/models/hero/rogue_lod1.glb')), 'rogue lod1 glb exists');

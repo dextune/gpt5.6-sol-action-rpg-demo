@@ -156,8 +156,12 @@ for (const quality of ['high', 'medium']) {
   await lodPage.waitForFunction(() => document.getElementById('title-screen')?.classList.contains('active'), null, {
     timeout: 90_000,
   });
-  await lodPage.click('#new-game-btn');
-  await lodPage.waitForSelector('#hud:not(.hidden)', { timeout: 30_000 });
+  // High-quality GLB setup can keep SwiftShader's main thread busy long enough
+  // for Playwright's actionability click to time out after the event fires.
+  // The button is already visible/enabled here, so dispatch its native click
+  // and wait on the authoritative HUD-ready state instead.
+  await lodPage.evaluate(() => document.getElementById('new-game-btn').click());
+  await lodPage.waitForSelector('#hud:not(.hidden)', { timeout: 90_000 });
   const evidence = await lodPage.evaluate(async selectedQuality => {
     const { Vector3 } = await import('three');
     const game = window.__SOL_ARPG_DEMO__;

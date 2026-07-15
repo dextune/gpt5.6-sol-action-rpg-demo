@@ -33,6 +33,8 @@ Guides for small and large agents to safely modify the **GPT-5.6: Sol / Action R
 | [plan/multi-class-wizard.md](./plan/multi-class-wizard.md) | **plan: multi-class heroes + wizard GLB** |
 | [plan/ranger-class.md](./plan/ranger-class.md) | **plan: Ranger (archer / huntress) 4th hero class** |
 | [plan/short-session-polish.md](./plan/short-session-polish.md) | **plan: short-session content/visual polish (Tier A–B, no long-term sprawl)** |
+| [plan/shortform-rift-rush.md](./plan/shortform-rift-rush.md) | **implemented: 75–90 second Rift Rush, mutation drafts, hazards, Break/execution, daily seed, and trophies** |
+| [plan/shortform-rift-rush-tasks.md](./plan/shortform-rift-rush-tasks.md) | **Rift Rush implementation and validation progress record** |
 | [plan/skill-motion-spectacle.md](./plan/skill-motion-spectacle.md) | **implemented standard: skill content, motion & spectacle** |
 | [plan/level-100-skill-evolution/README.md](./plan/level-100-skill-evolution/README.md) | **implemented active-skill evolution and completed Phase 9 acceptance; deferred scope remains explicit** |
 | [plan/weapon-enhancement-gold-progression.md](./plan/weapon-enhancement-gold-progression.md) | **implemented gold-primary loot with survival potions, one signature weapon, and two enhancement tracks** |

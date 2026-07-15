@@ -76,6 +76,8 @@
         </div>
         <div class="title-actions">
           <button id="new-game-btn" class="primary-button"><span>New Hunt</span><kbd>ENTER</kbd></button>
+          <button id="rush-btn" class="rush-button" type="button"><span>Rift Rush</span><small>90-second apex run</small></button>
+          <button id="daily-rush-btn" class="secondary-button daily-rush-button" type="button"><span>Daily Rift</span><small id="daily-rush-meta">Same challenge today</small></button>
           <button id="defense-btn" class="secondary-button" type="button"><span>Defense</span><small>Wave survival</small></button>
           <button id="continue-btn" class="secondary-button"><span>Continue</span><small id="continue-meta">No save data</small></button>
         </div>
@@ -93,26 +95,61 @@
     </section>
 
     <section id="hud" class="hidden" aria-label="Game HUD">
-      <aside class="player-card glass-panel">
-        <div class="portrait" aria-hidden="true"><span id="portrait-level">LV.1</span></div>
-        <div class="player-card-body">
-          <div class="name-row">
-            <div class="name-stack">
-              <strong id="player-name">Kai</strong>
-              <em id="hunter-title">Rookie Hunter</em>
+      <aside class="player-card hunter-profile glass-panel" aria-label="Hunter profile and combat record">
+        <button type="button" id="profile-toggle" class="profile-primary" aria-expanded="false" aria-controls="hunt-record-panel" aria-label="Toggle Hunt record">
+          <div class="portrait" aria-hidden="true"><span id="portrait-level">LV.1</span></div>
+          <div class="player-card-body">
+            <div class="name-row">
+              <div class="name-stack">
+                <strong id="player-name">Kai</strong>
+                <em id="hunter-title">Rookie Hunter</em>
+              </div>
+              <span class="player-level-pill" id="player-level-text">LV.1</span>
             </div>
-            <span class="player-level-pill" id="player-level-text">LV.1</span>
-          </div>
-          <div class="vitals">
-            <div class="resource-bar hp-bar"><span id="hp-fill"></span><b id="hp-text">140 / 140</b></div>
-            <div class="resource-bar mp-bar"><span id="mp-fill"></span><b id="mp-text">80 / 80</b></div>
-            <div class="resource-bar energy-bar hidden" id="energy-bar"><span id="energy-fill"></span><b id="energy-text">Energy 0 / 100</b></div>
             <div class="xp-row" aria-label="Experience">
               <span>EXP</span>
               <div class="xp-track"><i id="xp-fill"></i></div>
               <b id="xp-text">0 / 172</b>
             </div>
           </div>
+        </button>
+
+        <button type="button" id="touch-menu-btn" class="touch-menu-btn" aria-label="Open settings">Settings</button>
+
+        <div class="mobile-profile-vitals" aria-label="Health and mana">
+          <div class="mobile-profile-vital mobile-profile-health" aria-label="Health">
+            <div class="mobile-vital-track"><i id="mobile-hp-fill"></i></div>
+          </div>
+          <div class="mobile-profile-vital mobile-profile-mana" aria-label="Mana">
+            <div class="mobile-vital-track"><i id="mobile-mp-fill"></i></div>
+          </div>
+        </div>
+
+        <section id="hunt-record-panel" class="hunt-card profile-hunt hidden" aria-label="Hunt record">
+          <div class="hunt-top"><span>HUNT RECORD</span><b><i id="kill-count">0</i> KILLS</b></div>
+          <div class="hunt-stats"><span>Streak <b id="streak-count">0</b></span><span>Elite <b id="elite-count">0</b></span><span>Boss <b id="boss-count">0</b></span></div>
+          <div class="boss-charge-row"><span>Boss Presence</span><b id="boss-charge-text">0%</b></div>
+          <div class="boss-charge"><i id="boss-charge-fill"></i></div>
+          <div class="contract-box">
+            <small>Active Contract</small>
+            <strong id="contract-title">Preparing contract…</strong>
+            <div><i id="contract-fill"></i></div>
+            <span id="contract-progress">0 / 0</span>
+            <em id="contract-hint" class="contract-hint"></em>
+          </div>
+        </section>
+
+        <div id="combat-forge" class="combat-forge profile-forge" aria-label="Weapon enhance">
+          <button type="button" id="combat-weapon-enhance" class="combat-forge-btn" data-action="combat-weapon-enhance" title="Enhance weapon">
+            <span class="forge-kicker">WPN</span>
+            <strong id="combat-weapon-level">+0</strong>
+            <small id="combat-weapon-cost">—</small>
+          </button>
+          <button type="button" id="combat-option-enhance" class="combat-forge-btn is-option" data-action="combat-option-enhance" title="Enhance weapon options">
+            <span class="forge-kicker">OPT</span>
+            <strong id="combat-option-level">+0</strong>
+            <small id="combat-option-cost">—</small>
+          </button>
         </div>
       </aside>
 
@@ -128,28 +165,42 @@
         <span id="defense-wave-remaining">0 left</span>
       </div>
 
-      <aside class="hunt-card glass-panel">
-        <div class="hunt-top"><span>HUNT RECORD</span><b><i id="kill-count">0</i> KILLS</b></div>
-        <div class="hunt-stats"><span>Streak <b id="streak-count">0</b></span><span>Elite <b id="elite-count">0</b></span><span>Boss <b id="boss-count">0</b></span></div>
-        <div class="boss-charge-row"><span>Boss Presence</span><b id="boss-charge-text">0%</b></div>
-        <div class="boss-charge"><i id="boss-charge-fill"></i></div>
-        <div class="contract-box">
-          <small>Active Contract</small>
-          <strong id="contract-title">Preparing contract…</strong>
-          <div><i id="contract-fill"></i></div>
-          <span id="contract-progress">0 / 0</span>
-          <em id="contract-hint" class="contract-hint"></em>
+      <section id="rush-hud" class="rush-hud hidden" aria-live="polite" aria-label="Rift Rush objective">
+        <header>
+          <span id="rush-act">RIFT OPENING</span>
+          <strong id="rush-time">90.0</strong>
+          <b><i id="rush-score">0</i> PTS</b>
+        </header>
+        <div class="rush-objective-row">
+          <div><small id="rush-kicker">ENTER THE STORM</small><strong id="rush-encounter">Rift Opening</strong></div>
+          <em id="rush-objective-progress">0 / 0</em>
         </div>
-      </aside>
+        <div class="rush-progress"><i id="rush-progress-fill"></i></div>
+        <p id="rush-description">Prepare for immediate contact.</p>
+        <footer><span id="rush-hazard">Hazard dormant</span><b id="rush-chain">CHAIN 0</b></footer>
+      </section>
 
       <div id="boss-hud" class="boss-hud hidden">
         <div class="boss-name-row"><span>REGION ALPHA</span><strong id="boss-name">Area Boss</strong><em id="boss-level">LV.1</em></div>
         <div class="boss-health"><i id="boss-health-fill"></i></div>
+        <div id="boss-break-row" class="boss-break-row hidden"><span>BREAK</span><div><i id="boss-break-fill"></i></div><b id="boss-break-text">0%</b></div>
       </div>
 
       <aside class="resource-pills">
-        <span><i class="gold-icon"></i><b id="gold-count">0</b></span>
-        <span class="weapon-level-pill"><i class="weapon-pip-icon"></i><b id="weapon-level">WPN +0</b></span>
+        <span><i class="gold-icon"></i><small>GOLD</small><b id="gold-count">0</b></span>
+        <span class="item-count-pill"><i class="bag-icon"></i><small>ITEMS</small><b id="item-count">1</b></span>
+      </aside>
+
+      <aside class="combat-vitals combat-vitals-health" aria-label="Health">
+        <div class="vital-orb hp-orb">
+          <span id="hp-fill" class="orb-liquid"></span>
+        </div>
+      </aside>
+
+      <aside class="combat-vitals combat-vitals-power" aria-label="Mana and class energy">
+        <div class="vital-orb mp-orb">
+          <span id="mp-fill" class="orb-liquid"></span>
+        </div>
       </aside>
 
       <div class="ability-bar" aria-label="Combat skills">
@@ -172,17 +223,16 @@
         </div>
       </div>
 
-      <!-- Mobile / touch: left move stick + menu (skills use .ability-bar repositioned by CSS) -->
+      <!-- Mobile / touch: left move stick (skills use .ability-bar repositioned by CSS) -->
       <div id="touch-controls" class="touch-controls hidden" aria-hidden="true">
         <div id="touch-stick-zone" class="touch-stick-zone" aria-label="Move">
           <div class="touch-stick-base"></div>
           <div id="touch-stick-knob" class="touch-stick-knob"></div>
         </div>
-        <button type="button" id="touch-menu-btn" class="touch-menu-btn" aria-label="Open menu">Menu</button>
       </div>
 
       <aside class="minimap-shell glass-panel">
-        <div class="minimap-heading"><span id="minimap-zone">Emerald Meadow</span><b>N</b></div>
+        <div class="minimap-heading"><span>TACTICAL MAP</span><b>N</b></div>
         <canvas id="minimap" width="250" height="250"></canvas>
         <div class="minimap-legend"><span class="enemy-dot">Enemy</span><span class="elite-dot">Elite</span><span class="boss-dot">Boss</span></div>
       </aside>
@@ -208,6 +258,33 @@
           <button id="panel-close" class="icon-button" aria-label="Close">×</button>
         </header>
         <div id="panel-content" class="panel-content"></div>
+      </div>
+    </section>
+
+    <section id="rush-draft" class="rush-overlay rush-draft hidden" aria-modal="true" role="dialog" aria-labelledby="rush-draft-title">
+      <div class="rush-overlay-shell">
+        <p class="eyebrow">RIFT MUTATION</p>
+        <h2 id="rush-draft-title">Choose a mutation</h2>
+        <p id="rush-draft-copy">Combat is suspended while the rift rewrites one skill.</p>
+        <div id="rush-draft-options" class="rush-draft-options"></div>
+        <small>Press <kbd>1</kbd> or <kbd>2</kbd></small>
+      </div>
+    </section>
+
+    <section id="rush-result" class="rush-overlay rush-result hidden" aria-modal="true" role="dialog" aria-labelledby="rush-result-title">
+      <div class="rush-overlay-shell rush-result-shell">
+        <div class="rush-result-heading">
+          <div><p class="eyebrow" id="rush-result-eyebrow">RIFT CONQUERED</p><h2 id="rush-result-title">Apex cleared</h2><p id="rush-result-copy"></p></div>
+          <strong id="rush-result-grade">S</strong>
+        </div>
+        <div id="rush-result-metrics" class="rush-result-metrics"></div>
+        <div class="rush-trophy-heading"><span>CHOOSE ONE TROPHY</span><small id="rush-trophy-status">One reward per completed run</small></div>
+        <div id="rush-trophy-options" class="rush-trophy-options"></div>
+        <div class="rush-result-actions">
+          <button type="button" id="rush-retry-btn" class="primary-button">Retry Rift</button>
+          <button type="button" id="rush-next-btn" class="secondary-button">Next Rift</button>
+          <button type="button" id="rush-title-btn" class="secondary-button">Return to Title</button>
+        </div>
       </div>
     </section>
 

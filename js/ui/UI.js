@@ -169,17 +169,22 @@ export class UI {
     this.selectedClassId = resolveHeroClassId(game.query?.get?.('class') || DEFAULT_HERO_CLASS_ID);
     this.elements = {};
     for (const id of [
-      'loading-screen', 'loading-text', 'loading-bar', 'title-screen', 'class-select', 'new-game-btn', 'defense-btn', 'continue-btn', 'continue-meta',
-      'hud', 'player-name', 'portrait-level', 'player-level-text', 'hunter-title', 'hp-fill', 'hp-text', 'mp-fill', 'mp-text', 'xp-fill', 'xp-text',
-      'energy-bar', 'energy-fill', 'energy-text',
+      'loading-screen', 'loading-text', 'loading-bar', 'title-screen', 'class-select', 'new-game-btn', 'rush-btn', 'daily-rush-btn', 'daily-rush-meta', 'defense-btn', 'continue-btn', 'continue-meta',
+      'hud', 'profile-toggle', 'hunt-record-panel', 'player-name', 'portrait-level', 'player-level-text', 'hunter-title', 'hp-fill', 'mobile-hp-fill', 'mp-fill', 'mobile-mp-fill', 'xp-fill', 'xp-text',
       'class-state-row', 'frenzy-chip', 'overflow-chip',
       'ranger-state-row', 'thorns-chip', 'verdict-chip',
       'world-tier', 'zone-name', 'zone-subtitle', 'defense-wave-panel', 'defense-wave-label', 'defense-wave-remaining',
+      'rush-hud', 'rush-act', 'rush-time', 'rush-score', 'rush-kicker', 'rush-encounter', 'rush-objective-progress', 'rush-progress-fill', 'rush-description', 'rush-hazard', 'rush-chain',
       'kill-count', 'streak-count', 'elite-count', 'boss-count',
       'boss-charge-text', 'boss-charge-fill', 'contract-title', 'contract-fill', 'contract-progress', 'contract-hint',
-      'boss-hud', 'boss-name', 'boss-level', 'boss-health-fill', 'gold-count', 'weapon-level', 'potion-count',
-      'minimap', 'minimap-zone', 'notifications', 'float-layer', 'aim-reticle', 'zone-toast',
+      'boss-hud', 'boss-name', 'boss-level', 'boss-health-fill', 'boss-break-row', 'boss-break-fill', 'boss-break-text', 'gold-count', 'item-count', 'potion-count',
+      'combat-forge', 'combat-weapon-enhance', 'combat-option-enhance',
+      'combat-weapon-level', 'combat-weapon-cost', 'combat-option-level', 'combat-option-cost',
+      'minimap', 'notifications', 'float-layer', 'aim-reticle', 'zone-toast',
       'panel-layer', 'panel-title', 'panel-content', 'panel-close', 'death-screen', 'death-timer-fill',
+      'rush-draft', 'rush-draft-title', 'rush-draft-copy', 'rush-draft-options',
+      'rush-result', 'rush-result-eyebrow', 'rush-result-title', 'rush-result-copy', 'rush-result-grade', 'rush-result-metrics',
+      'rush-trophy-options', 'rush-trophy-status', 'rush-retry-btn', 'rush-next-btn', 'rush-title-btn',
       'damage-flash', 'fatal-error', 'debug-hud',
     ]) this.elements[id] = document.getElementById(id);
     this.minimapContext = this.elements.minimap.getContext('2d');
@@ -205,6 +210,14 @@ export class UI {
     this.elements['defense-btn']?.addEventListener('click', async () => {
       await this.game.audio.unlock();
       if (typeof this.game.startDefense === 'function') this.game.startDefense({ classId: this.selectedClassId });
+    });
+    this.elements['rush-btn']?.addEventListener('click', async () => {
+      await this.game.audio.unlock();
+      this.game.startRush?.({ classId: this.selectedClassId, daily: false });
+    });
+    this.elements['daily-rush-btn']?.addEventListener('click', async () => {
+      await this.game.audio.unlock();
+      this.game.startRush?.({ classId: this.selectedClassId, daily: true });
     });
     this.elements['continue-btn'].addEventListener('click', async () => {
       if (this.elements['continue-btn'].disabled) return;
@@ -240,12 +253,139 @@ export class UI {
       if (event.target === this.elements['panel-layer']) this.closePanel();
     });
     this.elements['panel-content'].addEventListener('click', event => this.#handlePanelAction(event));
+    // In-combat forge shortcuts (desktop + mobile).
+    this.elements['combat-weapon-enhance']?.addEventListener('click', async () => {
+      await this.game.audio.unlock();
+      this.#runCombatWeaponEnhance();
+    });
+    this.elements['combat-option-enhance']?.addEventListener('click', async () => {
+      await this.game.audio.unlock();
+      this.#runCombatOptionEnhance();
+    });
+    this.elements['profile-toggle']?.addEventListener('click', () => {
+      const expanded = this.elements['profile-toggle'].getAttribute('aria-expanded') === 'true';
+      this.#setHuntRecordExpanded(!expanded);
+    });
+    this.elements['rush-draft-options']?.addEventListener('click', event => {
+      const button = event.target.closest?.('[data-rush-mutation]');
+      if (button) this.game.chooseRushMutation?.(button.dataset.rushMutation);
+    });
+    this.elements['rush-trophy-options']?.addEventListener('click', event => {
+      const button = event.target.closest?.('[data-rush-trophy]');
+      if (button) this.game.claimRushTrophy?.(button.dataset.rushTrophy);
+    });
+    this.elements['rush-retry-btn']?.addEventListener('click', () => this.game.retryRush?.());
+    this.elements['rush-next-btn']?.addEventListener('click', () => this.game.nextRush?.());
+    this.elements['rush-title-btn']?.addEventListener('click', () => this.game.returnToTitle?.());
     window.addEventListener('keydown', event => {
+      if (!this.elements['rush-draft']?.classList.contains('hidden')) {
+        const index = event.code === 'Digit1' || event.code === 'Numpad1'
+          ? 0
+          : event.code === 'Digit2' || event.code === 'Numpad2' ? 1 : -1;
+        if (index >= 0) {
+          event.preventDefault();
+          const option = this.game.rush?.draft?.options?.[index];
+          if (option) this.game.chooseRushMutation?.(option.id);
+          return;
+        }
+      }
       if (this.elements['title-screen'].classList.contains('active') && event.code === 'Enter') {
         event.preventDefault();
         (this.game.save.hasSave() ? this.elements['continue-btn'] : this.elements['new-game-btn']).click();
       }
     });
+  }
+
+  /** Refresh combat forge button labels / affordability. */
+  #syncCombatForge(player) {
+    const forge = this.elements['combat-forge'];
+    if (!forge) return;
+    const playing = this.game.state === 'playing' || this.game.state === 'paused';
+    forge.classList.toggle('hidden', !playing || !player?.alive || this.game.mode === 'rush');
+    const weapon = player?.weapon;
+    if (!weapon) {
+      if (this.elements['combat-weapon-enhance']) this.elements['combat-weapon-enhance'].disabled = true;
+      if (this.elements['combat-option-enhance']) this.elements['combat-option-enhance'].disabled = true;
+      return;
+    }
+    const wLv = Number(weapon.weaponEnhanceLevel ?? weapon.enhanceLevel) || 0;
+    const oLv = Number(weapon.optionEnhanceLevel) || 0;
+    const wMax = wLv >= WEAPON_ENHANCE.maxLevel;
+    const oMax = oLv >= WEAPON_OPTION_ENHANCE.maxLevel;
+    const wCost = weaponEnhanceCost(weapon);
+    const oCost = weaponOptionEnhanceCost(weapon);
+    const wChance = weaponEnhanceSuccessChance(weapon);
+    if (this.elements['combat-weapon-level']) {
+      this.elements['combat-weapon-level'].textContent = wMax ? 'MAX' : `+${wLv}`;
+    }
+    if (this.elements['combat-option-level']) {
+      this.elements['combat-option-level'].textContent = oMax ? 'MAX' : `+${oLv}`;
+    }
+    if (this.elements['combat-weapon-cost']) {
+      this.elements['combat-weapon-cost'].textContent = wMax
+        ? 'Done'
+        : `${wCost.toLocaleString('en-US')}G · ${Math.round(wChance * 100)}%`;
+    }
+    if (this.elements['combat-option-cost']) {
+      this.elements['combat-option-cost'].textContent = oMax
+        ? 'Done'
+        : `${oCost.toLocaleString('en-US')}G`;
+    }
+    const wBtn = this.elements['combat-weapon-enhance'];
+    const oBtn = this.elements['combat-option-enhance'];
+    if (wBtn) {
+      wBtn.disabled = wMax || player.gold < wCost;
+      wBtn.classList.toggle('is-max', wMax);
+      wBtn.classList.toggle('is-unaffordable', !wMax && player.gold < wCost);
+    }
+    if (oBtn) {
+      oBtn.disabled = oMax || player.gold < oCost;
+      oBtn.classList.toggle('is-max', oMax);
+      oBtn.classList.toggle('is-unaffordable', !oMax && player.gold < oCost);
+    }
+  }
+
+  #runCombatWeaponEnhance() {
+    const result = this.game.player.enhanceWeapon();
+    if (!result.ok) {
+      this.notify(
+        result.reason === 'gold'
+          ? `Need ${result.cost.toLocaleString('en-US')}G to evolve the weapon.`
+          : 'Weapon evolution is complete.',
+        'danger',
+        2.8,
+      );
+      return;
+    }
+    if (result.success === false) {
+      this.game.audio.click();
+      this.notify(`Weapon enhance failed · remains at +${result.level}`, 'danger', 3.2);
+      this.game.requestSave();
+      this.#syncCombatForge(this.game.player);
+      return;
+    }
+    this.game.audio.levelUp?.();
+    this.notify(`Weapon evolved · ${this.game.player.weapon.name} · +${result.level}`, 'level', 3.6);
+    this.game.requestSave();
+    this.#syncCombatForge(this.game.player);
+  }
+
+  #runCombatOptionEnhance() {
+    const result = this.game.player.enhanceWeaponOptions();
+    if (!result.ok) {
+      this.notify(
+        result.reason === 'gold'
+          ? `Need ${result.cost.toLocaleString('en-US')}G to enhance weapon options.`
+          : 'Weapon options are complete.',
+        'danger',
+        2.8,
+      );
+      return;
+    }
+    this.game.audio.click();
+    this.notify(`Weapon option improved · ${titleCaseId(result.stat)} · Lv.${result.level}`, 'loot', 3.2);
+    this.game.requestSave();
+    this.#syncCombatForge(this.game.player);
   }
 
   #syncClassSelect() {
@@ -300,8 +440,16 @@ export class UI {
     this.elements['panel-layer'].classList.add('hidden');
     this.elements['death-screen'].classList.add('hidden');
     this.elements['defense-wave-panel']?.classList.add('hidden');
+    this.elements['rush-hud']?.classList.add('hidden');
+    this.hideRushOverlays();
     this.#fillClassCards();
     this.#refreshContinueButton();
+    const dailyMeta = this.elements['daily-rush-meta'];
+    if (dailyMeta) {
+      const today = new Date().toISOString().slice(0, 10);
+      const best = this.game.rush?.meta?.daily?.[today];
+      dailyMeta.textContent = best ? `Today ${best.grade} · ${Number(best.score).toLocaleString('en-US')} pts` : 'Same challenge today';
+    }
   }
 
   #refreshContinueButton() {
@@ -324,12 +472,15 @@ export class UI {
   }
 
   showHUD() {
-    const mode = this.game.mode === 'defense' ? 'defense' : 'hunt';
+    const mode = this.game.mode === 'defense' ? 'defense' : this.game.mode === 'rush' ? 'rush' : 'hunt';
     document.body.dataset.mode = mode;
     this.elements['title-screen'].classList.remove('active');
     this.elements.hud.classList.remove('hidden');
     this.elements['death-screen'].classList.add('hidden');
     this.elements['defense-wave-panel']?.classList.toggle('hidden', mode !== 'defense');
+    this.elements['rush-hud']?.classList.toggle('hidden', mode !== 'rush');
+    this.#setHuntRecordExpanded(false);
+    this.hideRushOverlays();
     this.lastZoneId = null;
     this.lastAbilityClassId = null;
     this.lastAbilitySignature = null;
@@ -338,6 +489,16 @@ export class UI {
 
   hideHUD() {
     this.elements.hud.classList.add('hidden');
+  }
+
+  #setHuntRecordExpanded(expanded) {
+    const toggle = this.elements['profile-toggle'];
+    const panel = this.elements['hunt-record-panel'];
+    if (!toggle || !panel) return;
+    const isExpanded = Boolean(expanded);
+    toggle.setAttribute('aria-expanded', String(isExpanded));
+    panel.classList.toggle('hidden', !isExpanded);
+    toggle.closest('.hunter-profile')?.classList.toggle('hunt-expanded', isExpanded);
   }
 
   update(delta) {
@@ -360,35 +521,35 @@ export class UI {
     const hunt = this.game.hunt;
     const zone = this.game.world.currentZone;
     const isDefense = this.game.mode === 'defense';
+    const isRush = this.game.mode === 'rush';
     const defenseHud = this.game.defense?.hud;
     this.elements.hud.classList.toggle('defense-active', isDefense);
+    this.elements.hud.classList.toggle('rush-active', isRush);
     this.elements['player-name'].textContent = player.name;
     const levelLabel = `LV.${player.level}`;
     if (this.elements['portrait-level']) this.elements['portrait-level'].textContent = levelLabel;
     if (this.elements['player-level-text']) this.elements['player-level-text'].textContent = levelLabel;
-    this.elements['hunter-title'].textContent = isDefense ? 'Wave Survival' : hunt.hunterTitle;
-    this.elements['hp-fill'].style.width = `${player.healthRatio * 100}%`;
-    this.elements['hp-text'].textContent = `${Math.ceil(player.hp)} / ${player.maxHp}`;
-    this.elements['mp-fill'].style.width = `${player.manaRatio * 100}%`;
-    this.elements['mp-text'].textContent = `${Math.floor(player.mp)} / ${player.maxMp}`;
+    this.elements['hunter-title'].textContent = isDefense ? 'Wave Survival' : isRush ? 'Rift Vanguard' : hunt.hunterTitle;
+    const hpTransform = `scaleY(${player.healthRatio})`;
+    if (this.elements['hp-fill'].style.transform !== hpTransform) {
+      this.elements['hp-fill'].style.transform = hpTransform;
+    }
+    const mobileHpTransform = `scaleX(${player.healthRatio})`;
+    if (this.elements['mobile-hp-fill'].style.transform !== mobileHpTransform) {
+      this.elements['mobile-hp-fill'].style.transform = mobileHpTransform;
+    }
+    const mpTransform = `scaleY(${player.manaRatio})`;
+    if (this.elements['mp-fill'].style.transform !== mpTransform) {
+      this.elements['mp-fill'].style.transform = mpTransform;
+    }
+    const mobileMpTransform = `scaleX(${player.manaRatio})`;
+    if (this.elements['mobile-mp-fill'].style.transform !== mobileMpTransform) {
+      this.elements['mobile-mp-fill'].style.transform = mobileMpTransform;
+    }
     const xpRatio = clamp(player.xp / Math.max(1, player.xpNeeded), 0, 1);
     if (this.elements['xp-fill']) this.elements['xp-fill'].style.width = `${xpRatio * 100}%`;
     if (this.elements['xp-text']) {
       this.elements['xp-text'].textContent = `${Math.floor(player.xp)} / ${player.xpNeeded}`;
-    }
-    // Class energy gauge (Focus/Rage) — only classes with an energy resource show it.
-    if (this.elements['energy-bar']) {
-      const energyDef = player.energyDef;
-      this.elements['energy-bar'].classList.toggle('hidden', !energyDef);
-      if (energyDef) {
-        const label = energyDef.label ?? 'Energy';
-        this.elements['energy-fill'].style.width = `${player.energyRatio * 100}%`;
-        this.elements['energy-bar'].classList.toggle('is-ready', player.energyComboReady);
-        this.elements['energy-bar'].classList.toggle('is-rage', label === 'Rage');
-        this.elements['energy-text'].textContent = player.energyComboReady
-          ? (player.energyComboHits > 0 ? `COMBO READY ×${player.energyComboHits}` : `${label.toUpperCase()} READY`)
-          : `${label} ${Math.floor(player.energy)} / ${player.maxEnergy}`;
-      }
     }
     if (this.elements['class-state-row']) {
       const frenzyVisible = Boolean(player.frenzyActive);
@@ -453,6 +614,14 @@ export class UI {
       this.elements['streak-count'].textContent = this.game.killChain ?? defenseHud?.streak ?? 0;
       this.elements['elite-count'].textContent = defenseHud?.elitesKilled ?? 0;
       this.elements['boss-count'].textContent = defenseHud?.bossesKilled ?? 0;
+    } else if (isRush) {
+      const rushHud = this.game.rush?.hud;
+      this.elements['world-tier'].textContent = this.game.rush?.daily ? 'DAILY RIFT' : 'RIFT RUSH';
+      this.elements['kill-count'].textContent = Number(rushHud?.kills ?? 0).toLocaleString('en-US');
+      this.elements['streak-count'].textContent = this.game.killChain ?? 0;
+      this.elements['elite-count'].textContent = rushHud?.elites ?? 0;
+      this.elements['boss-count'].textContent = rushHud?.bosses ?? 0;
+      this.#updateRushHUD(rushHud);
     } else {
       this.elements['world-tier'].textContent = `WORLD TIER ${hunt.worldTier}`;
       this.elements['kill-count'].textContent = hunt.totalKills.toLocaleString('en-US');
@@ -473,15 +642,15 @@ export class UI {
       }
     }
     this.elements['zone-name'].textContent = zone.name;
-    this.elements['zone-subtitle'].textContent = isDefense ? 'Defense Arena' : zone.subtitle;
-    this.elements['minimap-zone'].textContent = zone.name;
+    this.elements['zone-subtitle'].textContent = isDefense ? 'Defense Arena' : isRush ? 'Rift Arena' : zone.subtitle;
     this.elements['boss-charge-text'].textContent = `${Math.floor(hunt.bossCharge)}%`;
     this.elements['boss-charge-fill'].style.width = `${hunt.bossCharge}%`;
     this.elements['gold-count'].textContent = player.gold.toLocaleString('en-US');
-    if (this.elements['weapon-level']) {
-      this.elements['weapon-level'].textContent = `WPN +${Number(player.weapon?.weaponEnhanceLevel ?? player.weapon?.enhanceLevel) || 0}`;
+    if (this.elements['item-count']) {
+      this.elements['item-count'].textContent = Number(player.inventory?.length ?? 0).toLocaleString('en-US');
     }
     this.elements['potion-count'].textContent = player.potions;
+    this.#syncCombatForge(player);
 
     this.#updateAbility('dash', player.cooldownRatio('dash'), player.dashCooldown);
     this.#updateAbility('potion', player.cooldownRatio('potion'), player.potionCooldown);
@@ -507,6 +676,101 @@ export class UI {
       if (this.lastZoneId !== null) this.zoneEntered(zone);
       this.lastZoneId = zone.id;
     }
+  }
+
+  #updateRushHUD(hud) {
+    if (!hud || !this.elements['rush-hud']) return;
+    this.elements['rush-act'].textContent = hud.daily ? `DAILY · ${hud.act}` : hud.act;
+    this.elements['rush-time'].textContent = Math.max(0, Number(hud.timeRemaining) || 0).toFixed(1);
+    this.elements['rush-time'].classList.toggle('is-urgent', hud.timeRemaining <= 15);
+    this.elements['rush-score'].textContent = Number(hud.score ?? 0).toLocaleString('en-US');
+    this.elements['rush-kicker'].textContent = hud.kicker ?? 'RIFT OBJECTIVE';
+    this.elements['rush-encounter'].textContent = hud.encounter ?? 'Rift Rush';
+    const progress = Math.max(0, Number(hud.progress) || 0);
+    const target = Math.max(0, Number(hud.target) || 0);
+    this.elements['rush-objective-progress'].textContent = target > 0 ? `${Math.min(progress, target)} / ${target}` : '—';
+    this.elements['rush-progress-fill'].style.width = `${target > 0 ? clamp(progress / target, 0, 1) * 100 : 0}%`;
+    this.elements['rush-description'].textContent = hud.description ?? '';
+    this.elements['rush-hazard'].textContent = hud.hazard ? `HAZARD · ${hud.hazard.name}` : 'Hazard dormant';
+    this.elements['rush-chain'].textContent = `CHAIN ${this.game.killChain ?? 0}`;
+  }
+
+  showRushDraft(draft) {
+    if (!draft || !this.elements['rush-draft']) return;
+    this.elements['rush-draft-title'].textContent = `${draft.key} · ${draft.skillName}`;
+    this.elements['rush-draft-copy'].textContent = `Choose one Level ${draft.gate} mutation. Combat resumes immediately.`;
+    this.elements['rush-draft-options'].innerHTML = draft.options.map((option, index) => {
+      const icon = mutationIconView(option.icon);
+      return `<button type="button" class="rush-draft-card" data-rush-mutation="${escapeHtml(option.id)}" aria-label="${escapeHtml(`${option.label}. ${option.summary ?? ''}`)}">
+        <kbd>${index + 1}</kbd>
+        <span class="rush-draft-icon" data-icon="${escapeHtml(icon.token)}">${escapeHtml(icon.glyph)}<i>${escapeHtml(icon.marker)}</i></span>
+        <small>${escapeHtml(draft.skillName)}</small>
+        <strong>${escapeHtml(option.label ?? option.id)}</strong>
+        <p>${escapeHtml(option.summary ?? '')}</p>
+      </button>`;
+    }).join('');
+    this.elements['rush-draft'].classList.remove('hidden');
+    document.body.classList.add('rush-overlay-open');
+  }
+
+  hideRushDraft() {
+    this.elements['rush-draft']?.classList.add('hidden');
+    if (this.elements['rush-result']?.classList.contains('hidden')) document.body.classList.remove('rush-overlay-open');
+  }
+
+  showRushResult(result) {
+    if (!result || !this.elements['rush-result']) return;
+    const completed = Boolean(result.completed);
+    const claimed = Boolean(result.claimed);
+    this.elements['rush-result-eyebrow'].textContent = completed ? (result.daily ? 'DAILY RIFT CONQUERED' : 'RIFT CONQUERED') : 'RIFT FAILED';
+    this.elements['rush-result-title'].textContent = completed ? (result.executed ? 'Apex executed' : 'Apex defeated') : 'The rift closed';
+    this.elements['rush-result-copy'].textContent = `${result.reason ?? ''}${result.newBest ? ' · New best score!' : ''}`;
+    this.elements['rush-result-grade'].textContent = result.grade?.id ?? 'C';
+    this.elements['rush-result-grade'].style.setProperty('--grade-color', result.grade?.color ?? '#d9dde2');
+    const metrics = [
+      ['SCORE', Number(result.score).toLocaleString('en-US')],
+      ['TIME', `${Number(result.clearTime).toFixed(1)}s`],
+      ['KILLS', result.kills],
+      ['PEAK CHAIN', result.peakChain],
+      ['MULTIKILLS', result.multikills],
+      ['DAMAGE TAKEN', result.damageTaken],
+      ['BREAKS', result.breaks],
+      ['EXECUTION', result.executed ? 'YES' : 'NO'],
+    ];
+    this.elements['rush-result-metrics'].innerHTML = metrics
+      .map(([label, value]) => `<span><small>${escapeHtml(label)}</small><strong>${escapeHtml(value)}</strong></span>`)
+      .join('');
+    const trophies = result.trophies ?? [];
+    this.elements['rush-trophy-options'].innerHTML = trophies.length
+      ? trophies.map(trophy => `<button type="button" data-rush-trophy="${escapeHtml(trophy.id)}" class="rush-trophy-card ${result.claimed === trophy.id ? 'is-claimed' : ''}" ${claimed ? 'disabled' : ''}>
+          <i>${escapeHtml(trophy.icon ?? '◆')}</i><strong>${escapeHtml(trophy.name)}</strong><p>${escapeHtml(trophy.description)}</p>
+        </button>`).join('')
+      : '<p class="rush-no-trophy">Defeat the apex to claim a trophy.</p>';
+    this.elements['rush-trophy-status'].textContent = claimed
+      ? `Claimed · ${trophies.find(trophy => trophy.id === result.claimed)?.name ?? 'Trophy'}`
+      : completed ? 'One reward per completed run' : 'No trophy on a failed run';
+    const requiresClaim = completed && trophies.length > 0 && !claimed;
+    this.elements['rush-retry-btn'].disabled = requiresClaim;
+    this.elements['rush-next-btn'].disabled = requiresClaim || result.daily;
+    this.elements['rush-title-btn'].disabled = requiresClaim;
+    this.elements['rush-result'].classList.remove('hidden');
+    document.body.classList.add('rush-overlay-open');
+    const shell = this.elements['rush-result'].querySelector('.rush-result-shell');
+    requestAnimationFrame(() => {
+      if (!shell) return;
+      shell.scrollTop = claimed ? shell.scrollHeight : 0;
+    });
+  }
+
+  hideRushResult() {
+    this.elements['rush-result']?.classList.add('hidden');
+    if (this.elements['rush-draft']?.classList.contains('hidden')) document.body.classList.remove('rush-overlay-open');
+  }
+
+  hideRushOverlays() {
+    this.hideRushDraft();
+    this.hideRushResult();
+    document.body.classList.remove('rush-overlay-open');
   }
 
   #abilityBarSignature(player) {
@@ -623,12 +887,23 @@ export class UI {
     this.elements.hud.classList.toggle('boss-active', Boolean(boss));
     if (!boss) {
       this.elements['boss-hud'].classList.add('hidden');
+      this.elements['boss-break-row']?.classList.add('hidden');
       return;
     }
     this.elements['boss-hud'].classList.remove('hidden');
     this.elements['boss-name'].textContent = boss.data.name;
     this.elements['boss-level'].textContent = `LV.${boss.level}`;
     this.elements['boss-health-fill'].style.width = `${boss.healthRatio * 100}%`;
+    const isRush = this.game.mode === 'rush';
+    this.elements['boss-break-row']?.classList.toggle('hidden', !isRush);
+    if (isRush) {
+      const rush = this.game.rush?.hud;
+      const broken = (rush?.breakWindow ?? 0) > 0;
+      const ratio = broken ? 1 : clamp((rush?.breakValue ?? 0) / Math.max(1, rush?.breakMax ?? 100), 0, 1);
+      this.elements['boss-break-fill'].style.width = `${ratio * 100}%`;
+      this.elements['boss-break-row'].classList.toggle('is-broken', broken);
+      this.elements['boss-break-text'].textContent = broken ? `EXECUTE ${rush.breakWindow.toFixed(1)}s` : `${Math.floor(ratio * 100)}%`;
+    }
   }
 
   #updateReticle() {

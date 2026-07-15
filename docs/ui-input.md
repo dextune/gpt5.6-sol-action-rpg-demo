@@ -86,16 +86,17 @@ System panel `data-action="quality"` → `Game.setQuality`.
 1. Keep `#hud { pointer-events: none }` — set `pointer-events: auto` only on interactive pads.  
 2. Preserve safe-area insets (`env(safe-area-inset-*)`).  
 3. Do not rely on `kbd` hints alone — touch-ui hides them.  
-4. Test portrait + landscape (landscape hides minimap/hunt card density).  
+4. Test portrait + landscape; keep the tactical map in the top-right and collapse only low-priority detail rows when space is tight.
 5. `touch-action: none` on stick/slots/canvas to avoid browser scroll/zoom.  
 6. Desktop keyboard path must remain unchanged when `body.touch-ui` is off.  
-7. **iPhone mini (≤390px):** hunt card hidden; minimap top-right clear of menu; icon-only ability pad; compact HP strip.
+7. **iPhone mini (≤390px):** compact profile in the top-left with a click/tap Hunt-record toggle, an inset settings gear replacing the mobile level pill, full-card-width text-free HP/MP gauges directly below EXP, and persistent WPN/OPT actions; use a wider, shared-width minimap and resource/status lane in the top-right; no combat orbs; icon-only ability pad.
 
 ### Layout QA (Playwright)
 
 ```bash
 # server already on 8777, or BASE_URL=http://127.0.0.1:8080
 node tests/mobile-iphone-layout.mjs
+node tests/combat-hud-resolution-matrix.mjs
 ```
 
-Checks: stick left, abilities right, no menu/minimap/stick overlaps, menu opens panel. Screenshots under `OUT_DIR` (default implementer scratch).
+Checks: stick left, abilities right, no menu/minimap/stick overlaps, menu opens panel, and HUD geometry remains valid across the desktop/touch resolution matrix. Screenshots under `OUT_DIR` (default implementer scratch).

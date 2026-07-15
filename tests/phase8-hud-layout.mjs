@@ -139,6 +139,33 @@ async function readSkillSlots(page) {
   }));
 }
 
+async function auditOrbVitals(page) {
+  const values = await page.evaluate(() => {
+    const game = window.__SOL_ARPG_DEMO__;
+    game.player.hp = game.player.maxHp * .5;
+    game.player.mp = game.player.maxMp * .25;
+    game.ui.update(1);
+    return {
+      hpTransform: document.getElementById('hp-fill').style.transform,
+      mpTransform: document.getElementById('mp-fill').style.transform,
+      mobileHpTransform: document.getElementById('mobile-hp-fill').style.transform,
+      mobileMpTransform: document.getElementById('mobile-mp-fill').style.transform,
+      mobileVitalsVisible: getComputedStyle(document.querySelector('.mobile-profile-vitals')).display !== 'none',
+      mobileVitalsText: document.querySelector('.mobile-profile-vitals').textContent.trim(),
+      desktopOrbsVisible: getComputedStyle(document.querySelector('.combat-vitals-health')).display !== 'none',
+      orbTextCount: document.querySelectorAll('.vital-orb small, .vital-orb b').length,
+      curvedGaugeCount: document.querySelectorAll('.character-vitals-overlay, .character-gauge, #hp-arc-fill, #mp-arc-fill, #energy-fill').length,
+    };
+  });
+  if (values.hpTransform !== 'scaleY(0.5)' || values.mpTransform !== 'scaleY(0.25)') failures.push(`orb liquid ratios mismatch: ${JSON.stringify(values)}`);
+  if (values.mobileHpTransform !== 'scaleX(0.5)' || values.mobileMpTransform !== 'scaleX(0.25)') failures.push(`mobile profile gauge ratios mismatch: ${JSON.stringify(values)}`);
+  if (!values.mobileVitalsVisible || values.desktopOrbsVisible) failures.push(`mobile vitals presentation mismatch: ${JSON.stringify(values)}`);
+  if (values.mobileVitalsText) failures.push(`mobile HP/MP gauges still contain text: ${JSON.stringify(values)}`);
+  if (values.orbTextCount !== 0) failures.push(`text remains inside the 3D orbs: ${JSON.stringify(values)}`);
+  if (values.curvedGaugeCount !== 0) failures.push(`curved gauges remain: ${JSON.stringify(values)}`);
+  log.push(`orb vitals ${JSON.stringify(values)}`);
+}
+
 function assertApexSlots(classId, expected, actual) {
   if (actual.length !== 4) failures.push(`${classId}: expected four skill slots, got ${actual.length}`);
   for (const skill of expected) {
@@ -262,8 +289,14 @@ async function layoutSnapshot(page) {
       ranger: rect('#ranger-state-row'),
       stick: rect('#touch-stick-zone'),
       menu: rect('#touch-menu-btn'),
+      zone: rect('.zone-ribbon'),
       minimap: rect('.minimap-shell'),
+      resources: rect('.resource-pills'),
       player: rect('.player-card'),
+      hunt: rect('.hunt-card'),
+      health: rect('.combat-vitals-health'),
+      power: rect('.combat-vitals-power'),
+      mobileVitals: rect('.mobile-profile-vitals'),
       skillSlots,
       stateInteractive: document.querySelectorAll('#class-state-row button, #class-state-row a, #class-state-row input, #class-state-row [tabindex]').length,
       abilityButtons: document.querySelectorAll('.ability-bar button, .ability-bar a, .ability-bar input').length,
@@ -276,7 +309,10 @@ function assertLayout(name, snapshot, { touch, minimumSkillTarget }) {
   const { width, height } = snapshot.viewport;
   for (const [part, rect] of Object.entries({
     ability: snapshot.ability, state: snapshot.state, stick: touch ? snapshot.stick : null,
-    menu: touch ? snapshot.menu : null, minimap: snapshot.minimap, player: snapshot.player,
+    menu: touch ? snapshot.menu : null, zone: snapshot.zone, minimap: snapshot.minimap,
+    resources: snapshot.resources, player: snapshot.player,
+    health: touch ? null : snapshot.health, power: touch ? null : snapshot.power,
+    mobileVitals: touch ? snapshot.mobileVitals : null,
   })) {
     if (rect && !inViewport(rect, width, height, 4)) failures.push(`${name}: ${part} outside viewport`);
   }
@@ -284,6 +320,32 @@ function assertLayout(name, snapshot, { touch, minimumSkillTarget }) {
   if (overlaps(snapshot.state, snapshot.ability, 2)) failures.push(`${name}: class state overlaps action pad`);
   if (touch && overlaps(snapshot.state, snapshot.stick, 2)) failures.push(`${name}: class state overlaps joystick`);
   if (touch && overlaps(snapshot.menu, snapshot.minimap, 2)) failures.push(`${name}: menu overlaps minimap`);
+  if (snapshot.hunt) failures.push(`${name}: Hunt summary is expanded by default`);
+  if (touch && (snapshot.health || snapshot.power)) failures.push(`${name}: desktop HP/MP orbs remain visible on mobile`);
+  if (touch && !snapshot.mobileVitals) failures.push(`${name}: mobile profile HP/MP gauges are missing`);
+  if (snapshot.health && snapshot.health.right > width * .55) failures.push(`${name}: HP display is not on the left`);
+  if (snapshot.power && snapshot.power.left < width * .45) failures.push(`${name}: MP/energy display is not on the right`);
+  if (snapshot.zone && snapshot.minimap && snapshot.zone.bottom > snapshot.minimap.top + 1) {
+    failures.push(`${name}: zone title is not positioned above the minimap`);
+  }
+  if (snapshot.zone && snapshot.minimap && Math.abs(snapshot.zone.width - snapshot.minimap.width) > 1) {
+    failures.push(`${name}: zone title width does not match the minimap`);
+  }
+  if (snapshot.minimap && snapshot.resources) {
+    if (Math.abs(snapshot.minimap.width - snapshot.resources.width) > 1) {
+      failures.push(`${name}: minimap width does not match the combined Gold/Items card width`);
+    }
+    if (snapshot.resources.top < snapshot.minimap.bottom) failures.push(`${name}: resources are not below the minimap`);
+  }
+  // Portrait touch uses a 3×3 action pad that consumes the right edge; desktop
+  // and landscape have enough horizontal room to keep all three centers exact.
+  if ((!touch || width > height) && snapshot.ability && snapshot.health && snapshot.power) {
+    const abilityCenter = (snapshot.ability.top + snapshot.ability.bottom) / 2;
+    const healthCenter = (snapshot.health.top + snapshot.health.bottom) / 2;
+    const powerCenter = (snapshot.power.top + snapshot.power.bottom) / 2;
+    if (Math.abs(abilityCenter - healthCenter) > 1.5) failures.push(`${name}: HP orb is not vertically centered on the skill pad`);
+    if (Math.abs(abilityCenter - powerCenter) > 1.5) failures.push(`${name}: MP orb is not vertically centered on the skill pad`);
+  }
   if (snapshot.skillSlots.some(rect => rect.width < minimumSkillTarget || rect.height < minimumSkillTarget)) {
     failures.push(`${name}: a skill hit target is below ${minimumSkillTarget}px`);
   }
@@ -314,6 +376,7 @@ async function main() {
       const actual = await readSkillSlots(mobile);
       assertApexSlots(classId, expected, actual);
       await auditAllMutationIcons(mobile, classId, 'portrait');
+      if (classId === 'rogue') await auditOrbVitals(mobile);
       log.push(`${classId} badges ${JSON.stringify(actual.map(slot => ({ key:slot.key, skill:slot.skillId, tier:slot.formTier, mutations:slot.mutationBadges.map(badge => badge.title) })))}`);
     }
 

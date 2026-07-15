@@ -405,11 +405,10 @@ body.touch-ui .controls-mobile { display: flex; }
   min-width: 4.5em;
   text-align: right;
 }
+.mobile-profile-vitals { display: none; }
 
 .zone-ribbon { position: absolute; top: 22px; left: 50%; transform: translateX(-50%); text-align: center; text-shadow: 0 2px 10px rgba(0,0,0,.7); min-width: 260px; }
-.zone-ribbon::before, .zone-ribbon::after { content: ""; position: absolute; top: 26px; width: 74px; height: 1px; background: linear-gradient(90deg, transparent, rgba(255,231,158,.75)); }
-.zone-ribbon::before { right: 100%; margin-right: 13px; }
-.zone-ribbon::after { left: 100%; margin-left: 13px; transform: scaleX(-1); }
+.zone-ribbon::before, .zone-ribbon::after { display: none; }
 .zone-ribbon span { display: block; color: var(--gold); font: 800 9px/1 system-ui; letter-spacing: .22em; margin-bottom: 5px; }
 .zone-ribbon strong { display: block; font-family: Georgia, serif; font-size: 22px; letter-spacing: .04em; }
 .zone-ribbon small { display: block; color: #d2e3dc; font-size: 10px; margin-top: 3px; }
@@ -522,6 +521,76 @@ body[data-mode="defense"] .boss-charge {
 .bag-icon { background: #99b5b7; box-shadow: inset 0 0 0 2px #425e64; }
 .weapon-level-pill { border-color: rgba(255, 211, 109, .35) !important; color: #ffe9aa; }
 .weapon-pip-icon { background: linear-gradient(135deg, #fff0b2, #d8953f); box-shadow: 0 0 7px #ffc955; transform: rotate(45deg) !important; }
+
+/* In-combat weapon / option enhance — sits above the right skill pad. */
+.combat-forge {
+  position: absolute;
+  right: 22px;
+  bottom: 118px;
+  z-index: 32;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: auto;
+  width: 92px;
+}
+.combat-forge.hidden { display: none !important; }
+.combat-forge-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 52px;
+  padding: 7px 8px 8px;
+  border-radius: 12px 4px 12px 4px;
+  border: 1px solid rgba(255, 214, 109, .42);
+  background: linear-gradient(160deg, rgba(42, 36, 22, .92), rgba(12, 24, 30, .88));
+  color: #f4e8c0;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, .35), inset 0 1px rgba(255, 255, 255, .08);
+  cursor: pointer;
+  pointer-events: auto;
+  touch-action: manipulation;
+  user-select: none;
+  transition: transform .08s ease, border-color .12s ease, opacity .12s ease;
+}
+.combat-forge-btn.is-option {
+  border-color: rgba(120, 200, 255, .4);
+  background: linear-gradient(160deg, rgba(24, 40, 52, .92), rgba(12, 24, 30, .88));
+}
+.combat-forge-btn:hover:not(:disabled) {
+  border-color: rgba(255, 230, 140, .7);
+  transform: translateY(-1px);
+}
+.combat-forge-btn:active:not(:disabled) { transform: scale(.96); }
+.combat-forge-btn:disabled,
+.combat-forge-btn.is-max,
+.combat-forge-btn.is-unaffordable {
+  opacity: .48;
+  cursor: default;
+  transform: none;
+}
+.combat-forge-btn .forge-kicker {
+  font: 800 8px/1 system-ui, sans-serif;
+  letter-spacing: .16em;
+  color: #ffd86f;
+}
+.combat-forge-btn.is-option .forge-kicker { color: #8fd4ff; }
+.combat-forge-btn strong {
+  font: 800 15px/1.1 system-ui, sans-serif;
+  letter-spacing: .04em;
+  color: #fff6d8;
+}
+.combat-forge-btn small {
+  font: 700 8px/1.15 system-ui, sans-serif;
+  color: #b9c8c0;
+  letter-spacing: .02em;
+  text-align: center;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .ability-bar { position: absolute; left: 50%; bottom: 25px; transform: translateX(-50%); display: flex; align-items: flex-end; gap: 7px; padding: 8px 10px 9px; border-radius: 17px 4px 17px 4px; background: rgba(7,19,27,.63); border: 1px solid rgba(235,255,242,.15); box-shadow: 0 12px 38px rgba(0,0,0,.36); backdrop-filter: blur(8px); }
 .class-state-row { position: absolute; left: 50%; bottom: 114px; transform: translateX(-50%); z-index: 32; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 5px; max-width: min(420px, calc(100vw - 16px)); pointer-events: none; }
@@ -1036,20 +1105,18 @@ body[data-mode="defense"] .boss-charge {
   display: grid;
   place-items: center;
 }
-/* hamburger glyph */
+/* settings glyph */
 .touch-menu-btn::before {
-  content: "";
-  width: 16px;
-  height: 11px;
-  background:
-    linear-gradient(#f2e6c0, #f2e6c0) 0 0 / 100% 2px no-repeat,
-    linear-gradient(#f2e6c0, #f2e6c0) 0 4.5px / 100% 2px no-repeat,
-    linear-gradient(#f2e6c0, #f2e6c0) 0 9px / 100% 2px no-repeat;
+  content: "\2699";
+  font: 400 20px/1 system-ui, sans-serif;
+  color: #f2e6c0;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, .75);
 }
 .touch-menu-btn:active { transform: scale(.94); background: rgba(40, 55, 48, .92); }
 
 /* Desktop default: no touch chrome */
 body:not(.touch-ui) .touch-controls { display: none !important; }
+body:not(.touch-ui) .hunter-profile > .touch-menu-btn { display: none !important; }
 
 /* ─── touch-ui base (tablets / large phones) ─── */
 body.touch-ui .menu-hints { display: none !important; }
@@ -1284,7 +1351,23 @@ body.touch-ui .ability-bar {
   align-items: center;
   justify-items: center;
 }
-body.touch-ui .class-state-row { left: auto; right: max(6px, env(safe-area-inset-right, 0px)); bottom: max(180px, calc(env(safe-area-inset-bottom, 0px) + 176px)); transform: none; width: min(232px, calc(100vw - 142px - env(safe-area-inset-left, 0px))); max-width: none; justify-content: flex-end; gap: 4px; }
+/* Forge stack sits above the 3×3 pad with clear breathing room (~pad height + margin). */
+body.touch-ui .combat-forge {
+  right: max(10px, env(safe-area-inset-right, 0px));
+  bottom: max(196px, calc(env(safe-area-inset-bottom, 0px) + 188px));
+  width: 78px;
+  gap: 7px;
+  z-index: 33;
+}
+body.touch-ui .combat-forge-btn {
+  min-height: 46px;
+  padding: 6px 6px 7px;
+  border-radius: 11px 3px 11px 3px;
+}
+body.touch-ui .combat-forge-btn .forge-kicker { font-size: 7px; letter-spacing: .14em; }
+body.touch-ui .combat-forge-btn strong { font-size: 13px; }
+body.touch-ui .combat-forge-btn small { font-size: 7px; }
+body.touch-ui .class-state-row { left: auto; right: max(6px, env(safe-area-inset-right, 0px)); bottom: max(300px, calc(env(safe-area-inset-bottom, 0px) + 292px)); transform: none; width: min(232px, calc(100vw - 142px - env(safe-area-inset-left, 0px))); max-width: none; justify-content: flex-end; gap: 4px; }
 body.touch-ui .class-state-chip { min-width: 0; max-width: 108px; padding: 5px 6px; font-size: 7px; }
 body.touch-ui .frenzy-chip,
 body.touch-ui .overflow-chip { flex: 0 1 108px; }
@@ -1473,6 +1556,7 @@ body.touch-ui .title-actions {
   gap: var(--title-gap);
 }
 body.touch-ui .title-actions .primary-button,
+body.touch-ui .title-actions .rush-button,
 body.touch-ui .title-actions .secondary-button {
   width: 100%;
   min-height: 40px;
@@ -1738,14 +1822,215 @@ body.touch-ui .equipment-icon {
 }
 
 /* While menu is open, kill combat pad hit-targets under the modal */
+body.touch-ui.panel-open .combat-forge,
 body.touch-ui.panel-open .ability-bar,
 body.touch-ui.panel-open .class-state-row,
 body.touch-ui.panel-open .touch-controls {
   pointer-events: none !important;
   opacity: .25;
 }
+/* Desktop panels also disable combat forge clicks under the modal */
+body.panel-open .combat-forge {
+  pointer-events: none !important;
+  opacity: .35;
+}
 
 body.touch-ui #game-canvas { cursor: default; }
+
+/* -------------------------------------------------------------------------- */
+/* Short-form Rift Rush                                                       */
+/* -------------------------------------------------------------------------- */
+
+.rush-button {
+  min-height: var(--title-action-h);
+  padding: 0 14px;
+  border: 1px solid rgba(213, 164, 255, .72);
+  border-radius: 11px 3px 11px 3px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background:
+    radial-gradient(circle at 78% 20%, rgba(255, 222, 132, .24), transparent 34%),
+    linear-gradient(100deg, rgba(91, 54, 132, .96), rgba(35, 88, 112, .94));
+  color: #fff6db;
+  box-shadow: 0 8px 24px rgba(33, 10, 55, .35), inset 0 1px rgba(255,255,255,.16);
+  text-align: left;
+}
+.rush-button span { font: 900 13px/1 system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; }
+.rush-button small { color: #e8d7ff; font: 700 9px/1 system-ui, sans-serif; letter-spacing: .04em; }
+.daily-rush-button { border-color: rgba(197, 154, 255, .4); }
+
+body[data-mode="rush"] .hunt-card,
+body[data-mode="rush"] .resource-pills,
+body[data-mode="rush"] .combat-forge,
+body[data-mode="rush"] .xp-row,
+body[data-mode="rush"] .menu-hints { display: none !important; }
+
+.rush-hud {
+  position: absolute;
+  z-index: 38;
+  top: 20px;
+  left: 50%;
+  width: min(560px, calc(100vw - 690px));
+  min-width: 360px;
+  transform: translateX(-50%);
+  padding: 10px 14px 9px;
+  border: 1px solid rgba(210, 167, 255, .42);
+  border-radius: 15px 4px 15px 4px;
+  background: linear-gradient(150deg, rgba(25, 15, 43, .9), rgba(8, 31, 42, .86));
+  box-shadow: 0 12px 38px rgba(0, 0, 0, .38), inset 0 1px rgba(255,255,255,.08);
+  backdrop-filter: blur(9px);
+  color: #eefcf6;
+}
+.rush-hud > header { display: grid; grid-template-columns: 1fr auto 1fr; align-items: baseline; gap: 12px; }
+.rush-hud > header span,
+.rush-hud > header b { color: #d9c2ff; font: 900 8px/1 system-ui, sans-serif; letter-spacing: .16em; }
+.rush-hud > header b { justify-self: end; color: #ffe38a; }
+.rush-hud > header strong {
+  color: #fff6d8;
+  font: 900 28px/.9 Georgia, serif;
+  text-shadow: 0 0 18px rgba(213, 164, 255, .65);
+  font-variant-numeric: tabular-nums;
+}
+.rush-hud > header strong.is-urgent { color: #ff8795; animation: rushUrgent .65s ease-in-out infinite alternate; }
+@keyframes rushUrgent { to { transform: scale(1.07); text-shadow: 0 0 22px #ff355f; } }
+.rush-objective-row { display: flex; align-items: end; justify-content: space-between; gap: 12px; margin-top: 7px; }
+.rush-objective-row > div { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.rush-objective-row small { color: #ac8ee4; font: 900 7px/1 system-ui; letter-spacing: .18em; }
+.rush-objective-row strong { overflow: hidden; color: #f8f1ff; font: 800 13px/1.1 system-ui; text-overflow: ellipsis; white-space: nowrap; }
+.rush-objective-row em { color: #ffe38a; font: 900 11px/1 system-ui; font-style: normal; white-space: nowrap; }
+.rush-progress { height: 5px; margin-top: 7px; overflow: hidden; border-radius: 99px; background: rgba(255,255,255,.1); }
+.rush-progress i { display: block; width: 0; height: 100%; background: linear-gradient(90deg, #8d55d9, #6de0d0, #ffe38a); box-shadow: 0 0 12px #9b76e8; transition: width .16s ease; }
+.rush-hud p { overflow: hidden; margin: 6px 0 0; color: #b8c9cc; font: 600 8px/1.15 system-ui; text-overflow: ellipsis; white-space: nowrap; }
+.rush-hud footer { display: flex; justify-content: space-between; margin-top: 6px; color: #9edbcf; font: 800 7px/1 system-ui; letter-spacing: .1em; }
+.rush-hud footer b { color: #ffe38a; }
+
+body[data-mode="rush"] .boss-hud { top: 154px; }
+.boss-break-row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 7px; margin-top: 5px; color: #d9c2ff; font: 900 7px/1 system-ui; letter-spacing: .14em; }
+.boss-break-row > div { height: 7px; overflow: hidden; border: 1px solid rgba(210,167,255,.42); transform: skewX(-10deg); background: rgba(7,8,20,.72); }
+.boss-break-row i { display: block; width: 0; height: 100%; background: linear-gradient(90deg, #6d4bbd, #d27aff, #fff0a8); box-shadow: 0 0 12px #ce86ff; transition: width .12s; }
+.boss-break-row.is-broken { color: #fff0a8; }
+.boss-break-row.is-broken i { background: linear-gradient(90deg, #ff9055, #ffe38a, #fff); animation: breakPulse .32s ease-in-out infinite alternate; }
+@keyframes breakPulse { to { filter: brightness(1.45); } }
+
+.rush-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 96;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  overflow: auto;
+  background: radial-gradient(circle at 50% 42%, rgba(83, 50, 126, .28), rgba(3, 9, 15, .84));
+  backdrop-filter: blur(8px) saturate(.8);
+  pointer-events: auto;
+}
+.rush-overlay-shell {
+  width: min(820px, 94vw);
+  padding: 24px;
+  border: 1px solid rgba(218, 183, 255, .48);
+  border-radius: 24px 6px 24px 6px;
+  background: linear-gradient(155deg, rgba(24, 17, 42, .98), rgba(8, 28, 38, .98));
+  box-shadow: 0 32px 90px rgba(0,0,0,.62), inset 0 1px rgba(255,255,255,.1);
+  text-align: center;
+}
+.rush-overlay-shell > .eyebrow { margin: 0; color: #cba7ff; }
+.rush-overlay-shell > h2 { margin: 7px 0 4px; color: #fff6dc; font: 800 30px/1 Georgia, serif; }
+.rush-overlay-shell > p:not(.eyebrow) { margin: 0; color: #adbec3; font: 600 11px/1.4 system-ui; }
+.rush-overlay-shell > small { display: block; margin-top: 12px; color: #91a4aa; font: 700 9px/1 system-ui; }
+
+.rush-draft-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 20px; }
+.rush-draft-card {
+  position: relative;
+  min-height: 210px;
+  padding: 22px 18px 18px;
+  border: 1px solid rgba(142, 214, 219, .34);
+  border-radius: 18px 5px 18px 5px;
+  background: radial-gradient(circle at 50% 10%, rgba(193, 145, 255, .2), transparent 42%), rgba(9, 28, 39, .84);
+  color: #edfef8;
+  cursor: pointer;
+  transition: transform .12s ease, border-color .12s ease, filter .12s ease;
+}
+.rush-draft-card:hover { transform: translateY(-4px); border-color: #d4a8ff; filter: brightness(1.12); }
+.rush-draft-card > kbd { position: absolute; top: 10px; right: 12px; border-color: rgba(255,227,138,.5); color: #ffe38a; }
+.rush-draft-card .rush-draft-icon { display: grid; place-items: center; width: 58px; height: 58px; margin: 0 auto 12px; border: 1px solid rgba(214,178,255,.42); border-radius: 50%; color: #ffe38a; font: 900 24px/1 Georgia; box-shadow: 0 0 28px rgba(181,114,255,.2); }
+.rush-draft-icon i { margin-left: 2px; font: 800 9px/1 system-ui; font-style: normal; }
+.rush-draft-card small { display: block; color: #8fd8ce; font: 800 8px/1 system-ui; letter-spacing: .12em; text-transform: uppercase; }
+.rush-draft-card strong { display: block; margin-top: 7px; color: #fff4d2; font: 800 20px/1 Georgia, serif; }
+.rush-draft-card p { margin: 10px auto 0; max-width: 280px; color: #b7c6ca; font: 600 10px/1.42 system-ui; }
+
+.rush-result-shell { width: min(920px, 96vw); max-height: 94vh; overflow: auto; text-align: left; }
+.rush-result-heading { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+.rush-result-heading .eyebrow { margin: 0; color: #cba7ff; }
+.rush-result-heading h2 { margin: 5px 0; color: #fff4d2; font: 800 32px/1 Georgia, serif; }
+.rush-result-heading p { margin: 0; color: #9fb1b6; font: 600 10px/1.3 system-ui; }
+#rush-result-grade { min-width: 92px; color: var(--grade-color, #ffe38a); font: 900 82px/.8 Georgia, serif; text-align: center; text-shadow: 0 0 32px color-mix(in srgb, var(--grade-color, #ffe38a) 65%, transparent); }
+.rush-result-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; margin-top: 18px; }
+.rush-result-metrics span { padding: 9px; border: 1px solid rgba(255,255,255,.1); border-radius: 9px 3px; background: rgba(5,18,26,.58); }
+.rush-result-metrics small { display: block; color: #81969e; font: 800 7px/1 system-ui; letter-spacing: .12em; }
+.rush-result-metrics strong { display: block; margin-top: 4px; color: #edf8f4; font: 800 13px/1 system-ui; }
+.rush-trophy-heading { display: flex; justify-content: space-between; margin-top: 20px; color: #ffe38a; font: 900 8px/1 system-ui; letter-spacing: .14em; }
+.rush-trophy-heading small { color: #8fa3aa; letter-spacing: .04em; }
+.rush-trophy-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; margin-top: 9px; }
+.rush-trophy-card { min-height: 118px; padding: 12px; border: 1px solid rgba(255,218,112,.28); border-radius: 13px 4px; background: linear-gradient(145deg, rgba(49,42,22,.72), rgba(8,27,37,.78)); color: #f5f3e7; cursor: pointer; text-align: left; }
+.rush-trophy-card:hover:not(:disabled) { border-color: #ffe38a; transform: translateY(-2px); }
+.rush-trophy-card:disabled { opacity: .5; cursor: default; }
+.rush-trophy-card.is-claimed { opacity: 1; border-color: #8ff0c4; box-shadow: 0 0 20px rgba(143,240,196,.18); }
+.rush-trophy-card i { float: right; color: #ffe38a; font: 800 22px/1 Georgia; }
+.rush-trophy-card strong { display: block; color: #fff1be; font: 800 14px/1.1 system-ui; }
+.rush-trophy-card p { margin: 9px 0 0; color: #abbcc0; font: 600 9px/1.35 system-ui; }
+.rush-no-trophy { grid-column: 1/-1; padding: 18px; color: #9aa8ad; text-align: center; }
+.rush-result-actions { display: grid; grid-template-columns: 1.25fr 1fr 1fr; gap: 9px; margin-top: 18px; }
+.rush-result-actions button { min-height: 44px; }
+.rush-result-actions button:disabled { opacity: .38; cursor: default; }
+
+body.rush-overlay-open .ability-bar,
+body.rush-overlay-open .touch-controls,
+body.rush-overlay-open .class-state-row { pointer-events: none !important; opacity: .18; }
+
+@media (max-width: 1100px) {
+  .rush-hud { top: 12px; width: min(480px, calc(100vw - 390px)); min-width: 310px; }
+  body[data-mode="rush"] .boss-hud { top: 145px; }
+}
+
+@media (max-width: 780px) {
+  .rush-hud { top: max(8px, env(safe-area-inset-top, 0px)); width: min(94vw, 520px); min-width: 0; padding: 8px 10px; }
+  .rush-hud > header strong { font-size: 23px; }
+  .rush-hud p { display: none; }
+  body[data-mode="rush"] .player-card { top: 114px; transform: scale(.82); transform-origin: top left; }
+  body[data-mode="rush"] .zone-ribbon { display: none; }
+  body[data-mode="rush"] .minimap-shell { display: none; }
+  body[data-mode="rush"] .boss-hud { top: 126px; width: min(82vw, 470px); }
+  .rush-overlay { padding: 8px; }
+  .rush-overlay-shell { padding: 17px 12px; }
+  .rush-draft-options { gap: 8px; }
+  .rush-draft-card { min-height: 190px; padding: 18px 10px 12px; }
+  .rush-draft-card strong { font-size: 16px; }
+  .rush-result-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rush-trophy-options { grid-template-columns: 1fr; }
+  .rush-trophy-card { min-height: 76px; }
+  .rush-result-actions { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 430px) {
+  .rush-hud { border-radius: 10px 3px; }
+  .rush-objective-row strong { font-size: 11px; }
+  .rush-draft-options { grid-template-columns: 1fr; }
+  .rush-draft-card { min-height: 130px; }
+  .rush-draft-card .rush-draft-icon { width: 42px; height: 42px; margin-bottom: 7px; font-size: 18px; }
+  .rush-draft-card p { margin-top: 6px; }
+  #rush-result-grade { min-width: 62px; font-size: 58px; }
+  .rush-result-heading h2 { font-size: 24px; }
+  .rush-result-heading { gap: 10px; }
+  .rush-result-metrics { gap: 4px; margin-top: 12px; }
+  .rush-result-metrics span { padding: 7px; }
+  .rush-trophy-heading { margin-top: 13px; }
+  .rush-trophy-options { gap: 6px; margin-top: 7px; }
+  .rush-trophy-card { min-height: 68px; padding: 10px; }
+  .rush-trophy-card p { margin-top: 5px; }
+  .rush-result-actions { grid-template-columns: 1fr 1fr; gap: 7px; margin-top: 12px; }
+  .rush-result-actions button:first-child { grid-column: 1 / -1; }
+}
 
 /* Landscape phones: more horizontal room for sticks */
 @media (max-height: 480px) and (orientation: landscape) {
@@ -1927,8 +2212,8 @@ body.touch-ui .resource-pills i { width: 8px; height: 8px; }
 
 /* A smaller tactical map leaves the top-right menu its own hit-safe lane. */
 body.touch-ui .minimap-shell {
-  width: 78px;
-  height: 84px;
+  width: 96px;
+  height: 102px;
   opacity: .78;
   padding: 4px;
   border-radius: 10px 3px 10px 3px;
@@ -1991,7 +2276,7 @@ body.touch-ui .ability-bar {
   backdrop-filter: blur(6px);
 }
 body.touch-ui .class-state-row {
-  bottom: max(180px, calc(env(safe-area-inset-bottom, 0px) + 176px));
+  bottom: max(300px, calc(env(safe-area-inset-bottom, 0px) + 292px));
 }
 
 @media (max-width: 390px) {
@@ -2015,8 +2300,13 @@ body.touch-ui .class-state-row {
     height: 64px !important;
   }
   body.touch-ui .ability-bar { gap: 4px; padding: 4px; }
+  body.touch-ui .combat-forge {
+    width: 72px;
+    bottom: max(188px, calc(env(safe-area-inset-bottom, 0px) + 180px));
+  }
+  body.touch-ui .combat-forge-btn { min-height: 42px; }
   body.touch-ui .class-state-row {
-    bottom: max(180px, calc(env(safe-area-inset-bottom, 0px) + 176px));
+    bottom: max(290px, calc(env(safe-area-inset-bottom, 0px) + 282px));
   }
 }
 
@@ -2052,4 +2342,582 @@ body.touch-ui .class-state-row {
   body.touch-ui .class-state-row {
     bottom: max(182px, calc(env(safe-area-inset-bottom, 0px) + 174px));
   }
+}
+
+/* Diablo-style combat HUD --------------------------------------------------
+   Information order: profile/record/forge, map/resources/messages, then
+   mirrored bottom combat resources around the centered ability deck. */
+.hunter-profile {
+  left: 18px;
+  top: 18px;
+  width: 318px;
+  min-height: 0;
+  padding: 11px;
+  display: grid;
+  align-items: stretch;
+  gap: 0;
+  overflow: hidden;
+  border-radius: 4px 18px 4px 18px;
+  background:
+    linear-gradient(90deg, rgba(239, 190, 96, .28), transparent 42%) top / 100% 1px no-repeat,
+    linear-gradient(145deg, rgba(25, 31, 29, .9), rgba(7, 19, 27, .82));
+  border-color: rgba(244, 211, 137, .32);
+}
+.profile-primary {
+  position: relative;
+  width: 100%;
+  padding: 0 17px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+.profile-primary::after {
+  content: "⌄";
+  position: absolute;
+  right: 0;
+  bottom: 1px;
+  color: rgba(255, 225, 147, .72);
+  font: 900 13px/1 system-ui, sans-serif;
+  transition: transform .16s ease, color .16s ease;
+}
+.profile-primary:hover::after,
+.profile-primary:focus-visible::after { color: #fff0ba; }
+.profile-primary:focus-visible { outline: 1px solid rgba(255, 222, 133, .7); outline-offset: 4px; }
+.hunter-profile.hunt-expanded .profile-primary::after {
+  transform: rotate(180deg);
+}
+.hunter-profile .portrait {
+  flex: 0 0 52px;
+  width: 52px;
+  height: 52px;
+  margin: 0;
+}
+.hunter-profile .portrait::before { font-size: 20px; }
+.hunter-profile .portrait span { bottom: -7px; height: 18px; min-width: 38px; font-size: 9px; }
+.hunter-profile .name-row { min-height: 29px; margin-bottom: 6px; }
+.hunter-profile .name-stack strong { font-size: 14px; }
+.hunter-profile .name-stack em { max-width: 150px; }
+.hunter-profile .xp-row { grid-template-columns: 25px minmax(0, 1fr) auto; gap: 6px; margin-top: 0; }
+.hunter-profile .xp-row .xp-track { height: 6px; }
+.hunter-profile .xp-row b { font-size: 8px; }
+
+.hunter-profile .profile-hunt {
+  position: static;
+  inset: auto;
+  width: auto;
+  margin: 10px 0 0;
+  padding: 8px 2px 1px;
+  border: 0;
+  border-top: 1px solid rgba(244, 211, 137, .2);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+.hunter-profile .profile-hunt.hidden { display: none !important; }
+.hunter-profile.hunt-expanded .profile-hunt { display: block !important; }
+.hunter-profile .hunt-top i { font-size: 16px; }
+.hunter-profile .hunt-stats { justify-content: space-between; gap: 6px; padding: 7px 0 6px; }
+.hunter-profile .boss-charge-row { margin-top: 7px; }
+.hunter-profile .contract-box { margin-top: 8px; padding: 7px 9px; }
+
+.hunter-profile .profile-forge {
+  position: static;
+  inset: auto;
+  z-index: 33;
+  width: auto;
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  pointer-events: auto;
+}
+.hunter-profile .combat-forge-btn {
+  min-width: 0;
+  min-height: 39px;
+  padding: 6px 8px;
+  display: grid;
+  grid-template-columns: auto auto;
+  grid-template-rows: auto auto;
+  justify-content: stretch;
+  align-items: center;
+  gap: 2px 7px;
+  text-align: left;
+  border-radius: 3px 10px 3px 10px;
+}
+.hunter-profile .combat-forge-btn .forge-kicker { justify-self: start; }
+.hunter-profile .combat-forge-btn strong { justify-self: end; font-size: 13px; }
+.hunter-profile .combat-forge-btn small {
+  grid-column: 1 / -1;
+  justify-self: stretch;
+  text-align: left;
+  font-size: 7px;
+}
+
+.minimap-shell {
+  right: 18px;
+  top: 61px;
+  bottom: auto;
+  width: 184px;
+  height: 205px;
+  padding: 8px;
+  opacity: .96;
+  border-radius: 18px 4px 18px 4px;
+  border-color: rgba(244, 211, 137, .3);
+  background: linear-gradient(145deg, rgba(25, 31, 29, .86), rgba(7, 19, 27, .8));
+}
+.minimap-shell canvas,
+#minimap { width: 168px; height: 168px; }
+.minimap-heading { padding: 0 6px 5px; }
+
+/* The current location now titles the tactical map instead of floating at the
+   center of the combat view. It shares the map/resource column width. */
+.zone-ribbon {
+  left: auto;
+  right: 18px;
+  top: 18px;
+  width: 184px;
+  min-width: 0;
+  padding: 5px 8px 6px;
+  transform: none;
+  text-align: left;
+  border-left: 2px solid rgba(244, 211, 137, .58);
+  background: linear-gradient(90deg, rgba(9, 22, 28, .72), rgba(9, 22, 28, .12));
+}
+.zone-ribbon span { margin-bottom: 3px; font-size: 7px; }
+.zone-ribbon strong {
+  overflow: hidden;
+  font-size: 15px;
+  line-height: 1.05;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.zone-ribbon small { display: none; }
+
+.resource-pills,
+body[data-mode="rush"] .resource-pills {
+  left: auto;
+  right: 18px;
+  top: 274px;
+  width: 184px;
+  max-width: none;
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+}
+.resource-pills span {
+  min-width: 0;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 3px 10px 3px 10px;
+  background: linear-gradient(145deg, rgba(26, 32, 29, .88), rgba(7, 19, 27, .76));
+  border-color: rgba(244, 211, 137, .2);
+}
+.resource-pills small {
+  min-width: 0;
+  color: #9baca7;
+  font: 800 6px/1 system-ui, sans-serif;
+  letter-spacing: .08em;
+}
+.resource-pills b { margin-left: auto; color: #f5edcf; font-variant-numeric: tabular-nums; }
+.item-count-pill { border-color: rgba(139, 201, 191, .24) !important; }
+
+#notifications {
+  right: 18px;
+  left: auto;
+  top: 313px;
+  width: min(286px, 32vw);
+  align-items: flex-end;
+  transform: none;
+}
+.notification { max-width: 100%; }
+
+.combat-vitals {
+  position: absolute;
+  z-index: 24;
+  bottom: 8px;
+  width: 117px;
+  min-width: 0;
+  height: 117px;
+  display: flex;
+  align-items: flex-end;
+  filter: drop-shadow(0 10px 18px rgba(0, 0, 0, .42));
+}
+.combat-vitals-health { left: calc(50% - 385px); }
+.combat-vitals-power { right: calc(50% - 385px); }
+.vital-orb {
+  position: relative;
+  z-index: 2;
+  flex: 0 0 117px;
+  width: 117px;
+  height: 117px;
+  overflow: hidden;
+  border: 5px solid rgba(28, 25, 22, .94);
+  border-radius: 50%;
+  isolation: isolate;
+  box-shadow:
+    0 0 0 1px rgba(244, 211, 137, .66),
+    0 0 0 3px rgba(7, 11, 14, .82),
+    inset 0 12px 26px rgba(255,255,255,.12),
+    inset 0 -24px 32px rgba(0,0,0,.58),
+    0 8px 22px rgba(0,0,0,.48);
+}
+.vital-orb::before {
+  content: "";
+  position: absolute;
+  z-index: 4;
+  inset: 5px;
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse at 32% 22%, rgba(255,255,255,.62) 0 4%, rgba(255,255,255,.2) 7%, transparent 18%),
+    radial-gradient(ellipse at 68% 82%, rgba(255,255,255,.1), transparent 28%),
+    linear-gradient(135deg, rgba(255,255,255,.08), transparent 38%);
+  pointer-events: none;
+}
+.vital-orb::after {
+  content: "";
+  position: absolute;
+  inset: 7px;
+  border: 1px solid rgba(255,255,255,.22);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 3;
+  box-shadow:
+    inset 9px 8px 17px rgba(255,255,255,.08),
+    inset -13px -16px 24px rgba(0,0,0,.42);
+}
+.hp-orb { background: radial-gradient(circle at 48% 42%, #4a0b1a 0, #21040d 67%, #070205 100%); }
+.mp-orb { background: radial-gradient(circle at 48% 42%, #0c3159 0, #06162d 67%, #02050b 100%); }
+.orb-liquid {
+  position: absolute;
+  z-index: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  transform: scaleY(1);
+  transform-origin: bottom;
+  filter: saturate(1.12) contrast(1.05);
+}
+.orb-liquid::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 30% 64%, rgba(255,255,255,.16) 0 2%, transparent 3%),
+    radial-gradient(circle at 70% 76%, rgba(255,255,255,.1) 0 1.5%, transparent 2.5%),
+    radial-gradient(circle at 58% 42%, rgba(255,255,255,.09) 0 1%, transparent 2%);
+  opacity: .72;
+}
+.orb-liquid::after {
+  content: "";
+  position: absolute;
+  left: -12%;
+  right: -12%;
+  top: 0;
+  height: 18px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(255,255,255,.42), rgba(255,255,255,.12) 42%, transparent 72%);
+  filter: blur(.6px);
+}
+.hp-orb .orb-liquid { background: radial-gradient(circle at 38% 28%, #ff7080 0, #c01d3a 42%, #6d0a20 72%, #25030d 100%); }
+.mp-orb .orb-liquid { background: radial-gradient(circle at 38% 28%, #7ce0ff 0, #2689d0 42%, #14508f 72%, #061a38 100%); }
+
+.menu-hints {
+  left: 50%;
+  bottom: 6px;
+  transform: translateX(-50%);
+}
+
+@media (max-width: 1100px) {
+  body:not(.touch-ui) .hunter-profile { width: 286px; transform: none; }
+  body:not(.touch-ui) .ability-bar {
+    bottom: 25px;
+    gap: 7px;
+    padding: 8px 10px 9px;
+    transform: translateX(-50%) scale(.88);
+    transform-origin: bottom center;
+  }
+  body:not(.touch-ui) .combat-vitals { bottom: 14px; width: 96px; height: 96px; }
+  body:not(.touch-ui) .combat-vitals-health { left: max(2px, calc(50% - 332px)); }
+  body:not(.touch-ui) .combat-vitals-power { right: max(2px, calc(50% - 332px)); }
+  body:not(.touch-ui) .vital-orb { flex-basis: 96px; width: 96px; height: 96px; }
+  body:not(.touch-ui) .zone-ribbon { width: 164px; }
+  body:not(.touch-ui) .minimap-shell { top: 61px; width: 164px; height: 185px; transform: none; }
+  body:not(.touch-ui) .minimap-shell canvas,
+  body:not(.touch-ui) #minimap { width: 148px; height: 148px; }
+  body:not(.touch-ui) .resource-pills { top: 254px; width: 164px; }
+  body:not(.touch-ui) #notifications { top: 293px; }
+}
+
+@media (max-width: 1050px) {
+  body:not(.touch-ui) .combat-vitals { bottom: 10px; }
+}
+
+body.touch-ui .hunter-profile {
+  left: max(6px, env(safe-area-inset-left, 0px));
+  top: max(6px, env(safe-area-inset-top, 0px));
+  width: min(184px, 49vw);
+  min-height: 0;
+  padding: 6px;
+  display: grid;
+  gap: 0;
+  overflow: hidden;
+  transform: none;
+  border-radius: 3px 12px 3px 12px;
+  background: linear-gradient(145deg, rgba(25, 31, 29, .88), rgba(7, 19, 27, .8));
+  backdrop-filter: blur(7px) saturate(1.05);
+}
+body.touch-ui .profile-primary { gap: 7px; padding-right: 34px; }
+body.touch-ui .profile-primary::after { right: 30px; }
+body.touch-ui .hunter-profile .portrait {
+  display: grid;
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+}
+body.touch-ui .hunter-profile .portrait::before { font-size: 13px; }
+body.touch-ui .hunter-profile .portrait span { min-width: 27px; height: 13px; bottom: -6px; font-size: 6px; }
+body.touch-ui .hunter-profile .name-row { min-height: 0; margin-bottom: 4px; gap: 4px; }
+body.touch-ui .hunter-profile .name-stack strong { font-size: 10px; }
+body.touch-ui .hunter-profile .name-stack em { display: none; }
+body.touch-ui .hunter-profile .player-level-pill { display: none; }
+body.touch-ui .hunter-profile .xp-row { grid-template-columns: 19px minmax(0, 1fr); gap: 4px; font-size: 6px; }
+body.touch-ui .hunter-profile .xp-row .xp-track { height: 5px; }
+body.touch-ui .hunter-profile .xp-row b { display: none; }
+body.touch-ui .mobile-profile-vitals {
+  display: grid;
+  width: 100%;
+  gap: 4px;
+  margin-top: 6px;
+}
+body.touch-ui .mobile-profile-vital {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+body.touch-ui .mobile-vital-track {
+  width: 100%;
+  height: 8px;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.16);
+  border-radius: 99px;
+  background: rgba(2,8,13,.78);
+  box-shadow: inset 0 1px 2px rgba(0,0,0,.7);
+}
+body.touch-ui .mobile-vital-track i {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform: scaleX(1);
+  transform-origin: left;
+  transition: transform .12s linear;
+}
+body.touch-ui .mobile-profile-health i { background: linear-gradient(90deg, #85152b, #ed4864 68%, #ff9aa7); box-shadow: 0 0 6px rgba(255,73,99,.62); }
+body.touch-ui .mobile-profile-mana i { background: linear-gradient(90deg, #174c8e, #43aee8 68%, #9ae8ff); box-shadow: 0 0 6px rgba(67,174,232,.62); }
+body.touch-ui .hunter-profile .profile-hunt {
+  display: none !important;
+  margin-top: 7px;
+  padding: 6px 1px 0;
+}
+body.touch-ui .hunter-profile.hunt-expanded .profile-hunt { display: block !important; }
+body.touch-ui .hunter-profile .hunt-top { font-size: 6px; }
+body.touch-ui .hunter-profile .hunt-top b { font-size: 7px; }
+body.touch-ui .hunter-profile .hunt-top i { font-size: 12px; }
+body.touch-ui .hunter-profile .hunt-stats { gap: 3px; padding: 5px 0 2px; border-bottom: 0; font-size: 6px; }
+body.touch-ui .hunter-profile .boss-charge-row,
+body.touch-ui .hunter-profile .boss-charge,
+body.touch-ui .hunter-profile .contract-box { display: none; }
+body.touch-ui .hunter-profile .profile-forge {
+  position: static;
+  display: grid !important;
+  width: auto;
+  margin-top: 6px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+}
+body.touch-ui .hunter-profile .combat-forge-btn {
+  min-height: 40px;
+  padding: 5px 6px;
+  gap: 1px 4px;
+}
+body.touch-ui .hunter-profile .combat-forge-btn .forge-kicker { font-size: 6px; }
+body.touch-ui .hunter-profile .combat-forge-btn strong { font-size: 10px; }
+body.touch-ui .hunter-profile .combat-forge-btn small { font-size: 6px; }
+
+body.touch-ui .minimap-shell {
+  display: block;
+  right: max(6px, env(safe-area-inset-right, 0px));
+  top: max(40px, calc(env(safe-area-inset-top, 0px) + 34px));
+  bottom: auto;
+  width: 96px;
+  height: 102px;
+  padding: 4px;
+  opacity: .9;
+  border-radius: 10px 3px 10px 3px;
+}
+body.touch-ui .minimap-shell canvas,
+body.touch-ui #minimap { width: 88px !important; height: 88px !important; }
+body.touch-ui .hunter-profile > .touch-menu-btn {
+  right: 6px;
+  top: 6px;
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  min-height: 26px;
+  border-radius: 8px 3px 8px 3px;
+  display: grid;
+}
+body.touch-ui .hunter-profile > .touch-menu-btn::before {
+  font-size: 16px;
+}
+body.touch-ui .resource-pills,
+body.touch-ui[data-mode="rush"] .resource-pills {
+  left: auto;
+  right: max(6px, env(safe-area-inset-right, 0px));
+  top: max(148px, calc(env(safe-area-inset-top, 0px) + 142px));
+  width: 96px;
+  max-width: 96px;
+  display: grid !important;
+  grid-template-columns: 1fr;
+  gap: 3px;
+  opacity: 1;
+  visibility: visible;
+}
+body.touch-ui .resource-pills span { height: 20px; padding: 0 5px; font-size: 7px; }
+body.touch-ui .resource-pills small { font-size: 5px; }
+body.touch-ui .resource-pills i { width: 8px; height: 8px; }
+body.touch-ui #notifications {
+  left: auto;
+  right: max(6px, env(safe-area-inset-right, 0px));
+  top: max(198px, calc(env(safe-area-inset-top, 0px) + 192px));
+  bottom: auto;
+  width: min(170px, 46vw);
+  max-width: min(170px, 46vw);
+  align-items: flex-end;
+  transform: none;
+}
+body.touch-ui .notification { text-align: right; }
+
+body.touch-ui .zone-ribbon {
+  left: auto;
+  right: max(6px, env(safe-area-inset-right, 0px));
+  top: max(6px, env(safe-area-inset-top, 0px));
+  width: 96px;
+  max-width: 96px;
+  padding: 3px 4px 4px;
+  transform: none;
+  text-align: left;
+}
+body.touch-ui .zone-ribbon span { margin-bottom: 2px; font-size: 5px; letter-spacing: .08em; }
+body.touch-ui .zone-ribbon strong { font-size: 8px; }
+body.touch-ui .defense-wave-panel {
+  left: calc(50% + 10px);
+  top: max(96px, calc(env(safe-area-inset-top, 0px) + 90px));
+  transform: none;
+}
+body.touch-ui .boss-hud {
+  top: max(146px, calc(env(safe-area-inset-top, 0px) + 140px));
+  width: min(82vw, 320px);
+}
+body.touch-ui #hud.boss-active #notifications {
+  top: max(208px, calc(env(safe-area-inset-top, 0px) + 202px));
+}
+body.touch-ui #hud.boss-active .resource-pills {
+  opacity: 1;
+  visibility: visible;
+}
+body.touch-ui #hud.boss-active .minimap-shell,
+body.touch-ui #hud.defense-active .minimap-shell {
+  top: max(6px, env(safe-area-inset-top, 0px));
+}
+body.touch-ui #hud.boss-active.defense-active .defense-wave-panel {
+  left: calc(50% + 10px);
+  top: max(96px, calc(env(safe-area-inset-top, 0px) + 90px));
+  transform: none;
+}
+
+@media (orientation: portrait) {
+  body.touch-ui .defense-wave-panel,
+  body.touch-ui #hud.boss-active.defense-active .defense-wave-panel {
+    transform: scale(.78);
+    transform-origin: top left;
+  }
+  body.touch-ui .boss-hud {
+    left: max(6px, env(safe-area-inset-left, 0px));
+    right: max(108px, calc(env(safe-area-inset-right, 0px) + 102px));
+    width: auto;
+    transform: none;
+  }
+}
+
+body.touch-ui .combat-vitals { display: none; }
+
+body.touch-ui[data-mode="rush"] .hunter-profile .profile-hunt,
+body.touch-ui[data-mode="rush"] .hunter-profile .profile-forge { display: none !important; }
+body.touch-ui[data-mode="rush"] .hunter-profile {
+  top: max(108px, calc(env(safe-area-inset-top, 0px) + 102px));
+  transform: none;
+}
+body.touch-ui[data-mode="rush"] .rush-hud {
+  left: max(6px, env(safe-area-inset-left, 0px));
+  right: auto;
+  width: calc(100vw - 96px - env(safe-area-inset-left, 0px));
+  transform: none;
+}
+body.touch-ui[data-mode="rush"] .minimap-shell { display: block; }
+body.touch-ui[data-mode="rush"] .boss-hud { top: max(170px, calc(env(safe-area-inset-top, 0px) + 164px)); }
+body.touch-ui[data-mode="rush"] #hud.boss-active #notifications { top: max(214px, calc(env(safe-area-inset-top, 0px) + 208px)); }
+
+@media (max-width: 390px) {
+  body.touch-ui .hunter-profile { width: min(184px, 49vw); }
+  body.touch-ui .minimap-shell { right: max(6px, env(safe-area-inset-right, 0px)); top: max(40px, calc(env(safe-area-inset-top, 0px) + 34px)); }
+  body.touch-ui .minimap-shell canvas,
+  body.touch-ui #minimap { width: 88px !important; height: 88px !important; }
+  body.touch-ui .resource-pills { top: max(148px, calc(env(safe-area-inset-top, 0px) + 142px)); max-width: 96px; }
+  body.touch-ui .hunter-profile .combat-forge-btn { min-height: 40px; }
+}
+
+@media (max-height: 480px) and (orientation: landscape) {
+  body.touch-ui .hunter-profile {
+    width: min(230px, 29vw);
+    transform: none;
+  }
+  body.touch-ui .hunter-profile .portrait { display: grid; }
+  body.touch-ui .zone-ribbon { display: none; }
+  body.touch-ui .minimap-shell {
+    display: block;
+    right: max(6px, env(safe-area-inset-right, 0px));
+    top: max(40px, calc(env(safe-area-inset-top, 0px) + 34px));
+  }
+  body.touch-ui .resource-pills {
+    top: max(148px, calc(env(safe-area-inset-top, 0px) + 142px));
+    right: max(6px, env(safe-area-inset-right, 0px));
+  }
+  body.touch-ui #notifications,
+  body.touch-ui #hud.boss-active #notifications {
+    top: max(198px, calc(env(safe-area-inset-top, 0px) + 192px));
+    right: max(6px, env(safe-area-inset-right, 0px));
+    bottom: auto;
+    width: min(170px, 24vw);
+  }
+  body.touch-ui .defense-wave-panel,
+  body.touch-ui #hud.boss-active.defense-active .defense-wave-panel {
+    left: 50%;
+    top: max(6px, env(safe-area-inset-top, 0px));
+    transform: translateX(-50%) scale(.78);
+  }
+  body.touch-ui .boss-hud { top: max(50px, calc(env(safe-area-inset-top, 0px) + 44px)); }
+  body.touch-ui .zone-ribbon { display: block; }
+  body.touch-ui[data-mode="rush"] .hunter-profile { top: max(96px, calc(env(safe-area-inset-top, 0px) + 90px)); }
 }

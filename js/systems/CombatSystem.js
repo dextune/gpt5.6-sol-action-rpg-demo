@@ -2508,6 +2508,9 @@ export class CombatSystem {
       const amp = Number(enemy.statuses.expose.damageAmp) || 0;
       if (amp > 0) damage *= 1 + amp;
     }
+    if (this.game.mode === 'rush') {
+      damage *= this.game.rush?.damageMultiplierFor?.(enemy) ?? 1;
+    }
     const result = enemy.takeDamage(damage, this.game, {
       direction: options.direction,
       knockback: (options.knockback ?? 2) * (critical ? 1.25 : 1),
@@ -2518,6 +2521,9 @@ export class CombatSystem {
       finisher,
     });
     if (result.amount <= 0) return result;
+    if (this.game.mode === 'rush') {
+      this.game.rush?.onDamageEnemy?.(enemy, result, { skill: Boolean(options.skill), critical, finisher });
+    }
     const verdict = player.predatorVerdict;
     if (!options.verdictDerived && verdict?.target === enemy && verdict.remaining > 0 && verdict.storeMult > 0) {
       verdict.stored = Math.min(verdict.cap, verdict.stored + result.amount * verdict.storeMult);
@@ -2541,7 +2547,7 @@ export class CombatSystem {
       this.game.effects.trail(hitPoint, critical ? 0xffe47a : weaponColor, critical ? .32 : .22, .16);
     } else {
       // Flashy contact VFX only — no camera shake. Defense slightly amps impact pop.
-      const defenseHit = this.game.mode === 'defense';
+      const defenseHit = this.game.mode === 'defense' || this.game.mode === 'rush';
       this.game.effects.impact(hitPoint, critical ? 0xffe47a : weaponColor, intensity, {
         direction: options.direction,
       });
