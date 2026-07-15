@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { getClassBasicAttack, getHeroClass, isRangedAttackStyle } from '../data/content.js';
+import { getClassBasicAttack, getHeroClass, isRangedAttackStyle, SKILLS } from '../data/content.js';
 import { getFxTheme } from '../data/fxThemes.js';
 import { resolveSkillHitRaw, skillDamage } from '../data/skillCombat.js';
 import {
@@ -374,11 +374,16 @@ export class CombatSystem {
 
   /** Ranged basic attack — mana bolts (wizard) or arrows (ranger); combo → multi-shot finisher. */
   #magicAttack(player, combo, comboLength = 4) {
+    const isBow = getHeroClass(player.classId).attackStyle === 'ranged';
+    // Ranger L5+ Strafe passive: basic attacks become auto-aimed 10-arrow volleys.
+    if (isBow && this.#rangerStrafeUnlocked(player)) {
+      this.#rangerStrafeAttack(player, combo, comboLength);
+      return;
+    }
     // Capture facing at cast time so delayed bolts don't inherit a later turn/mouse aim.
     const direction = this.#facingDir(player);
     const profile = getClassBasicAttack(player.classId);
     const finisher = combo >= Math.max(0, comboLength - 1);
-    const isBow = getHeroClass(player.classId).attackStyle === 'ranged';
     const theme = getFxTheme(isBow ? 'hunt_amber' : 'arcane');
     const color = player.weapon?.rarityColor ?? theme.primary;
     const origin = player.position.clone().add(new THREE.Vector3(0, 1.15, 0)).addScaledVector(direction, .7);
@@ -396,6 +401,8 @@ export class CombatSystem {
     const bolts = finisher ? profile.bolts : 1;
     const baseDamage = player.attackPower * (profile.comboMults[combo] ?? 1) * (isBow ? 1 : player.skillPower);
     const bowMul = isBow ? 1 : 1;
+    const bowSpeed = profile.arrowSpeed ?? 22;
+    const bowLife = profile.arrowLife ?? 3.6;
     const baseYaw = Math.atan2(direction.x, direction.z);
     for (let i = 0; i < bolts; i += 1) {
       this.#delay(finisher ? i * .05 : .03, () => {
@@ -407,9 +414,9 @@ export class CombatSystem {
           style: isBow ? 'arrow' : 'mana',
           color: finisher && i === Math.floor(bolts / 2) ? theme.core : color,
           damage: baseDamage * bowMul * (finisher ? (isBow ? .48 : .42) : 1),
-          speed: finisher ? (isBow ? 16 + i * 0.3 : 14 + i) : (isBow ? 17.5 : 15.5),
+          speed: finisher ? (isBow ? bowSpeed * 0.95 + i * 0.3 : 14 + i) : (isBow ? bowSpeed : 15.5),
           radius: finisher ? 1.05 : (isBow ? .85 : .9),
-          life: isBow ? 1.35 : 1.2,
+          life: isBow ? bowLife : 1.2,
           pierce: finisher ? 2 : 1,
           knockback: finisher ? 3.8 : 2.2,
           skill: false,
@@ -423,6 +430,108 @@ export class CombatSystem {
       this.game.effects.ring(player.position, theme.core, 1.8, { life: .24, startScale: .2, height: .16, opacity: .8 });
       this.game.effects.pillar(player.position, theme.accent, 4.2, { life: .32, bottom: .5, opacity: .4 });
       this.game.effects.burst(origin, theme.secondary, 16, { speed: 4.5, size: .28, life: .4, upward: .4 });
+    }
+  }
+
+  /** Strafe unlocks by ranger level (passive tree L5); ranks only scale power. */
+  #rangerStrafeUnlocked(player) {
+    if (player?.classId !== 'ranger') return false;
+    const unlock = SKILLS.strafe?.unlockLevel ?? 5;
+    return player.level >= unlock;
+  }
+
+  /**
+   * Diablo Amazon-style Strafe: fire a fixed volley of auto-aimed arrows.
+   * Targets nearest living enemies (round-robin); reacquires mid-volley if a target dies.
+   */
+  #rangerStrafeAttack(player, combo, comboLength = 4) {
+    const skill = SKILLS.strafe;
+    const combat = skill?.combat ?? {};
+    const shots = Math.max(1, Math.round(combat.shots ?? 10));
+    const interval = combat.interval ?? .042;
+    const range = combat.range ?? 48.6;
+    const profile = getClassBasicAttack(player.classId);
+    const finisher = combo >= Math.max(0, comboLength - 1);
+    // Rank 0 at L5 still fires; invested ranks add per-arrow power.
+    const rank = Math.max(0, player.skillRank?.('strafe') ?? player.skills?.strafe ?? 0);
+    const multBase = Array.isArray(combat.mult) ? Number(combat.mult[0]) || .18 : .18;
+    const multPer = Array.isArray(combat.mult) ? Number(combat.mult[1]) || 0 : 0;
+    const arrowMult = (multBase + multPer * rank)
+      * (profile.comboMults?.[combo] ?? 1)
+      * (finisher ? (combat.finisherMult ?? 1.12) : 1);
+    const perArrow = player.attackPower * arrowMult;
+    const arrowSpeed = combat.speed ?? profile.arrowSpeed ?? 24;
+    const arrowLife = combat.life ?? profile.arrowLife ?? 2.6;
+    const theme = getFxTheme('hunt_amber');
+    const color = player.weapon?.rarityColor ?? theme.primary;
+    const facing = this.#facingDir(player);
+    this.game.effects.recipeArrowStreak?.(player.position, facing, theme);
+    if (finisher) {
+      this.game.effects.ring(player.position, color, 2.6, { life: .32, startScale: .14, height: .12, opacity: .7 });
+      this.game.effects.burst(
+        player.position.clone().add(new THREE.Vector3(0, 1.1, 0)).addScaledVector(facing, .8),
+        theme.secondary, 12, { speed: 4.2, size: .22, life: .34, upward: .28 },
+      );
+    }
+
+    const pickTargets = () => this.game.enemies.enemies
+      .filter(enemy => enemy.alive
+        && enemy.position.distanceTo(player.position) <= range + (enemy.radius ?? 0.6))
+      .sort((a, b) => a.position.distanceToSquared(player.position) - b.position.distanceToSquared(player.position));
+
+    const initial = pickTargets();
+    // Round-robin assignment across the pack (Strafe sprays many foes when available).
+    const sequence = [];
+    for (let i = 0; i < shots; i += 1) {
+      sequence.push(initial.length ? initial[i % initial.length] : null);
+    }
+
+    const castId = `strafe-${++this.rangerSerial}`;
+    for (let i = 0; i < shots; i += 1) {
+      this.#delay(i * interval, () => {
+        if (!player.alive) return;
+        let target = sequence[i];
+        if (!target?.alive) {
+          const living = pickTargets();
+          target = living.length ? living[i % living.length] : null;
+        }
+        let dir = this.#facingDir(player);
+        if (target?.alive) {
+          dir = target.position.clone().sub(player.position).setY(0);
+          if (dir.lengthSq() < 1e-6) dir = this.#facingDir(player);
+          else dir.normalize();
+          // Nudge combat facing toward the current lock for readable aim.
+          if (i === 0 || i % 3 === 0) {
+            player.facing?.copy?.(dir);
+          }
+        }
+        // Tiny lateral fan so a single-target dump doesn't look like a stacked laser.
+        const yaw = Math.atan2(dir.x, dir.z) + Math.sin(i * 1.91) * 0.035;
+        dir = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
+        const start = player.position.clone()
+          .add(new THREE.Vector3(0, 1.12 + (i % 3) * 0.02, 0))
+          .addScaledVector(dir, .62);
+        if (i === 0 || i === shots - 1) {
+          this.game.effects.recipeArrowStreak?.(player.position, dir, theme);
+        }
+        this.#spawnFriendlyOrb(start, dir, {
+          style: 'arrow',
+          color: i === shots - 1 ? theme.core : color,
+          damage: perArrow,
+          speed: arrowSpeed + (i % 3) * 0.15,
+          radius: .78,
+          life: arrowLife,
+          pierce: combat.pierce ?? 1,
+          knockback: combat.knockback ?? 1.05,
+          skill: false,
+          skillPowerApplied: false,
+          scale: finisher && i === shots - 1 ? 1.08 : .9,
+          homingTarget: target?.alive ? target : null,
+          castId,
+          trailRate: .55,
+        });
+        if (i % 2 === 0) this.game.audio?.swing?.(Math.min(3, (i / 2) | 0));
+      });
     }
   }
 
@@ -1415,9 +1524,9 @@ export class CombatSystem {
           style: 'arrow',
           color: finale ? theme.core : theme.primary,
           damage: player.attackPower * (def.stormMult ?? 0.55) * (finale ? 1.35 : 1),
-          speed: (def.stormSpeed ?? 17) + i * 0.15,
+          speed: (def.stormSpeed ?? 24) + i * 0.15,
           radius: 0.9,
-          life: 1.1,
+          life: def.stormLife ?? 3.3,
           pierce: 2,
           knockback: finale ? 4.2 : 2.0,
           skill: false,
@@ -2105,19 +2214,25 @@ export class CombatSystem {
           damage: enemy.damage * (options.caster ? 1.04 : .86),
           size: options.caster ? .34 : .25,
           homing: options.caster ? .22 : 0,
+          statusOnHit: options.statusOnHit ?? null,
         });
       }
       this.game.effects.burst(enemy.position, color, options.caster ? 14 : 8, { speed: 2.5, size: .24, life: .42 });
     }, { follows: enemy, fillOpacity: .08 });
   }
 
-  /** Pick a readable enemy projectile silhouette from zone / shape hints. */
+  /** Pick a readable enemy projectile silhouette from zone / shape / role / family. */
   #enemyProjectileStyle(enemy) {
     const zone = enemy.data?.zone ?? '';
     const shape = enemy.data?.shape ?? '';
-    if (zone === 'frost' || shape === 'wisp') return 'enemy_frost';
-    if (zone === 'canyon' || zone === 'volcanic') return 'enemy_ember';
-    if (shape === 'boar' || shape === 'colossus') return 'enemy_shard';
+    const role = enemy.data?.role ?? '';
+    const family = enemy.data?.family ?? '';
+    if (role === 'controller' || enemy.data?.special === 'slow_bolt') return 'enemy_frost';
+    if (role === 'artillery' || family.includes('spirit')) return 'enemy_bolt';
+    if (zone === 'frost' || shape === 'wisp' || shape === 'fox') return 'enemy_frost';
+    if (zone === 'ember' || zone === 'canyon' || shape === 'asp') return 'enemy_ember';
+    if (zone === 'astral' || family.includes('astral')) return 'enemy_void';
+    if (shape === 'boar' || shape === 'colossus' || shape === 'toad') return 'enemy_shard';
     return 'enemy_spit';
   }
 
@@ -2290,6 +2405,7 @@ export class CombatSystem {
       homing: options.homing ?? 0,
       color,
       direction: dir,
+      statusOnHit: options.statusOnHit ?? null,
     });
   }
 
@@ -2686,6 +2802,22 @@ export class CombatSystem {
         if (direction.lengthSq() > 1e-6) direction.normalize();
         else direction.set(0, 0, 1);
         this.#damagePlayer(projectile.damage, direction, 4.5);
+        const status = projectile.statusOnHit;
+        if (status?.id === 'player_slow' || status?.id === 'slow') {
+          this.game.player.applySlow?.(status.duration ?? 1.2);
+        } else if (status?.id === 'player_burn') {
+          this.game.player.applySlow?.(0.45);
+          const chip = Math.min(
+            Math.round(this.game.player.maxHp * 0.03),
+            Math.round(projectile.damage * (status.power ?? 0.08)),
+          );
+          if (chip > 0) this.game.player.takeDamage?.(chip, direction.clone().multiplyScalar(1.2));
+        }
+        // Vampiric source heals a little on projectile hit.
+        if (projectile.source?.eliteAffix === 'vampiric' && projectile.source.alive) {
+          const heal = Math.max(1, Math.round(projectile.source.maxHp * 0.02));
+          projectile.source.hp = Math.min(projectile.source.maxHp, projectile.source.hp + heal);
+        }
         if (!this.projectiles[i] || this.projectiles[i] !== projectile) return;
         projectile.life = 0;
       }

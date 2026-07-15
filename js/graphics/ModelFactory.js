@@ -657,6 +657,74 @@ function buildDrake(rig, p, refs) {
   addEyes(rig, p, 2.22, 1.54, .17, .055, true);
 }
 
+/** Low toad — wide squat body, spine nubs, sticky eyes. */
+function buildToad(rig, p, refs) {
+  refs.body = addPart(rig, geometry('toad-body', () => new THREE.SphereGeometry(.62, 10, 8)), p.body, [0, .55, 0], [1.25, .72, 1.1]);
+  addPart(rig, geometry('toad-belly', () => new THREE.SphereGeometry(.42, 8, 6)), p.light, [0, .48, .28], [1.05, .7, .9]);
+  const head = addPart(rig, geometry('toad-head', () => new THREE.SphereGeometry(.38, 9, 7)), p.dark, [0, .78, .42], [1.15, .85, 1]); refs.head = head;
+  for (let i = 0; i < 5; i += 1) {
+    const a = (i / 5) * Math.PI * 2;
+    coneBetween(rig, [Math.cos(a) * .35, .7, Math.sin(a) * .25], [Math.cos(a) * .42, .95, Math.sin(a) * .28], .06, p.accent, { segments: 5, outline: false });
+  }
+  for (const side of [-1, 1]) {
+    const leg = new THREE.Group(); leg.position.set(side * .42, .35, .15); rig.add(leg);
+    addPart(leg, geometry('toad-leg', () => new THREE.SphereGeometry(.22, 7, 6)), p.dark, [0, 0, 0], [1.1, .7, 1.3]);
+    refs.legs.push(leg);
+    const back = new THREE.Group(); back.position.set(side * .38, .38, -.35); rig.add(back);
+    addPart(back, geometry('toad-hind', () => new THREE.SphereGeometry(.26, 7, 6)), p.body, [0, 0, 0], [1, .75, 1.2]);
+    refs.legs.push(back);
+  }
+  addEyes(rig, p, .9, .72, .18, .065, true);
+}
+
+/** Sleek fox — pointed snout, brush tail, ear tufts. */
+function buildFox(rig, p, refs) {
+  refs.body = addPart(rig, geometry('fox-body', () => new THREE.SphereGeometry(.42, 10, 8)), p.body, [0, .72, -.08], [.95, .7, 1.55]);
+  const head = addPart(rig, geometry('fox-head', () => new THREE.SphereGeometry(.32, 9, 7)), p.light, [0, 1.0, .72], [1, .88, 1.15]); refs.head = head;
+  addPart(rig, geometry('fox-muzzle', () => new THREE.ConeGeometry(.14, .38, 6)), p.light, [0, .92, 1.05], [1, 1, 1], [Math.PI / 2, 0, 0]);
+  for (const side of [-1, 1]) {
+    addPart(rig, geometry('fox-ear', () => new THREE.ConeGeometry(.12, .38, 5)), p.accent, [side * .18, 1.32, .68], [1, 1, .7], [0, 0, side * .25]);
+    for (const z of [-.32, .38]) {
+      const leg = new THREE.Group(); leg.position.set(side * .22, .42, z); rig.add(leg);
+      addPart(leg, geometry('fox-leg', () => new THREE.CylinderGeometry(.06, .08, .55, 6)), p.dark, [0, -.2, 0]);
+      refs.legs.push(leg);
+    }
+  }
+  const tail = new THREE.Group(); tail.position.set(0, .78, -.55); rig.add(tail); refs.tail = tail;
+  coneBetween(tail, [0, 0, 0], [.08, .22, -.85], .16, p.accent, { segments: 7 });
+  addEyes(rig, p, 1.05, .95, .12, .045, true);
+}
+
+/** Stocky owlkin — round body, disk face, short wings. */
+function buildOwl(rig, p, refs) {
+  refs.body = addPart(rig, geometry('owl-body', () => new THREE.SphereGeometry(.5, 10, 8)), p.body, [0, .95, 0], [1, 1.15, .9]);
+  const head = addPart(rig, geometry('owl-head', () => new THREE.SphereGeometry(.4, 10, 8)), p.light, [0, 1.55, .08], [1.15, 1, 1]); refs.head = head;
+  addPart(rig, geometry('owl-beak', () => new THREE.ConeGeometry(.08, .22, 5)), p.accent, [0, 1.48, .42], [1, 1, 1], [Math.PI / 2, 0, 0]);
+  for (const side of [-1, 1]) {
+    const wing = new THREE.Group(); wing.position.set(side * .45, 1.05, -.05); rig.add(wing);
+    addPart(wing, geometry('owl-wing', () => new THREE.SphereGeometry(.28, 8, 6)), p.dark, [side * .12, 0, 0], [1.4, .55, .9]);
+    refs.wings.push(wing);
+    const leg = new THREE.Group(); leg.position.set(side * .16, .55, .05); rig.add(leg);
+    addPart(leg, geometry('owl-leg', () => new THREE.CylinderGeometry(.05, .07, .4, 5)), p.dark, [0, -.15, 0]);
+    refs.legs.push(leg);
+  }
+  addPart(rig, geometry('owl-tuft-l', () => new THREE.ConeGeometry(.07, .28, 4)), p.accent, [-.22, 1.88, 0], [1, 1, 1], [0, 0, .4]);
+  addPart(rig, geometry('owl-tuft-r', () => new THREE.ConeGeometry(.07, .28, 4)), p.accent, [.22, 1.88, 0], [1, 1, 1], [0, 0, -.4]);
+  addEyes(rig, p, 1.58, .42, .16, .06, true);
+}
+
+/** Asp snake — long coiled body, raised head, forked tongue cue. */
+function buildAsp(rig, p, refs) {
+  refs.body = addPart(rig, geometry('asp-coil', () => new THREE.TorusGeometry(.45, .18, 8, 16, Math.PI * 1.5)), p.body, [0, .35, 0], [1, 1, 1], [Math.PI / 2, 0, 0]);
+  addPart(rig, geometry('asp-mid', () => new THREE.CylinderGeometry(.14, .18, .85, 7)), p.dark, [0, .75, .15], [1, 1, 1], [-.4, 0, 0]);
+  const head = addPart(rig, geometry('asp-head', () => new THREE.SphereGeometry(.22, 8, 6)), p.accent, [0, 1.25, .55], [1.2, .85, 1.35]); refs.head = head;
+  coneBetween(rig, [0, 1.22, .72], [0, 1.18, .98], .05, p.light, { segments: 4, outline: false });
+  for (const side of [-1, 1]) {
+    addPart(rig, geometry('asp-fang', () => new THREE.ConeGeometry(.03, .12, 4)), p.white, [side * .06, 1.12, .85], [1, 1, 1], [1.1, 0, 0]);
+  }
+  addEyes(rig, p, 1.32, .72, .1, .04, true);
+}
+
 export function createEnemyModel(data, elite = false) {
   const group = new THREE.Group();
   group.name = `${data.name}${elite ? ' [Elite]' : ''}`;
@@ -674,13 +742,15 @@ export function createEnemyModel(data, elite = false) {
     harpy: buildHarpy, stag: buildStag, crab: buildCrab, raptor: buildRaptor, cyclops: buildCyclops,
     scorpion: buildScorpion, knight: buildKnight, imp: buildImp, lizard: buildLizard, panther: buildPanther,
     colossus: buildColossus, drake: buildDrake,
+    toad: buildToad, fox: buildFox, owl: buildOwl, asp: buildAsp,
   };
   (builders[data.shape] ?? buildBlob)(rig, palette, refs);
 
   const modelHeight = ({ blob: 1.45, hare: 2.15, boar: 1.6, wisp: 1.8, raider: 2.25, beetle: 1.25,
     wolf: 1.75, plant: 1.65, golem: 2.45, shaman: 2.25, harpy: 2.25, stag: 3.0,
     crab: 1.35, raptor: 2.0, cyclops: 2.75, scorpion: 2.5, knight: 2.7, imp: 2.35,
-    lizard: 1.45, panther: 1.75, colossus: 3.3, drake: 3.4 })[data.shape] ?? 2;
+    lizard: 1.45, panther: 1.75, colossus: 3.3, drake: 3.4,
+    toad: 1.35, fox: 1.55, owl: 2.05, asp: 1.55 })[data.shape] ?? 2;
   refs.shadow = createShadow(group, (data.boss ? 1.65 : elite ? 1.05 : .78) * (data.scale ?? 1), data.boss ? .3 : .2);
   const health = createHealthBar(group, modelHeight + .38, data.boss ? 2.2 : elite ? 2 : 1.45);
   Object.assign(refs, { healthGroup: health.group, healthBack: health.back, healthFill: health.fill, healthWidth: health.width, modelHeight });

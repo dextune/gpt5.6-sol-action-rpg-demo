@@ -170,7 +170,7 @@ export class UI {
     this.elements = {};
     for (const id of [
       'loading-screen', 'loading-text', 'loading-bar', 'title-screen', 'class-select', 'new-game-btn', 'defense-btn', 'continue-btn', 'continue-meta',
-      'hud', 'player-name', 'portrait-level', 'hunter-title', 'hp-fill', 'hp-text', 'mp-fill', 'mp-text', 'xp-fill', 'xp-text',
+      'hud', 'player-name', 'portrait-level', 'player-level-text', 'hunter-title', 'hp-fill', 'hp-text', 'mp-fill', 'mp-text', 'xp-fill', 'xp-text',
       'energy-bar', 'energy-fill', 'energy-text',
       'class-state-row', 'frenzy-chip', 'overflow-chip',
       'ranger-state-row', 'thorns-chip', 'verdict-chip',
@@ -363,14 +363,19 @@ export class UI {
     const defenseHud = this.game.defense?.hud;
     this.elements.hud.classList.toggle('defense-active', isDefense);
     this.elements['player-name'].textContent = player.name;
-    this.elements['portrait-level'].textContent = player.level;
+    const levelLabel = `LV.${player.level}`;
+    if (this.elements['portrait-level']) this.elements['portrait-level'].textContent = levelLabel;
+    if (this.elements['player-level-text']) this.elements['player-level-text'].textContent = levelLabel;
     this.elements['hunter-title'].textContent = isDefense ? 'Wave Survival' : hunt.hunterTitle;
     this.elements['hp-fill'].style.width = `${player.healthRatio * 100}%`;
     this.elements['hp-text'].textContent = `${Math.ceil(player.hp)} / ${player.maxHp}`;
     this.elements['mp-fill'].style.width = `${player.manaRatio * 100}%`;
     this.elements['mp-text'].textContent = `${Math.floor(player.mp)} / ${player.maxMp}`;
-    this.elements['xp-fill'].style.width = `${clamp(player.xp / player.xpNeeded, 0, 1) * 100}%`;
-    this.elements['xp-text'].textContent = `${Math.floor(player.xp)} / ${player.xpNeeded}`;
+    const xpRatio = clamp(player.xp / Math.max(1, player.xpNeeded), 0, 1);
+    if (this.elements['xp-fill']) this.elements['xp-fill'].style.width = `${xpRatio * 100}%`;
+    if (this.elements['xp-text']) {
+      this.elements['xp-text'].textContent = `${Math.floor(player.xp)} / ${player.xpNeeded}`;
+    }
     // Class energy gauge (Focus/Rage) — only classes with an energy resource show it.
     if (this.elements['energy-bar']) {
       const energyDef = player.energyDef;

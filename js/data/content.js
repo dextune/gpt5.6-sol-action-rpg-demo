@@ -31,6 +31,12 @@ export const ZONES = Object.freeze({
   },
 });
 
+
+export const ENEMY_ROLES = Object.freeze([
+  'fodder_swarm', 'frontline', 'bruiser', 'rusher', 'skirmisher',
+  'glass_ranged', 'artillery', 'controller', 'support', 'mini_boss', 'zone_boss',
+]);
+
 const enemy = (id, name, zone, shape, level, hp, damage, defense, speed, range, xp, options = {}) => ({
   id, name, zone, shape, level, hp, damage, defense, speed, range, xp,
   gold: options.gold ?? [Math.max(1, Math.round(level * 0.8)), Math.max(3, Math.round(level * 1.5))],
@@ -46,66 +52,198 @@ const enemy = (id, name, zone, shape, level, hp, damage, defense, speed, range, 
   special: options.special ?? null,
   phase2Hp: options.phase2Hp ?? null,
   dropBias: options.dropBias ?? null,
+  role: options.role ?? (options.boss ? 'zone_boss' : 'bruiser'),
+  family: options.family ?? null,
+  tags: Object.freeze(options.tags ?? []),
+  eliteWeight: options.eliteWeight ?? 1,
+  defenseWeight: options.defenseWeight ?? 1,
+  miniBoss: Boolean(options.miniBoss),
 });
 
+/** Elite champion affixes — weights used by EnemySystem.rollEliteAffix. */
+export const ELITE_AFFIXES = Object.freeze([
+  Object.freeze({ id: 'shielded', label: 'Shielded', weight: 1 }),
+  Object.freeze({ id: 'enraged', label: 'Enraged', weight: 1 }),
+  Object.freeze({ id: 'volatile', label: 'Volatile', weight: 1 }),
+  Object.freeze({ id: 'hasted', label: 'Hasted', weight: 0.9 }),
+  Object.freeze({ id: 'fortified', label: 'Fortified', weight: 0.85 }),
+  Object.freeze({ id: 'arcane', label: 'Arcane', weight: 0.75 }),
+  Object.freeze({ id: 'frostbitten', label: 'Frostbitten', weight: 0.55, zones: Object.freeze(['frost', 'astral']) }),
+  Object.freeze({ id: 'molten', label: 'Molten', weight: 0.55, zones: Object.freeze(['ember', 'canyon']) }),
+  Object.freeze({ id: 'vampiric', label: 'Vampiric', weight: 0.5 }),
+  Object.freeze({ id: 'summoning', label: 'Summoning', weight: 0.4 }),
+]);
+
+/**
+ * Defense hybrid recipes by wave band (role fractions sum ~1).
+ * Milestone waves use fixed recipes; other waves use band procedural fill.
+ */
+export const DEFENSE_WAVE_ROLE_RECIPES = Object.freeze({
+  tutorial: Object.freeze([ // waves 1–3
+    Object.freeze({ role: 'fodder_swarm', frac: 0.55 }),
+    Object.freeze({ role: 'skirmisher', frac: 0.25 }),
+    Object.freeze({ role: 'bruiser', frac: 0.2 }),
+  ]),
+  mixed: Object.freeze([ // 4–6
+    Object.freeze({ role: 'fodder_swarm', frac: 0.45 }),
+    Object.freeze({ role: 'bruiser', frac: 0.25 }),
+    Object.freeze({ role: 'glass_ranged', frac: 0.15 }),
+    Object.freeze({ role: 'frontline', frac: 0.15 }),
+  ]),
+  backline: Object.freeze([ // 7–9
+    Object.freeze({ role: 'fodder_swarm', frac: 0.35 }),
+    Object.freeze({ role: 'frontline', frac: 0.2 }),
+    Object.freeze({ role: 'glass_ranged', frac: 0.25 }),
+    Object.freeze({ role: 'rusher', frac: 0.2 }),
+  ]),
+  artillery: Object.freeze([ // 10–12
+    Object.freeze({ role: 'fodder_swarm', frac: 0.3 }),
+    Object.freeze({ role: 'frontline', frac: 0.2 }),
+    Object.freeze({ role: 'artillery', frac: 0.2 }),
+    Object.freeze({ role: 'glass_ranged', frac: 0.15 }),
+    Object.freeze({ role: 'rusher', frac: 0.15 }),
+  ]),
+  support: Object.freeze([ // 13–15
+    Object.freeze({ role: 'fodder_swarm', frac: 0.3 }),
+    Object.freeze({ role: 'frontline', frac: 0.22 }),
+    Object.freeze({ role: 'glass_ranged', frac: 0.2 }),
+    Object.freeze({ role: 'support', frac: 0.12 }),
+    Object.freeze({ role: 'controller', frac: 0.08 }),
+    Object.freeze({ role: 'bruiser', frac: 0.08 }),
+  ]),
+  chaos: Object.freeze([ // 16+
+    Object.freeze({ role: 'fodder_swarm', frac: 0.28 }),
+    Object.freeze({ role: 'bruiser', frac: 0.14 }),
+    Object.freeze({ role: 'frontline', frac: 0.14 }),
+    Object.freeze({ role: 'rusher', frac: 0.12 }),
+    Object.freeze({ role: 'glass_ranged', frac: 0.12 }),
+    Object.freeze({ role: 'artillery', frac: 0.1 }),
+    Object.freeze({ role: 'controller', frac: 0.05 }),
+    Object.freeze({ role: 'support', frac: 0.05 }),
+  ]),
+});
+
+export function defenseRecipeForWave(wave) {
+  const w = Math.max(1, wave | 0);
+  if (w <= 3) return DEFENSE_WAVE_ROLE_RECIPES.tutorial;
+  if (w <= 6) return DEFENSE_WAVE_ROLE_RECIPES.mixed;
+  if (w <= 9) return DEFENSE_WAVE_ROLE_RECIPES.backline;
+  if (w <= 12) return DEFENSE_WAVE_ROLE_RECIPES.artillery;
+  if (w <= 15) return DEFENSE_WAVE_ROLE_RECIPES.support;
+  return DEFENSE_WAVE_ROLE_RECIPES.chaos;
+}
+
+export function enemiesByZoneRole(zoneId, role) {
+  return Object.values(ENEMY_TYPES).filter(
+    e => e.zone === zoneId && !e.boss && e.role === role,
+  );
+}
+
 export const ENEMY_TYPES = Object.freeze({
-  dew_blob: enemy('dew_blob', 'Dewdrop Jelly', 'verdant', 'blob', 1, 42, 7, 0, 2.7, 1.45, 16, { color: 0x63d58b, accent: 0xb8ffd3, ai: 'swarm', weight: 1.45 }),
-  horn_hopper: enemy('horn_hopper', 'Hornbloom Hopper', 'verdant', 'hare', 2, 54, 8, 1, 4.5, 1.4, 20, { color: 0xc5c77a, accent: 0xf2efb2, ai: 'skirmish', weight: 1.25 }),
-  brush_boar: enemy('brush_boar', 'Brush Boar', 'verdant', 'boar', 3, 82, 11, 2, 3.8, 1.7, 29, { color: 0x7c7d4e, accent: 0xdac991, ai: 'charge', weight: 1.15 }),
-  pollen_wisp: enemy('pollen_wisp', 'Pollen Wisp', 'verdant', 'wisp', 4, 58, 12, 1, 3.1, 8.5, 31, { color: 0xffdb74, accent: 0xfff6b7, ai: 'ranged', weight: 1.05 }),
-  leaf_raider: enemy('leaf_raider', 'Leafmask Raider', 'verdant', 'raider', 5, 105, 14, 3, 3.4, 1.8, 39, { color: 0x55955b, accent: 0xe7d07d, ai: 'melee', weight: 0.9 }),
-  shellback: enemy('shellback', 'Bronzeshell', 'verdant', 'beetle', 7, 148, 17, 7, 2.8, 1.65, 54, { color: 0x607c4b, accent: 0xb7db6f, ai: 'tank', weight: 0.7 }),
-  moss_crown: enemy('moss_crown', 'Mosscrown Colossus', 'verdant', 'colossus', 12, 1650, 27, 10, 2.1, 2.8, 650, { color: 0x456b45, accent: 0x9ce879, ai: 'boss', scale: 1.7, boss: true, special: 'roots', phase2Hp: 0.5 }),
+  dew_blob: enemy('dew_blob', 'Dewdrop Jelly', 'verdant', 'blob', 1, 42, 7, 0, 2.7, 1.45, 16, { color: 0x63d58b, accent: 0xb8ffd3, ai: 'swarm', weight: 1.35, role: 'fodder_swarm', family: 'verdant_slime', scale: 1 }),
+  horn_hopper: enemy('horn_hopper', 'Hornbloom Hopper', 'verdant', 'hare', 2, 54, 8, 1, 4.5, 1.4, 20, { color: 0xc5c77a, accent: 0xf2efb2, ai: 'skirmish', weight: 1.15, role: 'skirmisher', family: 'verdant_fauna' }),
+  brush_boar: enemy('brush_boar', 'Brush Boar', 'verdant', 'boar', 3, 82, 11, 2, 3.8, 1.7, 29, { color: 0x7c7d4e, accent: 0xdac991, ai: 'charge', weight: 1.05, role: 'bruiser', family: 'verdant_fauna' }),
+  pollen_wisp: enemy('pollen_wisp', 'Pollen Wisp', 'verdant', 'wisp', 4, 58, 12, 1, 3.1, 8.5, 31, { color: 0xffdb74, accent: 0xfff6b7, ai: 'ranged', weight: 0.95, role: 'glass_ranged', family: 'verdant_spirit' }),
+  leaf_raider: enemy('leaf_raider', 'Leafmask Raider', 'verdant', 'raider', 5, 105, 14, 3, 3.4, 1.8, 39, { color: 0x55955b, accent: 0xe7d07d, ai: 'melee', weight: 0.85, role: 'bruiser', family: 'verdant_humanoid' }),
+  shellback: enemy('shellback', 'Bronzeshell', 'verdant', 'beetle', 7, 148, 17, 7, 2.8, 1.65, 54, { color: 0x607c4b, accent: 0xb7db6f, ai: 'tank', weight: 0.65, role: 'frontline', family: 'verdant_chitin' }),
+  seed_mite: enemy('seed_mite', 'Seed Mite', 'verdant', 'beetle', 1, 28, 5, 0, 3.1, 1.2, 10, { color: 0x6a5a38, accent: 0xc9a86a, ai: 'swarm', weight: 1.5, role: 'fodder_swarm', family: 'verdant_chitin', scale: 0.52 }),
+  clover_sprite: enemy('clover_sprite', 'Clover Sprite', 'verdant', 'wisp', 3, 48, 9, 1, 3.0, 7.8, 22, { color: 0x7ed99a, accent: 0xe8fff0, ai: 'ranged', weight: 0.9, role: 'controller', family: 'verdant_spirit', scale: 0.85, special: 'slow_bolt' }),
+  meadow_buck: enemy('meadow_buck', 'Meadow Buck', 'verdant', 'stag', 4, 70, 12, 2, 4.8, 1.65, 28, { color: 0xb8a86a, accent: 0xf0e6b0, ai: 'charge', weight: 1.05, role: 'rusher', family: 'verdant_fauna', scale: 0.85 }),
+  vine_sniper: enemy('vine_sniper', 'Vinebow Scout', 'verdant', 'raider', 6, 72, 16, 2, 3.2, 9.2, 36, { color: 0x3d7a4a, accent: 0xa8e070, ai: 'ranged', weight: 0.88, role: 'glass_ranged', family: 'verdant_humanoid', scale: 0.95 }),
+  hive_tender: enemy('hive_tender', 'Hive Tender', 'verdant', 'beetle', 5, 95, 9, 4, 2.9, 1.7, 34, { color: 0xd4a84a, accent: 0xffe08a, ai: 'skirmish', weight: 0.6, role: 'support', family: 'verdant_chitin', scale: 1.05, special: 'aura_armor' }),
+  thorn_toad: enemy('thorn_toad', 'Thorn Toad', 'verdant', 'toad', 6, 160, 11, 8, 2.2, 1.55, 48, { color: 0x4a7a40, accent: 0x9ccc6a, ai: 'tank', weight: 0.62, role: 'frontline', family: 'verdant_slime', scale: 1.18 }),
+  briar_champion: enemy('briar_champion', 'Briar Champion', 'verdant', 'plant', 10, 620, 22, 12, 2.55, 2.4, 220, { color: 0x3a6038, accent: 0xb8f070, ai: 'leap', weight: 0.15, role: 'mini_boss', family: 'verdant_titan', scale: 1.35, miniBoss: true }),
+  moss_crown: enemy('moss_crown', 'Mosscrown Colossus', 'verdant', 'colossus', 12, 1650, 27, 10, 2.1, 2.8, 650, { color: 0x456b45, accent: 0x9ce879, ai: 'boss', scale: 1.7, boss: true, special: 'roots', phase2Hp: 0.5, role: 'zone_boss', family: 'verdant_titan' }),
 
-  dusk_wolf: enemy('dusk_wolf', 'Duskshade Wolf', 'forest', 'wolf', 8, 145, 19, 4, 4.8, 1.65, 63, { color: 0x4b5e52, accent: 0x9bd67b, ai: 'pack', weight: 1.35 }),
-  thornling: enemy('thornling', 'Thornling Stalker', 'forest', 'plant', 9, 132, 21, 4, 2.6, 8.2, 66, { color: 0x4b8a58, accent: 0xe0807e, ai: 'ranged', weight: 1.15 }),
-  bark_guard: enemy('bark_guard', 'Barkguard', 'forest', 'golem', 11, 236, 24, 9, 2.35, 2, 91, { color: 0x6b5a3f, accent: 0x78d267, ai: 'tank', weight: 0.9 }),
-  mask_scout: enemy('mask_scout', 'Grove Maskscout', 'forest', 'raider', 12, 175, 25, 5, 4.05, 2, 89, { color: 0x315c48, accent: 0xd5bb7a, ai: 'skirmish', weight: 1.05 }),
-  branch_shaman: enemy('branch_shaman', 'Branch Shaman', 'forest', 'shaman', 13, 158, 28, 4, 2.75, 9.2, 101, { color: 0x47664c, accent: 0x8af0a0, ai: 'caster', weight: 0.8 }),
-  canopy_harpy: enemy('canopy_harpy', 'Canopy Harpy', 'forest', 'harpy', 15, 186, 30, 5, 4.2, 7.8, 118, { color: 0x447567, accent: 0xd8f3ab, ai: 'ranged', weight: 0.72 }),
-  ancient_stag: enemy('ancient_stag', 'Ancient Stag Lord', 'forest', 'stag', 21, 2700, 39, 14, 3.45, 3.1, 1050, { color: 0x4c5a3e, accent: 0xa8f087, ai: 'boss', scale: 1.68, boss: true, special: 'stampede' }),
+  dusk_wolf: enemy('dusk_wolf', 'Duskshade Wolf', 'forest', 'wolf', 8, 145, 19, 4, 4.8, 1.65, 63, { color: 0x4b5e52, accent: 0x9bd67b, ai: 'pack', weight: 1.2, role: 'rusher', family: 'forest_beast' }),
+  thornling: enemy('thornling', 'Thornling Stalker', 'forest', 'plant', 9, 132, 21, 4, 2.6, 8.2, 66, { color: 0x4b8a58, accent: 0xe0807e, ai: 'ranged', weight: 1.0, role: 'glass_ranged', family: 'forest_flora' }),
+  bark_guard: enemy('bark_guard', 'Barkguard', 'forest', 'golem', 11, 236, 24, 9, 2.35, 2, 91, { color: 0x6b5a3f, accent: 0x78d267, ai: 'tank', weight: 0.8, role: 'frontline', family: 'forest_construct' }),
+  mask_scout: enemy('mask_scout', 'Grove Maskscout', 'forest', 'raider', 12, 175, 25, 5, 4.05, 2, 89, { color: 0x315c48, accent: 0xd5bb7a, ai: 'skirmish', weight: 0.95, role: 'skirmisher', family: 'forest_humanoid' }),
+  branch_shaman: enemy('branch_shaman', 'Branch Shaman', 'forest', 'shaman', 13, 158, 28, 4, 2.75, 9.2, 101, { color: 0x47664c, accent: 0x8af0a0, ai: 'caster', weight: 0.72, role: 'artillery', family: 'forest_humanoid' }),
+  canopy_harpy: enemy('canopy_harpy', 'Canopy Harpy', 'forest', 'harpy', 15, 186, 30, 5, 4.2, 7.8, 118, { color: 0x447567, accent: 0xd8f3ab, ai: 'ranged', weight: 0.65, role: 'glass_ranged', family: 'forest_beast' }),
+  spore_puff: enemy('spore_puff', 'Spore Puff', 'forest', 'plant', 8, 88, 14, 2, 2.8, 1.5, 42, { color: 0xc8d8a8, accent: 0xf0ffe0, ai: 'swarm', weight: 1.4, role: 'fodder_swarm', family: 'forest_flora', scale: 0.7 }),
+  night_panther: enemy('night_panther', 'Night Panther', 'forest', 'panther', 10, 120, 24, 3, 5.4, 1.75, 72, { color: 0x1a2420, accent: 0x6ad48a, ai: 'charge', weight: 1.0, role: 'rusher', family: 'forest_beast', scale: 0.95 }),
+  mist_owlkin: enemy('mist_owlkin', 'Mist Owlkin', 'forest', 'owl', 11, 140, 20, 4, 4.0, 1.9, 78, { color: 0x8a9a88, accent: 0xd0e8c0, ai: 'skirmish', weight: 0.92, role: 'skirmisher', family: 'forest_beast' }),
+  root_binder: enemy('root_binder', 'Rootbinder', 'forest', 'shaman', 12, 150, 22, 4, 2.6, 9.0, 88, { color: 0x3a5a40, accent: 0x70e090, ai: 'caster', weight: 0.7, role: 'controller', family: 'forest_humanoid', special: 'slow_bolt' }),
+  sap_golem: enemy('sap_golem', 'Sap Golem', 'forest', 'golem', 13, 280, 22, 11, 2.2, 2.05, 110, { color: 0xc48a40, accent: 0xffc060, ai: 'tank', weight: 0.68, role: 'frontline', family: 'forest_construct', scale: 1.08 }),
+  grove_duelist: enemy('grove_duelist', 'Grove Duelist', 'forest', 'raider', 14, 190, 28, 5, 3.9, 2.0, 105, { color: 0x2a4a38, accent: 0xc0e070, ai: 'melee', weight: 0.85, role: 'bruiser', family: 'forest_humanoid' }),
+  thorn_captain: enemy('thorn_captain', 'Thorn Captain', 'forest', 'raider', 18, 980, 34, 14, 3.2, 2.2, 380, { color: 0x284838, accent: 0x90e070, ai: 'melee', weight: 0.12, role: 'mini_boss', family: 'forest_humanoid', scale: 1.28, miniBoss: true }),
+  ancient_stag: enemy('ancient_stag', 'Ancient Stag Lord', 'forest', 'stag', 21, 2700, 39, 14, 3.45, 3.1, 1050, { color: 0x4c5a3e, accent: 0xa8f087, ai: 'boss', scale: 1.68, boss: true, special: 'stampede', role: 'zone_boss', family: 'forest_titan' }),
 
-  sand_crab: enemy('sand_crab', 'Duneskitter Crab', 'canyon', 'crab', 15, 205, 29, 8, 3.1, 1.8, 117, { color: 0xc47846, accent: 0xffc16b, ai: 'tank', weight: 1.2 }),
-  amber_scarab: enemy('amber_scarab', 'Amber Scarab', 'canyon', 'beetle', 16, 194, 31, 10, 3.6, 1.7, 122, { color: 0xb87034, accent: 0xffd477, ai: 'charge', weight: 1.15 }),
-  dune_raptor: enemy('dune_raptor', 'Sandclaw Raptor', 'canyon', 'raptor', 18, 245, 35, 6, 5.1, 1.8, 148, { color: 0xc49151, accent: 0xffe08c, ai: 'charge', weight: 1.1 }),
-  dust_bandit: enemy('dust_bandit', 'Dust Bandit', 'canyon', 'raider', 19, 252, 37, 7, 3.65, 2, 153, { color: 0x9c5f3d, accent: 0xf0d09a, ai: 'melee', weight: 1.05 }),
-  sun_shaman: enemy('sun_shaman', 'Sunshaman', 'canyon', 'shaman', 20, 216, 41, 5, 2.9, 9.8, 166, { color: 0xb16d3f, accent: 0xffc45e, ai: 'caster', weight: 0.85 }),
-  stone_cyclops: enemy('stone_cyclops', 'Stone Cyclops', 'canyon', 'cyclops', 23, 438, 47, 13, 2.65, 2.5, 231, { color: 0x926149, accent: 0xf4b95e, ai: 'leap', scale: 1.12, weight: 0.65 }),
-  dune_tyrant: enemy('dune_tyrant', 'Dune Tyrant', 'canyon', 'scorpion', 29, 3850, 57, 17, 3.2, 3.4, 1550, { color: 0x9b543b, accent: 0xffb550, ai: 'boss', scale: 1.72, boss: true, special: 'sandstorm', phase2Hp: 0.5 }),
+  sand_crab: enemy('sand_crab', 'Duneskitter Crab', 'canyon', 'crab', 15, 205, 29, 8, 3.1, 1.8, 117, { color: 0xc47846, accent: 0xffc16b, ai: 'tank', weight: 1.05, role: 'frontline', family: 'canyon_chitin' }),
+  amber_scarab: enemy('amber_scarab', 'Amber Scarab', 'canyon', 'beetle', 16, 194, 31, 10, 3.6, 1.7, 122, { color: 0xb87034, accent: 0xffd477, ai: 'charge', weight: 1.0, role: 'rusher', family: 'canyon_chitin' }),
+  dune_raptor: enemy('dune_raptor', 'Sandclaw Raptor', 'canyon', 'raptor', 18, 245, 35, 6, 5.1, 1.8, 148, { color: 0xc49151, accent: 0xffe08c, ai: 'charge', weight: 0.95, role: 'rusher', family: 'canyon_beast' }),
+  dust_bandit: enemy('dust_bandit', 'Dust Bandit', 'canyon', 'raider', 19, 252, 37, 7, 3.65, 2, 153, { color: 0x9c5f3d, accent: 0xf0d09a, ai: 'melee', weight: 0.92, role: 'bruiser', family: 'canyon_humanoid' }),
+  sun_shaman: enemy('sun_shaman', 'Sunshaman', 'canyon', 'shaman', 20, 216, 41, 5, 2.9, 9.8, 166, { color: 0xb16d3f, accent: 0xffc45e, ai: 'caster', weight: 0.75, role: 'artillery', family: 'canyon_humanoid' }),
+  stone_cyclops: enemy('stone_cyclops', 'Stone Cyclops', 'canyon', 'cyclops', 23, 438, 47, 13, 2.65, 2.5, 231, { color: 0x926149, accent: 0xf4b95e, ai: 'leap', scale: 1.12, weight: 0.58, role: 'bruiser', family: 'canyon_giant' }),
+  dust_mite: enemy('dust_mite', 'Dustmite Swarmling', 'canyon', 'beetle', 15, 110, 20, 3, 3.8, 1.4, 70, { color: 0xd0a070, accent: 0xffe0a0, ai: 'swarm', weight: 1.45, role: 'fodder_swarm', family: 'canyon_chitin', scale: 0.55 }),
+  sun_asp: enemy('sun_asp', 'Sun Asp', 'canyon', 'asp', 17, 180, 34, 5, 5.3, 1.75, 130, { color: 0xe09040, accent: 0xffd070, ai: 'charge', weight: 1.05, role: 'rusher', family: 'canyon_beast', scale: 0.9 }),
+  cliff_archer: enemy('cliff_archer', 'Cliff Archer', 'canyon', 'raider', 18, 170, 38, 4, 3.5, 10.2, 140, { color: 0x8a5530, accent: 0xffc878, ai: 'ranged', weight: 0.85, role: 'glass_ranged', family: 'canyon_humanoid' }),
+  mirage_wisp: enemy('mirage_wisp', 'Mirage Wisp', 'canyon', 'wisp', 19, 165, 32, 4, 3.1, 9.5, 135, { color: 0xffb060, accent: 0xfff0c0, ai: 'caster', weight: 0.72, role: 'controller', family: 'canyon_spirit', special: 'slow_bolt' }),
+  caravan_brute: enemy('caravan_brute', 'Caravan Brute', 'canyon', 'cyclops', 21, 360, 42, 10, 2.9, 2.3, 200, { color: 0xa87850, accent: 0xe8c090, ai: 'leap', weight: 0.7, role: 'bruiser', family: 'canyon_giant', scale: 1.08 }),
+  dune_shield: enemy('dune_shield', 'Dune Shieldbearer', 'canyon', 'knight', 21, 520, 34, 18, 2.55, 2.0, 190, { color: 0xb88955, accent: 0xffd27a, ai: 'tank', weight: 0.65, role: 'frontline', family: 'canyon_humanoid', scale: 1.08 }),
+  sunscar_warden: enemy('sunscar_warden', 'Sunscar Warden', 'canyon', 'knight', 25, 1400, 48, 20, 2.85, 2.35, 520, { color: 0xc07030, accent: 0xffd080, ai: 'tank', weight: 0.12, role: 'mini_boss', family: 'canyon_humanoid', scale: 1.32, miniBoss: true }),
+  dune_tyrant: enemy('dune_tyrant', 'Dune Tyrant', 'canyon', 'scorpion', 29, 3850, 57, 17, 3.2, 3.4, 1550, { color: 0x9b543b, accent: 0xffb550, ai: 'boss', scale: 1.72, boss: true, special: 'sandstorm', phase2Hp: 0.5, role: 'zone_boss', family: 'canyon_titan' }),
 
-  snow_hopper: enemy('snow_hopper', 'Snowspring Hopper', 'frost', 'hare', 24, 315, 45, 8, 4.7, 1.5, 218, { color: 0xc6dde0, accent: 0xf4ffff, ai: 'skirmish', weight: 1.25 }),
-  ice_wisp: enemy('ice_wisp', 'Ice Wisp', 'frost', 'wisp', 25, 272, 49, 7, 3.2, 10.2, 229, { color: 0x8edbec, accent: 0xe4fbff, ai: 'ranged', weight: 1.1 }),
-  frost_wolf: enemy('frost_wolf', 'Frostmane Wolf', 'frost', 'wolf', 27, 365, 53, 9, 5.25, 1.8, 262, { color: 0x7895a7, accent: 0xd9f5ff, ai: 'pack', weight: 1.2 }),
-  crystal_guard: enemy('crystal_guard', 'Crystalguard Knight', 'frost', 'knight', 29, 465, 58, 16, 3.05, 2.1, 323, { color: 0x639bb4, accent: 0xcff8ff, ai: 'tank', weight: 0.85 }),
-  glacier_crab: enemy('glacier_crab', 'Glacier Crab', 'frost', 'crab', 31, 498, 62, 18, 3.2, 2, 348, { color: 0x6998aa, accent: 0xbdefff, ai: 'charge', weight: 0.78 }),
-  white_ogre: enemy('white_ogre', 'Snow Ogre', 'frost', 'cyclops', 34, 680, 70, 17, 2.7, 2.65, 442, { color: 0x91a9b4, accent: 0xe9fcff, ai: 'leap', scale: 1.18, weight: 0.58 }),
-  avalanche_yak: enemy('avalanche_yak', 'Avalanche Yak', 'frost', 'boar', 41, 5200, 82, 23, 3.65, 3.4, 2250, { color: 0x708899, accent: 0xe8fbff, ai: 'boss', scale: 1.9, boss: true, special: 'blizzard' }),
+  snow_hopper: enemy('snow_hopper', 'Snowspring Hopper', 'frost', 'hare', 24, 315, 45, 8, 4.7, 1.5, 218, { color: 0xc6dde0, accent: 0xf4ffff, ai: 'skirmish', weight: 1.15, role: 'skirmisher', family: 'frost_fauna' }),
+  ice_wisp: enemy('ice_wisp', 'Ice Wisp', 'frost', 'wisp', 25, 272, 49, 7, 3.2, 10.2, 229, { color: 0x8edbec, accent: 0xe4fbff, ai: 'ranged', weight: 1.0, role: 'glass_ranged', family: 'frost_spirit' }),
+  frost_wolf: enemy('frost_wolf', 'Frostmane Wolf', 'frost', 'wolf', 27, 365, 53, 9, 5.25, 1.8, 262, { color: 0x7895a7, accent: 0xd9f5ff, ai: 'pack', weight: 1.1, role: 'rusher', family: 'frost_beast' }),
+  crystal_guard: enemy('crystal_guard', 'Crystalguard Knight', 'frost', 'knight', 29, 465, 58, 16, 3.05, 2.1, 323, { color: 0x639bb4, accent: 0xcff8ff, ai: 'tank', weight: 0.75, role: 'frontline', family: 'frost_construct' }),
+  glacier_crab: enemy('glacier_crab', 'Glacier Crab', 'frost', 'crab', 31, 498, 62, 18, 3.2, 2, 348, { color: 0x6998aa, accent: 0xbdefff, ai: 'charge', weight: 0.7, role: 'frontline', family: 'frost_chitin' }),
+  white_ogre: enemy('white_ogre', 'Snow Ogre', 'frost', 'cyclops', 34, 680, 70, 17, 2.7, 2.65, 442, { color: 0x91a9b4, accent: 0xe9fcff, ai: 'leap', scale: 1.18, weight: 0.52, role: 'bruiser', family: 'frost_giant' }),
+  rime_slime: enemy('rime_slime', 'Rime Slime', 'frost', 'blob', 24, 180, 32, 4, 3.2, 1.5, 140, { color: 0xa8e0f0, accent: 0xe8ffff, ai: 'swarm', weight: 1.4, role: 'fodder_swarm', family: 'frost_slime', scale: 0.75 }),
+  ice_fox: enemy('ice_fox', 'Icefox Runner', 'frost', 'fox', 26, 280, 48, 6, 5.2, 1.55, 230, { color: 0xd8eef8, accent: 0xffffff, ai: 'skirmish', weight: 1.1, role: 'skirmisher', family: 'frost_fauna', scale: 0.88 }),
+  shard_imp: enemy('shard_imp', 'Shard Imp', 'frost', 'imp', 28, 250, 52, 6, 4.0, 9.5, 245, { color: 0x90c8e0, accent: 0xd0f8ff, ai: 'ranged', weight: 0.95, role: 'glass_ranged', family: 'frost_spirit' }),
+  freeze_chanter: enemy('freeze_chanter', 'Freeze Chanter', 'frost', 'shaman', 30, 300, 58, 8, 2.7, 10.8, 310, { color: 0x70a8c0, accent: 0xc0f0ff, ai: 'caster', weight: 0.68, role: 'artillery', family: 'frost_humanoid' }),
+  frost_sentinel: enemy('frost_sentinel', 'Frost Sentinel', 'frost', 'knight', 32, 540, 55, 20, 2.9, 2.15, 360, { color: 0x88b8d0, accent: 0xe0f8ff, ai: 'tank', weight: 0.72, role: 'frontline', family: 'frost_construct', scale: 1.05 }),
+  snow_wight: enemy('snow_wight', 'Snow Wight', 'frost', 'raider', 30, 380, 56, 10, 3.5, 2.0, 300, { color: 0xa8c0d0, accent: 0xe8f4ff, ai: 'melee', weight: 0.88, role: 'bruiser', family: 'frost_humanoid' }),
+  rime_marshal: enemy('rime_marshal', 'Rime Marshal', 'frost', 'knight', 36, 1800, 68, 24, 3.0, 2.4, 720, { color: 0x70a0b8, accent: 0xd8f8ff, ai: 'leap', weight: 0.12, role: 'mini_boss', family: 'frost_construct', scale: 1.3, miniBoss: true }),
+  avalanche_yak: enemy('avalanche_yak', 'Avalanche Yak', 'frost', 'boar', 41, 5200, 82, 23, 3.65, 3.4, 2250, { color: 0x708899, accent: 0xe8fbff, ai: 'boss', scale: 1.9, boss: true, special: 'blizzard', role: 'zone_boss', family: 'frost_titan' }),
 
-  coal_imp: enemy('coal_imp', 'Coal Imp', 'ember', 'imp', 34, 468, 67, 11, 4.35, 8.8, 392, { color: 0xb84332, accent: 0xffa047, ai: 'ranged', weight: 1.2 }),
-  magma_lizard: enemy('magma_lizard', 'Magma Lizard', 'ember', 'lizard', 36, 590, 73, 14, 4.5, 1.95, 445, { color: 0x863b34, accent: 0xff7841, ai: 'charge', weight: 1.15 }),
-  ash_raider: enemy('ash_raider', 'Ashmask Raider', 'ember', 'raider', 38, 565, 77, 14, 3.8, 2.05, 453, { color: 0x67373a, accent: 0xff9a55, ai: 'melee', weight: 1.05 }),
-  forge_knight: enemy('forge_knight', 'Forge Knight', 'ember', 'knight', 40, 765, 84, 23, 3.15, 2.25, 563, { color: 0x71333a, accent: 0xffb052, ai: 'tank', weight: 0.82 }),
-  cinder_golem: enemy('cinder_golem', 'Cinder Golem', 'ember', 'golem', 42, 890, 91, 25, 2.7, 2.45, 645, { color: 0x563137, accent: 0xff6c3f, ai: 'leap', scale: 1.12, weight: 0.68 }),
-  flame_harpy: enemy('flame_harpy', 'Flame Harpy', 'ember', 'harpy', 44, 635, 96, 15, 4.65, 9.4, 606, { color: 0x8a3940, accent: 0xffb35e, ai: 'caster', weight: 0.7 }),
-  molten_colossus: enemy('molten_colossus', 'Molten Colossus', 'ember', 'colossus', 52, 7200, 111, 31, 2.45, 3.6, 3200, { color: 0x4d2a31, accent: 0xff6c3d, ai: 'boss', scale: 2.05, boss: true, special: 'inferno', phase2Hp: 0.4 }),
+  coal_imp: enemy('coal_imp', 'Coal Imp', 'ember', 'imp', 34, 468, 67, 11, 4.35, 8.8, 392, { color: 0xb84332, accent: 0xffa047, ai: 'ranged', weight: 1.1, role: 'glass_ranged', family: 'ember_spirit' }),
+  magma_lizard: enemy('magma_lizard', 'Magma Lizard', 'ember', 'lizard', 36, 590, 73, 14, 4.5, 1.95, 445, { color: 0x863b34, accent: 0xff7841, ai: 'charge', weight: 1.0, role: 'rusher', family: 'ember_beast' }),
+  ash_raider: enemy('ash_raider', 'Ashmask Raider', 'ember', 'raider', 38, 565, 77, 14, 3.8, 2.05, 453, { color: 0x67373a, accent: 0xff9a55, ai: 'melee', weight: 0.95, role: 'bruiser', family: 'ember_humanoid' }),
+  forge_knight: enemy('forge_knight', 'Forge Knight', 'ember', 'knight', 40, 765, 84, 23, 3.15, 2.25, 563, { color: 0x71333a, accent: 0xffb052, ai: 'tank', weight: 0.72, role: 'frontline', family: 'ember_construct' }),
+  cinder_golem: enemy('cinder_golem', 'Cinder Golem', 'ember', 'golem', 42, 890, 91, 25, 2.7, 2.45, 645, { color: 0x563137, accent: 0xff6c3f, ai: 'leap', scale: 1.12, weight: 0.6, role: 'bruiser', family: 'ember_construct' }),
+  flame_harpy: enemy('flame_harpy', 'Flame Harpy', 'ember', 'harpy', 44, 635, 96, 15, 4.65, 9.4, 606, { color: 0x8a3940, accent: 0xffb35e, ai: 'caster', weight: 0.62, role: 'artillery', family: 'ember_beast' }),
+  cinder_mite: enemy('cinder_mite', 'Cinder Mite', 'ember', 'beetle', 34, 250, 42, 6, 4.0, 1.45, 220, { color: 0x503028, accent: 0xff8040, ai: 'swarm', weight: 1.4, role: 'fodder_swarm', family: 'ember_chitin', scale: 0.55 }),
+  lava_hopper: enemy('lava_hopper', 'Lava Hopper', 'ember', 'hare', 36, 380, 70, 10, 5.0, 1.6, 380, { color: 0xa04030, accent: 0xff9050, ai: 'charge', weight: 1.05, role: 'rusher', family: 'ember_beast', scale: 0.9 }),
+  ash_archer: enemy('ash_archer', 'Ashbow Raider', 'ember', 'raider', 38, 420, 82, 10, 3.6, 10.0, 420, { color: 0x5a3030, accent: 0xffa060, ai: 'ranged', weight: 0.85, role: 'glass_ranged', family: 'ember_humanoid' }),
+  pyre_mender: enemy('pyre_mender', 'Pyre Mender', 'ember', 'shaman', 39, 450, 55, 12, 3.0, 8.5, 400, { color: 0x8a4030, accent: 0xffc070, ai: 'caster', weight: 0.55, role: 'support', family: 'ember_humanoid', special: 'aura_armor' }),
+  slag_brute: enemy('slag_brute', 'Slag Brute', 'ember', 'cyclops', 42, 720, 88, 18, 2.85, 2.5, 580, { color: 0x603830, accent: 0xff7040, ai: 'leap', weight: 0.65, role: 'bruiser', family: 'ember_giant', scale: 1.12 }),
+  spark_wisp: enemy('spark_wisp', 'Spark Wisp', 'ember', 'wisp', 37, 340, 68, 9, 3.4, 9.8, 360, { color: 0xff8040, accent: 0xffe080, ai: 'ranged', weight: 0.9, role: 'controller', family: 'ember_spirit', special: 'slow_bolt' }),
+  ash_overseer: enemy('ash_overseer', 'Ash Overseer', 'ember', 'golem', 46, 2400, 92, 28, 2.75, 2.6, 900, { color: 0x5a2828, accent: 0xff7040, ai: 'leap', weight: 0.1, role: 'mini_boss', family: 'ember_construct', scale: 1.38, miniBoss: true }),
+  molten_colossus: enemy('molten_colossus', 'Molten Colossus', 'ember', 'colossus', 52, 7200, 111, 31, 2.45, 3.6, 3200, { color: 0x4d2a31, accent: 0xff6c3d, ai: 'boss', scale: 2.05, boss: true, special: 'inferno', phase2Hp: 0.4, role: 'zone_boss', family: 'ember_titan' }),
 
-  void_blob: enemy('void_blob', 'Void Blob', 'astral', 'blob', 48, 760, 94, 16, 3.35, 1.7, 665, { color: 0x7459ad, accent: 0xd1a5ff, ai: 'swarm', weight: 1.25 }),
-  prism_wisp: enemy('prism_wisp', 'Prism Wisp', 'astral', 'wisp', 50, 690, 102, 15, 3.45, 11, 702, { color: 0x9e72d4, accent: 0xf2c5ff, ai: 'caster', weight: 1.15 }),
-  rift_hound: enemy('rift_hound', 'Rift Hound', 'astral', 'wolf', 52, 915, 108, 18, 5.65, 1.95, 765, { color: 0x514779, accent: 0xc68cff, ai: 'pack', weight: 1.1 }),
-  star_knight: enemy('star_knight', 'Starforged Knight', 'astral', 'knight', 55, 1250, 119, 31, 3.35, 2.35, 941, { color: 0x4f4d78, accent: 0xd4b4ff, ai: 'tank', weight: 0.86 }),
-  abyss_stalker: enemy('abyss_stalker', 'Abyss Stalker', 'astral', 'panther', 58, 1080, 128, 22, 6, 2.05, 936, { color: 0x393453, accent: 0xb580ff, ai: 'charge', weight: 0.92 }),
-  orbit_mage: enemy('orbit_mage', 'Orbit Mage', 'astral', 'shaman', 60, 970, 136, 20, 3.15, 11.8, 984, { color: 0x67518e, accent: 0xe3b7ff, ai: 'caster', weight: 0.7 }),
-  eclipse_drake: enemy('eclipse_drake', 'Eclipse Drake', 'astral', 'drake', 70, 9800, 158, 38, 4.1, 4.1, 4600, { color: 0x373251, accent: 0xc27cff, ai: 'boss', scale: 2.05, boss: true, special: 'eclipse' }),
+  void_blob: enemy('void_blob', 'Void Blob', 'astral', 'blob', 48, 760, 94, 16, 3.35, 1.7, 665, { color: 0x7459ad, accent: 0xd1a5ff, ai: 'swarm', weight: 1.15, role: 'fodder_swarm', family: 'astral_slime' }),
+  prism_wisp: enemy('prism_wisp', 'Prism Wisp', 'astral', 'wisp', 50, 690, 102, 15, 3.45, 11, 702, { color: 0x9e72d4, accent: 0xf2c5ff, ai: 'caster', weight: 1.0, role: 'artillery', family: 'astral_spirit' }),
+  rift_hound: enemy('rift_hound', 'Rift Hound', 'astral', 'wolf', 52, 915, 108, 18, 5.65, 1.95, 765, { color: 0x514779, accent: 0xc68cff, ai: 'pack', weight: 1.0, role: 'rusher', family: 'astral_beast' }),
+  star_knight: enemy('star_knight', 'Starforged Knight', 'astral', 'knight', 55, 1250, 119, 31, 3.35, 2.35, 941, { color: 0x4f4d78, accent: 0xd4b4ff, ai: 'tank', weight: 0.75, role: 'frontline', family: 'astral_construct' }),
+  abyss_stalker: enemy('abyss_stalker', 'Abyss Stalker', 'astral', 'panther', 58, 1080, 128, 22, 6, 2.05, 936, { color: 0x393453, accent: 0xb580ff, ai: 'charge', weight: 0.85, role: 'rusher', family: 'astral_beast' }),
+  orbit_mage: enemy('orbit_mage', 'Orbit Mage', 'astral', 'shaman', 60, 970, 136, 20, 3.15, 11.8, 984, { color: 0x67518e, accent: 0xe3b7ff, ai: 'caster', weight: 0.62, role: 'artillery', family: 'astral_humanoid' }),
+  null_mite: enemy('null_mite', 'Null Mite', 'astral', 'beetle', 48, 420, 70, 10, 3.8, 1.5, 400, { color: 0x2a2040, accent: 0xa070ff, ai: 'swarm', weight: 1.35, role: 'fodder_swarm', family: 'astral_chitin', scale: 0.55 }),
+  phase_hare: enemy('phase_hare', 'Phase Hare', 'astral', 'hare', 50, 520, 95, 12, 5.4, 1.55, 520, { color: 0xb8a0e8, accent: 0xf0e0ff, ai: 'skirmish', weight: 1.05, role: 'skirmisher', family: 'astral_fauna', scale: 0.9 }),
+  void_archer: enemy('void_archer', 'Voidleaf Archer', 'astral', 'raider', 54, 680, 120, 14, 3.7, 11.2, 720, { color: 0x403858, accent: 0xc090ff, ai: 'ranged', weight: 0.82, role: 'glass_ranged', family: 'astral_humanoid' }),
+  graviton_shaman: enemy('graviton_shaman', 'Graviton Shaman', 'astral', 'shaman', 56, 750, 105, 16, 3.0, 11.0, 780, { color: 0x584878, accent: 0xd0a0ff, ai: 'caster', weight: 0.65, role: 'controller', family: 'astral_humanoid', special: 'slow_bolt' }),
+  prism_guard: enemy('prism_guard', 'Prism Guard', 'astral', 'golem', 57, 1400, 110, 34, 2.9, 2.4, 900, { color: 0x9080c0, accent: 0xe8d0ff, ai: 'tank', weight: 0.7, role: 'frontline', family: 'astral_construct', scale: 1.1 }),
+  rift_imp: enemy('rift_imp', 'Rift Imp', 'astral', 'imp', 53, 620, 115, 14, 4.2, 11.5, 700, { color: 0x8050b0, accent: 0xff90d0, ai: 'caster', weight: 0.78, role: 'artillery', family: 'astral_spirit' }),
+  void_herald: enemy('void_herald', 'Void Herald', 'astral', 'shaman', 62, 2800, 125, 26, 3.1, 3.0, 1100, { color: 0x403060, accent: 0xd090ff, ai: 'caster', weight: 0.1, role: 'mini_boss', family: 'astral_humanoid', scale: 1.34, miniBoss: true, special: 'slow_bolt' }),
+  eclipse_drake: enemy('eclipse_drake', 'Eclipse Drake', 'astral', 'drake', 70, 9800, 158, 38, 4.1, 4.1, 4600, { color: 0x373251, accent: 0xc27cff, ai: 'boss', scale: 2.05, boss: true, special: 'eclipse', role: 'zone_boss', family: 'astral_titan' }),
 });
 
 export const ZONE_SPAWNS = Object.freeze(Object.fromEntries(
   Object.keys(ZONES).map(zoneId => [zoneId, Object.values(ENEMY_TYPES)
-    .filter(entry => entry.zone === zoneId && !entry.boss)
+    .filter(entry => entry.zone === zoneId && !entry.boss && !entry.miniBoss)
     .map(entry => ({ id: entry.id, weight: entry.weight }))]),
 ));
 
 export const ZONE_BOSSES = Object.freeze(Object.fromEntries(
   Object.keys(ZONES).map(zoneId => [zoneId, Object.values(ENEMY_TYPES).find(entry => entry.zone === zoneId && entry.boss)?.id]),
+));
+
+/** Defense milestone champions (not in ambient Hunt pool). */
+export const ZONE_MINI_BOSSES = Object.freeze(Object.fromEntries(
+  Object.keys(ZONES).map(zoneId => [zoneId, Object.values(ENEMY_TYPES).find(entry => entry.zone === zoneId && entry.miniBoss)?.id]),
 ));
 
 export const RARITIES = Object.freeze({
@@ -795,11 +933,33 @@ export const SKILLS = Object.freeze({
     description: 'Keeps distance while drawing the next arrow.',
     rankText: rank => `Attack Speed +${rank}% · Move +${(rank * 2).toFixed(0)}%`,
   },
-  barbed_tips: {
-    id: 'barbed_tips', classId: 'ranger', name: 'Barbed Tips', passive: true, unlockLevel: 5, maxRank: 10,
-    effect: { skillPower: .025, dotPower: .05 },
-    description: 'Barbs make skills and bleeds bite harder.',
-    rankText: rank => `Skill Power +${rank * 2.5}% · DoT +${rank * 5}%`,
+  /**
+   * Strafe — Diablo Amazon-style multi-shot basic attack conversion.
+   * From level 5 the ranger basic attack becomes a 10-arrow auto-aimed volley.
+   * Ranks improve per-arrow power (and light skill/haste bonuses); baseline fires at L5 even at rank 0.
+   */
+  strafe: {
+    id: 'strafe', classId: 'ranger', name: 'Strafe', passive: true, unlockLevel: 5, maxRank: 10,
+    effect: { skillPower: .015, haste: .008, dotPower: .02 },
+    combat: Object.freeze({
+      shots: 10,
+      /**
+       * Per-arrow mult of attackPower: base + perRank * rank.
+       * 10×0.36 ≈ 3.6× a single basic on one target (strong multi-hit, Amazon Strafe feel).
+       */
+      mult: Object.freeze([.36, .022]),
+      /** Auto-aim lock radius (~3× original 16.2). Projectile life covers this range. */
+      range: 48.6,
+      interval: .038,
+      speed: 24,
+      /** travel ≈ speed × life; sized for ~3× prior effective distance. */
+      life: 2.6,
+      pierce: 1,
+      knockback: 1.35,
+      finisherMult: 1.28,
+    }),
+    description: 'From level 5, basic attacks become a ten-arrow auto-aimed volley that locks onto distant foes.',
+    rankText: rank => `Arrow power +${(rank * 2.2).toFixed(1)}% · Attack Speed +${(rank * .8).toFixed(1)}% · Skill Power +${(rank * 1.5).toFixed(1)}%`,
   },
   scavenger: {
     id: 'scavenger', classId: 'ranger', name: 'Scavenger', passive: true, unlockLevel: 8, maxRank: 10,
@@ -979,9 +1139,9 @@ export const HERO_CLASSES = Object.freeze({
     lookId: 'ranger',
     attackStyle: 'ranged',
     skillPanelTitle: 'Hunt Arts & Tracker Instincts',
-    attackLabel: 'Draw',
+    attackLabel: 'Shot',
     activeSkills: Object.freeze(['piercing_shot', 'caltrop_trap', 'vault_shot', 'hunter_mark']),
-    passiveSkills: Object.freeze(['eagle_eye', 'fleet_foot', 'barbed_tips', 'scavenger', 'predator']),
+    passiveSkills: Object.freeze(['eagle_eye', 'fleet_foot', 'strafe', 'scavenger', 'predator']),
     baseStatMods: Object.freeze({ attack: 1.0, mp: 1.08, skillPower: 0.04, hp: 0.9, defense: 0.88 }),
     apexKeystone: Object.freeze({ id:'marked_convergence', unlockLevel:100, trigger:'apex_finisher', convergenceMult:.35, markRequired:true, perCastCap:1 }),
     // Bows only — prevents ranger auto-equipping blades that break the hunt fantasy.
@@ -989,6 +1149,9 @@ export const HERO_CLASSES = Object.freeze({
     basicAttack: Object.freeze({
       bolts: 4,
       comboMults: Object.freeze([1.0, 1.08, 1.18, 1.42]),
+      /** Bow projectile speed / lifetime (~3× prior effective reach). */
+      arrowSpeed: 22,
+      arrowLife: 3.6,
     }),
     energy: Object.freeze({
       label: 'Focus',
@@ -1000,7 +1163,8 @@ export const HERO_CLASSES = Object.freeze({
       stormArrows: 8,
       stormMult: 0.55,
       stormSpread: 0.11,
-      stormSpeed: 17,
+      stormSpeed: 24,
+      stormLife: 3.3,
       stormCritBonus: 0.1,
     }),
     starterWeapon: Object.freeze({

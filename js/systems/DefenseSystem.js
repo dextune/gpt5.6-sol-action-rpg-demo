@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { DEFENSE_CONFIG } from '../config.js';
-import { ENEMY_TYPES, ZONE_BOSSES, ZONE_SPAWNS } from '../data/content.js';
+import {
+  ENEMY_TYPES, ZONE_BOSSES, ZONE_MINI_BOSSES, ZONE_SPAWNS, defenseRecipeForWave, enemiesByZoneRole,
+} from '../data/content.js';
 import { chance, clamp, weightedPick } from '../core/Utils.js';
 
 const TMP_UP = new THREE.Vector3(0, 1, 0);
@@ -112,19 +114,24 @@ export class DefenseSystem {
     );
     if (mut?.id === 'frenzy') count = Math.min(cfg.maxCount, count + 2);
 
+    // Hybrid composition: role fractions from recipe, fill remainder by zone weights.
+    const recipe = defenseRecipeForWave(wave);
+    const roleQueue = this.#buildRoleQueue(recipe, count);
     let spawned = 0;
     for (let i = 0; i < count; i += 1) {
-      const typeId = weightedPick(entries);
-      const data = ENEMY_TYPES[typeId];
+      const wantRole = roleQueue[i] ?? null;
+      const data = this.#pickDefenseEnemy(zoneId, entries, wantRole);
       if (!data) continue;
 
       let eliteChance = cfg.eliteChanceBase + (wave - cfg.eliteStartWave) * cfg.eliteChancePerWave;
       if (mut?.id === 'frenzy') eliteChance += 0.1;
+      if (wave >= 10) eliteChance += 0.04;
       const elite = wave >= cfg.eliteStartWave
         && chance(clamp(eliteChance, 0, cfg.eliteChanceCap ?? 0.48));
-      const eliteAffix = elite ? this.game.enemies.rollEliteAffix() : null;
-      // ~65% fodder on wave grunts; elites/bosses never fodder.
-      const fodder = !elite && !data.boss && Math.random() < 0.65;
+      const eliteAffix = elite ? this.game.enemies.rollEliteAffix(zoneId) : null;
+      // Fodder for bulk roles; tanks/artillery keep full stats more often.
+      const bulkRole = data.role === 'fodder_swarm' || data.role === 'skirmisher';
+      const fodder = !elite && !data.boss && (bulkRole ? Math.random() < 0.78 : Math.random() < 0.45);
       // Slightly less level pressure per body at higher roster counts.
       const levelPressure = Math.max(0, Math.floor((wave - 1) * cfg.levelBonusPerWave * 0.85));
       const adjustedLevel = Math.max(data.level, player.level + levelPressure);
@@ -155,32 +162,37 @@ export class DefenseSystem {
       }
     }
 
-    // Mini-boss cadence: one boss from the rotated zone's boss table.
+    // Mini-boss cadence: prefer zone mini-champion; every 2nd cadence escalates to apex boss.
     if (wave > 0 && wave % cfg.miniBossEvery === 0) {
-      const bossId = ZONE_BOSSES[zoneId] ?? ZONE_BOSSES.verdant;
-      const bossData = ENEMY_TYPES[bossId];
-      if (bossData) {
+      const useApex = Math.floor(wave / cfg.miniBossEvery) % 2 === 0;
+      const champId = ZONE_MINI_BOSSES[zoneId];
+      const apexId = ZONE_BOSSES[zoneId] ?? ZONE_BOSSES.verdant;
+      const champData = ENEMY_TYPES[useApex ? apexId : (champId ?? apexId)]
+        ?? ENEMY_TYPES[apexId];
+      if (champData) {
         const bossLevel = Math.max(
-          bossData.level,
-          player.level + 2 + Math.floor((wave - 1) * cfg.levelBonusPerWave),
+          champData.level,
+          player.level + (champData.miniBoss ? 1 : 2) + Math.floor((wave - 1) * cfg.levelBonusPerWave),
         );
         const position = this.game.world.randomSpawnAround(
           player.position,
           cfg.spawnInner + 2,
           cfg.spawnOuter + 4,
         );
-        const boss = this.game.enemies.spawn(bossData, position, {
+        const boss = this.game.enemies.spawn(champData, position, {
           level: bossLevel,
-          elite: false,
+          elite: Boolean(champData.miniBoss),
+          eliteAffix: champData.miniBoss ? this.game.enemies.rollEliteAffix(zoneId) : null,
           wave,
           defenseWave: true,
         });
         if (boss) {
           spawned += 1;
           this.game.audio?.boss?.();
-          this.game.effects?.pillar?.(position, bossData.accent, 10, { life: 1.1, bottom: 1.6 });
-          this.game.effects?.ring?.(position, bossData.accent, 6, { life: .9, startScale: .06 });
-          this.game.ui?.notify?.(`Wave ${wave} boss · ${bossData.name}`, 'boss', 3.6);
+          this.game.effects?.pillar?.(position, champData.accent, champData.miniBoss ? 7.5 : 10, { life: 1.1, bottom: 1.4 });
+          this.game.effects?.ring?.(position, champData.accent, champData.miniBoss ? 4.5 : 6, { life: .9, startScale: .06 });
+          const tag = champData.miniBoss ? 'Champion' : 'Boss';
+          this.game.ui?.notify?.(`Wave ${wave} ${tag} · ${champData.name}`, 'boss', 3.6);
         }
       }
     }
@@ -219,6 +231,56 @@ export class DefenseSystem {
       ...(wave >= 12 ? [{ id: 'scarce', label: 'Scarce Tide' }] : []),
     ];
     return pool[Math.floor(wave / 3) % pool.length];
+  }
+
+  /** Expand role fractions into a shuffled queue of length `count`. */
+  #buildRoleQueue(recipe, count) {
+    const queue = [];
+    let assigned = 0;
+    for (let i = 0; i < recipe.length; i += 1) {
+      const row = recipe[i];
+      const n = i === recipe.length - 1
+        ? Math.max(0, count - assigned)
+        : Math.max(0, Math.round(count * (row.frac ?? 0)));
+      for (let k = 0; k < n; k += 1) queue.push(row.role);
+      assigned += n;
+    }
+    while (queue.length < count) queue.push(recipe[0]?.role ?? 'fodder_swarm');
+    // Shuffle so tanks/ranged are not clumped at the front of spawn order.
+    for (let i = queue.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [queue[i], queue[j]] = [queue[j], queue[i]];
+    }
+    return queue.slice(0, count);
+  }
+
+  #pickDefenseEnemy(zoneId, entries, wantRole) {
+    if (wantRole) {
+      const pool = enemiesByZoneRole(zoneId, wantRole);
+      if (pool.length) {
+        const weighted = pool.map(e => ({
+          id: e.id,
+          weight: (e.weight ?? 1) * (e.defenseWeight ?? 1),
+        }));
+        const id = weightedPick(weighted);
+        if (id && ENEMY_TYPES[id]) return ENEMY_TYPES[id];
+      }
+      // Soft fallbacks so missing role in a zone does not empty the slot.
+      const fallbackRoles = wantRole === 'support' ? ['artillery', 'controller', 'bruiser']
+        : wantRole === 'controller' ? ['artillery', 'glass_ranged']
+          : wantRole === 'artillery' ? ['glass_ranged', 'bruiser']
+            : wantRole === 'frontline' ? ['bruiser', 'fodder_swarm']
+              : ['fodder_swarm', 'bruiser', 'skirmisher'];
+      for (const role of fallbackRoles) {
+        const alt = enemiesByZoneRole(zoneId, role);
+        if (alt.length) {
+          const id = weightedPick(alt.map(e => ({ id: e.id, weight: e.weight ?? 1 })));
+          if (id && ENEMY_TYPES[id]) return ENEMY_TYPES[id];
+        }
+      }
+    }
+    const typeId = weightedPick(entries);
+    return ENEMY_TYPES[typeId] ?? null;
   }
 
   /** Meta merge helper for SaveManager (best wave this run). */

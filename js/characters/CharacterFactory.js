@@ -93,6 +93,8 @@ const CLASS_LOOKS = Object.freeze({
 });
 
 // ~70% of previous overlong blades, with thicker girth for a solid blade read.
+// Global visual multiplier only — combat range stays on meleeProfile / skills.
+const WEAPON_VISUAL_SCALE = 1.5;
 const WEAPON_LENGTH = Object.freeze({
   sword: 1.27,
   saber: 1.13,
@@ -372,8 +374,8 @@ export class CharacterFactory {
       weapon.position.set(.02, -.02, .01);
       weapon.rotation.set(0, Math.PI, .14);
     }
-    const length = WEAPON_LENGTH[kind] ?? 1.25;
-    const girth = WEAPON_GIRTH[kind] ?? 1.2;
+    const length = (WEAPON_LENGTH[kind] ?? 1.25) * WEAPON_VISUAL_SCALE;
+    const girth = (WEAPON_GIRTH[kind] ?? 1.2) * WEAPON_VISUAL_SCALE;
     weapon.scale.set(girth, length, girth);
     const rarityColor = new THREE.Color(item.rarityColor ?? item.color ?? 0xe8f4ff);
     const outlineColor = resolveLook(getHeroClass(refs.classId).lookId).palette.outline;

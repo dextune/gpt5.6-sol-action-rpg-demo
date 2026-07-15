@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GAME_CONFIG, HORDE_CONFIG, defenseWaveDmgMul, defenseWaveHpMul } from '../config.js';
+import { ENEMY_TYPES } from '../data/content.js';
 import { clamp, rand, uid } from '../core/Utils.js';
 import { applyStatus, statusMoveMul, tickStatuses } from '../data/skillCombat.js';
 import { setMaterialHitPulse } from '../graphics/StylizedMaterial.js';
@@ -55,14 +56,33 @@ export class Enemy {
     this.damage = data.damage * (1 + extraLevels * .055) * Math.sqrt(tierScale) * eliteDamage * waveDmg;
     this.defense = data.defense * (1 + extraLevels * .045) * eliteDefense;
     this.speed = data.speed * (this.elite ? 1.08 : 1);
-    // Elite affix lite (B3)
+    // Elite affix lite (B3 + variety expansion)
     this.shieldHitsLeft = 0;
     this.affixEnraged = false;
+    this.affixSummoned = false;
+    this.auraArmorTimer = 0;
+    this.defenseAuraMul = 1;
     if (this.eliteAffix === 'shielded') {
       this.shieldHitsLeft = 4;
       this.defense *= 1.15;
     } else if (this.eliteAffix === 'enraged') {
       this.damage *= 1.08;
+    } else if (this.eliteAffix === 'hasted') {
+      this.speed *= 1.22;
+      this.attackCooldown *= 0.78;
+    } else if (this.eliteAffix === 'fortified') {
+      this.defense *= 1.45;
+      this.speed *= 0.88;
+      this.maxHp = Math.round(this.maxHp * 1.12);
+      this.hp = this.maxHp;
+    } else if (this.eliteAffix === 'arcane') {
+      this.damage *= 1.06;
+    } else if (this.eliteAffix === 'vampiric') {
+      this.damage *= 1.04;
+    } else if (this.eliteAffix === 'frostbitten') {
+      this.damage *= 1.02;
+    } else if (this.eliteAffix === 'molten') {
+      this.damage *= 1.05;
     }
     this.attackRange = data.range;
     this.radius = (this.boss ? 1.25 : this.elite ? .78 : .58) * (data.scale ?? 1);
@@ -124,10 +144,13 @@ export class Enemy {
   get position() { return this.mesh.position; }
   get healthRatio() { return clamp(this.hp / Math.max(1, this.maxHp), 0, 1); }
   get displayName() {
-    const affix = this.eliteAffix === 'shielded' ? 'Shielded '
-      : this.eliteAffix === 'enraged' ? 'Enraged '
-        : this.eliteAffix === 'volatile' ? 'Volatile '
-          : '';
+    const labels = {
+      shielded: 'Shielded ', enraged: 'Enraged ', volatile: 'Volatile ',
+      hasted: 'Hasted ', fortified: 'Fortified ', arcane: 'Arcane ',
+      frostbitten: 'Frostbitten ', molten: 'Molten ', vampiric: 'Vampiric ',
+      summoning: 'Summoning ',
+    };
+    const affix = this.eliteAffix ? (labels[this.eliteAffix] ?? '') : '';
     return `${this.elite ? 'Elite ' : ''}${affix}${this.data.name}`;
   }
 
@@ -143,6 +166,8 @@ export class Enemy {
     this.attackCooldown = Math.max(0, this.attackCooldown - delta);
     this.specialCooldown = Math.max(0, this.specialCooldown - delta);
     this.stateTimer = Math.max(0, this.stateTimer - delta);
+    this.auraArmorTimer = Math.max(0, (this.auraArmorTimer ?? 0) - delta);
+    if (this.auraArmorTimer <= 0) this.defenseAuraMul = 1;
     this.stunTimer = Math.max(0, this.stunTimer - delta);
     this.breakTimer = Math.max(0, this.breakTimer - delta);
     this.tickSpellPrime(delta);
@@ -206,7 +231,23 @@ export class Enemy {
         this.stateTimer = ai === 'caster' ? .78 : .58;
         this.attackCooldown = ai === 'caster' ? rand(2.2, 3.15) : rand(1.55, 2.35);
         this.#playAnimation('cast', ai === 'caster' ? .92 : 1.08);
-        game.combat.enemyProjectile(this, { caster: ai === 'caster', count: ai === 'caster' && (this.elite || this.boss) ? 3 : 1 });
+        const baseCount = ai === 'caster' && (this.elite || this.boss) ? 3 : 1;
+        const arcaneBonus = this.eliteAffix === 'arcane' ? 1 : 0;
+        const slowBolt = this.data.special === 'slow_bolt';
+        game.combat.enemyProjectile(this, {
+          caster: ai === 'caster' || slowBolt,
+          count: baseCount + arcaneBonus,
+          statusOnHit: slowBolt || this.eliteAffix === 'frostbitten'
+            ? { id: 'player_slow', duration: 1.35 }
+            : this.eliteAffix === 'molten'
+              ? { id: 'player_burn', duration: 1.6, power: 0.08 }
+              : null,
+        });
+      }
+      // Support aura — brief defense pulse for nearby allies (hard-capped).
+      if (this.data.special === 'aura_armor' && this.specialCooldown <= 0) {
+        this.specialCooldown = rand(5.5, 7.5);
+        this.#pulseArmorAura(game);
       }
       return;
     }
@@ -273,6 +314,10 @@ export class Enemy {
     const speedFactor = ai === 'pack' ? 1.12 : ai === 'swarm' ? 1.05 : ai === 'tank' ? .76 : 1;
     if (distance > this.attackRange * .82) this.#move(this.facing, delta, speedFactor, game.world);
     else this.#tryMelee(game, distance, ai === 'tank' ? 1.35 : 1);
+    if (this.data.special === 'aura_armor' && this.specialCooldown <= 0) {
+      this.specialCooldown = rand(5.5, 7.5);
+      this.#pulseArmorAura(game);
+    }
   }
 
   #tryMelee(game, distance, power = 1) {
@@ -286,6 +331,73 @@ export class Enemy {
     this.attackCooldown = this.boss ? rand(1.35, 1.75) : rand(1.05, 1.6);
     this.#playAnimation('attack', this.boss ? .88 : 1.08);
     game.combat.enemyMelee(this, { power, wide: this.boss || this.elite });
+    // Vampiric / frostbitten melee contact effects.
+    if (this.eliteAffix === 'vampiric' && game.player?.alive && distance < this.attackRange * 1.4) {
+      const heal = Math.max(1, Math.round(this.maxHp * 0.03));
+      this.hp = Math.min(this.maxHp, this.hp + heal);
+      this.#setHealthBar(this.healthRatio);
+    }
+    if (this.eliteAffix === 'frostbitten' && game.player?.alive && distance < this.attackRange * 1.35) {
+      game.player.applySlow?.(1.1);
+    }
+    if (this.eliteAffix === 'molten' && game.player?.alive && distance < this.attackRange * 1.35) {
+      // Contact heat: brief slow + small extra chip (capped).
+      game.player.applySlow?.(0.55);
+      const burn = Math.min(Math.round(game.player.maxHp * 0.03), Math.round(this.damage * 0.22));
+      if (burn > 0) game.player.takeDamage?.(burn, this.facing.clone().multiplyScalar(1.5));
+    }
+  }
+
+  #pulseArmorAura(game) {
+    const radius = 5.2;
+    game.effects?.ring?.(this.position, this.data.accent ?? 0xffd070, radius, {
+      life: 0.55, startScale: 0.15, height: 0.1, opacity: 0.55,
+    });
+    let buffed = 0;
+    for (const ally of game.enemies?.enemies ?? []) {
+      if (!ally.alive || ally === this || ally.boss) continue;
+      if (ally.position.distanceTo(this.position) > radius + ally.radius) continue;
+      ally.defenseAuraMul = 1.18;
+      ally.auraArmorTimer = 3.2;
+      buffed += 1;
+      if (buffed >= 6) break;
+    }
+  }
+
+  #spawnSummonMites(game) {
+    const sys = game.enemies;
+    if (!sys || (sys.summonBudget ?? 0) >= 4) return;
+    const zone = this.data.zone;
+    const pool = Object.values(ENEMY_TYPES).filter(
+      e => e.zone === zone && !e.boss && e.role === 'fodder_swarm',
+    );
+    if (!pool.length) return;
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    let spawned = 0;
+    for (let i = 0; i < 2; i += 1) {
+      if ((sys.summonBudget ?? 0) >= 4) break;
+      if (sys.enemies.length >= 80) break;
+      const pos = this.position.clone().add(new THREE.Vector3(
+        (Math.random() - 0.5) * 2.4,
+        0,
+        (Math.random() - 0.5) * 2.4,
+      ));
+      game.world?.resolvePosition?.(pos, 0.5);
+      const child = sys.spawn(pick, pos, {
+        level: Math.max(1, this.level - 1),
+        elite: false,
+        fodder: true,
+        defenseWave: this.defenseWave,
+        wave: this.wave,
+      });
+      if (child) {
+        spawned += 1;
+        sys.summonBudget = (sys.summonBudget ?? 0) + 1;
+      }
+    }
+    if (spawned > 0) {
+      game.effects?.ring?.(this.position, 0xc184ff, 2.8, { life: 0.4, startScale: 0.12 });
+    }
   }
 
   applyStatus(id, opts = {}, game = null) {
@@ -657,7 +769,8 @@ export class Enemy {
       }
     }
     const armorPierce = clamp(options.armorPierce ?? 0, 0, .85);
-    const reduction = this.defense * .37 * (1 - armorPierce);
+    const auraDef = this.defense * (this.defenseAuraMul ?? 1);
+    const reduction = auraDef * .37 * (1 - armorPierce);
     const amount = Math.max(1, Math.round(incoming - reduction));
     this.hp = Math.max(0, this.hp - amount);
     // Cap hitstun accumulation so multi-hit flurries cannot lock forever.
@@ -747,6 +860,11 @@ export class Enemy {
     }
     if (this.overkill) {
       this.deathVelY = this.boss ? 3.2 : 4 + Math.random() * 2;
+    }
+    // Summoning elite: spawn up to 2 zone fodder (global budget).
+    if (this.eliteAffix === 'summoning' && !this.affixSummoned && game.enemies) {
+      this.affixSummoned = true;
+      this.#spawnSummonMites(game);
     }
     // Volatile elite: small death burst (capped vs player max HP).
     if (this.eliteAffix === 'volatile' && game.player?.alive) {

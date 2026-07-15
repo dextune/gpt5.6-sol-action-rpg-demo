@@ -56,20 +56,33 @@ Profiles: `HERO_BAKE_PROFILES` in `generate_assets.mjs`. Shared: skeleton, body 
 | Item | Location |
 |------|----------|
 | Equip | `CharacterFactory.equipWeapon` |
-| Length multiplier | `WEAPON_LENGTH` (Y scale) |
-| Girth multiplier | `WEAPON_GIRTH` (X/Z scale) |
+| Global visual scale | `WEAPON_VISUAL_SCALE` (1.5) multiplies length and girth |
+| Length multiplier | `WEAPON_LENGTH` (Y scale, relative per kind) |
+| Girth multiplier | `WEAPON_GIRTH` (X/Z scale, relative per kind) |
 | Model type | item.model → `weapon.sword` etc. in manifest |
 | Starter | `HERO_CLASSES[*].starterWeapon` via `createClassStarterWeapon` |
 
 Hunter starter: **Swift Field Blade** (`katana`).  
 Wizard starter: **Apprentice Focus** (`relic`).
 
-Hit detection `range` is independent of mesh length.
+Applied scale is `(WEAPON_GIRTH * WEAPON_VISUAL_SCALE, WEAPON_LENGTH * WEAPON_VISUAL_SCALE, …)`; rogue offhand uses the same magnitudes with mirrored X. Hit detection `range` / `rangeMult` are independent of mesh length (see `docs/plan/weapon-visual-scale-detail.md`).
 
 ## Animation clip names
 
 **Shared locomotion / reaction:**  
 `idle`, `run`, `sprint`, `dodge`, `hit`, `death`
+
+**Weapon holds:** only **rogue** uses a custom dual-wield crouch idle/run hold (`classWeaponHold('rogue')`). Knight, wizard, and ranger use the shared legacy idle/run/sprint arm poses.
+
+### Basic attack poses
+
+| Class | Clips | Notes |
+|-------|-------|--------|
+| `aerin` | `attack_1`–`attack_7` | Shared legacy sword combo kit |
+| `rogue` | `attack_1`–`attack_7` | Custom dual-dagger chain (returns to crouch rest) |
+| `wizard` / `ranger` | `cast_1`–`cast_4` primary + `attack_1`–`attack_4` fallback | Shared legacy cast/attack clips |
+
+Runtime: melee plays `attack_N`; magic/ranged prefer `cast_N` (`Player.tryAttack`).
 
 **Knight (aerin):**  
 `attack_1`–`attack_7`,  
@@ -77,8 +90,7 @@ Hit detection `range` is independent of mesh length.
 
 **Wizard:**  
 `attack_1`–`attack_4`, `cast_1`–`cast_4`,  
-`skill_fireball`, `skill_frost_nova`, `skill_blink`, `skill_meteor`  
-(also still embeds knight skill clips for fallback / shared bake)
+`skill_fireball`, `skill_frost_nova`, `skill_blink`, `skill_meteor`
 
 Wizard actives must **not** alias knight skill clip names in `SKILLS.anim`.  
 Do not rename without updating Player / Combat / `assets.json` animationMap.
@@ -87,11 +99,11 @@ Do not rename without updating Player / Combat / `assets.json` animationMap.
 
 ```bash
 node tools/assets/generate_assets.mjs --heroes-only
-# or --aerin-only / --wizard-only / --rogue-only (weapons: --staff-only / --dagger-only)
+# or --aerin-only / --wizard-only / --rogue-only / --ranger-only (weapons: --staff-only / --dagger-only)
 node tests/integrity.mjs
 ```
 
-Extend `heroAnimations()` in `tools/assets/generate_assets.mjs`. Shared skeleton; add class-specific skill/cast clips for spectacle identity.
+Rogue hold/attack tuning: `classWeaponHold('rogue')` and the rogue branch of `buildClassCombatClipSpecs`. Extend `heroAnimations()` for new skill/cast clips.
 Each GLB only ships shared locomotion/reaction clips plus its own class combat clips — register new clips in `HERO_CLASS_CLIPS` so they survive the per-class filter.
 Runtime: `Player.trySkill` has limited anim fallbacks if a clip is missing — still bake unique names for shipping quality.
 

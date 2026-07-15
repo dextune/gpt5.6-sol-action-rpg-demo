@@ -36,6 +36,8 @@ Guides for small and large agents to safely modify the **GPT-5.6: Sol / Action R
 | [plan/skill-motion-spectacle.md](./plan/skill-motion-spectacle.md) | **implemented standard: skill content, motion & spectacle** |
 | [plan/level-100-skill-evolution/README.md](./plan/level-100-skill-evolution/README.md) | **implemented active-skill evolution and completed Phase 9 acceptance; deferred scope remains explicit** |
 | [plan/weapon-enhancement-gold-progression.md](./plan/weapon-enhancement-gold-progression.md) | **implemented gold-primary loot with survival potions, one signature weapon, and two enhancement tracks** |
+| [plan/weapon-visual-scale-detail.md](./plan/weapon-visual-scale-detail.md) | **plan: global 1.5× weapon visual scale + optional mesh detail (hit range independent)** |
+| [plan/monster-variety-hunt-defense.md](./plan/monster-variety-hunt-defense.md) | **plan: Hunt/Defense monster variety — roles, bestiary growth, affixes, wave recipes, visuals** |
 
 ## Agent working rules (summary)
 

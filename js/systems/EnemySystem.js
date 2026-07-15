@@ -1,10 +1,18 @@
 import * as THREE from 'three';
 import { GAME_CONFIG, HORDE_CONFIG } from '../config.js';
-import { ENEMY_TYPES, ZONES, ZONE_BOSSES, ZONE_SPAWNS } from '../data/content.js';
+import {
+  ELITE_AFFIXES, ENEMY_TYPES, ZONES, ZONE_BOSSES, ZONE_SPAWNS, enemiesByZoneRole,
+} from '../data/content.js';
 import { chance, clamp, rand, randInt, weightedPick } from '../core/Utils.js';
 import { Enemy } from '../entities/Enemy.js';
 
 const TMP = new THREE.Vector3();
+
+/** Roles preferred as pack "alpha" vs fodder fill. */
+const PACK_ALPHA_ROLES = Object.freeze(['frontline', 'bruiser', 'rusher']);
+const PACK_FILL_ROLES = Object.freeze(['fodder_swarm', 'skirmisher', 'bruiser']);
+const PACK_RANGED_ROLES = Object.freeze(['glass_ranged', 'artillery', 'controller']);
+const HUNT_ARTILLERY_CAP = 3;
 
 export class EnemySystem {
   constructor(game) {
@@ -13,6 +21,8 @@ export class EnemySystem {
     this.spawnTimer = .2;
     this.separationTimer = 0;
     this.spawnedByZone = Object.fromEntries(Object.keys(ZONES).map(id => [id, 0]));
+    /** Cap summoning-affix spawns per short window. */
+    this.summonBudget = 0;
   }
 
   get activeBoss() {
@@ -28,6 +38,7 @@ export class EnemySystem {
   update(delta) {
     this.spawnTimer -= delta;
     this.separationTimer -= delta;
+    this.summonBudget = Math.max(0, this.summonBudget - delta * 0.35);
 
     const defenseMode = this.game.mode === 'defense';
 
@@ -74,7 +85,7 @@ export class EnemySystem {
     const world = this.game.world;
     const position = world.randomSpawnAround(player.position, GAME_CONFIG.spawnInnerRadius, GAME_CONFIG.spawnOuterRadius);
     const zone = world.zoneAt(position.x, position.z);
-    const entries = ZONE_SPAWNS[zone.id] ?? ZONE_SPAWNS.verdant;
+    const entries = this.#huntSpawnEntries(zone.id);
     const typeId = weightedPick(entries);
     const data = ENEMY_TYPES[typeId];
     if (!data) return null;
@@ -84,10 +95,36 @@ export class EnemySystem {
     const level = Math.max(levelFloor, adaptive);
     const eliteChance = clamp(.045 + player.luck * .65 + this.game.hunt.worldTier * .006, .045, .26);
     const elite = chance(eliteChance) && this.enemies.filter(enemy => enemy.elite && enemy.alive).length < 7;
-    const eliteAffix = elite ? this.rollEliteAffix() : null;
+    const eliteAffix = elite ? this.rollEliteAffix(zone.id) : null;
     // ~70% fodder; elites/bosses never fodder (enforced in Enemy + here).
     const fodder = !elite && !data.boss && chance(HORDE_CONFIG.fodderRatio);
     return this.spawn(data, position, { level, elite, eliteAffix, fodder });
+  }
+
+  /** Soft artillery/support cap so Hunt backline does not stack unfairly. */
+  #huntSpawnEntries(zoneId) {
+    const base = ZONE_SPAWNS[zoneId] ?? ZONE_SPAWNS.verdant;
+    const livingArtillery = this.enemies.filter(
+      e => e.alive && !e.boss && (e.data.role === 'artillery' || e.data.role === 'controller'),
+    ).length;
+    if (livingArtillery < HUNT_ARTILLERY_CAP) return base;
+    const filtered = base.filter(entry => {
+      const data = ENEMY_TYPES[entry.id];
+      return data && data.role !== 'artillery' && data.role !== 'controller';
+    });
+    return filtered.length ? filtered : base;
+  }
+
+  #pickByRoles(zoneId, roles, fallbackEntries) {
+    for (const role of roles) {
+      const pool = enemiesByZoneRole(zoneId, role);
+      if (!pool.length) continue;
+      const weighted = pool.map(e => ({ id: e.id, weight: e.weight * (e.defenseWeight ?? 1) }));
+      const id = weightedPick(weighted);
+      if (id && ENEMY_TYPES[id]) return ENEMY_TYPES[id];
+    }
+    const typeId = weightedPick(fallbackEntries);
+    return ENEMY_TYPES[typeId] ?? null;
   }
 
   /**
@@ -117,17 +154,15 @@ export class EnemySystem {
 
     const zone = world.zoneAt(center.x, center.z);
     const entries = ZONE_SPAWNS[zone.id] ?? ZONE_SPAWNS.verdant;
-    let data = typeof typeOrData === 'string'
+    let alpha = typeof typeOrData === 'string'
       ? ENEMY_TYPES[typeOrData]
       : typeOrData;
-    if (!data) {
-      const typeId = weightedPick(entries);
-      data = ENEMY_TYPES[typeId];
-    }
-    if (!data || data.boss) return [];
+    // Role-aware pack: 1 alpha (frontline/bruiser/rusher) + fodder fills + optional ranged.
+    if (!alpha) alpha = this.#pickByRoles(zone.id, PACK_ALPHA_ROLES, entries);
+    if (!alpha || alpha.boss) return [];
 
     // Brief ring telegraph at pack origin.
-    const accent = data.accent ?? 0xff5d72;
+    const accent = alpha.accent ?? 0xff5d72;
     this.game.effects?.ring?.(center, accent, 2.8, {
       life: HORDE_CONFIG.packTelegraphSec,
       startScale: 0.12,
@@ -135,9 +170,13 @@ export class EnemySystem {
       opacity: 0.55,
     });
 
-    const levelFloor = Math.max(data.level, zone.minLevel ?? 1);
+    const levelFloor = Math.max(alpha.level, zone.minLevel ?? 1);
     const adaptive = player.level + randInt(-3, 2) + Math.max(0, this.game.hunt.worldTier - 1) * 2;
     const level = Math.max(levelFloor, adaptive);
+    const includeRanged = size >= 4 && chance(0.45);
+    const rangedData = includeRanged
+      ? this.#pickByRoles(zone.id, PACK_RANGED_ROLES, entries)
+      : null;
 
     const spawned = [];
     for (let i = 0; i < size; i += 1) {
@@ -150,18 +189,32 @@ export class EnemySystem {
         center.z + Math.sin(angle) * dist,
       );
       world.resolvePosition(pos, .55);
-      // Packs are always fodder clusters (never elite).
-      const enemy = this.spawn(data, pos, { level, elite: false, fodder: true });
+      let data = alpha;
+      if (i === 0) data = alpha;
+      else if (rangedData && i === size - 1) data = rangedData;
+      else data = this.#pickByRoles(zone.id, PACK_FILL_ROLES, entries) ?? alpha;
+      // Packs are always fodder clusters (never elite); alpha may be non-fodder silhouette.
+      const fodder = i > 0 || data.role === 'fodder_swarm';
+      const enemy = this.spawn(data, pos, { level, elite: false, fodder });
       if (enemy) spawned.push(enemy);
     }
     return spawned;
   }
 
-  rollEliteAffix() {
-    const roll = Math.random();
-    if (roll < 0.34) return 'shielded';
-    if (roll < 0.67) return 'enraged';
-    return 'volatile';
+  rollEliteAffix(zoneId = null) {
+    const pool = ELITE_AFFIXES.filter(a => {
+      if (!a.zones?.length) return true;
+      return zoneId && a.zones.includes(zoneId);
+    });
+    const list = pool.length ? pool : ELITE_AFFIXES;
+    const weighted = list.map(a => ({ id: a.id, weight: a.weight ?? 1 }));
+    return weightedPick(weighted) ?? 'enraged';
+  }
+
+  /** Label helper for elite notifications / HUD. */
+  eliteAffixLabel(affixId) {
+    return ELITE_AFFIXES.find(a => a.id === affixId)?.label
+      ?? (affixId ? affixId[0].toUpperCase() + affixId.slice(1) : '');
   }
 
   populate(count = 48) {
@@ -195,14 +248,18 @@ export class EnemySystem {
     this.enemies.push(enemy);
     this.spawnedByZone[data.zone] = (this.spawnedByZone[data.zone] ?? 0) + 1;
     if (enemy.elite) {
-      const accent = enemy.eliteAffix === 'shielded' ? 0x7ad8ff
-        : enemy.eliteAffix === 'volatile' ? 0xff9040
-          : 0xffd66b;
+      const accent = enemy.eliteAffix === 'shielded' || enemy.eliteAffix === 'frostbitten' ? 0x7ad8ff
+        : enemy.eliteAffix === 'volatile' || enemy.eliteAffix === 'molten' ? 0xff9040
+          : enemy.eliteAffix === 'arcane' || enemy.eliteAffix === 'summoning' ? 0xc184ff
+            : enemy.eliteAffix === 'hasted' ? 0x7affc8
+              : enemy.eliteAffix === 'fortified' ? 0xc0b090
+                : enemy.eliteAffix === 'vampiric' ? 0xff6080
+                  : 0xffd66b;
       this.game.effects.pillar(enemy.position, accent, 4.2, { life: .5, bottom: .55 });
       this.game.effects.ring(enemy.position, accent, 2.3, { life: .48 });
       if (enemy.eliteAffix) {
         this.game.ui?.notify?.(
-          `Elite · ${enemy.eliteAffix === 'shielded' ? 'Shielded' : enemy.eliteAffix === 'enraged' ? 'Enraged' : 'Volatile'} ${enemy.data.name}`,
+          `Elite · ${this.eliteAffixLabel(enemy.eliteAffix)} ${enemy.data.name}`,
           'uncommon',
           2.4,
         );

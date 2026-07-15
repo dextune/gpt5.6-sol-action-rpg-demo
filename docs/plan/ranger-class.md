@@ -195,7 +195,7 @@ If C feels weak for an “ultimate” slot, alternate C: **`sky_volley`** (AoE r
 |----------|----------------------------------------|---------|
 | `eagle_eye` | `{ crit: … }` or attack | Precision |
 | `fleet_foot` | `{ haste: … }` or moveSpeed if supported | Kiting |
-| `barbed_tips` | `{ skillPower }` or `dotPower` | Bleed on skills |
+| `strafe` (L5) | Basic attack → 10-arrow auto-aim volley; ranks scale arrow mult | Amazon Strafe style |
 | `scavenger` | `{ gold: …, luck: … }` | Hunter loot |
 | `predator` | `{ execute: … }` or statusCrit | Low-HP / marked bonus |
 

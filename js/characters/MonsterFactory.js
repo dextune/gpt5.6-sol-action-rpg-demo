@@ -3,11 +3,11 @@ import { CharacterAnimationController } from './CharacterAnimationController.js'
 import { convertToStylized, inferMaterialRole } from '../graphics/StylizedMaterial.js';
 
 const SHAPE_ARCHETYPE = Object.freeze({
-  blob: 'slime', plant: 'slime', beetle: 'slime', crab: 'slime',
-  // Hare stays light/skirmish; raptor/harpy use taller lean read via scale in create().
-  hare: 'hare', raptor: 'hare', harpy: 'hare',
+  blob: 'slime', plant: 'slime', beetle: 'slime', crab: 'slime', toad: 'slime',
+  // Hare stays light/skirmish; raptor/harpy/owl use taller lean read via scale in create().
+  hare: 'hare', raptor: 'hare', harpy: 'hare', owl: 'hare', fox: 'hare',
   // Pack hunters use boar mesh but get longer scale + crest kits below.
-  boar: 'boar', wolf: 'boar', lizard: 'boar', panther: 'boar', stag: 'boar',
+  boar: 'boar', wolf: 'boar', lizard: 'boar', panther: 'boar', stag: 'boar', asp: 'boar',
   wisp: 'wisp', imp: 'wisp',
   raider: 'humanoid', shaman: 'humanoid', knight: 'humanoid', cyclops: 'humanoid',
   golem: 'colossus', colossus: 'colossus', drake: 'colossus', scorpion: 'colossus',
@@ -18,6 +18,7 @@ const SHAPE_SCALE = Object.freeze({
   wolf: 1.08, panther: 1.05, stag: 1.18, lizard: 0.95, raptor: 1.12,
   harpy: 0.92, plant: 0.88, beetle: 0.82, crab: 1.05, imp: 0.78,
   cyclops: 1.15, drake: 1.22, scorpion: 1.12, golem: 1.08,
+  toad: 1.12, fox: 0.95, owl: 1.0, asp: 1.05,
 });
 
 function makeHealthBar(height, elite, boss) {
@@ -72,6 +73,43 @@ function addEliteDetails(group, accent, boss, archetype) {
     ring.rotation.x = Math.PI / 2;
     ring.position.y = boss ? .25 : .15;
     head.add(ring);
+  }
+  // Archetype ornament kits — extra silhouette for champions without new GLBs.
+  if (archetype === 'colossus' || boss) {
+    for (const side of [-1, 1]) {
+      const pad = new THREE.Mesh(
+        new THREE.BoxGeometry(boss ? .42 : .28, boss ? .18 : .12, boss ? .55 : .36),
+        material,
+      );
+      pad.name = `elite_shoulder_${side > 0 ? 'r' : 'l'}`;
+      pad.position.set(side * (boss ? .55 : .38), boss ? -.05 : -.12, 0.05);
+      pad.rotation.z = side * 0.25;
+      pad.castShadow = true;
+      head.add(pad);
+    }
+  }
+  if (archetype === 'boar' || archetype === 'hare') {
+    for (let i = 0; i < (boss ? 4 : 2); i += 1) {
+      const spike = new THREE.Mesh(
+        new THREE.ConeGeometry(boss ? .07 : .05, boss ? .32 : .22, 5),
+        material,
+      );
+      spike.name = `elite_backspike_${i}`;
+      spike.position.set((i % 2 ? -1 : 1) * 0.12, -0.08 - i * 0.05, -0.15 - i * 0.08);
+      spike.rotation.x = -0.9;
+      spike.castShadow = true;
+      head.add(spike);
+    }
+  }
+  if (archetype === 'slime') {
+    const frill = new THREE.Mesh(
+      new THREE.TorusGeometry(boss ? .55 : .38, .04, 6, 20, Math.PI * 1.4),
+      material,
+    );
+    frill.name = 'elite_slime_frill';
+    frill.position.set(0, -0.05, 0.1);
+    frill.rotation.x = 0.4;
+    head.add(frill);
   }
 }
 

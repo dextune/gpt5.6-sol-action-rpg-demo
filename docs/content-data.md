@@ -29,13 +29,20 @@ Helper `enemy(id, name, zone, shape, level, hp, damage, defense, speed, range, x
 |-------|-------------|
 | `shape` | `MonsterFactory` / `ModelFactory` body key (blob, hare, boar, …) |
 | `ai` | `melee` `ranged` `caster` `charge` `leap` `pack` `boss` etc. → `Enemy.#combatAI` |
+| `role` | Taxonomy for Hunt packs / Defense recipes (`fodder_swarm`, `frontline`, `bruiser`, `rusher`, `skirmisher`, `glass_ranged`, `artillery`, `controller`, `support`, `zone_boss`) |
+| `family` | Optional biome family tag for presentation grouping |
 | `boss: true` | Zone boss, excluded from spawn pool |
-| `weight` | Weighted spawn |
-| `special` | Boss special skill id (`roots`, `stampede`, …) → `CombatSystem.enemyBossSpecial` |
+| `weight` | Weighted spawn (Hunt) |
+| `defenseWeight` | Optional extra weight bias for Defense picks |
+| `special` | Boss special (`roots`, …) or light normal specials (`slow_bolt`, `aura_armor`) |
 | `color` / `accent` / `eye` | Visuals |
 | `scale` | Mesh scale |
 
 `ZONE_SPAWNS` / `ZONE_BOSSES` are **auto-generated** from `ENEMY_TYPES`. Just set `boss: true` correctly for bosses.
+
+**Defense composition:** `DEFENSE_WAVE_ROLE_RECIPES` + `defenseRecipeForWave(wave)` drive role quotas.  
+**Elite affixes:** `ELITE_AFFIXES` (shielded, enraged, volatile, hasted, fortified, arcane, frostbitten, molten, vampiric, summoning).  
+See [plan/monster-variety-hunt-defense.md](./plan/monster-variety-hunt-defense.md).
 
 ## Rarities `RARITIES`
 
@@ -102,7 +109,8 @@ Kill count thresholds → display name. Used by `HuntSystem` / UI.
 - [ ] No duplicate ids
 - [ ] zone id matches `ZONES` key
 - [ ] shape maps to `MonsterFactory` `SHAPE_ARCHETYPE`
-- [ ] 1 boss per 6 zones (`tests/integrity.mjs` validates)
+- [ ] 1 boss per zone; ≥10 normals per zone (`tests/integrity.mjs` validates)
+- [ ] every row has `role` ∈ `ENEMY_ROLES`
 - [ ] Skill unlockLevel matches HUD lock display
 
 ## Application: zone level curve design

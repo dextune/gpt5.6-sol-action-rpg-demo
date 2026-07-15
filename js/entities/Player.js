@@ -235,7 +235,13 @@ export class Player {
   get moveSpeed() {
     const runMove = this.runMods?.moveSpeed ?? 0;
     const frenzyMove = this.shadowFrenzy?.active ? this.shadowFrenzy.moveHaste : 0;
-    return PLAYER_CONFIG.moveSpeed * (1 + this.passiveEffects.moveSpeed + runMove + frenzyMove) + this.equipmentStats.moveSpeed;
+    const slowMul = (this.debuffSlow ?? 0) > 0 ? 0.72 : 1;
+    return (PLAYER_CONFIG.moveSpeed * (1 + this.passiveEffects.moveSpeed + runMove + frenzyMove) + this.equipmentStats.moveSpeed) * slowMul;
+  }
+
+  /** Soft crowd-control slow from enemy controllers / frostbitten elites. */
+  applySlow(duration = 1.2) {
+    this.debuffSlow = Math.max(this.debuffSlow ?? 0, duration);
   }
   get frenzyActive() { return Boolean(this.shadowFrenzy?.active && this.shadowFrenzy.remaining > 0); }
   get frenzyRatio() { return this.frenzyActive ? clamp(this.shadowFrenzy.remaining / this.shadowFrenzy.duration, 0, 1) : 0; }
@@ -390,6 +396,7 @@ export class Player {
     this.castTimer = Math.max(0, this.castTimer - delta);
     this.hitTimer = Math.max(0, this.hitTimer - delta);
     this.attackLunge = Math.max(0, this.attackLunge - delta);
+    this.debuffSlow = Math.max(0, (this.debuffSlow ?? 0) - delta);
     if (this.shadowFrenzy?.active) {
       this.shadowFrenzy.remaining = Math.max(0, this.shadowFrenzy.remaining - delta);
       if (this.shadowFrenzy.remaining <= 0) {

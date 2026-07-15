@@ -14,13 +14,16 @@ Runtime: `MonsterFactory.create` → `cloneModel('monster.' + archetype)`. On GL
 Archetype mapping (`MonsterFactory.js` `SHAPE_ARCHETYPE`):
 
 ```
-blob/plant/beetle/crab → slime
-hare/raptor/harpy      → hare
-boar/wolf/lizard/panther/stag → boar
-wisp/imp               → wisp
-raider/shaman/knight/cyclops  → humanoid
+blob/plant/beetle/crab/toad → slime
+hare/raptor/harpy/owl/fox   → hare
+boar/wolf/lizard/panther/stag/asp → boar
+wisp/imp                    → wisp
+raider/shaman/knight/cyclops → humanoid
 golem/colossus/drake/scorpion → colossus
 ```
+
+**New procedural silhouettes** (fallback + shape key): `toad`, `fox`, `owl`, `asp` in `ModelFactory` builders.  
+**Elite ornament kits:** horns/halo plus archetype shoulders (colossus), backspikes (boar/hare), slime frill.
 
 ## Quick visual change (data only, recommended)
 

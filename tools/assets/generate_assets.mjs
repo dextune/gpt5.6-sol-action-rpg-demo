@@ -522,29 +522,259 @@ const HERO_SHARED_CLIPS = Object.freeze([
   'idle', 'run', 'sprint', 'dodge', 'hit', 'death',
 ]);
 
-function heroAnimations(skeletonInfo, profileId = null) {
-  const F = (time, rotations = {}, positions = {}, scales = {}) => ({ time, rotations, positions, scales });
-  const clips = [];
-  clips.push(animationClip('idle', 1.6, [
-    F(0, { chest: [.015, 0, 0], head: [0, -.025, 0], left_upper_arm: [.03, 0, .08], right_upper_arm: [.03, 0, -.08], cape_root: [.08, 0, 0], hair_root: [-.02, 0, 0] }, { pelvis: [0, 0, 0] }),
-    F(.8, { chest: [-.02, .02, 0], head: [.015, .03, 0], left_upper_arm: [-.02, 0, .075], right_upper_arm: [-.02, 0, -.075], cape_root: [.13, .015, 0], hair_root: [.035, 0, 0] }, { pelvis: [0, .025, 0] }),
-    F(1.6, { chest: [.015, 0, 0], head: [0, -.025, 0], left_upper_arm: [.03, 0, .08], right_upper_arm: [.03, 0, -.08], cape_root: [.08, 0, 0], hair_root: [-.02, 0, 0] }, { pelvis: [0, 0, 0] }),
-  ], skeletonInfo));
-  clips.push(animationClip('run', .72, [
-    F(0, { chest: [-.10, 0, -.03], spine: [-.05, 0, .04], left_upper_arm: [.62, 0, .08], right_upper_arm: [-.62, 0, -.08], left_upper_leg: [-.72, 0, 0], right_upper_leg: [.72, 0, 0], left_lower_leg: [.35, 0, 0], right_lower_leg: [.9, 0, 0], cape_root: [.38, 0, 0], hair_root: [.12, 0, 0] }, { pelvis: [0, .02, 0] }),
-    F(.18, { chest: [-.12, 0, .035], spine: [-.05, 0, -.04], left_upper_arm: [0, 0, .08], right_upper_arm: [0, 0, -.08], left_upper_leg: [-.1, 0, 0], right_upper_leg: [.1, 0, 0], left_lower_leg: [.85, 0, 0], right_lower_leg: [.35, 0, 0], cape_root: [.48, .02, 0], hair_root: [.16, 0, 0] }, { pelvis: [0, .09, 0] }),
-    F(.36, { chest: [-.10, 0, .03], spine: [-.05, 0, -.04], left_upper_arm: [-.62, 0, .08], right_upper_arm: [.62, 0, -.08], left_upper_leg: [.72, 0, 0], right_upper_leg: [-.72, 0, 0], left_lower_leg: [.9, 0, 0], right_lower_leg: [.35, 0, 0], cape_root: [.4, 0, 0], hair_root: [.12, 0, 0] }, { pelvis: [0, .02, 0] }),
-    F(.54, { chest: [-.12, 0, -.035], spine: [-.05, 0, .04], left_upper_arm: [0, 0, .08], right_upper_arm: [0, 0, -.08], left_upper_leg: [.1, 0, 0], right_upper_leg: [-.1, 0, 0], left_lower_leg: [.35, 0, 0], right_lower_leg: [.85, 0, 0], cape_root: [.48, -.02, 0], hair_root: [.16, 0, 0] }, { pelvis: [0, .09, 0] }),
-    F(.72, { chest: [-.10, 0, -.03], spine: [-.05, 0, .04], left_upper_arm: [.62, 0, .08], right_upper_arm: [-.62, 0, -.08], left_upper_leg: [-.72, 0, 0], right_upper_leg: [.72, 0, 0], left_lower_leg: [.35, 0, 0], right_lower_leg: [.9, 0, 0], cape_root: [.38, 0, 0], hair_root: [.12, 0, 0] }, { pelvis: [0, .02, 0] }),
-  ], skeletonInfo));
-  clips.push(animationClip('sprint', .56, [
-    F(0, { chest: [-.23, 0, -.06], spine: [-.12, 0, .06], left_upper_arm: [.86, 0, .1], right_upper_arm: [-.9, 0, -.1], left_upper_leg: [-.9, 0, 0], right_upper_leg: [.92, 0, 0], left_lower_leg: [.45, 0, 0], right_lower_leg: [1.1, 0, 0], cape_root: [.72, 0, 0], hair_root: [.28, 0, 0] }, { pelvis: [0, .02, 0] }),
-    F(.14, { chest: [-.25, 0, .04], spine: [-.13, 0, -.05], left_upper_arm: [0, 0, .1], right_upper_arm: [0, 0, -.1], left_upper_leg: [-.12, 0, 0], right_upper_leg: [.12, 0, 0], left_lower_leg: [1.05, 0, 0], right_lower_leg: [.4, 0, 0], cape_root: [.82, .04, 0], hair_root: [.33, 0, 0] }, { pelvis: [0, .13, 0] }),
-    F(.28, { chest: [-.23, 0, .06], spine: [-.12, 0, -.06], left_upper_arm: [-.9, 0, .1], right_upper_arm: [.86, 0, -.1], left_upper_leg: [.92, 0, 0], right_upper_leg: [-.9, 0, 0], left_lower_leg: [1.1, 0, 0], right_lower_leg: [.45, 0, 0], cape_root: [.72, 0, 0], hair_root: [.28, 0, 0] }, { pelvis: [0, .02, 0] }),
-    F(.42, { chest: [-.25, 0, -.04], spine: [-.13, 0, .05], left_upper_arm: [0, 0, .1], right_upper_arm: [0, 0, -.1], left_upper_leg: [.12, 0, 0], right_upper_leg: [-.12, 0, 0], left_lower_leg: [.4, 0, 0], right_lower_leg: [1.05, 0, 0], cape_root: [.82, -.04, 0], hair_root: [.33, 0, 0] }, { pelvis: [0, .13, 0] }),
-    F(.56, { chest: [-.23, 0, -.06], spine: [-.12, 0, .06], left_upper_arm: [.86, 0, .1], right_upper_arm: [-.9, 0, -.1], left_upper_leg: [-.9, 0, 0], right_upper_leg: [.92, 0, 0], left_lower_leg: [.45, 0, 0], right_lower_leg: [1.1, 0, 0], cape_root: [.72, 0, 0], hair_root: [.28, 0, 0] }, { pelvis: [0, .02, 0] }),
-  ], skeletonInfo));
+/**
+ * Per-class weapon-ready hold poses.
+ * Only rogue uses a custom dual-wield crouch; other classes keep the shared legacy pose.
+ */
+function classWeaponHold(profileId = 'aerin') {
+  if (profileId === 'rogue') {
+    return {
+      idleDuration: 1.45,
+      idle: {
+        a: {
+          pelvis: [.08, -.12, 0],
+          spine: [-.12, -.08, .05],
+          chest: [-.16, -.1, -.04],
+          neck: [.06, .05, 0],
+          head: [.05, .08, -.02],
+          left_upper_arm: [-.55, .32, .55],
+          left_lower_arm: [-1.28, .12, .28],
+          left_hand: [.15, .22, .18],
+          right_upper_arm: [-.55, -.32, -.55],
+          right_lower_arm: [-1.28, -.12, -.28],
+          right_hand: [.15, -.22, -.18],
+          left_upper_leg: [.28, .08, .1],
+          left_lower_leg: [.42, 0, 0],
+          left_foot: [-.12, 0, .04],
+          right_upper_leg: [-.1, -.12, -.12],
+          right_lower_leg: [.55, 0, 0],
+          right_foot: [-.08, 0, -.02],
+          cape_root: [.12, 0, 0],
+          hair_root: [-.03, 0, 0],
+        },
+        b: {
+          pelvis: [.07, -.1, 0],
+          spine: [-.11, -.06, .04],
+          chest: [-.14, -.08, -.03],
+          neck: [.04, .04, 0],
+          head: [.03, .06, -.015],
+          left_upper_arm: [-.52, .3, .52],
+          left_lower_arm: [-1.22, .1, .26],
+          left_hand: [.14, .2, .16],
+          right_upper_arm: [-.52, -.3, -.52],
+          right_lower_arm: [-1.22, -.1, -.26],
+          right_hand: [.14, -.2, -.16],
+          left_upper_leg: [.26, .08, .1],
+          left_lower_leg: [.4, 0, 0],
+          left_foot: [-.1, 0, .04],
+          right_upper_leg: [-.08, -.12, -.12],
+          right_lower_leg: [.52, 0, 0],
+          right_foot: [-.07, 0, -.02],
+          cape_root: [.16, .02, 0],
+          hair_root: [.04, 0, 0],
+        },
+        bob: [0, -.04, .02],
+        bobMid: [0, -.025, .03],
+      },
+      runArms: (phase) => {
+        const pump = Math.sin(phase * Math.PI * 2) * .14;
+        return {
+          spine: [-.12, -.05, pump * .25],
+          chest: [-.16, -.06, -.03 + pump * .2],
+          left_upper_arm: [-.48 + pump * .15, .28, .48],
+          left_lower_arm: [-1.15, .08, .22],
+          left_hand: [.12, .16, .12],
+          right_upper_arm: [-.48 - pump * .15, -.28, -.48],
+          right_lower_arm: [-1.15, -.08, -.22],
+          right_hand: [.12, -.16, -.12],
+          cape_root: [.4, pump * .1, 0],
+          hair_root: [.12, 0, 0],
+        };
+      },
+      sprintArms: (phase) => {
+        const pump = Math.sin(phase * Math.PI * 2) * .18;
+        return {
+          spine: [-.16, -.04, pump * .3],
+          chest: [-.22, -.05, -.04 + pump * .25],
+          left_upper_arm: [-.42 + pump * .18, .24, .42],
+          left_lower_arm: [-1.05, .06, .18],
+          left_hand: [.1, .12, .1],
+          right_upper_arm: [-.42 - pump * .18, -.24, -.42],
+          right_lower_arm: [-1.05, -.06, -.18],
+          right_hand: [.1, -.12, -.1],
+          cape_root: [.68, pump * .12, 0],
+          hair_root: [.26, 0, 0],
+        };
+      },
+    };
+  }
+  // Shared legacy idle / locomotion arms (pre class-pose pass).
+  return {
+    idleDuration: 1.6,
+    idle: {
+      a: {
+        chest: [.015, 0, 0],
+        head: [0, -.025, 0],
+        left_upper_arm: [.03, 0, .08],
+        right_upper_arm: [.03, 0, -.08],
+        cape_root: [.08, 0, 0],
+        hair_root: [-.02, 0, 0],
+      },
+      b: {
+        chest: [-.02, .02, 0],
+        head: [.015, .03, 0],
+        left_upper_arm: [-.02, 0, .075],
+        right_upper_arm: [-.02, 0, -.075],
+        cape_root: [.13, .015, 0],
+        hair_root: [.035, 0, 0],
+      },
+      bob: [0, 0, 0],
+      bobMid: [0, .025, 0],
+    },
+    runArms: null,
+    sprintArms: null,
+  };
+}
 
+function buildClassIdleClip(skeletonInfo, profileId, F) {
+  const hold = classWeaponHold(profileId);
+  const d = hold.idleDuration;
+  const mid = d * .5;
+  const { a, b, bob, bobMid } = hold.idle;
+  return animationClip('idle', d, [
+    F(0, { ...a }, { pelvis: bob }),
+    F(mid, { ...b }, { pelvis: bobMid }),
+    F(d, { ...a }, { pelvis: bob }),
+  ], skeletonInfo);
+}
+
+function buildClassRunClip(skeletonInfo, profileId, F) {
+  const hold = classWeaponHold(profileId);
+  const d = .72;
+  const legs = [
+    { t: 0, rot: { left_upper_leg: [-.72, 0, 0], right_upper_leg: [.72, 0, 0], left_lower_leg: [.35, 0, 0], right_lower_leg: [.9, 0, 0] }, pos: [0, .02, 0],
+      arms: { chest: [-.10, 0, -.03], spine: [-.05, 0, .04], left_upper_arm: [.62, 0, .08], right_upper_arm: [-.62, 0, -.08], cape_root: [.38, 0, 0], hair_root: [.12, 0, 0] } },
+    { t: .18, rot: { left_upper_leg: [-.1, 0, 0], right_upper_leg: [.1, 0, 0], left_lower_leg: [.85, 0, 0], right_lower_leg: [.35, 0, 0] }, pos: [0, .09, 0],
+      arms: { chest: [-.12, 0, .035], spine: [-.05, 0, -.04], left_upper_arm: [0, 0, .08], right_upper_arm: [0, 0, -.08], cape_root: [.48, .02, 0], hair_root: [.16, 0, 0] } },
+    { t: .36, rot: { left_upper_leg: [.72, 0, 0], right_upper_leg: [-.72, 0, 0], left_lower_leg: [.9, 0, 0], right_lower_leg: [.35, 0, 0] }, pos: [0, .02, 0],
+      arms: { chest: [-.10, 0, .03], spine: [-.05, 0, -.04], left_upper_arm: [-.62, 0, .08], right_upper_arm: [.62, 0, -.08], cape_root: [.4, 0, 0], hair_root: [.12, 0, 0] } },
+    { t: .54, rot: { left_upper_leg: [.1, 0, 0], right_upper_leg: [-.1, 0, 0], left_lower_leg: [.35, 0, 0], right_lower_leg: [.85, 0, 0] }, pos: [0, .09, 0],
+      arms: { chest: [-.12, 0, -.035], spine: [-.05, 0, .04], left_upper_arm: [0, 0, .08], right_upper_arm: [0, 0, -.08], cape_root: [.48, -.02, 0], hair_root: [.16, 0, 0] } },
+    { t: .72, rot: { left_upper_leg: [-.72, 0, 0], right_upper_leg: [.72, 0, 0], left_lower_leg: [.35, 0, 0], right_lower_leg: [.9, 0, 0] }, pos: [0, .02, 0],
+      arms: { chest: [-.10, 0, -.03], spine: [-.05, 0, .04], left_upper_arm: [.62, 0, .08], right_upper_arm: [-.62, 0, -.08], cape_root: [.38, 0, 0], hair_root: [.12, 0, 0] } },
+  ];
+  return animationClip('run', d, legs.map(frame => {
+    const phase = frame.t / d;
+    const upper = typeof hold.runArms === 'function' ? hold.runArms(phase) : frame.arms;
+    return F(frame.t, { ...frame.rot, ...upper }, { pelvis: frame.pos });
+  }), skeletonInfo);
+}
+
+function buildClassSprintClip(skeletonInfo, profileId, F) {
+  const hold = classWeaponHold(profileId);
+  const d = .56;
+  const legs = [
+    { t: 0, rot: { left_upper_leg: [-.9, 0, 0], right_upper_leg: [.92, 0, 0], left_lower_leg: [.45, 0, 0], right_lower_leg: [1.1, 0, 0] }, pos: [0, .02, 0],
+      arms: { chest: [-.23, 0, -.06], spine: [-.12, 0, .06], left_upper_arm: [.86, 0, .1], right_upper_arm: [-.9, 0, -.1], cape_root: [.72, 0, 0], hair_root: [.28, 0, 0] } },
+    { t: .14, rot: { left_upper_leg: [-.12, 0, 0], right_upper_leg: [.12, 0, 0], left_lower_leg: [1.05, 0, 0], right_lower_leg: [.4, 0, 0] }, pos: [0, .13, 0],
+      arms: { chest: [-.25, 0, .04], spine: [-.13, 0, -.05], left_upper_arm: [0, 0, .1], right_upper_arm: [0, 0, -.1], cape_root: [.82, .04, 0], hair_root: [.33, 0, 0] } },
+    { t: .28, rot: { left_upper_leg: [.92, 0, 0], right_upper_leg: [-.9, 0, 0], left_lower_leg: [1.1, 0, 0], right_lower_leg: [.45, 0, 0] }, pos: [0, .02, 0],
+      arms: { chest: [-.23, 0, .06], spine: [-.12, 0, -.06], left_upper_arm: [-.9, 0, .1], right_upper_arm: [.86, 0, -.1], cape_root: [.72, 0, 0], hair_root: [.28, 0, 0] } },
+    { t: .42, rot: { left_upper_leg: [.12, 0, 0], right_upper_leg: [-.12, 0, 0], left_lower_leg: [.4, 0, 0], right_lower_leg: [1.05, 0, 0] }, pos: [0, .13, 0],
+      arms: { chest: [-.25, 0, -.04], spine: [-.13, 0, .05], left_upper_arm: [0, 0, .1], right_upper_arm: [0, 0, -.1], cape_root: [.82, -.04, 0], hair_root: [.33, 0, 0] } },
+    { t: .56, rot: { left_upper_leg: [-.9, 0, 0], right_upper_leg: [.92, 0, 0], left_lower_leg: [.45, 0, 0], right_lower_leg: [1.1, 0, 0] }, pos: [0, .02, 0],
+      arms: { chest: [-.23, 0, -.06], spine: [-.12, 0, .06], left_upper_arm: [.86, 0, .1], right_upper_arm: [-.9, 0, -.1], cape_root: [.72, 0, 0], hair_root: [.28, 0, 0] } },
+  ];
+  return animationClip('sprint', d, legs.map(frame => {
+    const phase = frame.t / d;
+    const upper = typeof hold.sprintArms === 'function' ? hold.sprintArms(phase) : frame.arms;
+    return F(frame.t, { ...frame.rot, ...upper }, { pelvis: frame.pos });
+  }), skeletonInfo);
+}
+
+function classRestRot(profileId) {
+  const a = classWeaponHold(profileId).idle.a;
+  return {
+    pelvis: a.pelvis ?? [0, 0, 0],
+    spine: a.spine ?? [0, 0, 0],
+    chest: a.chest ?? [0, 0, 0],
+    neck: a.neck ?? [0, 0, 0],
+    head: a.head ?? [0, 0, 0],
+    left_upper_arm: a.left_upper_arm ?? [.03, 0, .08],
+    left_lower_arm: a.left_lower_arm ?? [0, 0, 0],
+    left_hand: a.left_hand ?? [0, 0, 0],
+    right_upper_arm: a.right_upper_arm ?? [.03, 0, -.08],
+    right_lower_arm: a.right_lower_arm ?? [0, 0, 0],
+    right_hand: a.right_hand ?? [0, 0, 0],
+    left_upper_leg: a.left_upper_leg ?? [0, 0, 0],
+    left_lower_leg: a.left_lower_leg ?? [0, 0, 0],
+    left_foot: a.left_foot ?? [0, 0, 0],
+    right_upper_leg: a.right_upper_leg ?? [0, 0, 0],
+    right_lower_leg: a.right_lower_leg ?? [0, 0, 0],
+    right_foot: a.right_foot ?? [0, 0, 0],
+    cape_root: a.cape_root ?? [.12, 0, 0],
+    hair_root: a.hair_root ?? [0, 0, 0],
+  };
+}
+
+/** Rogue dual-dagger combat; other classes use shared legacy attacks/casts. */
+function buildClassCombatClipSpecs(profileId, F) {
+  const rest = classRestRot(profileId);
+  const end = (t, extra = {}) => F(t, { ...rest, ...extra }, {
+    pelvis: classWeaponHold(profileId).idle.bob ?? [0, 0, 0],
+    root: [0, 0, 0],
+  });
+
+  if (profileId === 'rogue') {
+    // Dual-dagger combos: R / L / R / X-cross / spin / twin thrust / flurry finisher.
+    return [
+      ['attack_1', .52, [
+        F(0, { ...rest, pelvis: [.08, -.15, 0], chest: [-.14, -.2, -.06], right_upper_arm: [-.7, -.45, -.5], right_lower_arm: [-1.0, -.1, -.35] }),
+        F(.12, { pelvis: [.1, -.28, 0], spine: [-.1, -.15, 0], chest: [-.2, -.45, -.12], right_upper_arm: [-1.15, -.7, -.75], right_lower_arm: [-1.2, -.15, -.55], left_upper_arm: [-.4, .25, .45], left_lower_arm: [-1.1, .1, .2], cape_root: [.25, -.08, 0] }),
+        F(.24, { pelvis: [.05, .2, 0], spine: [-.05, .25, 0], chest: [-.08, .55, .18], right_upper_arm: [-.25, .85, .55], right_lower_arm: [-.15, 0, .45], left_upper_arm: [-.5, .15, .4], left_lower_arm: [-1.15, .08, .25], cape_root: [.45, .1, 0] }),
+        end(.52),
+      ]],
+      ['attack_2', .54, [
+        F(0, { ...rest, pelvis: [.06, .12, 0], chest: [-.1, .2, .05], left_upper_arm: [-.65, .4, .55], left_lower_arm: [-1.05, .12, .3] }),
+        F(.14, { pelvis: [.08, .28, 0], spine: [-.08, .2, 0], chest: [-.18, .55, .15], left_upper_arm: [-1.1, .75, .75], left_lower_arm: [-1.15, .15, .5], right_upper_arm: [-.45, -.25, -.4], right_lower_arm: [-1.05, -.08, -.2], cape_root: [.28, .1, 0] }),
+        F(.28, { pelvis: [.04, -.22, 0], spine: [-.06, -.3, 0], chest: [-.1, -.65, -.2], left_upper_arm: [-.2, -.9, .45], left_lower_arm: [-.2, 0, .35], right_upper_arm: [-.55, -.35, -.45], cape_root: [.5, -.12, 0] }),
+        end(.54),
+      ]],
+      ['attack_3', .58, [
+        F(0, { ...rest, pelvis: [.1, -.2, 0], chest: [-.16, -.35, -.1], right_upper_arm: [-.85, -.55, -.6], right_lower_arm: [-1.15, -.12, -.4], left_upper_arm: [-.5, .3, .5] }),
+        F(.16, { pelvis: [.12, -.4, 0], spine: [-.14, -.25, 0], chest: [-.22, -.7, -.22], right_upper_arm: [-1.25, -.95, -.85], right_lower_arm: [-1.25, -.15, -.65], left_upper_arm: [-.35, .2, .4], cape_root: [.3, -.15, 0] }),
+        F(.32, { pelvis: [.05, .28, 0], spine: [-.06, .35, 0], chest: [-.06, .75, .25], right_upper_arm: [-.15, 1.05, .7], right_lower_arm: [.05, 0, .5], left_upper_arm: [-.7, -.2, .2], left_lower_arm: [-.9, 0, .15], cape_root: [.55, .14, 0] }),
+        end(.58),
+      ]],
+      ['attack_4', .7, [
+        F(0, { ...rest, pelvis: [.1, 0, 0], chest: [-.14, 0, -.05], right_upper_arm: [-.75, -.5, -.55], left_upper_arm: [-.75, .5, .55], right_lower_arm: [-1.1, 0, -.35], left_lower_arm: [-1.1, 0, .35] }),
+        F(.18, { pelvis: [.12, 0, 0], spine: [-.12, 0, 0], chest: [-.22, 0, -.08], right_upper_arm: [-1.2, -.75, -.8], left_upper_arm: [-1.2, .75, .8], right_lower_arm: [-1.25, 0, -.55], left_lower_arm: [-1.25, 0, .55], cape_root: [.35, 0, 0] }),
+        F(.36, { pelvis: [.04, 0, 0], chest: [.08, 0, .08], right_upper_arm: [-.3, 1.0, .65], left_upper_arm: [-.3, -1.0, .65], right_lower_arm: [.05, 0, .4], left_lower_arm: [.05, 0, -.4], cape_root: [.65, 0, 0] }),
+        end(.7),
+      ]],
+      ['attack_5', .72, [
+        F(0, { ...rest, pelvis: [.1, -.2, 0], chest: [-.15, -.4, -.08], right_upper_arm: [-.8, -.5, -.55], left_upper_arm: [-.8, .5, .55] }),
+        F(.18, { pelvis: [0, 1.15, 0], spine: [0, .9, 0], chest: [-.1, 1.6, .1], right_upper_arm: [-.4, 1.5, .5], left_upper_arm: [-.4, -1.4, .5], cape_root: [.75, .15, 0] }),
+        F(.4, { pelvis: [0, 2.5, 0], spine: [0, 1.9, 0], chest: [-.1, 2.9, -.12], right_upper_arm: [-.55, 2.5, -.55], left_upper_arm: [-.55, 1.3, .55], cape_root: [.95, -.15, 0] }),
+        end(.72, { pelvis: rest.pelvis }),
+      ]],
+      ['attack_6', .68, [
+        F(0, { ...rest, pelvis: [.1, -.18, 0], spine: [-.12, 0, 0], chest: [-.18, -.25, -.08], right_upper_arm: [-.9, -.35, -.5], left_upper_arm: [-.9, .35, .5], right_lower_arm: [-1.15, 0, -.3], left_lower_arm: [-1.15, 0, .3] }),
+        F(.2, { pelvis: [.12, -.35, 0], spine: [-.2, 0, 0], chest: [-.28, -.45, -.15], right_upper_arm: [-1.35, -.55, -.7], left_upper_arm: [-1.35, .55, .7], cape_root: [.4, -.1, 0] }, { pelvis: [0, -.04, .06] }),
+        F(.38, { pelvis: [.04, .15, 0], spine: [-.05, 0, 0], chest: [-.05, .5, .2], right_upper_arm: [-.2, .95, .6], left_upper_arm: [-.2, -.95, .6], right_lower_arm: [.1, 0, .4], left_lower_arm: [.1, 0, -.4], cape_root: [.6, .12, 0] }, { pelvis: [0, .02, .12] }),
+        end(.68),
+      ]],
+      ['attack_7', .82, [
+        F(0, { ...rest, pelvis: [.12, -.25, 0], spine: [-.15, -.1, 0], chest: [-.2, -.5, -.12], right_upper_arm: [-.95, -.6, -.65], left_upper_arm: [-.95, .6, .65] }),
+        F(.2, { pelvis: [.14, -.45, 0], spine: [-.22, -.2, 0], chest: [-.28, -.85, -.22], right_upper_arm: [-1.35, -1.0, -.9], left_upper_arm: [-1.35, 1.0, .9], cape_root: [.4, -.2, 0] }),
+        F(.38, { pelvis: [0, .8, 0], spine: [0, .7, 0], chest: [-.08, 1.2, .2], right_upper_arm: [-.35, 1.6, .55], left_upper_arm: [-.35, -1.5, .55], cape_root: [.75, .2, 0] }),
+        F(.55, { pelvis: [0, 1.6, 0], spine: [0, 1.3, 0], chest: [-.06, 2.0, -.1], right_upper_arm: [-.5, 2.2, -.5], left_upper_arm: [-.5, 1.0, .5], cape_root: [.9, -.15, 0] }),
+        end(.82),
+      ]],
+    ];
+  }
+
+  // Shared legacy sword / cast kit (knight + wizard/ranger fallbacks).
   const attacks = [
     ['attack_1', .58, [
       F(0, { pelvis: [0, -.18, 0], chest: [0, -.25, -.08], right_upper_arm: [-.25, -.45, -.35], right_lower_arm: [-.5, 0, -.2] }),
@@ -590,7 +820,46 @@ function heroAnimations(skeletonInfo, profileId = null) {
       F(.88, { pelvis: [0, 0, 0], spine: [0, 0, 0], chest: [0, 0, 0], right_upper_arm: [.03, 0, -.08], left_upper_arm: [.03, 0, .08], cape_root: [.12, 0, 0] }),
     ]],
   ];
-  for (const [name, duration, frames] of attacks) clips.push(animationClip(name, duration, frames, skeletonInfo));
+  const casts = [
+    ['cast_1', .55, [
+    F(0, { chest: [-.05, 0, 0], right_upper_arm: [-.4, 0, -.25], left_upper_arm: [-.35, 0, .25] }),
+    F(.18, { chest: [-.12, 0, 0], right_upper_arm: [-1.1, -.2, -.5], left_upper_arm: [-.5, .15, .35], right_lower_arm: [-.5, 0, -.2] }),
+    F(.32, { chest: [-.08, .15, .1], right_upper_arm: [-.55, .6, .45], left_upper_arm: [-.3, -.1, .2], right_lower_arm: [-.15, 0, .35] }),
+    F(.55, { chest: [0, 0, 0], right_upper_arm: [.03, 0, -.08], left_upper_arm: [.03, 0, .08], right_lower_arm: [0, 0, 0] }),
+  ]],
+    ['cast_2', .58, [
+    F(0, { right_upper_arm: [-.3, .3, .2], left_upper_arm: [-.3, -.2, .2] }),
+    F(.2, { chest: [-.1, 0, 0], right_upper_arm: [-1.2, .4, .3], left_upper_arm: [-.8, -.3, .25] }),
+    F(.35, { chest: [-.05, .2, 0], right_upper_arm: [-.4, .9, .55], left_upper_arm: [-.25, .2, .3] }),
+    F(.58, { right_upper_arm: [.03, 0, -.08], left_upper_arm: [.03, 0, .08], chest: [0, 0, 0] }),
+  ]],
+    ['cast_3', .62, [
+    F(0, { right_upper_arm: [-.6, 0, -.3], left_upper_arm: [-.6, 0, .3] }),
+    F(.22, { pelvis: [0, -.15, 0], right_upper_arm: [-1.4, 0, -.55], left_upper_arm: [-1.35, 0, .55] }),
+    F(.4, { chest: [.1, 0, 0], right_upper_arm: [-.7, .5, .2], left_upper_arm: [-.7, -.5, .2] }),
+    F(.62, { pelvis: [0, 0, 0], chest: [0, 0, 0], right_upper_arm: [.03, 0, -.08], left_upper_arm: [.03, 0, .08] }),
+  ]],
+    ['cast_4', .75, [
+    F(0, { spine: [-.1, 0, 0], right_upper_arm: [-.8, 0, -.4], left_upper_arm: [-.8, 0, .4] }),
+    F(.28, { spine: [-.2, 0, 0], chest: [-.15, 0, 0], right_upper_arm: [-1.8, 0, -.6], left_upper_arm: [-1.8, 0, .6] }, { pelvis: [0, .1, 0] }),
+    F(.48, { spine: [.05, 0, 0], right_upper_arm: [-.5, .8, .3], left_upper_arm: [-.5, -.8, .3] }),
+    F(.75, { spine: [0, 0, 0], chest: [0, 0, 0], right_upper_arm: [.03, 0, -.08], left_upper_arm: [.03, 0, .08] }, { pelvis: [0, 0, 0] }),
+  ]],
+  ];
+  return [...attacks, ...casts];
+}
+
+function heroAnimations(skeletonInfo, profileId = null) {
+  const F = (time, rotations = {}, positions = {}, scales = {}) => ({ time, rotations, positions, scales });
+  const clips = [];
+  const classId = profileId ?? 'aerin';
+  clips.push(buildClassIdleClip(skeletonInfo, classId, F));
+  clips.push(buildClassRunClip(skeletonInfo, classId, F));
+  clips.push(buildClassSprintClip(skeletonInfo, classId, F));
+
+  for (const [name, duration, frames] of buildClassCombatClipSpecs(classId, F)) {
+    clips.push(animationClip(name, duration, frames, skeletonInfo));
+  }
 
   clips.push(animationClip('dodge', .52, [
     F(0, { pelvis: [-.08, 0, 0], spine: [-.12, 0, 0], chest: [-.15, 0, 0], left_upper_arm: [.2, 0, .25], right_upper_arm: [.2, 0, -.25] }, { pelvis: [0, 0, 0] }),
@@ -753,6 +1022,8 @@ function heroAnimations(skeletonInfo, profileId = null) {
   }
   return clips;
 }
+
+/** Shared hero bake profiles — add a profile + export path for each new class. */
 
 /** Shared hero bake profiles — add a profile + export path for each new class. */
 const HERO_BAKE_PROFILES = Object.freeze({

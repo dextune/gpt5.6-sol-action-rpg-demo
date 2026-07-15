@@ -94,13 +94,25 @@
 
     <section id="hud" class="hidden" aria-label="Game HUD">
       <aside class="player-card glass-panel">
-        <div class="portrait"><span id="portrait-level">1</span></div>
+        <div class="portrait" aria-hidden="true"><span id="portrait-level">LV.1</span></div>
         <div class="player-card-body">
-          <div class="name-row"><strong id="player-name">Kai</strong><em id="hunter-title">Rookie Hunter</em></div>
-          <div class="resource-bar hp-bar"><span id="hp-fill"></span><b id="hp-text">140 / 140</b></div>
-          <div class="resource-bar mp-bar"><span id="mp-fill"></span><b id="mp-text">80 / 80</b></div>
-          <div class="resource-bar energy-bar hidden" id="energy-bar"><span id="energy-fill"></span><b id="energy-text">Energy 0 / 100</b></div>
-          <div class="xp-row"><span>EXP</span><div><i id="xp-fill"></i></div><b id="xp-text">0 / 172</b></div>
+          <div class="name-row">
+            <div class="name-stack">
+              <strong id="player-name">Kai</strong>
+              <em id="hunter-title">Rookie Hunter</em>
+            </div>
+            <span class="player-level-pill" id="player-level-text">LV.1</span>
+          </div>
+          <div class="vitals">
+            <div class="resource-bar hp-bar"><span id="hp-fill"></span><b id="hp-text">140 / 140</b></div>
+            <div class="resource-bar mp-bar"><span id="mp-fill"></span><b id="mp-text">80 / 80</b></div>
+            <div class="resource-bar energy-bar hidden" id="energy-bar"><span id="energy-fill"></span><b id="energy-text">Energy 0 / 100</b></div>
+            <div class="xp-row" aria-label="Experience">
+              <span>EXP</span>
+              <div class="xp-track"><i id="xp-fill"></i></div>
+              <b id="xp-text">0 / 172</b>
+            </div>
+          </div>
         </div>
       </aside>
 

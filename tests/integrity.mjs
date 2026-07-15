@@ -39,9 +39,23 @@ const bosses = enemies.filter(enemy => enemy.boss);
 const shapes = new Set(enemies.map(enemy => enemy.shape));
 
 ok(zones.length === 6, '6 ecological zones');
-ok(enemies.length === 42, '42 monster types');
+ok(enemies.length >= 78, `monster roster expanded (${enemies.length} types)`);
 ok(bosses.length === 6, '6 zone bosses');
-ok(shapes.size === 22, '22 monster body shapes');
+const miniBosses = enemies.filter(e => e.miniBoss);
+ok(miniBosses.length === 6, `6 zone mini-bosses (got ${miniBosses.length})`);
+ok(shapes.size >= 26, `monster body shapes expanded (${shapes.size})`);
+for (const shape of ['toad', 'fox', 'owl', 'asp']) {
+  ok(shapes.has(shape), `shape ${shape} in roster`);
+}
+const knownRoles = new Set(content.ENEMY_ROLES ?? []);
+ok(knownRoles.size >= 8, 'ENEMY_ROLES taxonomy exported');
+ok(enemies.every(e => e.role && knownRoles.has(e.role)), 'every enemy has a known role');
+ok(Array.isArray(content.ELITE_AFFIXES) && content.ELITE_AFFIXES.length >= 6, 'elite affix table expanded');
+ok(typeof content.defenseRecipeForWave === 'function', 'defenseRecipeForWave helper');
+ok((content.defenseRecipeForWave(1)?.length ?? 0) >= 2, 'tutorial defense recipe non-empty');
+ok((content.defenseRecipeForWave(20)?.length ?? 0) >= 4, 'chaos defense recipe non-empty');
+ok(Object.keys(content.ZONE_MINI_BOSSES ?? {}).length === 6, 'ZONE_MINI_BOSSES mapped for all zones');
+ok(Object.values(content.ZONE_MINI_BOSSES ?? {}).every(Boolean), 'each zone has a mini-boss id');
 ok(Object.keys(content.RARITIES).length === 5, '5 equipment rarities');
 // Structural content checks — no magic totals; adding a class/base must not break these.
 ok(Object.values(content.WEAPON_BASES).every(base => base.model && base.power > 0 && base.speed > 0), 'weapon bases valid (model/power/speed)');
@@ -79,7 +93,14 @@ ok(!saveManager.hasSave(), 'save delete');
 
 for (const zone of zones) {
   ok(Boolean(content.ZONE_BOSSES[zone]), `${zone} boss mapping`);
-  ok((content.ZONE_SPAWNS[zone] ?? []).length === 6, `${zone} normal monster pool 6`);
+  const pool = content.ZONE_SPAWNS[zone] ?? [];
+  ok(pool.length >= 10, `${zone} normal monster pool ≥10 (got ${pool.length})`);
+  const normals = enemies.filter(e => e.zone === zone && !e.boss);
+  ok(normals.length >= 10, `${zone} has ≥10 normals`);
+  ok(normals.filter(e => e.boss).length === 0, `${zone} spawn pool excludes bosses`);
+  const roles = new Set(normals.map(e => e.role));
+  ok(roles.has('fodder_swarm') || roles.has('bruiser'), `${zone} has bulk roles`);
+  ok(roles.size >= 5, `${zone} has ≥5 distinct roles (got ${roles.size})`);
 }
 
 const modelSource = await readFile(join(root, 'js/graphics/ModelFactory.js'), 'utf8');
