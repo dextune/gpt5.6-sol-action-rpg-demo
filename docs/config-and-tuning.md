@@ -23,6 +23,11 @@ All values are `Object.freeze`d. After you **add or modify** a field, keep the f
 
 
 
+## `PLAYER_GROWTH_CONFIG`
+
+Level / XP / melee combo-length gates (`hpPerLevel`, `xpBase`/`xpPow`, `comboLengthGates`).  
+`Player` maxHp/maxMp/attack/defense/xpNeeded/basicComboLength read this table only — keep default numbers parity-stable.
+
 ## `HIT_REACTION_CONFIG` · `BASIC_ATTACK_FEEL`
 
 Player hit-clip severity and basic-attack presentation timing.

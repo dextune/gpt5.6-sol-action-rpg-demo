@@ -13,6 +13,7 @@ Detailed guides are in **`docs/`** — hub: [docs/README.md](./docs/README.md). 
 4. **Validation** — if you touch content/paths, run `node tests/integrity.mjs`.
 5. **Run** — `file://` forbidden. `node server.mjs` → `http://127.0.0.1:8777`.
 6. **Template boundary (LOCKED)** — [docs/architecture-template-boundary.md](./docs/architecture-template-boundary.md). Template-candidate modules must not import `content`/`skillCombat`/modes. Systems use `game.ctx`. New skill `effect` ids go through `js/systems/combat/skillEffectRegistry.js`. Do not reintroduce AssetManager `refs` floor-1.
+7. **Systems `ctx` preference** — New and touched system code should use `this.ctx.player` / `this.ctx.effects` / etc. when the field is on `GAME_CONTEXT_KEYS` (`js/core/GameContext.js`). Avoid new system→system imports. Full `this.game` eradication is not required.
 
 ## Common basics (save tokens)
 

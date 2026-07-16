@@ -718,11 +718,16 @@ for (const id of ['whirlwind', 'skyfall', 'frost_nova', 'arcane_blink', 'meteor_
 // Projectile spawn option audit from CombatSystem source
 {
   const combatSrc = await import('node:fs/promises').then(async fs => {
+    const skillDir = join(root, 'js/systems/combat/skills');
+    const skillFiles = ['knightSkills.js', 'wizardSkills.js', 'rogueSkills.js', 'rangerSkills.js']
+      .map(name => join(skillDir, name));
     const parts = await Promise.all([
       fs.readFile(join(root, 'js/systems/CombatSystem.js'), 'utf8'),
       fs.readFile(join(root, 'js/systems/combat/activeSkillMethods.js'), 'utf8'),
+      ...skillFiles.map(f => fs.readFile(f, 'utf8')),
       fs.readFile(join(root, 'js/systems/combat/energyBurstMethods.js'), 'utf8'),
       fs.readFile(join(root, 'js/systems/combat/createSkillHandlers.js'), 'utf8'),
+      fs.readFile(join(root, 'js/systems/combat/enemySkills.js'), 'utf8').catch(() => ''),
     ]);
     return parts.join('\n');
   });
@@ -755,11 +760,16 @@ for (const id of ['whirlwind', 'skyfall', 'frost_nova', 'arcane_blink', 'meteor_
 
 // Static audit: AoE skill methods must not bake skillPower into raw (only fireball projectile does).
 const combatSrc = await import('node:fs/promises').then(async fs => {
+  const skillDir = join(root, 'js/systems/combat/skills');
+  const skillFiles = ['knightSkills.js', 'wizardSkills.js', 'rogueSkills.js', 'rangerSkills.js']
+    .map(name => join(skillDir, name));
   const parts = await Promise.all([
     fs.readFile(join(root, 'js/systems/CombatSystem.js'), 'utf8'),
     fs.readFile(join(root, 'js/systems/combat/activeSkillMethods.js'), 'utf8'),
+    ...skillFiles.map(f => fs.readFile(f, 'utf8')),
     fs.readFile(join(root, 'js/systems/combat/energyBurstMethods.js'), 'utf8'),
     fs.readFile(join(root, 'js/systems/combat/createSkillHandlers.js'), 'utf8'),
+    fs.readFile(join(root, 'js/systems/combat/enemySkills.js'), 'utf8').catch(() => ''),
   ]);
   return parts.join('\n');
 });

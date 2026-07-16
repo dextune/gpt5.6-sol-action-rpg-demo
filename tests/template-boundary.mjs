@@ -221,13 +221,26 @@ ok(gameSrc2.includes('packages/template-3d/index.js'), 'Game.js imports template
 const html = readFileSync(join(root, 'index.html'), 'utf8');
 ok(html.includes('"@sol/template-3d"') && html.includes('packages/template-3d/index.js'),
   'index.html import map registers @sol/template-3d');
-// Modular combat implementations
+// Modular combat implementations (W2 class kits + W6 enemy skills)
 ok(existsSync(join(root, 'js/systems/combat/activeSkillMethods.js')), 'activeSkillMethods module exists');
 ok(existsSync(join(root, 'js/systems/combat/energyBurstMethods.js')), 'energyBurstMethods module exists');
 ok(existsSync(join(root, 'js/systems/combat/createSkillHandlers.js')), 'createSkillHandlers module exists');
+ok(existsSync(join(root, 'js/systems/combat/enemySkills.js')), 'enemySkills module exists');
+ok(existsSync(join(root, 'js/systems/combat/skills/index.js')), 'skills/index attach entry exists');
+ok(existsSync(join(root, 'js/systems/combat/skills/knightSkills.js')), 'knightSkills kit exists');
+ok(existsSync(join(root, 'js/systems/combat/skills/wizardSkills.js')), 'wizardSkills kit exists');
+ok(existsSync(join(root, 'js/systems/combat/skills/rogueSkills.js')), 'rogueSkills kit exists');
+ok(existsSync(join(root, 'js/systems/combat/skills/rangerSkills.js')), 'rangerSkills kit exists');
 const activeSrc = readFileSync(join(root, 'js/systems/combat/activeSkillMethods.js'), 'utf8');
-ok(activeSrc.includes('attachActiveSkillMethods') && activeSrc.includes('_whirlwind'),
-  'activeSkillMethods hosts whirlwind implementation');
+ok(activeSrc.includes('attachActiveSkillMethods') && activeSrc.includes('./skills/index.js'),
+  'activeSkillMethods re-exports class skill attach entry');
+const knightSrc = readFileSync(join(root, 'js/systems/combat/skills/knightSkills.js'), 'utf8');
+const wizardSrc = readFileSync(join(root, 'js/systems/combat/skills/wizardSkills.js'), 'utf8');
+ok(knightSrc.includes('_whirlwind') && wizardSrc.includes('_fireball'),
+  'class skill kits host whirlwind and fireball implementations');
+const enemySrc = readFileSync(join(root, 'js/systems/combat/enemySkills.js'), 'utf8');
+ok(enemySrc.includes('attachEnemySkillMethods') && enemySrc.includes('_bossRoots'),
+  'enemySkills hosts boss special implementations');
 
 if (failed > 0) {
   console.error(`\ntemplate-boundary: ${failed} failure(s)`);

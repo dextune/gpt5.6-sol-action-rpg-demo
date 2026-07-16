@@ -1,162 +1,60 @@
 import * as THREE from 'three';
 import {
-  GAME_CONFIG, GEAR_ENHANCE, PLAYER_CONFIG, WEAPON_ENHANCE, WEAPON_OPTION_ENHANCE,
+  GAME_CONFIG,
+  GEAR_ENHANCE,
+  PLAYER_CONFIG,
+  WEAPON_ENHANCE,
+  WEAPON_OPTION_ENHANCE,
 } from '../config.js';
 import {
-  gearEnhanceCost, gearEnhanceSuccessChance, gearSellValue, weaponEnhanceCost, weaponEnhanceSuccessChance, weaponOptionEnhanceCost,
-} from '../systems/LootSystem.js';
-import {
-  DEFAULT_HERO_CLASS_ID, HERO_CLASSES, RARITIES, SKILLS, ZONES,
-  WEAPON_EVOLUTIONS, getClassActiveSkills, getClassPassiveSkills, getHeroClass, resolveHeroClassId,
+  DEFAULT_HERO_CLASS_ID,
+  HERO_CLASSES,
+  RARITIES,
+  SKILLS,
+  WEAPON_EVOLUTIONS,
+  ZONES,
+  getClassActiveSkills,
+  getClassPassiveSkills,
+  getHeroClass,
+  resolveHeroClassId,
 } from '../data/content.js';
+import {
+  gearEnhanceCost,
+  gearEnhanceSuccessChance,
+  gearSellValue,
+  weaponEnhanceCost,
+  weaponEnhanceSuccessChance,
+  weaponOptionEnhanceCost,
+} from '../systems/LootSystem.js';
 import { resolveSkillForm, skillMutationOptions } from '../data/skillCombat.js';
 import { clamp, formatTime } from '../core/Utils.js';
-
-const STAT_LABELS = Object.freeze({
-  power: 'Attack', defense: 'Defense', hp: 'Health', crit: 'Crit', haste: 'Haste', leech: 'Lifesteal',
-  xpBonus: 'XP', goldBonus: 'Gold', skillPower: 'Skill', moveSpeed: 'Move', luck: 'Luck',
-});
-const STAT_KEYS = Object.freeze([
-  'power', 'defense', 'hp', 'crit', 'haste', 'leech', 'skillPower', 'xpBonus', 'goldBonus', 'moveSpeed', 'luck',
-]);
-const PERCENT_STATS = new Set(['crit', 'haste', 'leech', 'xpBonus', 'goldBonus', 'skillPower', 'luck']);
-const RARITY_RANK = Object.freeze({ common: 0, uncommon: 1, rare: 2, epic: 3, legendary: 4 });
-const ATTACK_STYLE_LABEL = Object.freeze({ melee: 'Melee', magic: 'Magic', ranged: 'Ranged' });
-const CLASS_ACCENT = Object.freeze({
-  aerin: '#d4b86a',
-  wizard: '#b06dff',
-  rogue: '#35e0b8',
-  ranger: '#e8b040',
-});
-const HUD_FORM_TIERS = Object.freeze({
-  20: Object.freeze({ text: 'I', className: 'evolution-tier-i' }),
-  60: Object.freeze({ text: 'II', className: 'evolution-tier-ii' }),
-  100: Object.freeze({ text: 'APEX', className: 'evolution-tier-apex' }),
-});
-const MUTATION_FAMILY_GLYPHS = Object.freeze({
-  vortex: '↻', moon: '◒', hammer: '◆', arsenal: '✦',
-  flame: '▲', crystal: '◇', rift: '⌁', meteor: '●',
-  fang: '⋀', knives: '✣', shadow: '◩', lotus: '✤',
-  arrow: '➤', thorn: '⌗', vault: '⌃', mark: '◎',
-});
-const MUTATION_ROLE_MARKERS = Object.freeze({
-  breadth: '•••', focus: '•', flow: '↝', execution: '▼',
-});
-const NEUTRAL_MUTATION_ICON = Object.freeze({ token: 'neutral.unknown', glyph: '·', marker: '?' });
-const COMBAT_VALUE_LABELS = Object.freeze({
-  mult: ['Damage', 'percent'], finaleMult: ['Finale', 'percent'], blastMult: ['Blast', 'percent'],
-  residualMult: ['Aftershock', 'percent'], detonateMult: ['Detonate', 'percent'],
-  radius: ['Radius', 'decimal'], blastRadius: ['Blast Radius', 'decimal'], hitRadius: ['Hit Radius', 'decimal'],
-  finaleRadius: ['Finale Radius', 'decimal'], residualRadius: ['Aftershock Radius', 'decimal'],
-  range: ['Range', 'decimal'], dash: ['Dash', 'decimal'], leap: ['Leap', 'decimal'], speed: ['Speed', 'decimal'],
-  hits: ['Hits', 'integer'], knives: ['Knives', 'integer'], arrows: ['Arrows', 'integer'], ticks: ['Ticks', 'integer'],
-  pierce: ['Pierce', 'integer'], markDuration: ['Duration', 'seconds'],
-  damageAmp: ['Damage Amp', 'percent'], exposePower: ['Expose', 'percent'], criticalBonus: ['Crit', 'percent'],
-  plantMult: ['Plant Damage', 'percent'], pullRadius: ['Pull Radius', 'decimal'],
-  pullStrength: ['Pull Strength', 'percent'], apexPullBonus: ['Apex Pull', 'decimal'],
-  stunNormal: ['Normal Stun', 'seconds'], stunElite: ['Elite Stun', 'seconds'],
-  bossStagger: ['Boss Stagger', 'integer'], armorPierce: ['Armor Pierce', 'percent'],
-  frenzyDuration: ['Frenzy', 'seconds'], frenzyAttackHaste: ['Attack Haste', 'percent'],
-  frenzyMoveHaste: ['Move Haste', 'percent'], offhandEcho: ['Offhand Echo', 'percent'],
-  killExtension: ['Kill Extend', 'seconds'], contactCap: ['Contact Cap', 'integer'],
-  exitMult: ['Exit / Contact', 'percent'], chainCap: ['Chain Cap', 'integer'], bossRampCap: ['Boss Ramp', 'integer'],
-});
-
-function escapeHtml(value) {
-  return String(value ?? '').replace(/[&<>'"]/g, character => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;',
-  })[character]);
-}
-
-function hexColor(value) {
-  return `#${Number(value ?? 0xffffff).toString(16).padStart(6, '0')}`;
-}
-
-function itemIcon(item) {
-  const icon = item?.slot === 'weapon' ? (item.model ?? 'sword') : (item?.slot ?? 'charm');
-  return `./assets/textures/ui/icon_${icon}.png`;
-}
-
-function titleCaseId(value) {
-  return String(value ?? '').split(/[_-]+/).filter(Boolean)
-    .map(word => word[0]?.toUpperCase() + word.slice(1)).join(' ');
-}
-
-function mutationIconView(value) {
-  const token = String(value ?? '').trim().toLowerCase();
-  const match = /^([a-z][a-z0-9_-]*)\.(breadth|focus|flow|execution)$/.exec(token);
-  if (!match) return NEUTRAL_MUTATION_ICON;
-  const glyph = MUTATION_FAMILY_GLYPHS[match[1]];
-  const marker = MUTATION_ROLE_MARKERS[match[2]];
-  return glyph && marker ? Object.freeze({ token, glyph, marker }) : NEUTRAL_MUTATION_ICON;
-}
-
-function mutationAccessibleText(label, summary, gate = null) {
-  const prefix = gate ? `Level ${gate} mutation: ` : '';
-  return `${prefix}${label}${summary ? `. ${summary}` : ''}`;
-}
-
-function formatCombatValue(key, value) {
-  if (!Number.isFinite(value) || !COMBAT_VALUE_LABELS[key]) return null;
-  const [label, kind] = COMBAT_VALUE_LABELS[key];
-  if (kind === 'percent') return `${label} ${Math.round(value * 100)}%`;
-  if (kind === 'integer') return `${label} ${Math.round(value)}`;
-  if (kind === 'seconds') return `${label} ${value.toFixed(1)}s`;
-  return `${label} ${value.toFixed(1)}`;
-}
-
-function formatCombatSnapshot(combat, limit = 12) {
-  return Object.keys(COMBAT_VALUE_LABELS)
-    .map(key => formatCombatValue(key, combat?.[key]))
-    .filter(Boolean).slice(0, limit);
-}
-
-function formatCombatDeltas(current, next, limit = 4) {
-  const changed = [];
-  for (const key of Object.keys(COMBAT_VALUE_LABELS)) {
-    if (!Number.isFinite(current?.[key]) || !Number.isFinite(next?.[key]) || current[key] === next[key]) continue;
-    const from = formatCombatValue(key, current[key]);
-    const to = formatCombatValue(key, next[key]);
-    if (from && to) changed.push(`${from} → ${to.replace(/^[^ ]+(?: [^ ]+)? /, '')}`);
-  }
-  return changed.slice(0, limit);
-}
-
-/** Relative age for Continue meta (localStorage savedAt). */
-function formatSaveAge(savedAt) {
-  const ts = Number(savedAt) || 0;
-  if (ts <= 0) return '';
-  const sec = Math.max(0, Math.floor((Date.now() - ts) / 1000));
-  if (sec < 60) return 'just now';
-  if (sec < 3600) return `${Math.floor(sec / 60)}m ago`;
-  if (sec < 86400) return `${Math.floor(sec / 3600)}h ago`;
-  if (sec < 86400 * 14) return `${Math.floor(sec / 86400)}d ago`;
-  try {
-    return new Date(ts).toLocaleDateString();
-  } catch {
-    return '';
-  }
-}
-
-function statText(key, value) {
-  if (!value) return '';
-  if (PERCENT_STATS.has(key)) return `${STAT_LABELS[key]} +${(value * 100).toFixed(value < .1 ? 1 : 0)}%`;
-  if (key === 'moveSpeed') return `${STAT_LABELS[key]} +${Number(value).toFixed(2)}`;
-  return `${STAT_LABELS[key]} +${Math.round(value)}`;
-}
-
-/** Format a signed delta for inventory compare (same units as statText). */
-function formatStatDelta(key, delta) {
-  if (!delta) return '';
-  const sign = delta > 0 ? '+' : '';
-  if (PERCENT_STATS.has(key)) {
-    const pct = delta * 100;
-    return `${sign}${pct.toFixed(Math.abs(pct) < 10 ? 1 : 0)}%`;
-  }
-  if (key === 'moveSpeed') return `${sign}${Number(delta).toFixed(2)}`;
-  if (key === 'speed') return `${sign}${Number(delta).toFixed(2)}`;
-  return `${sign}${Math.round(delta)}`;
-}
+import {
+  ATTACK_STYLE_LABEL,
+  CLASS_ACCENT,
+  COMBAT_VALUE_LABELS,
+  HUD_FORM_TIERS,
+  MUTATION_FAMILY_GLYPHS,
+  MUTATION_ROLE_MARKERS,
+  NEUTRAL_MUTATION_ICON,
+  PERCENT_STATS,
+  RARITY_RANK,
+  STAT_KEYS,
+  STAT_LABELS,
+  escapeHtml,
+  formatCombatDeltas,
+  formatCombatSnapshot,
+  formatCombatValue,
+  formatSaveAge,
+  formatStatDelta,
+  hexColor,
+  itemIcon,
+  mutationAccessibleText,
+  mutationIconView,
+  statText,
+  titleCaseId,
+} from './uiShared.js';
+import { hideDeath as hideDeathPanel, setDeathProgress as setDeathProgressPanel, showDeath as showDeathPanel } from './panels/deathOverlay.js';
+import { setDebugVisible as setDebugVisiblePanel, updateDebug as updateDebugPanel } from './panels/debugHud.js';
 
 export class UI {
   constructor(game) {
@@ -1482,67 +1380,23 @@ export class UI {
   }
 
   showDeath() {
-    this.elements['death-screen'].classList.remove('hidden');
-    this.elements['death-timer-fill'].style.width = '100%';
-    const root = this.elements['death-screen']?.querySelector('div');
-    if (!root) return;
-    const title = root.querySelector('h2');
-    const copy = root.querySelector('p');
-    const eyebrow = root.querySelector('span');
-    if (this.game.mode === 'defense') {
-      const wave = this.game.defense?.hud?.wave ?? this.game.defense?.wave ?? 1;
-      const best = this.game.defense?.bestWaveThisRun ?? this.game.defenseMeta?.bestWave ?? wave;
-      const kills = this.game.defense?.killsThisRun ?? 0;
-      const mut = this.game.defense?.mutator?.label;
-      if (eyebrow) eyebrow.textContent = 'DEFENSE FAILED';
-      if (title) title.textContent = `You fell on wave ${wave}`;
-      if (copy) {
-        copy.textContent = mut
-          ? `Best wave ${best} · ${kills} kills · Last mutator: ${mut}. Returning to title.`
-          : `Best wave ${best} · ${kills} kills. Returning to title.`;
-      }
-    } else {
-      if (eyebrow) eyebrow.textContent = 'HUNTER DOWN';
-      if (title) title.textContent = 'The hunt is not over';
-      if (copy) copy.textContent = "Regroup at the camp's guardian stone.";
-    }
+    showDeathPanel(this);
   }
 
   setDeathProgress(ratio) {
-    this.elements['death-timer-fill'].style.width = `${clamp(ratio, 0, 1) * 100}%`;
+    setDeathProgressPanel(this, ratio);
   }
 
   hideDeath() {
-    this.elements['death-screen'].classList.add('hidden');
+    hideDeathPanel(this);
   }
 
   setDebugVisible(visible) {
-    const el = this.elements['debug-hud'];
-    if (!el) return;
-    el.classList.toggle('hidden', !visible);
-    el.classList.toggle('visible', Boolean(visible));
+    setDebugVisiblePanel(this, visible);
   }
 
   updateDebug(snapshot = {}) {
-    const el = this.elements['debug-hud'];
-    if (!el || el.classList.contains('hidden')) return;
-    const player = snapshot.player;
-    const assets = snapshot.assets;
-    const lines = [
-      `state ${snapshot.state ?? '-'} · quality ${snapshot.quality ?? '-'}`,
-      `fps ${Number(snapshot.fps ?? 0).toFixed(1)} · scale ${Number(snapshot.renderScale ?? 1).toFixed(2)}`,
-      `draw ${snapshot.calls ?? 0} · tris ${Number(snapshot.triangles ?? 0).toLocaleString('en-US')}`,
-      `geo ${snapshot.geometries ?? 0} · tex ${snapshot.textures ?? 0}`,
-      `enemies ${snapshot.enemies ?? 0}`,
-    ];
-    if (player) {
-      lines.push(`player Lv.${player.level} hp ${Math.round(player.hp)}`);
-      lines.push(`pos ${player.x?.toFixed?.(1) ?? player.x}, ${player.z?.toFixed?.(1) ?? player.z}`);
-    }
-    if (assets) {
-      lines.push(`assets models ${assets.models ?? assets.modelCount ?? '-'} tex ${assets.textures ?? assets.textureCount ?? '-'}`);
-    }
-    el.innerHTML = `<strong>DEV HUD · F3</strong><pre>${lines.map(escapeHtml).join('\n')}</pre>`;
+    updateDebugPanel(this, snapshot);
   }
 
   fatal(error) {

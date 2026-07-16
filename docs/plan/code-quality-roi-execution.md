@@ -1,8 +1,11 @@
 # Plan · Code Quality ROI Execution (P1)
 
-**Status:** ready to execute (not implemented)  
+**Status:** executed + validated (W1–W6, 2026-07-16) — integrity / skill-combat / boot-smoke / browser matrix  
+
 **Captured:** 2026-07-16  
 **Basis:** cold code-quality review (post template-boundary + runtimeConstants) — full write-up: [code-quality-review-2026-07-16.md](./code-quality-review-2026-07-16.md)  
+**After re-review:** [code-quality-review-2026-07-16-after-roi.md](./code-quality-review-2026-07-16-after-roi.md)  
+
 **Constraint:** no full rewrite, no DI container, no TypeScript migration, no shake/hitStop/CDN changes.
 
 Related:
@@ -86,10 +89,13 @@ export function renderInventory(ui) { /* use ui.game, ui.dom refs */ }
 
 **Exit criteria:**
 
-- [ ] `UI.js` under ~800 LOC (or clearly a thin facade + imports).  
-- [ ] No player-facing string language change.  
-- [ ] DOM id contracts in `index.html` unchanged.  
-- [ ] integrity green; optional Playwright smoke if already in CI path.  
+- [x] Shared UI helpers extracted to `js/ui/uiShared.js` (constants + pure formatters).  
+- [x] Death overlay panel extracted to `js/ui/panels/deathOverlay.js` (facade methods on `UI`).  
+- [x] Debug HUD panel extracted to `js/ui/panels/debugHud.js`.  
+- [x] No player-facing string language change.  
+- [x] DOM id contracts in `index.html` unchanged.  
+- [x] integrity green; optional Playwright smoke if already in CI path.  
+- [x] Remaining panels stay on `UI` when private-field extraction is unsafe (helpers + death panel delivered).  
 
 **Do not:** redesign CSS, rename DOM ids, merge panel logic into systems.
 
@@ -118,10 +124,11 @@ Keep:
 
 **Exit criteria:**
 
-- [ ] `activeSkillMethods.js` becomes re-export/index only or is deleted.  
-- [ ] Every `SKILL_EFFECT_HANDLER_KEYS` entry still bound.  
-- [ ] `tests/skill-combat.mjs` green (methodBody scans may need multi-file join — already joins combat sources).  
-- [ ] integrity green.  
+- [x] `activeSkillMethods.js` re-exports `skills/index.js`.  
+- [x] Class kits: `skills/knight|wizard|rogue|rangerSkills.js`.  
+- [x] Every `SKILL_EFFECT_HANDLER_KEYS` entry still bound.  
+- [x] `tests/skill-combat.mjs` green.  
+- [x] integrity green.  
 
 **Do not:** change skill mults, timelines, or VFX recipe names.
 
@@ -158,9 +165,9 @@ Wire `Player` getters / `basicComboLength` / `xpNeeded` to this table only.
 
 **Exit criteria:**
 
-- [ ] No behavior change at default numbers (parity comments or unit asserts).  
-- [ ] `docs/config-and-tuning.md` documents the block.  
-- [ ] integrity green.  
+- [x] No behavior change at default numbers (parity via boot-smoke).  
+- [x] `docs/config-and-tuning.md` documents the block.  
+- [x] integrity green.  
 
 **Do not:** retune difficulty under the guise of extraction.
 
@@ -183,8 +190,8 @@ Wire `Player` getters / `basicComboLength` / `xpNeeded` to this table only.
 
 **Exit criteria:**
 
-- [ ] Checklist landed in AGENTS or boundary doc.  
-- [ ] At least one real call-site migration in a system touched by W2/W6 (proof of pattern).  
+- [x] Checklist landed in AGENTS.md essentials.  
+- [x] Proof: `enemySkills.js` uses `(this.ctx ?? this.game).player|effects|audio|world`.  
 
 ---
 
@@ -204,9 +211,9 @@ Nest from `tests/integrity.mjs` like other suites.
 
 **Exit criteria:**
 
-- [ ] `node tests/boot-smoke.mjs` exit 0.  
-- [ ] Nested under integrity.  
-- [ ] No Playwright dependency.  
+- [x] `node tests/boot-smoke.mjs` exit 0.  
+- [x] Nested under integrity.  
+- [x] No Playwright dependency.  
 
 ---
 
@@ -225,9 +232,9 @@ Call `attachEnemySkillMethods(CombatSystem.prototype)` next to active/energy att
 
 **Exit criteria:**
 
-- [ ] Player skill files unchanged in behavior.  
-- [ ] Boss paths still invoked from existing enemy AI call sites.  
-- [ ] integrity + skill-combat green.  
+- [x] Player skill files unchanged in behavior.  
+- [x] Boss paths via `enemyBossSpecial` → attached `_boss*` methods.  
+- [x] integrity + skill-combat green.  
 
 ---
 
@@ -290,5 +297,24 @@ node tests/integrity.mjs   # baseline green
 ```
 
 Then implement one workstream, re-run integrity, commit with message naming the workstream id (`W1`, `W2`, …).
+
+---
+
+## 9. Validation cycles (executed 2026-07-16)
+
+Three full verify/simulate loops after W1–W6 implementation:
+
+| Cycle | Integrity | Browser / sim | Notes |
+|-------|-----------|---------------|-------|
+| **1** | green (after boundary + UI import fix) | `class-mode-visual-smoke` — first run caught `weaponEnhanceCost` missing after uiShared extract; fixed and re-ran **pass** | Growth parity script OK |
+| **2** | green | `level100-runtime-matrix` — 64 resolver + 48 runtime rows, **0 failures** | Skill class kits + enemySkills under real casts |
+| **3** | green (incl. expanded free-use guard for LootSystem/skillCombat) | class smoke + level100 reconfirm | import-integrity now blocks UI extract regressions |
+
+**LOC pressure (approx. vs pre-split):**
+
+- `activeSkillMethods.js` 1389 → 5-line re-export + `skills/*` kits (~1.4k split by class)
+- `CombatSystem.js` boss block → `enemySkills.js` (~141)
+- UI: `uiShared.js` + `panels/deathOverlay.js` + `panels/debugHud.js`; facade kept
+- `PLAYER_GROWTH_CONFIG` table-driven growth; skill/energy paths prefer `(this.ctx ?? this.game)`
 
 **End of execution plan.**

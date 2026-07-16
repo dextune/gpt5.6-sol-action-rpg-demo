@@ -5,7 +5,8 @@
 **Lens:** Can this browser ARPG demo keep growing without collapsing — not “ideal engine purity”.  
 **Scope:** Only improvements that are realistic to review and ship. No full rewrite fantasy.
 
-**Follow-on execution plan:** [code-quality-roi-execution.md](./code-quality-roi-execution.md)
+**Follow-on execution plan:** [code-quality-roi-execution.md](./code-quality-roi-execution.md)  
+**After-ROI re-review:** [code-quality-review-2026-07-16-after-roi.md](./code-quality-review-2026-07-16-after-roi.md)
 
 **Related:**
 

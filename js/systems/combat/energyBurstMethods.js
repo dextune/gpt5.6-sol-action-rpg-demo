@@ -25,16 +25,16 @@ _daggerRushBurst(player, def) {
       // Micro-lunge per strike keeps the rush surging into the pack.
       player.velocity.addScaledVector(direction, finale ? 2.4 : 1.2);
       const origin = this._handContactOrigin(player, hand === 1, direction, .14);
-      this.game.effects.recipeFangRush(origin, direction, theme, range * (finale ? 1.3 : 1), i, finale);
-      this.game.effects.recipeShadowCuts?.(origin, direction, hand ? theme.secondary : theme.primary, range);
+      (this.ctx ?? this.game).effects.recipeFangRush(origin, direction, theme, range * (finale ? 1.3 : 1), i, finale);
+      (this.ctx ?? this.game).effects.recipeShadowCuts?.(origin, direction, hand ? theme.secondary : theme.primary, range);
       if (finale) {
-        this.game.effects.ring(player.position, theme.core, 3.8, { life: .4, startScale: .15, height: .12, opacity: .8 });
-        this.game.effects.pillar(player.position.clone().addScaledVector(direction, 1.1), theme.primary, 4.6, { life: .34, bottom: .6, opacity: .45 });
-        this.game.effects.burst(
+        (this.ctx ?? this.game).effects.ring(player.position, theme.core, 3.8, { life: .4, startScale: .15, height: .12, opacity: .8 });
+        (this.ctx ?? this.game).effects.pillar(player.position.clone().addScaledVector(direction, 1.1), theme.primary, 4.6, { life: .34, bottom: .6, opacity: .45 });
+        (this.ctx ?? this.game).effects.burst(
           player.position.clone().add(new THREE.Vector3(0, 1, 0)).addScaledVector(direction, 1.2),
           theme.secondary, 26, { speed: 6.8, size: .3, life: .5, upward: .35 },
         );
-        this.game.effects.dust(player.position, theme.dust, 16, .44);
+        (this.ctx ?? this.game).effects.dust(player.position, theme.dust, 16, .44);
       }
       this._hitEnemiesInCone(origin, direction, range * (finale ? 1.3 : 1), (def.comboArc ?? 1.5) * (finale ? 1.35 : 1),
         player.attackPower * (def.comboMult ?? .62) * (finale ? 1.6 : 1), {
@@ -48,9 +48,9 @@ _daggerRushBurst(player, def) {
       if (finale) {
         const main = this._handContactOrigin(player, false, direction, .1);
         const off = this._handContactOrigin(player, true, direction, .1);
-        this.game.effects.recipeDualBladeCross?.(main.add(off).multiplyScalar(.5), direction, theme.primary, theme.secondary, range * 1.35);
+        (this.ctx ?? this.game).effects.recipeDualBladeCross?.(main.add(off).multiplyScalar(.5), direction, theme.primary, theme.secondary, range * 1.35);
       }
-      this.game.audio.swing(Math.min(3, i % 4));
+      (this.ctx ?? this.game).audio.swing(Math.min(3, i % 4));
     });
   }
   return {
@@ -68,19 +68,19 @@ _wrathSlamBurst(player, def) {
     if (!player.alive) return;
     const direction = this._facingDir(player);
     const center = player.position.clone().addScaledVector(direction, radius * .55);
-    center.y = this.game.world.heightAt(center.x, center.z);
+    center.y = (this.ctx ?? this.game).world.heightAt(center.x, center.z);
     player.velocity.addScaledVector(direction, 2.6);
-    this.game.effects.ring(center, theme.primary, radius, { life: .5, startScale: .1 });
-    this.game.effects.ring(center, theme.core, radius * .55, { life: .3, startScale: .18, height: .12, opacity: .85 });
-    this.game.effects.pillar(center, theme.secondary, 6.5, { life: .5, bottom: 1, opacity: .5 });
-    this.game.effects.slash(player.position, direction, theme.primary, radius * 1.05, {
+    (this.ctx ?? this.game).effects.ring(center, theme.primary, radius, { life: .5, startScale: .1 });
+    (this.ctx ?? this.game).effects.ring(center, theme.core, radius * .55, { life: .3, startScale: .18, height: .12, opacity: .85 });
+    (this.ctx ?? this.game).effects.pillar(center, theme.secondary, 6.5, { life: .5, bottom: 1, opacity: .5 });
+    (this.ctx ?? this.game).effects.slash(player.position, direction, theme.primary, radius * 1.05, {
       height: 1.35, thickness: .09, life: .3, spin: 3.4, opacity: .9,
     });
-    this.game.effects.burst(center.clone().add(new THREE.Vector3(0, 1, 0)), theme.secondary, 30, {
+    (this.ctx ?? this.game).effects.burst(center.clone().add(new THREE.Vector3(0, 1, 0)), theme.secondary, 30, {
       speed: 6.6, size: .36, life: .6, upward: .5,
     });
-    this.game.effects.dust(center, theme.dust, 20, .5);
-    this.game.effects.impact(center.clone().add(new THREE.Vector3(0, 1.1, 0)), theme.primary, 'finisher', { direction });
+    (this.ctx ?? this.game).effects.dust(center, theme.dust, 20, .5);
+    (this.ctx ?? this.game).effects.impact(center.clone().add(new THREE.Vector3(0, 1.1, 0)), theme.primary, 'finisher', { direction });
     this._hitEnemiesInRadius(center, radius, player.attackPower * (def.slamMult ?? 2.6), {
       knockback: def.slamKnockback ?? 7.5,
       armorPierce: def.slamArmorPierce ?? .3,
@@ -97,7 +97,7 @@ _arrowStormBurst(player, def) {
   const arrows = Math.max(4, Math.round(def.stormArrows ?? 8));
   const direction = this._facingDir(player);
   const baseYaw = Math.atan2(direction.x, direction.z);
-  this.game.effects.recipeArrowStreak?.(player.position, direction, theme);
+  (this.ctx ?? this.game).effects.recipeArrowStreak?.(player.position, direction, theme);
   for (let i = 0; i < arrows; i += 1) {
     this._delay(0.04 + i * 0.055, () => {
       if (!player.alive) return;
@@ -119,7 +119,7 @@ _arrowStormBurst(player, def) {
         scale: finale ? 1.2 : 1.0,
         criticalBonus: def.stormCritBonus ?? 0.1,
       });
-      if (i % 2 === 0) this.game.audio.swing(Math.min(3, i % 4));
+      if (i % 2 === 0) (this.ctx ?? this.game).audio.swing(Math.min(3, i % 4));
     });
   }
   return {

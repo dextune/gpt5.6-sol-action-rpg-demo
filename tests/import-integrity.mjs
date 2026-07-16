@@ -130,21 +130,36 @@ for (const file of jsFiles) {
 }
 ok(importChecks > 20, `named import checks ran (${importChecks})`);
 
-// --- B) Free use of content.js / config.js exports requires an import ---
+// --- B) Free use of content/config/loot/skillCombat exports requires an import ---
+// (Catches UI/helper extract regressions like weaponEnhanceCost falling out of scope.)
 const contentPath = join(root, 'js/data/content.js');
 const configPath = join(root, 'js/config.js');
+const lootPath = join(root, 'js/systems/LootSystem.js');
+const skillCombatPath = join(root, 'js/data/skillCombat.js');
 const contentExports = await getExports(contentPath);
 const configExports = await getExports(configPath);
 
 const contentMod = await import(pathToFileURL(contentPath));
 const configMod = await import(pathToFileURL(configPath));
+const lootMod = await import(pathToFileURL(lootPath));
+const skillCombatMod = await import(pathToFileURL(skillCombatPath));
 
 // Prefer live module keys (includes all exports)
 const contentNames = Object.keys(contentMod).filter(k => k !== 'default' && !k.startsWith('module'));
 const configNames = Object.keys(configMod).filter(k => k !== 'default' && !k.startsWith('module'));
+const lootNames = Object.keys(lootMod).filter(k => k !== 'default' && !k.startsWith('module'));
+const skillCombatNames = Object.keys(skillCombatMod).filter(k => k !== 'default' && !k.startsWith('module'));
+const catalogSources = [
+  { names: contentNames, match: (spec) => spec.includes('data/content.js') },
+  { names: configNames, match: (spec) => /(?:^|\/)config\.js$/.test(spec) },
+  { names: lootNames, match: (spec) => spec.includes('LootSystem.js') },
+  { names: skillCombatNames, match: (spec) => spec.includes('skillCombat.js') },
+];
+const catalogNames = [...new Set(catalogSources.flatMap(s => s.names))];
+const ownPaths = new Set([contentPath, configPath, lootPath, skillCombatPath]);
 
 for (const file of jsFiles) {
-  if (file === contentPath || file === configPath) continue;
+  if (ownPaths.has(file)) continue;
   if (!file.includes('/js/')) continue;
   const source = await readFile(file, 'utf8');
   const body = stripNoise(source).replace(/import\s+[\s\S]*?\s+from\s+["'][^"']+["'];?/g, '');
@@ -155,17 +170,14 @@ for (const file of jsFiles) {
   while ((match = importRe.exec(source))) {
     const clause = match[1];
     const spec = match[2];
-    const isContent = spec.includes('data/content.js');
-    const isConfig = /(?:^|\/)config\.js$/.test(spec);
-    if (!isContent && !isConfig) continue;
+    if (!catalogSources.some(s => s.match(spec))) continue;
     for (const { local } of parseNamedImports(clause)) importedLocals.add(local);
     // namespace import
     const ns = clause.match(/\*\s+as\s+([A-Za-z_$][\w$]*)/);
     if (ns) importedLocals.add(ns[1]);
   }
 
-  const catalog = file.includes('/js/') ? [...contentNames, ...configNames] : [];
-  for (const name of catalog) {
+  for (const name of catalogNames) {
     if (!freeIdentifierUsed(body, name)) continue;
     // local declaration shadow
     if (new RegExp(`\\b(?:function|class|const|let|var)\\s+${name}\\b`).test(body)) continue;
@@ -181,8 +193,17 @@ const {
 const combatSrc = await readFile(join(root, 'js/systems/CombatSystem.js'), 'utf8');
 const skillHandlerSrc = await readFile(join(root, 'js/systems/combat/createSkillHandlers.js'), 'utf8');
 const activeSkillSrc = await readFile(join(root, 'js/systems/combat/activeSkillMethods.js'), 'utf8');
+const skillKitSrc = (
+  await Promise.all([
+    readFile(join(root, 'js/systems/combat/skills/knightSkills.js'), 'utf8'),
+    readFile(join(root, 'js/systems/combat/skills/wizardSkills.js'), 'utf8'),
+    readFile(join(root, 'js/systems/combat/skills/rogueSkills.js'), 'utf8'),
+    readFile(join(root, 'js/systems/combat/skills/rangerSkills.js'), 'utf8'),
+  ])
+).join('\n');
 ok(combatSrc.includes('createSkillHandlers(this)'), 'CombatSystem uses createSkillHandlers');
 ok(combatSrc.includes('attachActiveSkillMethods'), 'CombatSystem attaches active skill methods');
+ok(combatSrc.includes('attachEnemySkillMethods'), 'CombatSystem attaches enemy skill methods');
 const handlerBlock = skillHandlerSrc.match(/const table = \{([\s\S]*?)\n\s*\};/);
 ok(Boolean(handlerBlock), 'createSkillHandlers skill table present');
 const registeredHandlers = new Set(
@@ -190,8 +211,10 @@ const registeredHandlers = new Set(
     ? [...handlerBlock[1].matchAll(/^\s*([A-Za-z0-9_]+)\s*:/gm)].map(m => m[1])
     : [],
 );
-ok(activeSkillSrc.includes('_whirlwind') && activeSkillSrc.includes('_fireball'),
-  'activeSkillMethods hosts skill implementations');
+ok(activeSkillSrc.includes('attachActiveSkillMethods') && activeSkillSrc.includes('./skills/index.js'),
+  'activeSkillMethods re-exports class skill kits');
+ok(skillKitSrc.includes('_whirlwind') && skillKitSrc.includes('_fireball'),
+  'class skill kits host skill implementations');
 
 for (const [classId, def] of Object.entries(HERO_CLASSES)) {
   ok(Array.isArray(def.activeSkills) && def.activeSkills.length > 0, `class ${classId} has activeSkills`);

@@ -156,6 +156,31 @@ export function defenseRarityFloor(wave) {
   return 'common';
 }
 
+/**
+ * Level / XP / combo-length growth coefficients (parity-preserving extraction).
+ * Player getters read only these tables — do not retune under the guise of refactor.
+ */
+export const PLAYER_GROWTH_CONFIG = Object.freeze({
+  hpPerLevel: 12,
+  mpPerLevel: 3.4,
+  attackPerLevel: 2.15,
+  defensePerLevel: 0.82,
+  xpBase: 92,
+  xpPow: 1.52,
+  xpPowScale: 58,
+  xpLinear: 22,
+  /** Melee basic-combo length gates (first match wins, descending minLevel). */
+  comboLengthGates: Object.freeze([
+    Object.freeze({ minLevel: 20, length: 7 }),
+    Object.freeze({ minLevel: 13, length: 6 }),
+    Object.freeze({ minLevel: 8, length: 5 }),
+    Object.freeze({ minLevel: 4, length: 4 }),
+    Object.freeze({ minLevel: 1, length: 3 }),
+  ]),
+  /** Magic/ranged fixed combo length. */
+  rangedComboLength: 4,
+});
+
 export const PLAYER_CONFIG = Object.freeze({
   baseHp: 140,
   baseMp: 80,

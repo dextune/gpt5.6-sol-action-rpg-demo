@@ -172,7 +172,7 @@ Do **not** skip steps.
 |------|--------|------|
 | **T0** | This document + `tests/template-boundary.mjs` | **done** |
 | **T1** | Systems use `ctx` for new code; no new system↔system imports | **done** (constructors capture `this.ctx`) |
-| **T2** | Split skill/energy **implementations** under `systems/combat/` | **done** (`activeSkillMethods`, `energyBurstMethods`, `createSkillHandlers`) |
+| **T2** | Split skill/energy **implementations** under `systems/combat/` | **done** (`activeSkillMethods` re-export → `skills/{knight,wizard,rogue,ranger}Skills.js`, `energyBurstMethods`, `createSkillHandlers`, `enemySkills`) |
 | **T3** | Physical `packages/template-3d` entry re-exporting §3 candidates | **done** |
 | **T4** | Sol imports template package (`Game`, factories); integrity green | **done** |
 | **T5** | Minimal template-only consumer harness | **done** (`packages/template-3d/consumer-harness.mjs`) |

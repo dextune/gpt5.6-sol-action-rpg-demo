@@ -182,6 +182,10 @@ const templateBoundary = await import(pathToFileURL(join(root, 'tests/template-b
 ok(templateBoundary !== null, 'template-boundary nested suite loaded');
 void presentationMotion;
 
+console.log('\n--- boot-smoke ---');
+const bootSmoke = await import(pathToFileURL(join(root, 'tests/boot-smoke.mjs')));
+ok(bootSmoke !== null, 'boot-smoke nested suite loaded');
+
 // Nested import/reference integrity + combat/class simulations (prevents SKILLS-not-defined class bugs).
 console.log('\n--- import-integrity ---');
 const nested = await import(pathToFileURL(join(root, 'tests/import-integrity.mjs')));

@@ -17,6 +17,7 @@ Guides for small and large agents to safely modify the **GPT-5.6: Sol / Action R
 | [architecture-template-boundary.md](./architecture-template-boundary.md) | **LOCKED: template-3d vs sol-arpg ownership, GameContext, asset refs, skill registry, packages/template-3d** |
 | [plan/code-quality-roi-execution.md](./plan/code-quality-roi-execution.md) | **plan: P1 code-quality ROI execution (UI split, skill files, growth config, boot smoke)** |
 | [plan/code-quality-review-2026-07-16.md](./plan/code-quality-review-2026-07-16.md) | **record: cold code-quality review (scores, P1–P3, backlog)** |
+| [plan/code-quality-review-2026-07-16-after-roi.md](./plan/code-quality-review-2026-07-16-after-roi.md) | **record: after ROI W1–W6 review (before/after scores, next backlog)** |
 | [config-and-tuning.md](./config-and-tuning.md) | `GAME_CONFIG` / `PLAYER_CONFIG` / quality presets |
 | [content-data.md](./content-data.md) | zones · monsters · equipment · **skills combat/theme schema** |
 | [combat.md](./combat.md) | basic attack · skills · statuses · skillPower · recipes |

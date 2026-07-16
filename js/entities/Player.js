@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {
   BASIC_ATTACK_FEEL, GEAR_ENHANCE, HIT_REACTION_CONFIG, PLAYER_CONFIG,
-  WEAPON_ENHANCE, WEAPON_OPTION_ENHANCE,
+  PLAYER_GROWTH_CONFIG, WEAPON_ENHANCE, WEAPON_OPTION_ENHANCE,
 } from '../config.js';
 import {
   DEFAULT_HERO_CLASS_ID, RARITIES, SKILLS,
@@ -160,7 +160,10 @@ export class Player {
   }
 
   get position() { return this.mesh.position; }
-  get xpNeeded() { return Math.round(92 + Math.pow(this.level, 1.52) * 58 + this.level * 22); }
+  get xpNeeded() {
+    const G = PLAYER_GROWTH_CONFIG;
+    return Math.round(G.xpBase + Math.pow(this.level, G.xpPow) * G.xpPowScale + this.level * G.xpLinear);
+  }
   get weapon() { return this.getItem(this.equipped.weapon) ?? this.inventory[0]; }
   get armor() { return null; }
   get charm() { return null; }
@@ -212,26 +215,30 @@ export class Player {
   get maxHp() {
     const stats = this.equipmentStats;
     const mods = this.classMods;
+    const G = PLAYER_GROWTH_CONFIG;
     const passive = 1 + this.passiveEffects.hp;
-    return Math.round((PLAYER_CONFIG.baseHp * (mods.hp ?? 1) + (this.level - 1) * 12 + stats.hp) * passive);
+    return Math.round((PLAYER_CONFIG.baseHp * (mods.hp ?? 1) + (this.level - 1) * G.hpPerLevel + stats.hp) * passive);
   }
   get maxMp() {
     const mods = this.classMods;
+    const G = PLAYER_GROWTH_CONFIG;
     const base = PLAYER_CONFIG.baseMp * (mods.mp ?? 1);
-    return Math.round(base + (this.level - 1) * 3.4 + this.passiveEffects.mpFlat);
+    return Math.round(base + (this.level - 1) * G.mpPerLevel + this.passiveEffects.mpFlat);
   }
   get attackPower() {
     const stats = this.equipmentStats;
     const mods = this.classMods;
+    const G = PLAYER_GROWTH_CONFIG;
     const passive = 1 + this.passiveEffects.attack;
     const run = this.runMods?.attack ?? 1;
-    return (PLAYER_CONFIG.baseAttack * (mods.attack ?? 1) + this.level * 2.15 + stats.power) * passive * run;
+    return (PLAYER_CONFIG.baseAttack * (mods.attack ?? 1) + this.level * G.attackPerLevel + stats.power) * passive * run;
   }
   get defense() {
     const stats = this.equipmentStats;
     const mods = this.classMods;
+    const G = PLAYER_GROWTH_CONFIG;
     const run = this.runMods?.defense ?? 1;
-    return (PLAYER_CONFIG.baseDefense * (mods.defense ?? 1) + this.level * .82 + stats.defense) * (1 + this.passiveEffects.defense) * run;
+    return (PLAYER_CONFIG.baseDefense * (mods.defense ?? 1) + this.level * G.defensePerLevel + stats.defense) * (1 + this.passiveEffects.defense) * run;
   }
   get critChance() {
     return clamp(
@@ -562,12 +569,11 @@ export class Player {
    * Magic keeps a stable 4-step orb combo.
    */
   get basicComboLength() {
-    if (isRangedAttackStyle(this.classId)) return 4;
-    // Lv1–3: 3 · 4–7: 4 · 8–12: 5 · 13–19: 6 · 20+: 7
-    if (this.level >= 20) return 7;
-    if (this.level >= 13) return 6;
-    if (this.level >= 8) return 5;
-    if (this.level >= 4) return 4;
+    if (isRangedAttackStyle(this.classId)) return PLAYER_GROWTH_CONFIG.rangedComboLength;
+    // First matching gate (gates listed descending minLevel).
+    for (const gate of PLAYER_GROWTH_CONFIG.comboLengthGates) {
+      if (this.level >= gate.minLevel) return gate.length;
+    }
     return 3;
   }
 
