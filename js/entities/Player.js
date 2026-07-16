@@ -568,7 +568,8 @@ export class Player {
     // Late-chain steps without unique clips still read differently via speed + combat VFX.
     const lateBoost = this.comboIndex >= 4 ? 1.08 + (this.comboIndex - 3) * 0.04 : 1;
     this.animation.playOneShot(animName, {
-      fade: .04, fadeOut: finisher ? .12 : .07, timeScale: timeScale * lateBoost, fallback: 'idle',
+      // Slightly longer blend so combat stances don't pop out of idle like T-pose snaps.
+      fade: .09, fadeOut: finisher ? .16 : .12, timeScale: timeScale * lateBoost, fallback: 'idle',
     });
     game.audio.swing(Math.min(3, this.comboIndex));
     game.combat.playerAttack(this, this.comboIndex, comboLength);
@@ -590,7 +591,7 @@ export class Player {
     this.attackLunge = .1;
     let anim = result.anim ?? 'attack_3';
     if (!this.animation.has(anim)) anim = this.animation.has('skill_whirlwind') ? 'skill_whirlwind' : 'attack_3';
-    this.animation.playOneShot(anim, { fade: .05, fadeOut: .1, timeScale: Math.max(1.1, 1.3 / duration), fallback: 'idle' });
+    this.animation.playOneShot(anim, { fade: .1, fadeOut: .14, timeScale: Math.max(1.1, 1.3 / duration), fallback: 'idle' });
     game.audio.skill(result.sfx ?? 'skill_blade');
     if (result.floatText) {
       game.ui.floatText(this.position.clone().add(new THREE.Vector3(0, 2.1, 0)), result.floatText, 'critical');
@@ -636,7 +637,7 @@ export class Player {
         : this.animation.has('skill_whirlwind') ? 'skill_whirlwind' : 'idle';
     }
     this.animation.playOneShot(anim, {
-      fade: .09, fadeOut: .13,
+      fade: .12, fadeOut: .16,
       timeScale: bundle.castTime > .6 ? .92 : 1.05,
       fallback: 'idle',
     });

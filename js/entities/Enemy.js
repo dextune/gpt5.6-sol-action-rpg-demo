@@ -590,34 +590,48 @@ export class Enemy {
           0.24,
         );
         if (isBleed && Math.random() < 0.55) {
-          game.effects?.burst?.(this.position.clone().add(new THREE.Vector3(0, 1.05, 0)), 0xff4a5a, 3, {
-            speed: 1.5, size: 0.12, life: 0.22, upward: 0.15,
-          });
+          const dripAt = this.position.clone().add(new THREE.Vector3(0, 1.05, 0));
+          if (game.effects?.statusBleedDrip) game.effects.statusBleedDrip(dripAt);
+          else {
+            game.effects?.burst?.(dripAt, 0xff4a5a, 3, {
+              speed: 1.5, size: 0.12, life: 0.22, upward: 0.15,
+            });
+          }
         }
       }
     }
-    // Continuous status silhouettes while afflicted (throttled).
+    // Continuous status silhouettes while afflicted (throttled) — named Effects helpers (P5).
     if (this.statuses.burn && Math.random() < delta * 5.5) {
-      game.effects?.burst?.(this.position.clone().add(new THREE.Vector3(0, 0.85, 0)), 0xff7a42, 4, {
-        speed: 1.7, size: 0.15, life: 0.3, upward: 0.55,
-      });
+      const at = this.position.clone().add(new THREE.Vector3(0, 0.85, 0));
+      if (game.effects?.statusBurnEmber) game.effects.statusBurnEmber(at, 1);
+      else {
+        game.effects?.burst?.(at, 0xff7a42, 4, {
+          speed: 1.7, size: 0.15, life: 0.3, upward: 0.55,
+        });
+      }
     }
     if (this.statuses.slow) {
-      if (Math.random() < delta * 3.5) {
-        game.effects?.trail?.(this.position.clone().add(new THREE.Vector3(0, 0.55, 0)), 0xa8ecff, 0.2, 0.22);
-      }
       if (Math.random() < delta * 1.2) {
-        game.effects?.groundDecal?.(this.position, 0xa8ecff, this.radius * 1.5, { life: 0.55, opacity: 0.28, startScale: 0.4 });
+        if (game.effects?.statusSlowRing) game.effects.statusSlowRing(this.position, this.radius * 1.5);
+        else {
+          game.effects?.groundDecal?.(this.position, 0xa8ecff, this.radius * 1.5, { life: 0.55, opacity: 0.28, startScale: 0.4 });
+          game.effects?.trail?.(this.position.clone().add(new THREE.Vector3(0, 0.55, 0)), 0xa8ecff, 0.2, 0.22);
+        }
+      } else if (Math.random() < delta * 3.5) {
+        game.effects?.trail?.(this.position.clone().add(new THREE.Vector3(0, 0.55, 0)), 0xa8ecff, 0.2, 0.22);
       }
     }
     if (this.statuses.expose && Math.random() < delta * 2.2) {
       const markH = this.refs.modelHeight * 0.92 + 0.3;
-      game.effects?.ring?.(
-        this.position.clone().add(new THREE.Vector3(0, markH, 0)),
-        0xffd26b,
-        0.55,
-        { life: 0.28, startScale: 0.35, height: 0.9, opacity: 0.65 },
-      );
+      if (game.effects?.statusExposeMark) game.effects.statusExposeMark(this.position, markH);
+      else {
+        game.effects?.ring?.(
+          this.position.clone().add(new THREE.Vector3(0, markH, 0)),
+          0xffd26b,
+          0.55,
+          { life: 0.28, startScale: 0.35, height: 0.9, opacity: 0.65 },
+        );
+      }
     }
     if (this.eliteAffix === 'shielded' && this.shieldHitsLeft > 0 && Math.random() < delta * 2) {
       game.effects?.ring?.(this.position, 0x7ad8ff, this.radius * 1.8, {

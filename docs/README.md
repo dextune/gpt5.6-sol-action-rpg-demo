@@ -40,6 +40,7 @@ Guides for small and large agents to safely modify the **GPT-5.6: Sol / Action R
 | [plan/weapon-enhancement-gold-progression.md](./plan/weapon-enhancement-gold-progression.md) | **implemented gold-primary loot with survival potions, one signature weapon, and two enhancement tracks** |
 | [plan/weapon-visual-scale-detail.md](./plan/weapon-visual-scale-detail.md) | **plan: global 1.5× weapon visual scale + optional mesh detail (hit range independent)** |
 | [plan/monster-variety-hunt-defense.md](./plan/monster-variety-hunt-defense.md) | **plan: Hunt/Defense monster variety — roles, bestiary growth, affixes, wave recipes, visuals** |
+| [plan/presentation-and-motion-backlog.md](./plan/presentation-and-motion-backlog.md) | **backlog: VFX recipes, hit-feel, status juice, remaining motion (post pose-bake pass)** |
 
 ## Agent working rules (summary)
 

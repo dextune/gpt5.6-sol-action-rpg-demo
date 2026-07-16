@@ -73,13 +73,14 @@ export class PostProcessSystem {
     this.ssao.kernelRadius = quality === 'high' ? 4.5 : 3.2;
     this.outline.enabled = false;
     this.bloom.enabled = quality !== 'low';
-    this.bloom.strength = quality === 'high' ? .09 : .055;
-    this.bloom.radius = .16;
-    this.bloom.threshold = .95;
+    // P10 micro-tune: slightly richer high bloom, still weak enough for horde density.
+    this.bloom.strength = quality === 'high' ? .11 : .06;
+    this.bloom.radius = quality === 'high' ? .18 : .16;
+    this.bloom.threshold = quality === 'high' ? .93 : .95;
     this.bokeh.enabled = false;
     this.grade.enabled = quality !== 'low';
     this.fxaa.enabled = quality !== 'low';
-    this.grade.uniforms.warmth.value = quality === 'low' ? .02 : .03;
+    this.grade.uniforms.warmth.value = quality === 'high' ? .04 : quality === 'low' ? .02 : .03;
   }
 
   setFocusDistance(distance) {

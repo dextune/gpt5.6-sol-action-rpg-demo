@@ -361,17 +361,60 @@ export class Effects {
   }
 
   /**
-   * Lite weapon swing trail — additive slash ribbon + soft glow along the swing path.
-   * v1: no bone sampling; reuses slash/trail pools.
+   * Weapon swing trail — additive slash ribbon + soft glow along the swing path.
+   * Prefer blade base→tip world samples when provided (weapon_socket bones); otherwise
+   * approximate with origin + facing + range.
+   * @param {THREE.Vector3} position mid/origin fallback
+   * @param {THREE.Vector3} direction horizontal facing
+   * @param {{ heavy?: boolean, angleOffset?: number, height?: number, base?: THREE.Vector3, tip?: THREE.Vector3 }} options
    */
   swingTrail(position, direction, color = 0xffffff, range = 2.4, options = {}) {
     const dir = direction?.clone?.().setY(0) ?? new THREE.Vector3(0, 0, 1);
     if (dir.lengthSq() < 1e-6) dir.set(0, 0, 1);
     else dir.normalize();
     const heavy = Boolean(options.heavy);
-    const size = range * (heavy ? 1.15 : 1);
     const angle = options.angleOffset ?? 0.42;
-    // Primary weapon-color ribbon through the arc.
+    const base = options.base;
+    const tip = options.tip;
+    const hasBlade = base && tip
+      && Number.isFinite(base.x) && Number.isFinite(tip.x)
+      && base.distanceToSquared?.(tip) > 1e-4;
+
+    if (hasBlade) {
+      // Bone-sampled ribbon: mid along blade edge, size from blade length.
+      const mid = base.clone().lerp(tip, 0.55);
+      const bladeDir = tip.clone().sub(base);
+      const bladeLen = Math.max(0.6, Math.min(range * 1.35, bladeDir.length() * 1.85));
+      const horiz = bladeDir.setY(0);
+      if (horiz.lengthSq() < 1e-6) horiz.copy(dir);
+      else horiz.normalize();
+      this.slash(mid, horiz, color, bladeLen, {
+        height: 0,
+        thickness: heavy ? .14 : .09,
+        opacity: heavy ? .95 : .78,
+        spin: heavy ? 3.4 : 2.5,
+        life: heavy ? .28 : .2,
+        grow: heavy ? .85 : .6,
+        tilt: .12,
+        angleOffset: angle * 0.35,
+      });
+      this.slash(mid, horiz, 0xffffff, bladeLen * .92, {
+        height: 0.05,
+        thickness: heavy ? .07 : .045,
+        opacity: heavy ? .62 : .48,
+        spin: heavy ? -2.8 : -2.1,
+        life: heavy ? .2 : .14,
+        grow: .95,
+        tilt: -.18,
+        angleOffset: -angle * 0.55,
+      });
+      this.trail(tip.clone(), color, heavy ? .55 : .38, heavy ? .22 : .15);
+      this.trail(mid, color, heavy ? .4 : .28, .12);
+      return;
+    }
+
+    const size = range * (heavy ? 1.15 : 1);
+    // Fallback ribbon when blade markers are missing (magic/staff/ranged).
     this.slash(position, dir, color, size, {
       height: options.height ?? 1.08,
       thickness: heavy ? .14 : .09,
@@ -382,7 +425,6 @@ export class Effects {
       tilt: .12,
       angleOffset: angle * 0.35,
     });
-    // Brighter core edge (white) for blade read.
     this.slash(position, dir, 0xffffff, size * .92, {
       height: (options.height ?? 1.08) + .08,
       thickness: heavy ? .07 : .045,
@@ -393,11 +435,41 @@ export class Effects {
       tilt: -.18,
       angleOffset: -angle * 0.55,
     });
-    // Soft afterglow spheres along the swing midline.
     const mid = position.clone().addScaledVector(dir, range * 0.45);
     mid.y += options.height ?? 1.08;
     this.trail(mid, color, heavy ? .55 : .38, heavy ? .22 : .15);
     this.trail(mid.clone().addScaledVector(dir, range * 0.22), color, heavy ? .4 : .28, .12);
+  }
+
+  /** Throttled burn ember residual (status readability). */
+  statusBurnEmber(position, intensity = 1) {
+    const n = Math.max(2, Math.round(4 * intensity));
+    this.burst(position, 0xff7a42, n, {
+      speed: 1.7, size: 0.15, life: 0.3, upward: 0.55, gravity: 3.5,
+    });
+  }
+
+  /** Foot ice ring refresh while slowed. */
+  statusSlowRing(position, radius = 1.2) {
+    this.groundDecal(position, 0xa8ecff, radius, { life: 0.55, opacity: 0.28, startScale: 0.4 });
+    this.trail(position.clone().add(new THREE.Vector3(0, 0.55, 0)), 0xa8ecff, 0.2, 0.22);
+  }
+
+  /** Bleed drip burst on tick. */
+  statusBleedDrip(position) {
+    this.burst(position, 0xff4a5a, 3, {
+      speed: 1.5, size: 0.12, life: 0.22, upward: 0.15, gravity: 6,
+    });
+  }
+
+  /** Expose / Hunter Mark head cue. */
+  statusExposeMark(position, height = 2.2) {
+    this.ring(
+      position.clone().add(new THREE.Vector3(0, height, 0)),
+      0xffd26b,
+      0.55,
+      { life: 0.28, startScale: 0.35, height: 0.9, opacity: 0.65 },
+    );
   }
 
   /** Fading ground disc (ice residual / scorch). */
@@ -452,6 +524,10 @@ export class Effects {
   recipeSpinStorm(position, facing, theme, radius, pulseIndex = 0, finale = false) {
     const h = 0.72 + pulseIndex * 0.32;
     this.ring(position, theme.primary, radius * (0.78 + pulseIndex * 0.1), { life: 0.38, startScale: 0.3 });
+    // Third mid-height slash for denser whirl silhouette (P1 micro-pass).
+    this.slash(position, facing, theme.accent ?? theme.secondary, radius * 0.9, {
+      height: h + 0.18, thickness: 0.035, life: 0.2, spin: 3.8 + pulseIndex * 0.4, angleOffset: -0.7, opacity: 0.55,
+    });
     this.slash(position, facing, finale ? theme.core : theme.primary, radius * 0.98, {
       height: h, thickness: 0.07 + pulseIndex * 0.015, life: 0.3, spin: 5.5 + pulseIndex, opacity: 0.9,
     });
@@ -463,6 +539,7 @@ export class Effects {
         height: 1.4, thickness: 0.09, life: 0.28, spin: 7, angleOffset: -0.9, opacity: 0.85,
       });
       this.ring(position, theme.core, radius * 1.1, { life: 0.42, startScale: 0.12, height: 0.1, opacity: 0.7 });
+      this.groundDecal(position, theme.dust ?? theme.primary, radius * 0.75, { life: 0.7, opacity: 0.28, startScale: 0.2 });
       this.dust(position, theme.dust, 16, 0.42);
     }
     this.burst(position.clone().add(new THREE.Vector3(0, 1, 0)), theme.primary, 12 + pulseIndex * 5, {
@@ -758,6 +835,7 @@ export class Effects {
   }
 
   recipeFireBlast(at, theme, radius) {
+    // Scorch residual + dual ring for explosion silhouette (P1).
     this.ring(at, theme.primary, radius, { life: 0.48, startScale: 0.1 });
     this.ring(at, theme.core, radius * 0.55, { life: 0.28, startScale: 0.2, height: 0.1, opacity: 0.85 });
     this.burst(at.clone().add(new THREE.Vector3(0, 0.9, 0)), theme.secondary, 28, {

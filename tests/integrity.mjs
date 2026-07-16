@@ -173,6 +173,11 @@ console.log('\n--- skill-combat ---');
 const skillCombat = await import(pathToFileURL(join(root, 'tests/skill-combat.mjs')));
 void skillCombat;
 
+// Presentation / motion backlog (P1–P10) — recipes, coalesce, trail, status, audio, constraints
+console.log('\n--- presentation-motion ---');
+const presentationMotion = await import(pathToFileURL(join(root, 'tests/presentation-motion.mjs')));
+void presentationMotion;
+
 // Nested import/reference integrity + combat/class simulations (prevents SKILLS-not-defined class bugs).
 console.log('\n--- import-integrity ---');
 const nested = await import(pathToFileURL(join(root, 'tests/import-integrity.mjs')));

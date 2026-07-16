@@ -277,9 +277,16 @@ export class AudioManager {
    * Successful damage contact.
    * @param {boolean} critical
    * @param {boolean} finisher
+   * @param {{ combo?: number, multiHit?: boolean, material?: 'default'|'gel'|'stone' }} [options]
    */
-  hit(critical = false, finisher = false) {
+  hit(critical = false, finisher = false, options = {}) {
     if (!this.context || !this.sfx || this.muted) return;
+
+    const combo = Math.max(0, Math.min(3, Number(options.combo) || 0));
+    const material = options.material === 'gel' || options.material === 'stone'
+      ? options.material
+      : 'default';
+    const multiHit = Boolean(options.multiHit);
 
     const nowMs = typeof performance !== 'undefined' ? performance.now() : Date.now();
     // Multi-target: one full impact, then soft ticks (cleave / skills).
@@ -287,8 +294,16 @@ export class AudioManager {
       this._hitBurstCount += 1;
       if (this._hitBurstCount > 3) return;
       const soft = Math.max(0.2, 0.45 - this._hitBurstCount * 0.08);
-      this.#noise(0.035, 0.014 * soft, { type: 'lowpass', frequency: 450, decay: 1.8 });
-      this.#tone(70, 0.045, { type: 'sine', volume: 0.025 * soft, end: 36, filter: 280 });
+      // Multihit smash layer — low-end + debris when many land together.
+      if (multiHit || this._hitBurstCount >= 2) {
+        this.#noise(0.05, 0.018 * soft, { type: 'lowpass', frequency: material === 'stone' ? 280 : 400, decay: 1.6 });
+        this.#tone(material === 'stone' ? 48 : 62, 0.05, {
+          type: 'sine', volume: 0.03 * soft, end: 30, filter: 220,
+        });
+      } else {
+        this.#noise(0.035, 0.014 * soft, { type: 'lowpass', frequency: 450, decay: 1.8 });
+        this.#tone(70, 0.045, { type: 'sine', volume: 0.025 * soft, end: 36, filter: 280 });
+      }
       return;
     }
     this._lastHitAt = nowMs;
@@ -296,34 +311,42 @@ export class AudioManager {
 
     let key = 'hit_light';
     let volume = 0.88;
-    // Very dark LP — kills hi-hat air on contact
-    let filter = 720;
+    // Combo steps brighten slightly; material darkens (stone) or softens (gel).
+    let filter = 720 + combo * 40;
+    if (material === 'stone') filter = Math.min(filter, 520);
+    if (material === 'gel') filter = Math.max(filter, 900);
     if (critical) {
       key = 'hit_crit';
       volume = 0.98;
-      filter = 800;
+      filter = material === 'stone' ? 640 : material === 'gel' ? 920 : 800;
     } else if (finisher) {
       key = 'hit_finisher';
       volume = 1.0;
-      filter = 680;
+      filter = material === 'stone' ? 520 : material === 'gel' ? 780 : 680;
     }
 
+    const rateBase = material === 'gel' ? 1.05 : material === 'stone' ? 0.86 : 0.92;
     const played = this.playSample(key, {
-      volume,
-      rate: 0.92 + Math.random() * 0.07,
+      volume: volume * (0.92 + combo * 0.02),
+      rate: rateBase + Math.random() * 0.07,
       filter,
     });
 
     if (!played) {
-      // Procedural mid-low thud only — no bright noise
-      this.#tone(critical ? 82 : finisher ? 58 : 72, finisher ? 0.16 : 0.1, {
-        type: 'sine', volume: critical ? 0.1 : 0.08, end: 38, filter: 360,
+      // Procedural mid-low thud — material-tinted, combo-weighted.
+      const pitch = (critical ? 82 : finisher ? 58 : 72 + combo * 4)
+        * (material === 'gel' ? 1.12 : material === 'stone' ? 0.78 : 1);
+      this.#tone(pitch, finisher ? 0.16 : 0.1, {
+        type: material === 'gel' ? 'triangle' : 'sine',
+        volume: critical ? 0.1 : 0.08, end: 38, filter: material === 'stone' ? 260 : 360,
       });
       this.#tone(critical ? 52 : 48, finisher ? 0.14 : 0.08, {
-        type: 'sine', volume: 0.04, end: 34, filter: 200,
+        type: 'sine', volume: 0.04, end: 34, filter: material === 'stone' ? 160 : 200,
       });
       this.#noise(finisher ? 0.06 : 0.04, finisher ? 0.012 : 0.008, {
-        type: 'lowpass', frequency: 320, decay: 1.5,
+        type: material === 'gel' ? 'bandpass' : 'lowpass',
+        frequency: material === 'gel' ? 700 : material === 'stone' ? 240 : 320,
+        decay: 1.5,
       });
       if (finisher) this.#tone(52, 0.18, { type: 'sine', volume: 0.05, end: 36, filter: 180 });
     } else if (finisher) {

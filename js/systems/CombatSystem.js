@@ -248,14 +248,20 @@ export class CombatSystem {
       player.position.clone().add(new THREE.Vector3(0, 1.05, 0)).addScaledVector(direction, .55),
       color, finisher ? .7 : .34 + chain * .2, finisher ? .24 : .12,
     );
-    // Lite weapon swing ribbon (no bone sampling) — melee-only path.
+    // Weapon swing ribbon — sample blade bones when equipped (melee path).
     const swingRange = ((finisher ? profile.finisherRange : profile.range) + combo * profile.rangePerCombo + levelBoost * .25) * rangeMult;
+    const bladeSamples = this.#bladeTrailSamples(player, false);
     this.game.effects.swingTrail?.(
       player.position.clone().add(new THREE.Vector3(0, 1.05, 0)),
       direction,
       color,
       swingRange * (finisher ? 1.2 : 1),
-      { heavy: finisher || combo >= 2, angleOffset: combo % 2 ? .45 : -.4 },
+      {
+        heavy: finisher || combo >= 2,
+        angleOffset: combo % 2 ? .45 : -.4,
+        base: bladeSamples.base,
+        tip: bladeSamples.tip,
+      },
     );
 
     // High-level finishers and late chain steps land as multi-pulse hits for impact.
@@ -287,7 +293,8 @@ export class CombatSystem {
           spin: (combo + pulse) % 2 ? -3.1 : 2.9,
           angleOffset: (combo + pulse) % 2 ? .58 : -.5,
         });
-        // Second delayed ribbon — brighter follow-through on the same swing.
+        // Second delayed ribbon — follow-through, prefer live blade samples.
+        const pulseBlade = this.#bladeTrailSamples(player, offhand);
         this.game.effects.swingTrail?.(
           hitOrigin.clone().add(new THREE.Vector3(0, 0.08, 0)),
           direction,
@@ -297,6 +304,8 @@ export class CombatSystem {
             heavy: finisher || combo >= 2,
             height: finisher ? 1.15 : 0.98,
             angleOffset: (combo + pulse) % 2 ? -.52 : .48,
+            base: pulseBlade.base,
+            tip: pulseBlade.tip,
           },
         );
         if (finisher && pulse === 0) {
@@ -2409,6 +2418,32 @@ export class CombatSystem {
     });
   }
 
+  /**
+   * World-space blade base/tip samples for swing trails.
+   * Returns nulls when markers missing (staff/magic) so Effects falls back to facing ribbon.
+   */
+  #bladeTrailSamples(player, offhand = false) {
+    const refs = player?.refs;
+    if (!refs) return { base: null, tip: null };
+    const baseObj = offhand ? (refs.offhandBladeBase ?? refs.bladeBase) : (refs.mainBladeBase ?? refs.bladeBase);
+    const tipObj = offhand ? (refs.offhandBladeTip ?? refs.bladeTip) : (refs.mainBladeTip ?? refs.bladeTip);
+    if (!baseObj || !tipObj) return { base: null, tip: null };
+    const base = new THREE.Vector3();
+    const tip = new THREE.Vector3();
+    baseObj.getWorldPosition?.(base);
+    tipObj.getWorldPosition?.(tip);
+    if (!Number.isFinite(base.x) || !Number.isFinite(tip.x)) return { base: null, tip: null };
+    return { base, tip };
+  }
+
+  /** Map enemy shape/archetype to hit SFX material bucket. */
+  #hitMaterialFor(enemy) {
+    const shape = String(enemy?.data?.shape ?? enemy?.deathArchetype ?? '').toLowerCase();
+    if (/slime|blob|toad|ooze|gel/.test(shape)) return 'gel';
+    if (/golem|colossus|rock|stone|crab|beetle|knight/.test(shape)) return 'stone';
+    return 'default';
+  }
+
   #hitEnemiesInCone(origin, direction, range, arc, rawDamage, options = {}) {
     const cosThreshold = Math.cos(arc * .5);
     const collected = [];
@@ -2564,7 +2599,11 @@ export class CombatSystem {
     }
 
     this.game.ui.floatText(hitPoint, `${critical ? 'CRIT ' : ''}${result.amount}`, critical ? 'critical' : 'damage');
-    this.game.audio.hit(critical, finisher);
+    this.game.audio.hit(critical, finisher, {
+      combo: options.combo ?? 0,
+      multiHit: Boolean(options.liteImpact || options.multiHit),
+      material: this.#hitMaterialFor(enemy),
+    });
 
     if (player.leech > 0) player.heal(result.amount * player.leech);
     return result;

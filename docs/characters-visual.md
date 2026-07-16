@@ -72,15 +72,15 @@ Applied scale is `(WEAPON_GIRTH * WEAPON_VISUAL_SCALE, WEAPON_LENGTH * WEAPON_VI
 **Shared locomotion / reaction:**  
 `idle`, `run`, `sprint`, `dodge`, `hit`, `death`
 
-**Weapon holds:** only **rogue** uses a custom dual-wield crouch idle/run hold (`classWeaponHold('rogue')`). Knight, wizard, and ranger use the shared legacy idle/run/sprint arm poses.
+**Weapon holds:** every class has a soft combat-ready idle/run hold via `classWeaponHold(profileId)` (knight guard, wizard staff stance, ranger bow-ready, rogue dual crouch). Combat clips start from that rest so attacks/casts no longer snap out of T-pose arms.
 
 ### Basic attack poses
 
 | Class | Clips | Notes |
 |-------|-------|--------|
-| `aerin` | `attack_1`–`attack_7` | Shared legacy sword combo kit |
-| `rogue` | `attack_1`–`attack_7` | Custom dual-dagger chain (returns to crouch rest) |
-| `wizard` / `ranger` | `cast_1`–`cast_4` primary + `attack_1`–`attack_4` fallback | Shared legacy cast/attack clips |
+| `aerin` | `attack_1`–`attack_7` | Full-body sword chain (weight shift, follow-through) |
+| `rogue` | `attack_1`–`attack_7` | Dual-dagger chain with settle back to crouch rest |
+| `wizard` / `ranger` | `cast_1`–`cast_4` primary + `attack_1`–`attack_4` fallback | Body-weighted casts + shared attack fallbacks |
 
 Runtime: melee plays `attack_N`; magic/ranged prefer `cast_N` (`Player.tryAttack`).
 
@@ -103,7 +103,7 @@ node tools/assets/generate_assets.mjs --heroes-only
 node tests/integrity.mjs
 ```
 
-Rogue hold/attack tuning: `classWeaponHold('rogue')` and the rogue branch of `buildClassCombatClipSpecs`. Extend `heroAnimations()` for new skill/cast clips.
+Hold/attack tuning: `classWeaponHold(profileId)`, `buildClassCombatClipSpecs`, and skill poses in `heroAnimations()`. Prefer **anticipation → contact → follow-through → settle** keys with legs/spine/head — sparse arm-only keys look wooden. `animationClip` hold-forwards omitted bones (does not snap missing keys to identity).
 Each GLB only ships shared locomotion/reaction clips plus its own class combat clips — register new clips in `HERO_CLASS_CLIPS` so they survive the per-class filter.
 Runtime: `Player.trySkill` has limited anim fallbacks if a clip is missing — still bake unique names for shipping quality.
 
