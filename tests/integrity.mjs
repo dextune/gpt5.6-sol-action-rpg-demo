@@ -176,6 +176,10 @@ void skillCombat;
 // Presentation / motion backlog (P1–P10) — recipes, coalesce, trail, status, audio, constraints
 console.log('\n--- presentation-motion ---');
 const presentationMotion = await import(pathToFileURL(join(root, 'tests/presentation-motion.mjs')));
+
+console.log('\n--- template-boundary ---');
+const templateBoundary = await import(pathToFileURL(join(root, 'tests/template-boundary.mjs')));
+ok(templateBoundary !== null, 'template-boundary nested suite loaded');
 void presentationMotion;
 
 // Nested import/reference integrity + combat/class simulations (prevents SKILLS-not-defined class bugs).

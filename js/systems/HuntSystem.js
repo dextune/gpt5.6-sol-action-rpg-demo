@@ -1,5 +1,6 @@
 import { HUNT_TITLES, ZONES } from '../data/content.js';
 import { clamp, randInt, uid, weightedPick } from '../core/Utils.js';
+import { createGameContext } from '../core/GameContext.js';
 
 /** English reward preview lines by contract reward tier (1–5). */
 const CONTRACT_REWARD_HINTS = Object.freeze({
@@ -18,6 +19,7 @@ function rewardHintForTier(tier) {
 export class HuntSystem {
   constructor(game) {
     this.game = game;
+    this.ctx = game?.ctx ?? createGameContext(game);
     this.reset();
   }
 

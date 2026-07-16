@@ -6,6 +6,12 @@ import {
   createProjectileVisual, disposeProjectileVisual, orientProjectile,
 } from '../graphics/ProjectileMeshes.js';
 import { clamp, rand } from '../core/Utils.js';
+import { createGameContext } from '../core/GameContext.js';
+import {
+  ENERGY_HANDLER_KEYS,
+  SKILL_EFFECT_HANDLER_KEYS,
+  assertHandlerKeys,
+} from './combat/skillEffectRegistry.js';
 
 const TMP_A = new THREE.Vector3();
 const TMP_B = new THREE.Vector3();
@@ -14,6 +20,8 @@ const TMP_C = new THREE.Vector3();
 export class CombatSystem {
   constructor(game) {
     this.game = game;
+    /** Prefer for new code — narrow facade (see architecture-template-boundary.md). */
+    this.ctx = game?.ctx ?? createGameContext(game);
     this.projectiles = [];
     this.telegraphs = [];
     this.delayed = [];
@@ -34,7 +42,10 @@ export class CombatSystem {
     this.fanStates = new WeakMap();
     this.starburstStates = new WeakMap();
     this.lotusStates = new WeakMap();
-    /** effect id → handler(player, immutable bundle, phase?) */
+    /**
+     * effect id → handler(player, immutable bundle, phase?)
+     * Keys locked in combat/skillEffectRegistry.js — do not add silently.
+     */
     this.skillHandlers = {
       whirlwind: (p, bundle, phase, audio) => this.#whirlwind(p, bundle, phase, audio),
       crescent: (p, bundle, phase, audio) => this.#crescent(p, bundle, phase, audio),
@@ -59,6 +70,8 @@ export class CombatSystem {
       wrath_slam: (p, def) => this.#wrathSlamBurst(p, def),
       arrow_storm: (p, def) => this.#arrowStormBurst(p, def),
     };
+    assertHandlerKeys(this.skillHandlers, SKILL_EFFECT_HANDLER_KEYS, 'CombatSystem.skillHandlers');
+    assertHandlerKeys(this.energyHandlers, ENERGY_HANDLER_KEYS, 'CombatSystem.energyHandlers');
   }
 
   #skillBundle(bundle) {

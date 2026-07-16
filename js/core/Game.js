@@ -3,6 +3,7 @@ import { DEFENSE_CONFIG, GAME_CONFIG, GROWTH_CONFIG } from '../config.js';
 import { HERO_CLASSES, SKILLS, getClassActiveSkills, getClassSkillIds, skillKeyCode } from '../data/content.js';
 import { normalizeSkillRank } from '../data/skillCombat.js';
 import { clamp, randInt } from './Utils.js';
+import { createGameContext } from './GameContext.js';
 import { Input } from './Input.js';
 import { SaveManager } from './SaveManager.js';
 import { AudioManager } from './AudioManager.js';
@@ -84,6 +85,12 @@ export class Game {
     this.debugVisible = this.debugEnabled;
     this.debugTimer = 0;
     this.clock = new THREE.Clock();
+
+    /**
+     * Narrow system facade (live getters). Created before systems exist so
+     * constructors can capture `game.ctx`. See architecture-template-boundary.md.
+     */
+    this.ctx = createGameContext(this);
 
     this.#resize();
     window.addEventListener('resize', () => this.#resize());
@@ -689,8 +696,19 @@ export class Game {
     this.defense.reset();
     this.player.reset();
     this.world.resolvePosition(this.player.position, .48);
+    // Drop cache entries with zero live clones after run teardown.
+    this.purgeUnusedAssets();
     this.state = 'title';
     this.ui.showTitle();
+  }
+
+  /**
+   * Dispose AssetManager model cache entries that have no live skeleton clones.
+   * Safe after enemy/loot teardown; does not touch textures still referenced by terrain.
+   * @returns {number} purged entry count
+   */
+  purgeUnusedAssets() {
+    return this.assets?.purgeUnused?.() ?? 0;
   }
 
   handlePlayerDeath() {

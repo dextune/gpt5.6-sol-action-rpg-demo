@@ -12,6 +12,7 @@ Detailed guides are in **`docs/`** — hub: [docs/README.md](./docs/README.md). 
 3. **Scope** — only what was requested. No unrelated refactor, full reformat, or `vendor/` edits.
 4. **Validation** — if you touch content/paths, run `node tests/integrity.mjs`.
 5. **Run** — `file://` forbidden. `node server.mjs` → `http://127.0.0.1:8777`.
+6. **Template boundary (LOCKED)** — [docs/architecture-template-boundary.md](./docs/architecture-template-boundary.md). Template-candidate modules must not import `content`/`skillCombat`/modes. Systems use `game.ctx`. New skill `effect` ids go through `js/systems/combat/skillEffectRegistry.js`. Do not reintroduce AssetManager `refs` floor-1.
 
 ## Common basics (save tokens)
 
@@ -42,6 +43,7 @@ Detailed guides are in **`docs/`** — hub: [docs/README.md](./docs/README.md). 
 | Combat facing (move aim) | agent/combat-facing |
 | Performance | config-and-tuning, graphics-vfx, world |
 | Run / save | save-and-run |
+| Template vs game split / GameContext | architecture-template-boundary (**LOCKED**) |
 | Full list | [docs/README.md](./docs/README.md) |
 
 ## Core paths

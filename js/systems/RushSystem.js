@@ -22,6 +22,7 @@ import {
   rushShuffle,
 } from '../data/rushContent.js';
 import { clamp } from '../core/Utils.js';
+import { createGameContext } from '../core/GameContext.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 const TMP_A = new THREE.Vector3();
@@ -70,6 +71,7 @@ function pointSegmentDistance(point, start, end) {
 export class RushSystem {
   constructor(game) {
     this.game = game;
+    this.ctx = game?.ctx ?? createGameContext(game);
     this.meta = this.#loadMeta();
     this.reset();
   }

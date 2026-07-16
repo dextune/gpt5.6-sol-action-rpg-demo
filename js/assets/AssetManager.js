@@ -14,6 +14,25 @@ function disposeMaterial(material) {
   material.dispose?.();
 }
 
+function disposeObjectTree(root) {
+  root?.traverse?.(object => {
+    object.geometry?.dispose?.();
+    if (Array.isArray(object.material)) object.material.forEach(disposeMaterial);
+    else disposeMaterial(object.material);
+  });
+}
+
+/**
+ * GLTF / texture loading with explicit clone refcounts.
+ *
+ * Template-layer candidate — see docs/architecture-template-boundary.md
+ *
+ * Semantics:
+ * - `loadModel` caches the source GLTF with `clones = 0` (cache hold only).
+ * - `cloneModel` increments `clones` for each live skeletal instance.
+ * - `releaseModel` decrements `clones` (floor 0); does not dispose source until purge.
+ * - `purgeUnused` disposes cache entries whose `clones === 0`.
+ */
 export class AssetManager extends EventTarget {
   constructor(renderer, options = {}) {
     super();
@@ -84,7 +103,8 @@ export class AssetManager extends EventTarget {
     const promise = this.loader.loadAsync(url).then(gltf => {
       gltf.scene.name ||= key;
       gltf.scene.userData.assetKey = key;
-      const entry = { gltf, refs: 1, url, quality };
+      // clones = live skeleton instances; 0 means cache-only (purgeable).
+      const entry = { gltf, clones: 0, url, quality };
       this.models.set(cacheKey, entry);
       this.pending.delete(cacheKey);
       return gltf;
@@ -113,13 +133,20 @@ export class AssetManager extends EventTarget {
       ?? null;
   }
 
+  /** @returns {{ clones: number } | null} */
+  getModelEntry(key, quality = this.quality) {
+    const candidates = [`${key}@${quality}`, `${key}@medium`, `${key}@high`, `${key}@low`];
+    const actualKey = candidates.find(candidate => this.models.has(candidate));
+    return actualKey ? this.models.get(actualKey) : null;
+  }
+
   cloneModel(key, options = {}) {
     const quality = options.quality ?? this.quality;
     const candidates = [`${key}@${quality}`, `${key}@medium`, `${key}@high`, `${key}@low`];
     const actualKey = candidates.find(candidate => this.models.has(candidate));
     const entry = actualKey ? this.models.get(actualKey) : null;
     if (!entry) return this.createFallback(key, options);
-    entry.refs += 1;
+    entry.clones += 1;
     const scene = cloneSkeleton(entry.gltf.scene);
     scene.userData.assetKey = key;
     scene.userData.assetQuality = entry.quality;
@@ -141,41 +168,57 @@ export class AssetManager extends EventTarget {
     return { scene, animations: [], fallback: true, refs, release: () => {} };
   }
 
+  /**
+   * Drop one live clone reference. Source GLTF stays cached until purgeUnused().
+   * @returns {number} remaining clone count for that entry (−1 if unknown)
+   */
   releaseModel(instanceOrKey, quality = this.quality) {
-    const cacheKey = typeof instanceOrKey === 'string' ? `${instanceOrKey}@${quality}` : instanceOrKey?.userData?.assetCacheKey;
+    const cacheKey = typeof instanceOrKey === 'string'
+      ? `${instanceOrKey}@${quality}`
+      : instanceOrKey?.userData?.assetCacheKey;
     const entry = cacheKey ? this.models.get(cacheKey) : null;
-    if (entry) entry.refs = Math.max(1, entry.refs - 1);
+    if (!entry) return -1;
+    entry.clones = Math.max(0, (entry.clones ?? 0) - 1);
+    return entry.clones;
   }
 
   getStats() {
+    let liveClones = 0;
+    let purgeable = 0;
+    for (const entry of this.models.values()) {
+      const c = entry.clones ?? 0;
+      liveClones += c;
+      if (c === 0) purgeable += 1;
+    }
     return {
       gltfEntries: this.models.size,
       pending: this.pending.size,
       failed: this.failed.size,
-      liveReferences: [...this.models.values()].reduce((sum, entry) => sum + Math.max(0, entry.refs - 1), 0),
+      liveReferences: liveClones,
+      liveClones,
+      purgeableEntries: purgeable,
       textures: this.textureCache.entries.size,
     };
   }
 
+  /**
+   * Dispose cached models that have no live clones.
+   * @returns {number} number of entries removed
+   */
   purgeUnused() {
+    let removed = 0;
     for (const [key, entry] of this.models) {
-      if (entry.refs > 1) continue;
-      entry.gltf.scene.traverse(object => {
-        object.geometry?.dispose?.();
-        if (Array.isArray(object.material)) object.material.forEach(disposeMaterial);
-        else disposeMaterial(object.material);
-      });
+      if ((entry.clones ?? 0) > 0) continue;
+      disposeObjectTree(entry.gltf?.scene);
       this.models.delete(key);
+      removed += 1;
     }
+    return removed;
   }
 
   dispose() {
     for (const entry of this.models.values()) {
-      entry.gltf.scene.traverse(object => {
-        object.geometry?.dispose?.();
-        if (Array.isArray(object.material)) object.material.forEach(disposeMaterial);
-        else disposeMaterial(object.material);
-      });
+      disposeObjectTree(entry.gltf?.scene);
     }
     this.models.clear();
     this.pending.clear();

@@ -6,6 +6,7 @@ import {
   AFFIXES, ARMOR_BASES, CHARM_BASES, RARITIES, WEAPON_BASES, getHeroClass, getWeaponEvolution,
 } from '../data/content.js';
 import { chance, clamp, pick, rand, randInt, uid, weightedPick } from '../core/Utils.js';
+import { createGameContext } from '../core/GameContext.js';
 
 const RARITY_ORDER = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
 const STAT_KEYS = ['power', 'defense', 'hp', 'crit', 'haste', 'leech', 'xpBonus', 'goldBonus', 'skillPower', 'moveSpeed', 'luck'];
@@ -181,6 +182,7 @@ const BASE_LEVELS = Object.freeze({
 export class LootSystem {
   constructor(game) {
     this.game = game;
+    this.ctx = game?.ctx ?? createGameContext(game);
     this.pickups = [];
     this.rarePity = 0;
   }

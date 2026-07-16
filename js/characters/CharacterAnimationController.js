@@ -1,3 +1,8 @@
+/**
+ * Skeletal animation playback (template-layer candidate).
+ * LOCKED surface: play / playOneShot / setLocomotion / scheduleNormalized / update / dispose.
+ * No Sol content imports — keep game-free. See docs/architecture-template-boundary.md
+ */
 import * as THREE from 'three';
 
 export class CharacterAnimationController {

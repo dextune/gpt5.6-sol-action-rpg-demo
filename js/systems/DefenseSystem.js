@@ -4,6 +4,7 @@ import {
   ENEMY_TYPES, ZONE_BOSSES, ZONE_MINI_BOSSES, ZONE_SPAWNS, defenseRecipeForWave, enemiesByZoneRole,
 } from '../data/content.js';
 import { chance, clamp, weightedPick } from '../core/Utils.js';
+import { createGameContext } from '../core/GameContext.js';
 
 const TMP_UP = new THREE.Vector3(0, 1, 0);
 
@@ -19,6 +20,7 @@ const DEFENSE_ZONE_ORDER = Object.freeze([
 export class DefenseSystem {
   constructor(game) {
     this.game = game;
+    this.ctx = game?.ctx ?? createGameContext(game);
     this.reset();
   }
 

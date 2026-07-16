@@ -4,6 +4,7 @@ import {
   ELITE_AFFIXES, ENEMY_TYPES, ZONES, ZONE_BOSSES, ZONE_SPAWNS, enemiesByZoneRole,
 } from '../data/content.js';
 import { chance, clamp, rand, randInt, weightedPick } from '../core/Utils.js';
+import { createGameContext } from '../core/GameContext.js';
 import { Enemy } from '../entities/Enemy.js';
 
 const TMP = new THREE.Vector3();
@@ -17,6 +18,7 @@ const HUNT_ARTILLERY_CAP = 3;
 export class EnemySystem {
   constructor(game) {
     this.game = game;
+    this.ctx = game?.ctx ?? createGameContext(game);
     this.enemies = [];
     this.spawnTimer = .2;
     this.separationTimer = 0;

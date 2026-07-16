@@ -14,6 +14,7 @@ Guides for small and large agents to safely modify the **GPT-5.6: Sol / Action R
 | Doc | Covers |
 |-----|--------|
 | [architecture.md](./architecture.md) | module structure, boot order, dependency direction, layering |
+| [architecture-template-boundary.md](./architecture-template-boundary.md) | **LOCKED: template-3d vs sol-arpg ownership, GameContext, asset refs, skill registry** |
 | [config-and-tuning.md](./config-and-tuning.md) | `GAME_CONFIG` / `PLAYER_CONFIG` / quality presets |
 | [content-data.md](./content-data.md) | zones · monsters · equipment · **skills combat/theme schema** |
 | [combat.md](./combat.md) | basic attack · skills · statuses · skillPower · recipes |

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { clamp } from '../core/Utils.js';
+import { createGameContext } from '../core/GameContext.js';
 
 const MAX_GEMS = 200;
 const MERGE_RADIUS = 1.2;
@@ -24,6 +25,7 @@ export class XpGemSystem {
    */
   constructor(game) {
     this.game = game;
+    this.ctx = game?.ctx ?? createGameContext(game);
     /** @type {Array<{
      *   position: THREE.Vector3,
      *   xp: number,

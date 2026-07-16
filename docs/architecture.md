@@ -52,6 +52,23 @@ ui  ← Game (display only, logic in Game/systems)
 
 - `content.js` does not import Three.js (keep it pure data).
 - Do not put game logic inside `vendor/`.
+- Systems prefer `game.ctx` (`createGameContext`) over inventing cross-system imports.
+
+## Template vs game boundary (LOCKED)
+
+Future extraction of a reusable **template-3d** core is constrained by:
+
+**[architecture-template-boundary.md](./architecture-template-boundary.md)** (LOCKED)
+
+That document owns:
+
+- Which files are template-candidate vs sol-arpg-only  
+- `GAME_CONTEXT_KEYS` / `GameContext` rules  
+- AssetManager `clones` / `purgeUnused` lifetime  
+- `skillEffectRegistry` effect id lock  
+- Extraction roadmap T0–T5  
+
+Do not blur those layers without updating the boundary doc and `tests/template-boundary.mjs`.
 
 ## Quality tiers
 
