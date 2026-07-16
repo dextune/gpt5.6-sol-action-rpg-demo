@@ -1,6 +1,6 @@
 # Plan · Static-Resource Character Motion (Diablo-lite)
 
-**Status:** S1–S2 implemented (2026-07-16); S3 idle densify shipped with S1 bake; S4 optional reactions deferred  
+**Status:** S1–S4 implemented (2026-07-16) — walk locomotion, denser combat keys, idle polish, hit_light/hit_heavy + death densify  
 **Captured:** 2026-07-16  
 **Language:** English (project docs policy)  
 **Audience:** content designers, motion authors, agents implementing bake + light wiring only  
@@ -435,7 +435,7 @@ docs/plan/static-resource-character-motion.md  # this file
 ### S3–S4
 
 - [x] Idle read as combat-ready (denser A/B idle keys)  
-- [ ] Optional hit variety only if selection code + maps exist (deferred; single denser `hit` shipped)
+- [x] Optional hit variety: `hit_light` / `hit` / `hit_heavy` + Player severity pick + denser death  
 
 ### Global
 

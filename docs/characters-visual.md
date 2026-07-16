@@ -70,9 +70,11 @@ Applied scale is `(WEAPON_GIRTH * WEAPON_VISUAL_SCALE, WEAPON_LENGTH * WEAPON_VI
 ## Animation clip names
 
 **Shared locomotion / reaction:**  
-`idle`, `walk`, `run`, `sprint`, `dodge`, `hit`, `death`
+`idle`, `walk`, `run`, `sprint`, `dodge`, `hit`, `hit_light`, `hit_heavy`, `death`
 
 Runtime locomotion uses discrete speed bands (idle → walk → run → sprint) with hysteresis in `CharacterAnimationController.setLocomotion`. If `walk` is missing, selection falls back to `run`.
+
+Hit reactions: `Player.takeDamage` picks `hit_light` / `hit` / `hit_heavy` from damage severity when those clips exist (falls back to `hit`).
 
 **Weapon holds:** every class has a soft combat-ready idle/run hold via `classWeaponHold(profileId)` (knight guard, wizard staff stance, ranger bow-ready, rogue dual crouch). Combat clips start from that rest so attacks/casts no longer snap out of T-pose arms.
 

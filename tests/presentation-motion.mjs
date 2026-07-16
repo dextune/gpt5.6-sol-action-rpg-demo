@@ -276,7 +276,47 @@ for (const classId of ['aerin', 'wizard', 'rogue', 'ranger']) {
   const asText = buf.toString('latin1');
   ok(asText.includes('walk'), `S1: ${classId}_lod0.glb embeds walk clip name`);
   ok(asText.includes('idle') && asText.includes('run'), `S1: ${classId}_lod0.glb embeds idle/run`);
+  ok(asText.includes('hit_light') && asText.includes('hit_heavy'),
+    `S4: ${classId}_lod0.glb embeds hit_light/hit_heavy`);
 }
+
+// —— S4 hit severity selection (real Player private method via prototype string + controller) ——
+ok(playerSrc.includes('#hitReactionClip') && playerSrc.includes('hit_light') && playerSrc.includes('hit_heavy'),
+  'S4: Player.takeDamage severity clip selection implemented');
+ok(holdSrc.includes("animationClip('hit_light'") && holdSrc.includes("animationClip('hit_heavy'"),
+  'S4: bake sources define hit_light and hit_heavy clips');
+ok(/HERO_SHARED_CLIPS[\s\S]*?hit_light[\s\S]*?hit_heavy/.test(holdSrc)
+  || (holdSrc.includes("'hit_light'") && holdSrc.includes("'hit_heavy'")),
+  'S4: hit_light/hit_heavy in HERO_SHARED_CLIPS');
+for (const key of heroKeys) {
+  const map = assetManifest.models[key]?.animationMap ?? {};
+  ok(Object.hasOwn(map, 'hit_light') && Object.hasOwn(map, 'hit_heavy'),
+    `S4: ${key} animationMap includes hit_light/hit_heavy`);
+}
+
+// Drive real shipped resolver + controller (no threshold reimplementation)
+const { resolveHitReactionClipName } = await import(
+  pathToFileURL(join(root, 'js/entities/Player.js')).href
+);
+const hitRoot = new THREE.Object3D();
+const hitCtrl = new CharacterAnimationController(hitRoot, [
+  'idle', 'hit', 'hit_light', 'hit_heavy',
+].map(mkClip));
+const hasClip = (name) => hitCtrl.has(name);
+ok(resolveHitReactionClipName(8, 100, hasClip) === 'hit_light', 'S4: low damage → hit_light (shipped resolver)');
+// Mid: above light thresholds but under heavy (ratio < .18 and amount < 42)
+ok(resolveHitReactionClipName(15, 100, hasClip) === 'hit', 'S4: mid damage → hit (shipped resolver)');
+ok(resolveHitReactionClipName(50, 100, hasClip) === 'hit_heavy', 'S4: high damage → hit_heavy (shipped resolver)');
+// Missing heavy falls back to hit
+const lightOnly = new CharacterAnimationController(new THREE.Object3D(), ['idle', 'hit', 'hit_light'].map(mkClip));
+ok(resolveHitReactionClipName(99, 100, (n) => lightOnly.has(n)) === 'hit',
+  'S4: missing hit_heavy falls back to hit');
+lightOnly.dispose?.();
+hitCtrl.playOneShot(resolveHitReactionClipName(8, 100, hasClip), { fade: 0, fallback: 'idle' });
+ok(hitCtrl.currentName === 'hit_light' && hitCtrl.oneShot, 'S4: controller plays hit_light one-shot');
+hitCtrl.update(1.0, { distance: 0, visible: true });
+ok(!hitCtrl.oneShot && hitCtrl.currentName === 'idle', 'S4: hit_light recovers to idle');
+hitCtrl.dispose?.();
 
 // Cleanup pooled objects if dispose exists
 effects.dispose?.();

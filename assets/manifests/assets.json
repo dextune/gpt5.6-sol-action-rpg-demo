@@ -22,6 +22,8 @@
         "attack_7": "attack_7",
         "dodge": "dodge",
         "hit": "hit",
+        "hit_light": "hit_light",
+        "hit_heavy": "hit_heavy",
         "death": "death",
         "skill_whirlwind": "skill_whirlwind",
         "skill_crescent": "skill_crescent",
@@ -51,6 +53,8 @@
         "cast_4": "cast_4",
         "dodge": "dodge",
         "hit": "hit",
+        "hit_light": "hit_light",
+        "hit_heavy": "hit_heavy",
         "death": "death",
         "skill_fireball": "skill_fireball",
         "skill_frost_nova": "skill_frost_nova",
@@ -79,6 +83,8 @@
         "attack_7": "attack_7",
         "dodge": "dodge",
         "hit": "hit",
+        "hit_light": "hit_light",
+        "hit_heavy": "hit_heavy",
         "death": "death",
         "skill_twin_fang": "skill_twin_fang",
         "skill_fan_knives": "skill_fan_knives",
@@ -108,6 +114,8 @@
         "cast_4": "cast_4",
         "dodge": "dodge",
         "hit": "hit",
+        "hit_light": "hit_light",
+        "hit_heavy": "hit_heavy",
         "death": "death",
         "skill_pierce_shot": "skill_pierce_shot",
         "skill_trap": "skill_trap",
@@ -811,11 +819,36 @@
     }
   },
   "audio": {
-    "swing_0": { "urls": ["./assets/audio/combat/swing_0.wav", "./assets/audio/combat/swing_a.wav"] },
-    "swing_1": { "urls": ["./assets/audio/combat/swing_1.wav", "./assets/audio/combat/swing_b.wav"] },
-    "swing_2": { "urls": ["./assets/audio/combat/swing_2.wav", "./assets/audio/combat/swing_a.wav"] },
-    "swing_3": { "urls": ["./assets/audio/combat/swing_3.wav", "./assets/audio/combat/swing_b.wav"] },
-    "swing_extra": { "urls": ["./assets/audio/combat/swing_a.wav", "./assets/audio/combat/swing_b.wav"] },
+    "swing_0": {
+      "urls": [
+        "./assets/audio/combat/swing_0.wav",
+        "./assets/audio/combat/swing_a.wav"
+      ]
+    },
+    "swing_1": {
+      "urls": [
+        "./assets/audio/combat/swing_1.wav",
+        "./assets/audio/combat/swing_b.wav"
+      ]
+    },
+    "swing_2": {
+      "urls": [
+        "./assets/audio/combat/swing_2.wav",
+        "./assets/audio/combat/swing_a.wav"
+      ]
+    },
+    "swing_3": {
+      "urls": [
+        "./assets/audio/combat/swing_3.wav",
+        "./assets/audio/combat/swing_b.wav"
+      ]
+    },
+    "swing_extra": {
+      "urls": [
+        "./assets/audio/combat/swing_a.wav",
+        "./assets/audio/combat/swing_b.wav"
+      ]
+    },
     "hit_light": {
       "urls": [
         "./assets/audio/combat/hit_light_0.wav",
@@ -841,22 +874,102 @@
         "./assets/audio/combat/hit_finisher_1.wav"
       ]
     },
-    "ui_click": { "urls": ["./assets/audio/combat/ui_click.wav"] },
-    "dash": { "urls": ["./assets/audio/combat/dash_0.wav", "./assets/audio/combat/dash_1.wav"] },
-    "skill": { "urls": ["./assets/audio/combat/skill_0.wav"] },
-    "skill_blade": { "urls": ["./assets/audio/combat/skill_blade_0.wav", "./assets/audio/combat/skill_0.wav"] },
-    "skill_fire": { "urls": ["./assets/audio/combat/skill_fire_0.wav", "./assets/audio/combat/skill_0.wav"] },
-    "skill_ice": { "urls": ["./assets/audio/combat/skill_ice_0.wav", "./assets/audio/combat/skill_0.wav"] },
-    "skill_arcane": { "urls": ["./assets/audio/combat/skill_arcane_0.wav", "./assets/audio/combat/skill_0.wav"] },
-    "skill_leap": { "urls": ["./assets/audio/combat/skill_leap_0.wav", "./assets/audio/combat/skill_0.wav"] },
-    "skill_star": { "urls": ["./assets/audio/combat/skill_star_0.wav", "./assets/audio/combat/skill_0.wav"] },
-    "skill_bow": { "urls": ["./assets/audio/combat/skill_bow_0.wav", "./assets/audio/combat/skill_0.wav"] },
-    "skill_trap": { "urls": ["./assets/audio/combat/skill_trap_0.wav", "./assets/audio/combat/skill_0.wav"] },
-    "skill_dagger": { "urls": ["./assets/audio/combat/skill_dagger_0.wav", "./assets/audio/combat/skill_0.wav"] },
-    "hurt": { "urls": ["./assets/audio/combat/hurt_0.wav", "./assets/audio/combat/hurt_1.wav"] },
-    "pickup": { "urls": ["./assets/audio/combat/pickup_0.wav", "./assets/audio/combat/pickup_1.wav"] },
-    "level": { "urls": ["./assets/audio/combat/level_0.wav"] },
-    "boss": { "urls": ["./assets/audio/combat/boss_0.wav"] },
-    "legendary": { "urls": ["./assets/audio/combat/legendary_0.wav"] }
+    "ui_click": {
+      "urls": [
+        "./assets/audio/combat/ui_click.wav"
+      ]
+    },
+    "dash": {
+      "urls": [
+        "./assets/audio/combat/dash_0.wav",
+        "./assets/audio/combat/dash_1.wav"
+      ]
+    },
+    "skill": {
+      "urls": [
+        "./assets/audio/combat/skill_0.wav"
+      ]
+    },
+    "skill_blade": {
+      "urls": [
+        "./assets/audio/combat/skill_blade_0.wav",
+        "./assets/audio/combat/skill_0.wav"
+      ]
+    },
+    "skill_fire": {
+      "urls": [
+        "./assets/audio/combat/skill_fire_0.wav",
+        "./assets/audio/combat/skill_0.wav"
+      ]
+    },
+    "skill_ice": {
+      "urls": [
+        "./assets/audio/combat/skill_ice_0.wav",
+        "./assets/audio/combat/skill_0.wav"
+      ]
+    },
+    "skill_arcane": {
+      "urls": [
+        "./assets/audio/combat/skill_arcane_0.wav",
+        "./assets/audio/combat/skill_0.wav"
+      ]
+    },
+    "skill_leap": {
+      "urls": [
+        "./assets/audio/combat/skill_leap_0.wav",
+        "./assets/audio/combat/skill_0.wav"
+      ]
+    },
+    "skill_star": {
+      "urls": [
+        "./assets/audio/combat/skill_star_0.wav",
+        "./assets/audio/combat/skill_0.wav"
+      ]
+    },
+    "skill_bow": {
+      "urls": [
+        "./assets/audio/combat/skill_bow_0.wav",
+        "./assets/audio/combat/skill_0.wav"
+      ]
+    },
+    "skill_trap": {
+      "urls": [
+        "./assets/audio/combat/skill_trap_0.wav",
+        "./assets/audio/combat/skill_0.wav"
+      ]
+    },
+    "skill_dagger": {
+      "urls": [
+        "./assets/audio/combat/skill_dagger_0.wav",
+        "./assets/audio/combat/skill_0.wav"
+      ]
+    },
+    "hurt": {
+      "urls": [
+        "./assets/audio/combat/hurt_0.wav",
+        "./assets/audio/combat/hurt_1.wav"
+      ]
+    },
+    "pickup": {
+      "urls": [
+        "./assets/audio/combat/pickup_0.wav",
+        "./assets/audio/combat/pickup_1.wav"
+      ]
+    },
+    "level": {
+      "urls": [
+        "./assets/audio/combat/level_0.wav"
+      ]
+    },
+    "boss": {
+      "urls": [
+        "./assets/audio/combat/boss_0.wav"
+      ]
+    },
+    "legendary": {
+      "urls": [
+        "./assets/audio/combat/legendary_0.wav"
+      ]
+    }
   }
 }

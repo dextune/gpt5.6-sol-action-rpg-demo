@@ -22,6 +22,22 @@ const NUMERIC_GEAR_STATS = Object.freeze([
 
 const TMP_VEL_DIR = new THREE.Vector3();
 
+/**
+ * Resolve player hit-reaction clip name from damage severity (static-resource plan S4).
+ * @param {number} amount applied damage
+ * @param {number} maxHp player max HP
+ * @param {(name: string) => boolean} hasClip clip presence predicate
+ */
+export function resolveHitReactionClipName(amount, maxHp, hasClip = () => true) {
+  const ratio = amount / Math.max(1, maxHp);
+  let preferred = 'hit';
+  if (ratio >= .18 || amount >= 42) preferred = 'hit_heavy';
+  else if (ratio <= .055 || amount <= 10) preferred = 'hit_light';
+  if (hasClip(preferred)) return preferred;
+  if (hasClip('hit')) return 'hit';
+  return hasClip('idle') ? 'idle' : preferred;
+}
+
 export class Player {
   constructor(scene, characterFactory, quality = 'medium', classId = DEFAULT_HERO_CLASS_ID) {
     this.scene = scene;
@@ -694,8 +710,26 @@ export class Player {
       this.predatorVerdict = null;
       this.thornField = null;
       this.animation.playOneShot('death', { fade: .12, fadeOut: .2, timeScale: 1, fallback: null });
-    } else this.animation.playOneShot('hit', { fade: .055, fadeOut: .07, timeScale: 1.08, fallback: 'idle' });
+    } else {
+      // Severity-tier reaction clips (static-resource plan S4). Fallbacks keep older GLBs valid.
+      const anim = this.#hitReactionClip(amount);
+      const heavy = anim === 'hit_heavy';
+      this.animation.playOneShot(anim, {
+        fade: heavy ? .07 : .055,
+        fadeOut: heavy ? .12 : .07,
+        timeScale: heavy ? .95 : 1.08,
+        fallback: 'idle',
+      });
+    }
     return amount;
+  }
+
+  /**
+   * Pick hit / hit_light / hit_heavy from damage severity when those clips exist.
+   * Always returns a playable clip name (defaults to `hit` or `idle`).
+   */
+  #hitReactionClip(amount) {
+    return resolveHitReactionClipName(amount, this.maxHp, (name) => this.animation.has(name));
   }
 
   heal(amount) {
