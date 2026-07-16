@@ -202,8 +202,86 @@ effects.setQuality('low');
 ok(effects.quality === 'low' || effects.qualityParticleMul < 1 || true, 'P1/LOD: setQuality accepts low');
 effects.setQuality('high');
 
+// —— S1/S2 static-resource character motion (walk + discrete bands + one-shot lock) ——
+console.log('\n--- static-resource character motion S1–S2 ---\n');
+ok(holdSrc.includes('buildClassWalkClip') && holdSrc.includes("animationClip('walk'"),
+  'S1: bake source defines buildClassWalkClip / walk clip');
+ok(/HERO_SHARED_CLIPS[\s\S]*?'walk'/.test(holdSrc) || holdSrc.includes("'idle', 'walk', 'run'"),
+  'S1: walk registered in HERO_SHARED_CLIPS');
+ok(holdSrc.includes('buildClassIdleClip') && holdSrc.includes('d * .25') && holdSrc.includes('d * .75'),
+  'S2/S3: idle clip denser A/B breath keys present');
+ok((holdSrc.match(/animationClip\('hit'/g) || []).length >= 1
+  && holdSrc.includes("animationClip('hit', .42"),
+  'S2: hit reaction uses denser multi-key settle');
+
+const assetManifest = JSON.parse(readFileSync(join(root, 'assets/manifests/assets.json'), 'utf8'));
+const heroKeys = ['hero.aerin', 'hero.wizard', 'hero.rogue', 'hero.ranger'];
+for (const key of heroKeys) {
+  const map = assetManifest.models[key]?.animationMap ?? {};
+  ok(Object.hasOwn(map, 'walk') && map.walk === 'walk', `S1: ${key} animationMap includes walk`);
+  for (const shared of ['idle', 'walk', 'run', 'sprint', 'dodge', 'hit', 'death']) {
+    ok(Object.hasOwn(map, shared), `S1: ${key} map has shared clip ${shared}`);
+  }
+}
+
+const { CharacterAnimationController } = await import(
+  pathToFileURL(join(root, 'js/characters/CharacterAnimationController.js')).href
+);
+const mkClip = (name) => new THREE.AnimationClip(name, 1, []);
+const locoRoot = new THREE.Object3D();
+const fullClips = ['idle', 'walk', 'run', 'sprint', 'attack_1'].map(mkClip);
+const loco = new CharacterAnimationController(locoRoot, fullClips, { referenceRunSpeed: 6.4, locoHysteresis: .12 });
+
+loco.setLocomotion(0);
+ok(loco.currentName === 'idle', `S1: speed 0 → idle (got ${loco.currentName})`);
+loco.setLocomotion(1.2);
+ok(loco.currentName === 'walk', `S1: mid-low speed → walk (got ${loco.currentName})`);
+// Cross walk/run split with hysteresis — clear run promotion
+loco.setLocomotion(6.4 * 0.42 + 0.2);
+ok(loco.currentName === 'run', `S1: above walk/run → run (got ${loco.currentName})`);
+loco.setLocomotion(6.4 * 1.3, { sprint: true });
+ok(loco.currentName === 'sprint', `S1: sprint flag/speed → sprint (got ${loco.currentName})`);
+// Demote with hysteresis undershoot into walk band
+loco.setLocomotion(6.4 * 0.42 - 0.25);
+ok(loco.currentName === 'walk', `S1: hysteresis demote run→walk (got ${loco.currentName})`);
+
+// One-shot locks locomotion selection
+loco.playOneShot('attack_1', { fade: 0, fallback: 'idle' });
+ok(loco.oneShot && loco.currentName === 'attack_1', 'S1: playOneShot starts attack_1');
+const lockedName = loco.currentName;
+loco.setLocomotion(5);
+ok(loco.currentName === lockedName && loco.oneShot,
+  `S1: one-shot suppresses setLocomotion (still ${loco.currentName})`);
+// Finish one-shot → recovery idle
+loco.update(2.0, { distance: 0, visible: true });
+ok(!loco.oneShot && loco.currentName === 'idle',
+  `S1: one-shot recovery returns to idle hold (got ${loco.currentName})`);
+
+// walk missing → run fallback
+const noWalkRoot = new THREE.Object3D();
+const noWalk = new CharacterAnimationController(noWalkRoot, ['idle', 'run', 'sprint'].map(mkClip), {
+  referenceRunSpeed: 6.4,
+});
+noWalk.setLocomotion(1.2);
+ok(noWalk.currentName === 'run', `S1: walk missing falls back to run (got ${noWalk.currentName})`);
+ok(typeof loco.resolveLocomotionName === 'function'
+  && loco.resolveLocomotionName(0) === 'idle',
+  'S1: resolveLocomotionName exercises real selection helper');
+
+// GLB binary must list walk clip name (string table presence)
+for (const classId of ['aerin', 'wizard', 'rogue', 'ranger']) {
+  const glbPath = join(root, 'assets/models/hero', `${classId}_lod0.glb`);
+  ok(existsSync(glbPath), `S1: ${classId}_lod0.glb exists`);
+  const buf = readFileSync(glbPath);
+  const asText = buf.toString('latin1');
+  ok(asText.includes('walk'), `S1: ${classId}_lod0.glb embeds walk clip name`);
+  ok(asText.includes('idle') && asText.includes('run'), `S1: ${classId}_lod0.glb embeds idle/run`);
+}
+
 // Cleanup pooled objects if dispose exists
 effects.dispose?.();
+loco.dispose?.();
+noWalk.dispose?.();
 
 if (failed > 0) {
   console.error(`\npresentation-motion: ${failed} failure(s)`);

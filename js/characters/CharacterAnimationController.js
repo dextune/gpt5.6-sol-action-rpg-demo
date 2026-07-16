@@ -13,6 +13,10 @@ export class CharacterAnimationController {
     this.tickAccumulator = 0;
     this.referenceRunSpeed = options.referenceRunSpeed ?? 6.4;
     this.defaultFade = options.defaultFade ?? .14;
+    /** Discrete locomotion band for hysteresis (idle|walk|run|sprint). */
+    this.locoBand = 'idle';
+    /** Absolute speed hysteresis between walk/run bands (world units). */
+    this.locoHysteresis = options.locoHysteresis ?? .12;
     this.events = [];
     this.disposed = false;
     for (const clip of clips) {
@@ -73,13 +77,66 @@ export class CharacterAnimationController {
     return this.play(name, { ...options, loop: false, restart: true });
   }
 
+  /**
+   * Discrete locomotion selection (static-resource plan): one looping clip at a time.
+   * Bands: idle → walk → run → sprint. Walk falls back to run if the clip is missing.
+   * Uses hysteresis so walk↔run does not chatter. Never multi-weight blend.
+   */
   setLocomotion(speed, options = {}) {
     if (this.oneShot && !options.force) return;
-    const sprint = options.sprint || speed > this.referenceRunSpeed * 1.22;
-    const name = speed < .18 ? 'idle' : sprint && this.has('sprint') ? 'sprint' : this.has('run') ? 'run' : 'idle';
-    const reference = name === 'sprint' ? this.referenceRunSpeed * 1.38 : this.referenceRunSpeed;
-    const timeScale = name === 'idle' ? 1 : THREE.MathUtils.clamp(speed / reference, .7, 1.65);
-    this.play(name, { loop: true, fade: speed < .18 ? .18 : .12, timeScale, restart: false });
+    const name = this.#resolveLocomotionName(speed, options);
+    const ref = this.referenceRunSpeed;
+    const reference = name === 'sprint' ? ref * 1.38
+      : name === 'walk' ? ref * 0.38
+      : ref;
+    const timeScale = name === 'idle' ? 1 : THREE.MathUtils.clamp(speed / Math.max(.01, reference), .7, 1.65);
+    const fade = name === 'idle' ? .18 : name === 'walk' ? .16 : .12;
+    this.play(name, { loop: true, fade, timeScale, restart: false });
+  }
+
+  /**
+   * Resolve discrete locomotion clip name + update hysteresis band.
+   * Exposed for tests that drive the real selection path without GLBs.
+   */
+  resolveLocomotionName(speed, options = {}) {
+    return this.#resolveLocomotionName(speed, options);
+  }
+
+  #resolveLocomotionName(speed, options = {}) {
+    const ref = this.referenceRunSpeed;
+    const idleMax = .18;
+    const walkRun = ref * .42;
+    const sprintMin = ref * 1.22;
+    const h = options.hysteresis ?? this.locoHysteresis;
+    const wantSprint = Boolean(options.sprint) || speed > sprintMin;
+    let band = this.locoBand || 'idle';
+
+    if (speed < idleMax) {
+      band = 'idle';
+    } else if (wantSprint && this.has('sprint')) {
+      band = 'sprint';
+    } else if (band === 'walk') {
+      // Need clear overshoot to promote to run.
+      band = speed >= walkRun + h ? 'run' : 'walk';
+    } else if (band === 'run' || band === 'sprint') {
+      // Need clear undershoot to demote to walk.
+      if (speed < walkRun - h && this.has('walk')) band = 'walk';
+      else if (speed < walkRun - h) band = this.has('run') ? 'run' : 'idle';
+      else band = this.has('run') ? 'run' : (this.has('walk') ? 'walk' : 'idle');
+    } else {
+      // From idle (or unknown): enter walk when available and below walk/run split.
+      if (speed < walkRun && this.has('walk')) band = 'walk';
+      else band = this.has('run') ? 'run' : (this.has('walk') ? 'walk' : 'idle');
+    }
+
+    this.locoBand = band;
+
+    // Clip presence fallbacks — never invent multi-clip blends.
+    if (band === 'walk' && !this.has('walk')) return this.has('run') ? 'run' : 'idle';
+    if (band === 'run' && !this.has('run')) return this.has('walk') ? 'walk' : 'idle';
+    if (band === 'sprint' && !this.has('sprint')) return this.has('run') ? 'run' : (this.has('walk') ? 'walk' : 'idle');
+    if (band === 'idle' && !this.has('idle')) return this.has('run') ? 'run' : 'idle';
+    return band;
   }
 
   scheduleNormalized(normalizedTime, callback, key = Symbol('animation-event')) {

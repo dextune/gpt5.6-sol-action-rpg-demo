@@ -528,7 +528,7 @@ const HERO_CLASS_CLIPS = Object.freeze({
   ]),
 });
 const HERO_SHARED_CLIPS = Object.freeze([
-  'idle', 'run', 'sprint', 'dodge', 'hit', 'death',
+  'idle', 'walk', 'run', 'sprint', 'dodge', 'hit', 'death',
 ]);
 
 /**
@@ -869,13 +869,83 @@ function classWeaponHold(profileId = 'aerin') {
 function buildClassIdleClip(skeletonInfo, profileId, F) {
   const hold = classWeaponHold(profileId);
   const d = hold.idleDuration;
-  const mid = d * .5;
   const { a, b, bob, bobMid } = hold.idle;
+  // Denser A/B/A breath cycle (S3 light polish) — combat-ready hold, not T-pose.
+  const blend = (x, y, t) => {
+    const out = {};
+    for (const key of new Set([...Object.keys(x), ...Object.keys(y)])) {
+      if (Array.isArray(x[key]) && Array.isArray(y[key])) {
+        out[key] = x[key].map((v, i) => v * (1 - t) + (y[key][i] ?? v) * t);
+      } else {
+        out[key] = t < .5 ? (x[key] ?? y[key]) : (y[key] ?? x[key]);
+      }
+    }
+    return out;
+  };
+  const bobQ = (t) => bob.map((v, i) => v * (1 - t) + (bobMid[i] ?? v) * t);
   return animationClip('idle', d, [
     F(0, { ...a }, { pelvis: bob }),
-    F(mid, { ...b }, { pelvis: bobMid }),
+    F(d * .25, { ...blend(a, b, .5) }, { pelvis: bobQ(.5) }),
+    F(d * .5, { ...b }, { pelvis: bobMid }),
+    F(d * .75, { ...blend(b, a, .5) }, { pelvis: bobQ(.5) }),
     F(d, { ...a }, { pelvis: bob }),
   ], skeletonInfo);
+}
+
+/**
+ * Walk loop — shorter stride / longer period than run so mid-speed locomotion
+ * does not read as a time-scaled run (static-resource motion plan S1).
+ * Arms prefer class weapon hold via runArms at reduced pump (hold.runArms).
+ */
+function buildClassWalkClip(skeletonInfo, profileId, F) {
+  const hold = classWeaponHold(profileId);
+  const d = .96;
+  const legs = [
+    { t: 0, rot: { left_upper_leg: [-.38, 0, .02], right_upper_leg: [.36, 0, -.02], left_lower_leg: [.22, 0, 0], right_lower_leg: [.48, 0, 0], left_foot: [-.06, 0, .02], right_foot: [-.04, 0, -.02] }, pos: [0, .01, 0] },
+    { t: .24, rot: { left_upper_leg: [-.08, 0, .01], right_upper_leg: [.08, 0, -.01], left_lower_leg: [.42, 0, 0], right_lower_leg: [.2, 0, 0], left_foot: [-.02, 0, 0], right_foot: [-.08, 0, 0] }, pos: [0, .035, 0] },
+    { t: .48, rot: { left_upper_leg: [.36, 0, -.02], right_upper_leg: [-.38, 0, .02], left_lower_leg: [.48, 0, 0], right_lower_leg: [.22, 0, 0], left_foot: [-.04, 0, -.02], right_foot: [-.06, 0, .02] }, pos: [0, .01, 0] },
+    { t: .72, rot: { left_upper_leg: [.08, 0, -.01], right_upper_leg: [-.08, 0, .01], left_lower_leg: [.2, 0, 0], right_lower_leg: [.42, 0, 0], left_foot: [-.08, 0, 0], right_foot: [-.02, 0, 0] }, pos: [0, .035, 0] },
+    { t: .96, rot: { left_upper_leg: [-.38, 0, .02], right_upper_leg: [.36, 0, -.02], left_lower_leg: [.22, 0, 0], right_lower_leg: [.48, 0, 0], left_foot: [-.06, 0, .02], right_foot: [-.04, 0, -.02] }, pos: [0, .01, 0] },
+  ];
+  return animationClip('walk', d, legs.map(frame => {
+    const phase = frame.t / d;
+    // Soften run-arm pump for walk: blend hold idle arms with reduced runArms.
+    let upper;
+    if (typeof hold.runArms === 'function') {
+      const pumped = hold.runArms(phase);
+      const restA = hold.idle.a;
+      upper = { ...pumped };
+      for (const key of Object.keys(pumped)) {
+        if (Array.isArray(pumped[key]) && Array.isArray(restA[key])) {
+          upper[key] = pumped[key].map((v, i) => restA[key][i] * .55 + v * .45);
+        }
+      }
+      // Prefer explicit weapon-hold arm bones from rest when present.
+      if (restA.left_upper_arm) {
+        const pump = Math.sin(phase * Math.PI * 2) * .06;
+        upper.left_upper_arm = restA.left_upper_arm.map((v, i) => v + (i === 0 ? pump : 0));
+        upper.right_upper_arm = restA.right_upper_arm.map((v, i) => v + (i === 0 ? -pump : 0));
+        if (restA.left_lower_arm) upper.left_lower_arm = restA.left_lower_arm;
+        if (restA.right_lower_arm) upper.right_lower_arm = restA.right_lower_arm;
+        if (restA.left_hand) upper.left_hand = restA.left_hand;
+        if (restA.right_hand) upper.right_hand = restA.right_hand;
+        if (restA.chest) upper.chest = restA.chest.map((v, i) => v + (pumped.chest?.[i] ?? 0) * .25);
+        if (restA.spine) upper.spine = restA.spine.map((v, i) => v + (pumped.spine?.[i] ?? 0) * .25);
+      }
+      upper.cape_root = pumped.cape_root ?? restA.cape_root ?? [.2, 0, 0];
+      upper.hair_root = pumped.hair_root ?? restA.hair_root ?? [0, 0, 0];
+      if (Array.isArray(upper.cape_root)) {
+        upper.cape_root = upper.cape_root.map((v, i) => (i === 0 ? v * .55 : v));
+      }
+    } else {
+      upper = {
+        chest: [-.08, 0, -.02], spine: [-.04, 0, .02],
+        left_upper_arm: [.28, 0, .06], right_upper_arm: [-.28, 0, -.06],
+        cape_root: [.22, 0, 0], hair_root: [.06, 0, 0],
+      };
+    }
+    return F(frame.t, { ...frame.rot, ...upper }, { pelvis: frame.pos });
+  }), skeletonInfo);
 }
 
 function buildClassRunClip(skeletonInfo, profileId, F) {
@@ -987,6 +1057,8 @@ function buildClassCombatClipSpecs(profileId, F) {
           left_upper_arm: [-.52, .12, .38], left_lower_arm: [-1.15, .08, .25], cape_root: [.48, .12, 0], ...weightL(.7) }, { pelvis: [0, .02, .06] }),
         pose(.36, { pelvis: [.05, .1, 0], chest: [-.08, .28, .1], right_upper_arm: [-.4, .45, .3], right_lower_arm: [-.55, -.04, .15],
           left_upper_arm: [-.5, .2, .42], cape_root: [.35, .05, 0], ...weightL(.3) }),
+        pose(.46, { pelvis: [.04, .04, 0], chest: [-.06, .12, .04], right_upper_arm: [-.45, .22, .16],
+          right_lower_arm: [-.75, -.06, .05], left_upper_arm: [-.52, .24, .45], ...weightL(.12) }),
         end(.56),
       ]],
       ['attack_2', .58, [
@@ -1076,6 +1148,9 @@ function buildClassCombatClipSpecs(profileId, F) {
       pose(.4, { pelvis: [.03, .08, 0], spine: [-.04, .12, 0], chest: [-.06, .28, .1], neck: [0, .05, 0],
         right_upper_arm: [-.4, .45, .28], right_lower_arm: [-.5, -.02, .15], left_upper_arm: [-.28, .08, .28],
         cape_root: [.35, .06, 0], ...weightL(.3) }),
+      pose(.52, { pelvis: [.02, .03, 0], spine: [-.02, .05, 0], chest: [-.04, .12, .04],
+        right_upper_arm: [-.35, .22, .14], right_lower_arm: [-.55, -.02, .05], left_upper_arm: [-.24, .1, .28],
+        ...weightL(.12) }),
       end(.64),
     ]],
     // 2 — rising diagonal (left-low → right-high)
@@ -1090,6 +1165,8 @@ function buildClassCombatClipSpecs(profileId, F) {
         left_upper_arm: [-.18, .22, .35], cape_root: [.55, -.14, 0], ...weightR(.8) }, { pelvis: [0, .02, .06] }),
       pose(.46, { pelvis: [.03, -.08, 0], chest: [-.08, -.3, -.1], right_upper_arm: [-.4, -.45, -.28], right_lower_arm: [-.55, 0, -.15],
         left_upper_arm: [-.22, .15, .3], ...weightR(.35) }),
+      pose(.58, { pelvis: [.02, -.03, 0], chest: [-.05, -.12, -.04], right_upper_arm: [-.38, -.2, -.14],
+        right_lower_arm: [-.6, 0, -.06], left_upper_arm: [-.22, .12, .28], ...weightR(.12) }),
       end(.68),
     ]],
     // 3 — heavy overhead into cross
@@ -1104,6 +1181,8 @@ function buildClassCombatClipSpecs(profileId, F) {
         left_upper_arm: [-.42, -.32, .1], left_lower_arm: [-.75, 0, .05], cape_root: [.7, .22, 0], ...weightL(.85) }, { pelvis: [0, .03, .08] }),
       pose(.5, { pelvis: [.03, .12, 0], chest: [-.08, .4, .15], right_upper_arm: [-.3, .65, .4], right_lower_arm: [-.25, 0, .3],
         left_upper_arm: [-.3, .05, .25], cape_root: [.42, .08, 0], ...weightL(.35) }),
+      pose(.62, { pelvis: [.02, .05, 0], chest: [-.05, .16, .06], right_upper_arm: [-.32, .28, .16],
+        right_lower_arm: [-.45, 0, .1], left_upper_arm: [-.26, .08, .26], ...weightL(.12) }),
       end(.74),
     ]],
     // 4 — thrust / shoulder drive
@@ -1229,6 +1308,7 @@ function heroAnimations(skeletonInfo, profileId = null) {
   const end = (t, extra = {}) => pose(t, extra);
 
   clips.push(buildClassIdleClip(skeletonInfo, classId, F));
+  clips.push(buildClassWalkClip(skeletonInfo, classId, F));
   clips.push(buildClassRunClip(skeletonInfo, classId, F));
   clips.push(buildClassSprintClip(skeletonInfo, classId, F));
 
@@ -1249,14 +1329,19 @@ function heroAnimations(skeletonInfo, profileId = null) {
       left_upper_arm: [.5, .18, .28], right_upper_arm: [.5, -.18, -.28], cape_root: [.7, 0, 0] }, { pelvis: [0, -.08, .04] }),
     end(.56),
   ], skeletonInfo));
-  clips.push(animationClip('hit', .38, [
+  clips.push(animationClip('hit', .42, [
     pose(0),
-    pose(.08, { pelvis: [.12, .14, 0], spine: [.24, 0, -.12], chest: [.4, 0, -.2], neck: [-.12, 0, .08], head: [-.28, 0, .14],
-      left_upper_arm: [-.35, .1, .28], right_upper_arm: [-.35, -.1, -.28],
-      left_upper_leg: [.15, 0, .05], right_upper_leg: [-.12, 0, -.05] }, { pelvis: [0, -.07, -.1] }),
-    pose(.2, { pelvis: [.06, .06, 0], spine: [.1, 0, -.05], chest: [.16, 0, -.08], head: [-.1, 0, .05],
-      left_upper_arm: [-.15, .05, .18], right_upper_arm: [-.15, -.05, -.18] }, { pelvis: [0, -.02, -.03] }),
-    end(.38),
+    pose(.06, { pelvis: [.08, .1, 0], spine: [.14, 0, -.08], chest: [.22, 0, -.12], neck: [-.08, 0, .05], head: [-.16, 0, .08],
+      left_upper_arm: [-.22, .08, .22], right_upper_arm: [-.22, -.08, -.22],
+      left_upper_leg: [.1, 0, .04], right_upper_leg: [-.08, 0, -.04] }, { pelvis: [0, -.04, -.06] }),
+    pose(.12, { pelvis: [.14, .16, 0], spine: [.28, 0, -.14], chest: [.42, 0, -.22], neck: [-.14, 0, .1], head: [-.3, 0, .16],
+      left_upper_arm: [-.38, .12, .3], right_upper_arm: [-.38, -.12, -.3],
+      left_upper_leg: [.16, 0, .06], right_upper_leg: [-.14, 0, -.06] }, { pelvis: [0, -.08, -.12] }),
+    pose(.22, { pelvis: [.08, .08, 0], spine: [.14, 0, -.07], chest: [.2, 0, -.1], head: [-.12, 0, .06],
+      left_upper_arm: [-.2, .06, .2], right_upper_arm: [-.2, -.06, -.2] }, { pelvis: [0, -.03, -.04] }),
+    pose(.32, { pelvis: [.03, .03, 0], spine: [.05, 0, -.03], chest: [.08, 0, -.04], head: [-.04, 0, .02],
+      left_upper_arm: [-.08, .03, .12], right_upper_arm: [-.08, -.03, -.12] }, { pelvis: [0, -.01, -.015] }),
+    end(.42),
   ], skeletonInfo));
   clips.push(animationClip('death', 1.15, [
     pose(0),

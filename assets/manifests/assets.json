@@ -10,6 +10,7 @@
       },
       "animationMap": {
         "idle": "idle",
+        "walk": "walk",
         "run": "run",
         "sprint": "sprint",
         "attack_1": "attack_1",
@@ -37,6 +38,7 @@
       },
       "animationMap": {
         "idle": "idle",
+        "walk": "walk",
         "run": "run",
         "sprint": "sprint",
         "attack_1": "attack_1",
@@ -65,6 +67,7 @@
       },
       "animationMap": {
         "idle": "idle",
+        "walk": "walk",
         "run": "run",
         "sprint": "sprint",
         "attack_1": "attack_1",
@@ -92,6 +95,7 @@
       },
       "animationMap": {
         "idle": "idle",
+        "walk": "walk",
         "run": "run",
         "sprint": "sprint",
         "attack_1": "attack_1",

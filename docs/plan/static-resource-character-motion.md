@@ -1,6 +1,6 @@
 # Plan · Static-Resource Character Motion (Diablo-lite)
 
-**Status:** design accepted for implementation scoping (not yet implemented as a full package)  
+**Status:** S1–S2 implemented (2026-07-16); S3 idle densify shipped with S1 bake; S4 optional reactions deferred  
 **Captured:** 2026-07-16  
 **Language:** English (project docs policy)  
 **Audience:** content designers, motion authors, agents implementing bake + light wiring only  
@@ -420,28 +420,28 @@ docs/plan/static-resource-character-motion.md  # this file
 
 ### S1 (must ship for “locomotion win”)
 
-- [ ] `walk` baked for aerin, wizard, rogue, ranger (all LODs used in play)  
-- [ ] `animationMap` / integrity see `walk`  
-- [ ] Discrete walk band active with fallback  
-- [ ] One-shot still suppresses locomotion  
-- [ ] No new VFX/audio requirements  
+- [x] `walk` baked for aerin, wizard, rogue, ranger (all LODs used in play)  
+- [x] `animationMap` / integrity see `walk`  
+- [x] Discrete walk band active with fallback  
+- [x] One-shot still suppresses locomotion  
+- [x] No new VFX/audio requirements  
 
 ### S2 (must ship for “combat finesse win”)
 
-- [ ] Attack/skill clips meet key-count guidance for classes touched  
-- [ ] Visual review: no arms-only wooden mid-poses on flagship skills  
-- [ ] `timeline.hits` still valid; integrity/skill-combat green  
+- [x] Attack/skill clips meet key-count guidance for classes touched  
+- [x] Visual review: no arms-only wooden mid-poses on flagship skills  
+- [x] `timeline.hits` still valid; integrity/skill-combat green  
 
 ### S3–S4
 
-- [ ] Idle read as combat-ready  
-- [ ] Optional hit variety only if selection code + maps exist  
+- [x] Idle read as combat-ready (denser A/B idle keys)  
+- [ ] Optional hit variety only if selection code + maps exist (deferred; single denser `hit` shipped)
 
 ### Global
 
-- [ ] Docs catalog updated  
-- [ ] No shake/hitStop/CDN/vendor edits  
-- [ ] Git commit includes hero GLBs when shipping  
+- [x] Docs catalog updated  
+- [x] No shake/hitStop/CDN/vendor edits  
+- [x] Git commit includes hero GLBs when shipping  
 
 ---
 
