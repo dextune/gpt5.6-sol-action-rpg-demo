@@ -20,6 +20,11 @@ export {
   GAME_CONTEXT_KEYS,
   listGameContextKeys,
 } from '../../js/core/GameContext.js';
+export {
+  LOCOMOTION_CONFIG,
+  ANIM_LOD_CONFIG,
+  ASSET_FALLBACK_CONFIG,
+} from '../../js/core/runtimeConstants.js';
 
 // Assets
 export { AssetManager } from '../../js/assets/AssetManager.js';

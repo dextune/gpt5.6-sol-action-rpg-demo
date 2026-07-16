@@ -233,19 +233,26 @@ const { CharacterAnimationController } = await import(
 const mkClip = (name) => new THREE.AnimationClip(name, 1, []);
 const locoRoot = new THREE.Object3D();
 const fullClips = ['idle', 'walk', 'run', 'sprint', 'attack_1'].map(mkClip);
-const loco = new CharacterAnimationController(locoRoot, fullClips, { referenceRunSpeed: 6.4, locoHysteresis: .12 });
+const { LOCOMOTION_CONFIG: LocoCfg } = await import(
+  pathToFileURL(join(root, 'js/core/runtimeConstants.js')).href
+);
+const loco = new CharacterAnimationController(locoRoot, fullClips, {
+  referenceRunSpeed: LocoCfg.referenceRunSpeed,
+  locoHysteresis: LocoCfg.hysteresis,
+});
 
 loco.setLocomotion(0);
 ok(loco.currentName === 'idle', `S1: speed 0 → idle (got ${loco.currentName})`);
-loco.setLocomotion(1.2);
+const walkMid = (LocoCfg.idleMaxSpeed + LocoCfg.referenceRunSpeed * LocoCfg.walkRunSpeedRatio) * 0.5;
+loco.setLocomotion(walkMid);
 ok(loco.currentName === 'walk', `S1: mid-low speed → walk (got ${loco.currentName})`);
 // Cross walk/run split with hysteresis — clear run promotion
-loco.setLocomotion(6.4 * 0.42 + 0.2);
+loco.setLocomotion(LocoCfg.referenceRunSpeed * LocoCfg.walkRunSpeedRatio + LocoCfg.hysteresis + 0.05);
 ok(loco.currentName === 'run', `S1: above walk/run → run (got ${loco.currentName})`);
-loco.setLocomotion(6.4 * 1.3, { sprint: true });
+loco.setLocomotion(LocoCfg.referenceRunSpeed * LocoCfg.sprintSpeedRatio + 0.1, { sprint: true });
 ok(loco.currentName === 'sprint', `S1: sprint flag/speed → sprint (got ${loco.currentName})`);
 // Demote with hysteresis undershoot into walk band
-loco.setLocomotion(6.4 * 0.42 - 0.25);
+loco.setLocomotion(LocoCfg.referenceRunSpeed * LocoCfg.walkRunSpeedRatio - LocoCfg.hysteresis - 0.05);
 ok(loco.currentName === 'walk', `S1: hysteresis demote run→walk (got ${loco.currentName})`);
 
 // One-shot locks locomotion selection
@@ -263,9 +270,9 @@ ok(!loco.oneShot && loco.currentName === 'idle',
 // walk missing → run fallback
 const noWalkRoot = new THREE.Object3D();
 const noWalk = new CharacterAnimationController(noWalkRoot, ['idle', 'run', 'sprint'].map(mkClip), {
-  referenceRunSpeed: 6.4,
+  referenceRunSpeed: LocoCfg.referenceRunSpeed,
 });
-noWalk.setLocomotion(1.2);
+noWalk.setLocomotion(walkMid);
 ok(noWalk.currentName === 'run', `S1: walk missing falls back to run (got ${noWalk.currentName})`);
 ok(typeof loco.resolveLocomotionName === 'function'
   && loco.resolveLocomotionName(0) === 'idle',
@@ -306,16 +313,24 @@ const hitCtrl = new CharacterAnimationController(hitRoot, [
   'idle', 'hit', 'hit_light', 'hit_heavy',
 ].map(mkClip));
 const hasClip = (name) => hitCtrl.has(name);
-ok(resolveHitReactionClipName(8, 100, hasClip) === 'hit_light', 'S4: low damage → hit_light (shipped resolver)');
-// Mid: above light thresholds but under heavy (ratio < .18 and amount < 42)
-ok(resolveHitReactionClipName(15, 100, hasClip) === 'hit', 'S4: mid damage → hit (shipped resolver)');
-ok(resolveHitReactionClipName(50, 100, hasClip) === 'hit_heavy', 'S4: high damage → hit_heavy (shipped resolver)');
+const { HIT_REACTION_CONFIG: HitCfg } = await import(
+  pathToFileURL(join(root, 'js/config.js')).href
+);
+ok(resolveHitReactionClipName(HitCfg.lightAmount, 100, hasClip) === 'hit_light',
+  'S4: low damage → hit_light (shipped resolver)');
+// Mid: above light thresholds but under heavy (ratio < heavyRatio and amount < heavyAmount)
+// amount > lightAmount, amount < heavyAmount, and ratio strictly between light/heavy ratios
+const midDmg = Math.max(HitCfg.lightAmount + 1, Math.min(HitCfg.heavyAmount - 1, 15));
+ok(resolveHitReactionClipName(midDmg, 100, hasClip) === 'hit',
+  `S4: mid damage ${midDmg} → hit (shipped resolver)`);
+ok(resolveHitReactionClipName(HitCfg.heavyAmount, 100, hasClip) === 'hit_heavy',
+  'S4: high damage → hit_heavy (shipped resolver)');
 // Missing heavy falls back to hit
 const lightOnly = new CharacterAnimationController(new THREE.Object3D(), ['idle', 'hit', 'hit_light'].map(mkClip));
 ok(resolveHitReactionClipName(99, 100, (n) => lightOnly.has(n)) === 'hit',
   'S4: missing hit_heavy falls back to hit');
 lightOnly.dispose?.();
-hitCtrl.playOneShot(resolveHitReactionClipName(8, 100, hasClip), { fade: 0, fallback: 'idle' });
+hitCtrl.playOneShot(resolveHitReactionClipName(HitCfg.lightAmount, 100, hasClip), { fade: 0, fallback: 'idle' });
 ok(hitCtrl.currentName === 'hit_light' && hitCtrl.oneShot, 'S4: controller plays hit_light one-shot');
 hitCtrl.update(1.0, { distance: 0, visible: true });
 ok(!hitCtrl.oneShot && hitCtrl.currentName === 'idle', 'S4: hit_light recovers to idle');

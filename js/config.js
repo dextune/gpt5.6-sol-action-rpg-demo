@@ -165,6 +165,10 @@ export const PLAYER_CONFIG = Object.freeze({
   moveSpeed: 7.8,
   acceleration: 32,
   friction: 18,
+  /** Sharp reverse / large-turn accel boost (Player.#move). */
+  reverseAccel: 92,
+  /** Dot threshold below which reverseAccel applies. */
+  reverseDotThreshold: 0.25,
   dashSpeed: 23,
   dashDuration: 0.22,
   dashCooldown: 0.92,
@@ -174,6 +178,116 @@ export const PLAYER_CONFIG = Object.freeze({
   defenseSoak: 0.46,
   // Kept for save/UI compatibility; the live game has one signature weapon.
   inventoryLimit: 1,
+  /** Soft control / debuff move multiplier while slowed. */
+  debuffSlowMoveMul: 0.72,
+  /** Move speed treated as sprint for setLocomotion (× moveSpeed). */
+  sprintMoveRatio: 1.12,
+  /** Crit chance hard cap; overflow converts to crit damage. */
+  critChanceCap: 0.65,
+  /** Base crit multiplier before overflow. */
+  critMultiplierBase: 1.85,
+  /** Crit damage per unit crit-chance overflow. */
+  critOverflowToDamage: 1.5,
+  /** Attack-speed hard cap; overflow feeds energy gain. */
+  attackSpeedCap: 1.75,
+  /** Energy gain mul per unit attack-speed overflow. */
+  attackSpeedOverflowEnergy: 2,
+  /** Pickup radius base + luck scale. */
+  pickupRadiusBase: 2.2,
+  pickupRadiusPerLuck: 0.5,
+  /** Passive MP regen while exploring. */
+  mpRegenPerSec: 5.2,
+  /** Camp heal: distance + HP/MP rates. */
+  campRadius: 14.2,
+  campHpHealRatioPerSec: 0.065,
+  campMpRegenPerSec: 12,
+  /** On restore/respawn invulnerability. */
+  restoreInvuln: 1.4,
+  /** Hit reaction invulnerability window. */
+  hitInvuln: 0.46,
+  hitTimer: 0.19,
+});
+
+/**
+ * Hit-reaction clip severity (static-resource motion S4).
+ * Changing heavyRatio cascades clip choice without editing Player bodies.
+ */
+export const HIT_REACTION_CONFIG = Object.freeze({
+  /** damage/maxHp ≥ this → hit_heavy (also amount ≥ heavyAmount). */
+  heavyRatio: 0.18,
+  heavyAmount: 42,
+  /** damage/maxHp ≤ this → hit_light (also amount ≤ lightAmount). */
+  lightRatio: 0.055,
+  lightAmount: 10,
+  /** Playback presentation. */
+  lightFade: 0.055,
+  lightFadeOut: 0.07,
+  lightTimeScale: 1.08,
+  heavyFade: 0.07,
+  heavyFadeOut: 0.12,
+  heavyTimeScale: 0.95,
+});
+
+/**
+ * Basic-attack / cast presentation feel (not skill combat mults — those stay in content).
+ * Scale combo timing, lunge, and anim fades from one place.
+ */
+export const BASIC_ATTACK_FEEL = Object.freeze({
+  /** Cooldown base (sec) before / attackSpeed: [non-finisher, finisher] + perIndex. */
+  cooldownBase: 0.25,
+  cooldownFinisher: 0.44,
+  cooldownPerCombo: 0.016,
+  /** Attack anim duration base / attackSpeed (capped). */
+  animBase: 0.17,
+  animFinisher: 0.34,
+  animPerCombo: 0.01,
+  animSpeedCap: 1.7,
+  /** Lunge impulse scale. */
+  lungeBase: 1.35,
+  lungePerCombo: 0.22,
+  lungeFinisher: 2.4,
+  lungeSpeedCap: 1.15,
+  lungeVelocityFrac: 0.35,
+  lungeTimer: 0.07,
+  lungeTimerFinisher: 0.12,
+  /** Clip timeScale. */
+  timeScaleMul: 1.35,
+  timeScaleFinisherMul: 1.02,
+  timeScaleCap: 2.15,
+  /** Late-chain visual speed boost from combo index ≥ lateComboFrom. */
+  lateComboFrom: 4,
+  lateBoostBase: 1.08,
+  lateBoostPerStep: 0.04,
+  /** Cross-fades into attack / skill / dodge. */
+  attackFade: 0.09,
+  attackFadeOut: 0.12,
+  attackFadeOutFinisher: 0.16,
+  skillFade: 0.12,
+  skillFadeOut: 0.16,
+  skillTimeScaleSlow: 0.92,
+  skillTimeScaleFast: 1.05,
+  skillCastSlowThreshold: 0.6,
+  skillCadenceMin: 0.5,
+  skillCadenceMax: 1.25,
+  dodgeFade: 0.07,
+  dodgeFadeOut: 0.09,
+  dodgeTimeScale: 1.08,
+  energyBurstFade: 0.1,
+  energyBurstFadeOut: 0.14,
+  energyBurstTimeScaleMin: 1.1,
+  energyBurstTimeScaleRef: 1.3,
+  deathFade: 0.12,
+  deathFadeOut: 0.2,
+  /** Combo window seconds. */
+  comboWindow: 0.72,
+  comboWindowFinisherExtra: 0.52,
+  comboWindowPerLength: 0.02,
+  /** Move slow while attacking / casting. */
+  attackMoveMul: 0.42,
+  attackLungeMoveMul: 0.72,
+  castMoveMul: 0.28,
+  /** Mesh yaw blend during attack. */
+  attackYawBlend: 28,
 });
 
 /** Consumable drops are the one survival exception to gold-only enemy rewards. */

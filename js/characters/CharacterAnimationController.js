@@ -2,8 +2,14 @@
  * Skeletal animation playback (template-layer candidate).
  * LOCKED surface: play / playOneShot / setLocomotion / scheduleNormalized / update / dispose.
  * No Sol content imports — keep game-free. See docs/architecture-template-boundary.md
+ *
+ * Numeric scales come from LOCOMOTION_CONFIG / ANIM_LOD_CONFIG (js/core/runtimeConstants.js).
  */
 import * as THREE from 'three';
+import { ANIM_LOD_CONFIG, LOCOMOTION_CONFIG } from '../core/runtimeConstants.js';
+
+const L = LOCOMOTION_CONFIG;
+const LOD = ANIM_LOD_CONFIG;
 
 export class CharacterAnimationController {
   constructor(root, clips = [], options = {}) {
@@ -16,12 +22,12 @@ export class CharacterAnimationController {
     this.oneShot = null;
     this.elapsed = 0;
     this.tickAccumulator = 0;
-    this.referenceRunSpeed = options.referenceRunSpeed ?? 6.4;
-    this.defaultFade = options.defaultFade ?? .14;
+    this.referenceRunSpeed = options.referenceRunSpeed ?? L.referenceRunSpeed;
+    this.defaultFade = options.defaultFade ?? L.defaultFade;
     /** Discrete locomotion band for hysteresis (idle|walk|run|sprint). */
     this.locoBand = 'idle';
     /** Absolute speed hysteresis between walk/run bands (world units). */
-    this.locoHysteresis = options.locoHysteresis ?? .12;
+    this.locoHysteresis = options.locoHysteresis ?? L.hysteresis;
     this.events = [];
     this.disposed = false;
     for (const clip of clips) {
@@ -42,7 +48,7 @@ export class CharacterAnimationController {
     if (!action) return null;
     const resolvedName = action.getClip().name;
     const loop = options.loop !== false;
-    const clamp = options.clamp ?? !loop;
+    const clampWhen = options.clamp ?? !loop;
     const timeScale = options.timeScale ?? 1;
     const fade = options.fade ?? this.defaultFade;
     if (this.current === action && !options.restart) {
@@ -56,11 +62,11 @@ export class CharacterAnimationController {
     action.setEffectiveTimeScale(timeScale);
     action.setEffectiveWeight(1);
     action.setLoop(loop ? THREE.LoopRepeat : THREE.LoopOnce, loop ? Infinity : 1);
-    action.clampWhenFinished = clamp;
+    action.clampWhenFinished = clampWhen;
     if (options.restart !== false) action.reset();
     if (this.current && this.current !== action) {
-      action.crossFadeFrom(this.current, Math.max(.01, fade), true);
-    } else action.fadeIn(Math.max(.01, fade));
+      action.crossFadeFrom(this.current, Math.max(L.minFade, fade), true);
+    } else action.fadeIn(Math.max(L.minFade, fade));
     action.play();
     this.current = action;
     this.currentName = resolvedName;
@@ -72,7 +78,7 @@ export class CharacterAnimationController {
         elapsed: 0,
         duration,
         fallback: options.fallback ?? 'idle',
-        fadeOut: options.fadeOut ?? Math.min(.16, duration * .25),
+        fadeOut: options.fadeOut ?? Math.min(L.oneShotFadeOutCap, duration * L.oneShotFadeOutFrac),
       };
     } else if (!options.keepOneShot) this.oneShot = null;
     return action;
@@ -91,11 +97,13 @@ export class CharacterAnimationController {
     if (this.oneShot && !options.force) return;
     const name = this.#resolveLocomotionName(speed, options);
     const ref = this.referenceRunSpeed;
-    const reference = name === 'sprint' ? ref * 1.38
-      : name === 'walk' ? ref * 0.38
+    const reference = name === 'sprint' ? ref * L.sprintNominalRatio
+      : name === 'walk' ? ref * L.walkNominalRatio
       : ref;
-    const timeScale = name === 'idle' ? 1 : THREE.MathUtils.clamp(speed / Math.max(.01, reference), .7, 1.65);
-    const fade = name === 'idle' ? .18 : name === 'walk' ? .16 : .12;
+    const timeScale = name === 'idle'
+      ? 1
+      : THREE.MathUtils.clamp(speed / Math.max(.01, reference), L.timeScaleMin, L.timeScaleMax);
+    const fade = name === 'idle' ? L.fadeIdle : name === 'walk' ? L.fadeWalk : L.fadeRun;
     this.play(name, { loop: true, fade, timeScale, restart: false });
   }
 
@@ -109,9 +117,9 @@ export class CharacterAnimationController {
 
   #resolveLocomotionName(speed, options = {}) {
     const ref = this.referenceRunSpeed;
-    const idleMax = .18;
-    const walkRun = ref * .42;
-    const sprintMin = ref * 1.22;
+    const idleMax = L.idleMaxSpeed;
+    const walkRun = ref * L.walkRunSpeedRatio;
+    const sprintMin = ref * L.sprintSpeedRatio;
     const h = options.hysteresis ?? this.locoHysteresis;
     const wantSprint = Boolean(options.sprint) || speed > sprintMin;
     let band = this.locoBand || 'idle';
@@ -168,7 +176,11 @@ export class CharacterAnimationController {
     if (this.disposed) return;
     const distance = options.distance ?? 0;
     const visible = options.visible !== false;
-    const interval = !visible ? .18 : distance > 34 ? .10 : distance > 22 ? .055 : 0;
+    const interval = !visible
+      ? LOD.hiddenInterval
+      : distance > LOD.farDistance ? LOD.farInterval
+        : distance > LOD.midDistance ? LOD.midInterval
+          : 0;
     this.tickAccumulator += delta;
     if (interval > 0 && this.tickAccumulator < interval) return;
     const step = this.tickAccumulator;

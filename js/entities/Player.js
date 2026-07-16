@@ -1,5 +1,8 @@
 import * as THREE from 'three';
-import { GEAR_ENHANCE, PLAYER_CONFIG, WEAPON_ENHANCE, WEAPON_OPTION_ENHANCE } from '../config.js';
+import {
+  BASIC_ATTACK_FEEL, GEAR_ENHANCE, HIT_REACTION_CONFIG, PLAYER_CONFIG,
+  WEAPON_ENHANCE, WEAPON_OPTION_ENHANCE,
+} from '../config.js';
 import {
   DEFAULT_HERO_CLASS_ID, RARITIES, SKILLS,
   canClassUseWeapon, createClassStarterWeapon, createEmptySkillCooldowns, createEmptySkillRanks,
@@ -29,10 +32,11 @@ const TMP_VEL_DIR = new THREE.Vector3();
  * @param {(name: string) => boolean} hasClip clip presence predicate
  */
 export function resolveHitReactionClipName(amount, maxHp, hasClip = () => true) {
+  const H = HIT_REACTION_CONFIG;
   const ratio = amount / Math.max(1, maxHp);
   let preferred = 'hit';
-  if (ratio >= .18 || amount >= 42) preferred = 'hit_heavy';
-  else if (ratio <= .055 || amount <= 10) preferred = 'hit_light';
+  if (ratio >= H.heavyRatio || amount >= H.heavyAmount) preferred = 'hit_heavy';
+  else if (ratio <= H.lightRatio || amount <= H.lightAmount) preferred = 'hit_light';
   if (hasClip(preferred)) return preferred;
   if (hasClip('hit')) return 'hit';
   return hasClip('idle') ? 'idle' : preferred;
@@ -142,7 +146,7 @@ export class Player {
     // Run multipliers (Defense growth + temporary kill-chain bonuses). Cleared every reset.
     this.runMods = { attack: 1, defense: 1, skillPower: 0, haste: 0, xp: 0, moveSpeed: 0, killChainXp: 0 };
     this.clearShadowFrenzy();
-    this.pickupRadiusBase = 2.2;
+    this.pickupRadiusBase = PLAYER_CONFIG.pickupRadiusBase;
     this.mesh.position.set(0, 0, 6);
     this.mesh.rotation.set(0, 0, 0);
     this.mesh.scale.copy(this.normalScale);
@@ -229,29 +233,41 @@ export class Player {
     const run = this.runMods?.defense ?? 1;
     return (PLAYER_CONFIG.baseDefense * (mods.defense ?? 1) + this.level * .82 + stats.defense) * (1 + this.passiveEffects.defense) * run;
   }
-  get critChance() { return clamp(PLAYER_CONFIG.baseCrit + this.equipmentStats.crit + this.passiveEffects.crit, 0, .65); }
-  /** Crit chance past the 0.65 cap converts to crit damage instead of being wasted. */
+  get critChance() {
+    return clamp(
+      PLAYER_CONFIG.baseCrit + this.equipmentStats.crit + this.passiveEffects.crit,
+      0,
+      PLAYER_CONFIG.critChanceCap,
+    );
+  }
+  /** Crit chance past the cap converts to crit damage instead of being wasted. */
   get critOverflow() {
     const raw = PLAYER_CONFIG.baseCrit + this.equipmentStats.crit + this.passiveEffects.crit;
-    return Math.max(0, raw - .65);
+    return Math.max(0, raw - PLAYER_CONFIG.critChanceCap);
   }
-  get critMultiplier() { return 1.85 + this.critOverflow * 1.5; }
+  get critMultiplier() {
+    return PLAYER_CONFIG.critMultiplierBase + this.critOverflow * PLAYER_CONFIG.critOverflowToDamage;
+  }
   get attackSpeed() {
     const runHaste = this.runMods?.haste ?? 0;
     const frenzyHaste = this.shadowFrenzy?.active ? this.shadowFrenzy.attackHaste : 0;
-    return clamp(this.equipmentStats.weaponSpeed * (1 + this.equipmentStats.haste + this.passiveEffects.haste + runHaste + frenzyHaste), .65, 1.75);
+    return clamp(
+      this.equipmentStats.weaponSpeed * (1 + this.equipmentStats.haste + this.passiveEffects.haste + runHaste + frenzyHaste),
+      .65,
+      PLAYER_CONFIG.attackSpeedCap,
+    );
   }
-  /** Attack speed past the 1.75 cap accelerates Focus/Rage gain instead. */
+  /** Attack speed past the cap accelerates Focus/Rage gain instead. */
   get attackSpeedOverflow() {
     const runHaste = this.runMods?.haste ?? 0;
     const raw = this.equipmentStats.weaponSpeed * (1 + this.equipmentStats.haste + this.passiveEffects.haste + runHaste);
-    return Math.max(0, raw - 1.75);
+    return Math.max(0, raw - PLAYER_CONFIG.attackSpeedCap);
   }
-  get energyGainMul() { return 1 + this.attackSpeedOverflow * 2; }
+  get energyGainMul() { return 1 + this.attackSpeedOverflow * PLAYER_CONFIG.attackSpeedOverflowEnergy; }
   get moveSpeed() {
     const runMove = this.runMods?.moveSpeed ?? 0;
     const frenzyMove = this.shadowFrenzy?.active ? this.shadowFrenzy.moveHaste : 0;
-    const slowMul = (this.debuffSlow ?? 0) > 0 ? 0.72 : 1;
+    const slowMul = (this.debuffSlow ?? 0) > 0 ? PLAYER_CONFIG.debuffSlowMoveMul : 1;
     return (PLAYER_CONFIG.moveSpeed * (1 + this.passiveEffects.moveSpeed + runMove + frenzyMove) + this.equipmentStats.moveSpeed) * slowMul;
   }
 
@@ -320,7 +336,8 @@ export class Player {
   get pickupRadius() {
     const luck = this.luck ?? 0;
     const run = this.runMods?.pickupRadius ?? 0;
-    return (this.pickupRadiusBase ?? 2.2) + luck * 0.5 + run;
+    return (this.pickupRadiusBase ?? PLAYER_CONFIG.pickupRadiusBase)
+      + luck * PLAYER_CONFIG.pickupRadiusPerLuck + run;
   }
   get skillPower() {
     const mods = this.classMods;
@@ -436,21 +453,24 @@ export class Player {
 
   #regenerate(delta, game) {
     const focusRegen = 1 + this.passiveEffects.mpRegen;
-    this.mp = Math.min(this.maxMp, this.mp + delta * 5.2 * focusRegen);
+    this.mp = Math.min(this.maxMp, this.mp + delta * PLAYER_CONFIG.mpRegenPerSec * focusRegen);
     const campDistance = Math.hypot(this.position.x, this.position.z);
-    if (campDistance < 14.2) {
-      this.hp = Math.min(this.maxHp, this.hp + delta * this.maxHp * .065);
-      this.mp = Math.min(this.maxMp, this.mp + delta * 12);
+    if (campDistance < PLAYER_CONFIG.campRadius) {
+      this.hp = Math.min(this.maxHp, this.hp + delta * this.maxHp * PLAYER_CONFIG.campHpHealRatioPerSec);
+      this.mp = Math.min(this.maxMp, this.mp + delta * PLAYER_CONFIG.campMpRegenPerSec);
     }
   }
 
   #move(delta, world) {
+    const F = BASIC_ATTACK_FEEL;
     const desired = this.moveDirection.clone().multiplyScalar(this.moveSpeed);
     if (this.isDashing) {
       this.velocity.copy(this.dashDirection).multiplyScalar(PLAYER_CONFIG.dashSpeed + this.equipmentStats.moveSpeed * .6);
     } else {
       // Commit to the swing — slight slow, but keep forward bite during lunge.
-      const slow = this.attackAnim > 0 ? (this.attackLunge > 0 ? .72 : .42) : this.castTimer > 0 ? .28 : 1;
+      const slow = this.attackAnim > 0
+        ? (this.attackLunge > 0 ? F.attackLungeMoveMul : F.attackMoveMul)
+        : this.castTimer > 0 ? F.castMoveMul : 1;
       desired.multiplyScalar(slow);
       const hasInput = this.moveDirection.lengthSq() > .001;
       // 180° / sharp reverse: kill opposite momentum so the hero does not slide backward
@@ -466,7 +486,9 @@ export class Player {
       let acceleration = hasInput ? PLAYER_CONFIG.acceleration : PLAYER_CONFIG.friction;
       if (hasInput && this.velocity.lengthSq() > 1e-4) {
         const velDirDot = TMP_VEL_DIR.copy(this.velocity).normalize().dot(this.moveDirection);
-        if (velDirDot < 0.25) acceleration = Math.max(acceleration, 92);
+        if (velDirDot < PLAYER_CONFIG.reverseDotThreshold) {
+          acceleration = Math.max(acceleration, PLAYER_CONFIG.reverseAccel);
+        }
       }
       this.velocity.lerp(desired, 1 - Math.exp(-acceleration * delta));
       // Body facing: snap to move input immediately (action-RPG style). Soft lerp only
@@ -486,7 +508,7 @@ export class Player {
       let dy = targetYaw - this.mesh.rotation.y;
       while (dy > Math.PI) dy -= Math.PI * 2;
       while (dy < -Math.PI) dy += Math.PI * 2;
-      this.mesh.rotation.y += dy * (1 - Math.exp(-28 * delta));
+      this.mesh.rotation.y += dy * (1 - Math.exp(-F.attackYawBlend * delta));
     } else {
       this.mesh.rotation.y = targetYaw;
     }
@@ -494,7 +516,11 @@ export class Player {
 
   #animate(delta, game) {
     const speed = this.alive ? this.velocity.length() : 0;
-    if (this.alive) this.animation.setLocomotion(speed, { sprint: speed > this.moveSpeed * 1.12 });
+    if (this.alive) {
+      this.animation.setLocomotion(speed, {
+        sprint: speed > this.moveSpeed * PLAYER_CONFIG.sprintMoveRatio,
+      });
+    }
     const distance = game?.camera ? game.camera.position.distanceTo(this.position) : 0;
     this.animation.update(delta, { distance, visible: this.mesh.visible });
     setMaterialHitPulse(this.mesh, this.hitTimer > 0 ? Math.min(1, this.hitTimer / .16) : 0);
@@ -552,19 +578,28 @@ export class Player {
       return true;
     }
     this.alignCombatFacing();
+    const F = BASIC_ATTACK_FEEL;
     const comboLength = this.basicComboLength;
     this.comboIndex = this.comboWindow > 0 ? (this.comboIndex + 1) % comboLength : 0;
     const finisher = this.comboIndex === comboLength - 1;
-    this.comboWindow = finisher ? .52 + comboLength * .02 : .72;
+    this.comboWindow = finisher
+      ? F.comboWindowFinisherExtra + comboLength * F.comboWindowPerLength
+      : F.comboWindow;
     // Snappier chain — finisher hangs a hair longer for weight.
-    this.attackCooldown = ((finisher ? .44 : .25) + this.comboIndex * .016) / this.attackSpeed;
-    this.attackAnimDuration = ((finisher ? .34 : .17) + this.comboIndex * .01) / Math.min(1.7, this.attackSpeed);
+    this.attackCooldown = ((finisher ? F.cooldownFinisher : F.cooldownBase) + this.comboIndex * F.cooldownPerCombo)
+      / this.attackSpeed;
+    this.attackAnimDuration = ((finisher ? F.animFinisher : F.animBase) + this.comboIndex * F.animPerCombo)
+      / Math.min(F.animSpeedCap, this.attackSpeed);
     this.attackAnim = this.attackAnimDuration;
-    this.attackLunge = finisher ? .12 : .07;
+    this.attackLunge = finisher ? F.lungeTimerFinisher : F.lungeTimer;
     // Mild step-in only — strong lunge made the follow camera jerk with the hero.
-    const lunge = (finisher ? 2.4 : 1.35 + this.comboIndex * .22) * Math.min(1.15, this.attackSpeed);
-    this.velocity.addScaledVector(this.facing, lunge * .35);
-    const timeScale = Math.min(2.15, this.attackSpeed * (finisher ? 1.02 : 1.35));
+    const lunge = (finisher ? F.lungeFinisher : F.lungeBase + this.comboIndex * F.lungePerCombo)
+      * Math.min(F.lungeSpeedCap, this.attackSpeed);
+    this.velocity.addScaledVector(this.facing, lunge * F.lungeVelocityFrac);
+    const timeScale = Math.min(
+      F.timeScaleCap,
+      this.attackSpeed * (finisher ? F.timeScaleFinisherMul : F.timeScaleMul),
+    );
     // Melee: attack_1..7 when baked. Magic/ranged: prefer cast_1..4 draw/cast poses.
     let animName;
     if (isRangedAttackStyle(this.classId)) {
@@ -582,10 +617,15 @@ export class Player {
       }
     }
     // Late-chain steps without unique clips still read differently via speed + combat VFX.
-    const lateBoost = this.comboIndex >= 4 ? 1.08 + (this.comboIndex - 3) * 0.04 : 1;
+    const lateBoost = this.comboIndex >= F.lateComboFrom
+      ? F.lateBoostBase + (this.comboIndex - (F.lateComboFrom - 1)) * F.lateBoostPerStep
+      : 1;
     this.animation.playOneShot(animName, {
       // Slightly longer blend so combat stances don't pop out of idle like T-pose snaps.
-      fade: .09, fadeOut: finisher ? .16 : .12, timeScale: timeScale * lateBoost, fallback: 'idle',
+      fade: F.attackFade,
+      fadeOut: finisher ? F.attackFadeOutFinisher : F.attackFadeOut,
+      timeScale: timeScale * lateBoost,
+      fallback: 'idle',
     });
     game.audio.swing(Math.min(3, this.comboIndex));
     game.combat.playerAttack(this, this.comboIndex, comboLength);
@@ -607,7 +647,13 @@ export class Player {
     this.attackLunge = .1;
     let anim = result.anim ?? 'attack_3';
     if (!this.animation.has(anim)) anim = this.animation.has('skill_whirlwind') ? 'skill_whirlwind' : 'attack_3';
-    this.animation.playOneShot(anim, { fade: .1, fadeOut: .14, timeScale: Math.max(1.1, 1.3 / duration), fallback: 'idle' });
+    const F = BASIC_ATTACK_FEEL;
+    this.animation.playOneShot(anim, {
+      fade: F.energyBurstFade,
+      fadeOut: F.energyBurstFadeOut,
+      timeScale: Math.max(F.energyBurstTimeScaleMin, F.energyBurstTimeScaleRef / duration),
+      fallback: 'idle',
+    });
     game.audio.skill(result.sfx ?? 'skill_blade');
     if (result.floatText) {
       game.ui.floatText(this.position.clone().add(new THREE.Vector3(0, 2.1, 0)), result.floatText, 'critical');
@@ -616,12 +662,15 @@ export class Player {
 
   tryDash(game) {
     if (this.dashCooldown > 0 || this.isDashing || !this.alive) return false;
+    const F = BASIC_ATTACK_FEEL;
     this.dashDirection.copy(this.moveDirection.lengthSq() > .01 ? this.moveDirection : this.facing).normalize();
     this.dashTimer = PLAYER_CONFIG.dashDuration;
     this.dashCooldown = PLAYER_CONFIG.dashCooldown;
     this.invulnerable = Math.max(this.invulnerable, PLAYER_CONFIG.dashDuration + .12);
     this.velocity.copy(this.dashDirection).multiplyScalar(PLAYER_CONFIG.dashSpeed);
-    this.animation.playOneShot('dodge', { fade: .07, fadeOut: .09, timeScale: 1.08, fallback: 'idle' });
+    this.animation.playOneShot('dodge', {
+      fade: F.dodgeFade, fadeOut: F.dodgeFadeOut, timeScale: F.dodgeTimeScale, fallback: 'idle',
+    });
     game.effects.dust(this.position, 0xdce5ce, 8, .36);
     game.effects.trail(this.position.clone().add(new THREE.Vector3(0, 1, 0)), this.weapon.rarityColor, .5, .24);
     game.audio.dash();
@@ -652,9 +701,11 @@ export class Player {
         ? bundle.animFallback
         : this.animation.has('skill_whirlwind') ? 'skill_whirlwind' : 'idle';
     }
+    const F = BASIC_ATTACK_FEEL;
     this.animation.playOneShot(anim, {
-      fade: .12, fadeOut: .16,
-      timeScale: bundle.castTime > .6 ? .92 : 1.05,
+      fade: F.skillFade,
+      fadeOut: F.skillFadeOut,
+      timeScale: bundle.castTime > F.skillCastSlowThreshold ? F.skillTimeScaleSlow : F.skillTimeScaleFast,
       fallback: 'idle',
     });
     if (typeof game.audio.skill === 'function') {
@@ -665,7 +716,10 @@ export class Player {
       // Pose-synced skill phases — combat fires on normalized clip times.
       for (let i = 0; i < hits.length; i += 1) {
         const phase = i;
-        const cadence = Math.max(.5, Math.min(1.25, bundle.combat?.cadenceMult ?? 1));
+        const cadence = Math.max(
+          F.skillCadenceMin,
+          Math.min(F.skillCadenceMax, bundle.combat?.cadenceMult ?? 1),
+        );
         this.animation.scheduleNormalized(Math.min(.98, hits[i] * cadence), () => {
           if (!this.alive) return;
           game.combat.usePlayerSkill(bundle, this, phase);
@@ -700,8 +754,8 @@ export class Player {
     this.hp = Math.max(0, this.hp - amount);
     // Rage-style resources charge from taking hits.
     if (amount > 0 && this.energyDef?.perDamageTaken) this.gainEnergy(this.energyDef.perDamageTaken);
-    this.invulnerable = .46;
-    this.hitTimer = .19;
+    this.invulnerable = PLAYER_CONFIG.hitInvuln;
+    this.hitTimer = PLAYER_CONFIG.hitTimer;
     if (knockback) this.knockback.add(knockback);
     if (this.hp <= 0) {
       this.alive = false;
@@ -709,15 +763,19 @@ export class Player {
       this.clearArcaneOverflow();
       this.predatorVerdict = null;
       this.thornField = null;
-      this.animation.playOneShot('death', { fade: .12, fadeOut: .2, timeScale: 1, fallback: null });
+      const F = BASIC_ATTACK_FEEL;
+      this.animation.playOneShot('death', {
+        fade: F.deathFade, fadeOut: F.deathFadeOut, timeScale: 1, fallback: null,
+      });
     } else {
-      // Severity-tier reaction clips (static-resource plan S4). Fallbacks keep older GLBs valid.
+      // Severity-tier reaction clips (static-resource motion S4). Fallbacks keep older GLBs valid.
       const anim = this.#hitReactionClip(amount);
       const heavy = anim === 'hit_heavy';
+      const H = HIT_REACTION_CONFIG;
       this.animation.playOneShot(anim, {
-        fade: heavy ? .07 : .055,
-        fadeOut: heavy ? .12 : .07,
-        timeScale: heavy ? .95 : 1.08,
+        fade: heavy ? H.heavyFade : H.lightFade,
+        fadeOut: heavy ? H.heavyFadeOut : H.lightFadeOut,
+        timeScale: heavy ? H.heavyTimeScale : H.lightTimeScale,
         fallback: 'idle',
       });
     }
@@ -746,7 +804,7 @@ export class Player {
     this.clearArcaneOverflow();
     this.predatorVerdict = null;
     this.thornField = null;
-    this.invulnerable = 1.4;
+    this.invulnerable = PLAYER_CONFIG.restoreInvuln;
     this.velocity.set(0, 0, 0);
     this.mesh.scale.copy(this.normalScale);
     this.animation.play('idle', { fade: .12, loop: true, restart: true });

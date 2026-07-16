@@ -7,7 +7,7 @@ Detailed guides are in **`docs/`** — hub: [docs/README.md](./docs/README.md). 
 
 ## Essentials
 
-1. **Data location** — balance/catalog `js/data/content.js` · skill math `js/data/skillCombat.js` · FX themes `js/data/fxThemes.js` · tuning `js/config.js` · hit detection `js/systems/CombatSystem.js` · VFX recipes `js/graphics/Effects.js`
+1. **Data location** — balance/catalog `js/data/content.js` · skill math `js/data/skillCombat.js` · FX themes `js/data/fxThemes.js` · Sol tuning `js/config.js` (`PLAYER_CONFIG`, `HIT_REACTION_CONFIG`, `BASIC_ATTACK_FEEL`, …) · template-safe scales `js/core/runtimeConstants.js` (`LOCOMOTION_CONFIG`, …) · hit detection `js/systems/CombatSystem.js` · VFX recipes `js/graphics/Effects.js`. Prefer constants tables over magic numbers so one scale change cascades.
 2. **Camera** — `Game.shake` / `Game.hitStop` are no-ops. Do not re-enable without request.
 3. **Scope** — only what was requested. No unrelated refactor, full reformat, or `vendor/` edits.
 4. **Validation** — if you touch content/paths, run `node tests/integrity.mjs`.

@@ -21,6 +21,20 @@ All values are `Object.freeze`d. After you **add or modify** a field, keep the f
 | `saveKey` / `saveVersion` | save slot / version | **do not bump carelessly** |
 | `maxDelta` | frame delta clamp | spike guard |
 
+
+
+## `HIT_REACTION_CONFIG` · `BASIC_ATTACK_FEEL`
+
+Player hit-clip severity and basic-attack presentation timing.
+
+- **Hit reaction** — `heavyRatio` / `lightRatio` / absolute damage floors cascade into `resolveHitReactionClipName`.
+- **Basic attack feel** — cooldowns, lunge, anim fades, cast move-slow. Change once; Player reads the frozen object.
+
+## Template-safe scales (`js/core/runtimeConstants.js`)
+
+Locomotion / anim LOD / asset fallback mesh — **not** Sol balance. Re-exported from `@sol/template-3d` as `LOCOMOTION_CONFIG`.
+Do not put skill mults or zone tables there.
+
 ## `PLAYER_CONFIG`
 
 | Key | Meaning |

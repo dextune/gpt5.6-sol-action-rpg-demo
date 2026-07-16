@@ -60,6 +60,7 @@ Mark new shared utilities only if they stay game-content-free.
 | `js/core/Utils.js` | math / pick / noise | pure functions |
 | `js/core/Input.js` | keyboard / pointer | Input class |
 | `js/core/GameContext.js` | narrow runtime facade factory | `createGameContext`, `GAME_CONTEXT_KEYS` |
+| `js/core/runtimeConstants.js` | template-safe #define-style scales (locomotion, anim LOD, fallback mesh) | `LOCOMOTION_CONFIG`, `ANIM_LOD_CONFIG`, `ASSET_FALLBACK_CONFIG` |
 | `js/assets/AssetManager.js` | GLTF load, clone, purge | load/clone/release/purge/dispose *(known coupling: fallback meshes import ModelFactory — inject at T3)* |
 | `js/assets/AssetManifest.js` | manifest helpers | loadAssetManifest, modelUrl, animationMap |
 | `js/assets/TextureCache.js` | texture refcount | acquire/release/dispose |

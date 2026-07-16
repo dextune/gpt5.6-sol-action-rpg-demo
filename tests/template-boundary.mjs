@@ -72,6 +72,7 @@ const TEMPLATE_CANDIDATES = [
   'js/core/Utils.js',
   'js/core/Input.js',
   'js/core/GameContext.js',
+  'js/core/runtimeConstants.js',
   'js/assets/AssetManager.js',
   'js/assets/AssetManifest.js',
   'js/assets/TextureCache.js',
@@ -90,6 +91,10 @@ const FORBIDDEN_IMPORT_SNIPPETS = [
   'systems/HuntSystem',
   'entities/Player',
   'entities/Enemy',
+  // Sol balance header — template uses runtimeConstants only (avoid `from '…'` form: integrity scans imports)
+  'js/config.js',
+  "config.js'",
+  'config.js"',
 ];
 for (const rel of TEMPLATE_CANDIDATES) {
   const src = readFileSync(join(root, rel), 'utf8');
@@ -196,6 +201,13 @@ ok(pkgJson.name === '@sol/template-3d', 'packages/template-3d package.json name'
 const pkgIndex = readFileSync(join(pkgRoot, 'index.js'), 'utf8');
 ok(pkgIndex.includes('TEMPLATE_3D_PACKAGE_ID') && pkgIndex.includes('createGameContext'),
   'template-3d index re-exports package identity + GameContext');
+ok(pkgIndex.includes('LOCOMOTION_CONFIG') && pkgIndex.includes('runtimeConstants'),
+  'template-3d re-exports LOCOMOTION_CONFIG from runtimeConstants');
+const { LOCOMOTION_CONFIG } = await import(
+  pathToFileURL(join(root, 'js/core/runtimeConstants.js')).href
+);
+ok(LOCOMOTION_CONFIG.referenceRunSpeed > 0 && LOCOMOTION_CONFIG.walkRunSpeedRatio > 0,
+  'LOCOMOTION_CONFIG has cascade scale keys');
 const forbiddenInPkg = ['data/content.js', 'skillCombat.js', 'rushContent.js', 'CombatSystem', 'entities/Player', 'systems/Hunt'];
 const pkgBad = forbiddenInPkg.filter(s => pkgIndex.includes(s));
 ok(pkgBad.length === 0, `template-3d index free of Sol game imports (${pkgBad.join(',') || 'ok'})`);

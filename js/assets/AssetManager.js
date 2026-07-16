@@ -6,22 +6,32 @@ import { MeshoptDecoder } from '../../vendor/examples/jsm/libs/meshopt_decoder.m
 import { clone as cloneSkeleton } from '../../vendor/examples/jsm/utils/SkeletonUtils.js';
 import { loadAssetManifest, modelUrl } from './AssetManifest.js';
 import { TextureCache } from './TextureCache.js';
+import { ASSET_FALLBACK_CONFIG } from '../core/runtimeConstants.js';
 
 /**
  * Minimal geometry fallback when a GLB is missing.
  * Template-safe — does not import Sol ModelFactory / content.
  * Games may pass `options.createFallbackModel` to cloneModel for richer fallbacks.
+ * Proportions from ASSET_FALLBACK_CONFIG (runtimeConstants).
  */
 function createMinimalFallback(key, options = {}) {
+  const F = ASSET_FALLBACK_CONFIG;
   const group = new THREE.Group();
   group.name = `fallback:${key}`;
-  const color = options.data?.color ?? (key.startsWith('hero.') ? 0xc4a484 : 0x738a62);
+  const color = options.data?.color ?? (key.startsWith('hero.') ? F.heroColor : F.enemyColor);
   const scale = options.data?.scale ?? 1;
   const body = new THREE.Mesh(
-    new THREE.CapsuleGeometry(0.28 * scale, 0.9 * scale, 4, 8),
-    new THREE.MeshStandardMaterial({ color, roughness: 0.75, metalness: 0.05 }),
+    new THREE.CapsuleGeometry(
+      F.capsuleRadius * scale,
+      F.capsuleHeight * scale,
+      F.radialSegments,
+      F.heightSegments,
+    ),
+    new THREE.MeshStandardMaterial({
+      color, roughness: F.roughness, metalness: F.metalness,
+    }),
   );
-  body.position.y = 0.9 * scale;
+  body.position.y = F.bodyY * scale;
   group.add(body);
   group.userData.fallback = true;
   group.userData.refs = { group };

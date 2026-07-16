@@ -10,6 +10,7 @@ import {
   createGameContext,
   GAME_CONTEXT_KEYS,
   CharacterAnimationController,
+  LOCOMOTION_CONFIG,
   clamp,
   Input,
   AssetManager,
@@ -59,12 +60,20 @@ const root = new THREE.Object3D();
 const idle = new THREE.AnimationClip('idle', 1, []);
 const walk = new THREE.AnimationClip('walk', 1, []);
 const run = new THREE.AnimationClip('run', 1, []);
-const anim = new CharacterAnimationController(root, [idle, walk, run], { referenceRunSpeed: 6.4 });
-anim.setLocomotion(1.2);
+const L = LOCOMOTION_CONFIG;
+const anim = new CharacterAnimationController(root, [idle, walk, run], {
+  referenceRunSpeed: L.referenceRunSpeed,
+  locoHysteresis: L.hysteresis,
+});
+// Mid of idle→walk band, below walk/run split.
+const walkSpeed = (L.idleMaxSpeed + L.referenceRunSpeed * L.walkRunSpeedRatio) * 0.5;
+anim.setLocomotion(walkSpeed);
 ok(anim.currentName === 'walk', `CharacterAnimationController walk band (got ${anim.currentName})`);
 anim.setLocomotion(0);
 ok(anim.currentName === 'idle', 'CharacterAnimationController idle band');
 anim.dispose();
+ok(typeof L.referenceRunSpeed === 'number' && L.walkRunSpeedRatio > 0,
+  'LOCOMOTION_CONFIG exported from package');
 
 ok(typeof Input === 'function', 'Input class export');
 ok(typeof AssetManager === 'function', 'AssetManager class export');
