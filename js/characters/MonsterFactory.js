@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CharacterAnimationController } from './CharacterAnimationController.js';
+import { CharacterAnimationController } from '../../packages/template-3d/index.js';
 import { convertToStylized, inferMaterialRole } from '../graphics/StylizedMaterial.js';
 
 const SHAPE_ARCHETYPE = Object.freeze({

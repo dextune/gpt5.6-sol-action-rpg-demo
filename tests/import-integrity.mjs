@@ -179,13 +179,19 @@ const {
 } = contentMod;
 
 const combatSrc = await readFile(join(root, 'js/systems/CombatSystem.js'), 'utf8');
-const handlerBlock = combatSrc.match(/this\.skillHandlers\s*=\s*\{([\s\S]*?)\n\s*\};/);
-ok(Boolean(handlerBlock), 'CombatSystem.skillHandlers block present');
+const skillHandlerSrc = await readFile(join(root, 'js/systems/combat/createSkillHandlers.js'), 'utf8');
+const activeSkillSrc = await readFile(join(root, 'js/systems/combat/activeSkillMethods.js'), 'utf8');
+ok(combatSrc.includes('createSkillHandlers(this)'), 'CombatSystem uses createSkillHandlers');
+ok(combatSrc.includes('attachActiveSkillMethods'), 'CombatSystem attaches active skill methods');
+const handlerBlock = skillHandlerSrc.match(/const table = \{([\s\S]*?)\n\s*\};/);
+ok(Boolean(handlerBlock), 'createSkillHandlers skill table present');
 const registeredHandlers = new Set(
   handlerBlock
     ? [...handlerBlock[1].matchAll(/^\s*([A-Za-z0-9_]+)\s*:/gm)].map(m => m[1])
     : [],
 );
+ok(activeSkillSrc.includes('_whirlwind') && activeSkillSrc.includes('_fireball'),
+  'activeSkillMethods hosts skill implementations');
 
 for (const [classId, def] of Object.entries(HERO_CLASSES)) {
   ok(Array.isArray(def.activeSkills) && def.activeSkills.length > 0, `class ${classId} has activeSkills`);

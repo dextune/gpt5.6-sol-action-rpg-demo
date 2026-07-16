@@ -2,15 +2,20 @@ import * as THREE from 'three';
 import { DEFENSE_CONFIG, GAME_CONFIG, GROWTH_CONFIG } from '../config.js';
 import { HERO_CLASSES, SKILLS, getClassActiveSkills, getClassSkillIds, skillKeyCode } from '../data/content.js';
 import { normalizeSkillRank } from '../data/skillCombat.js';
-import { clamp, randInt } from './Utils.js';
-import { createGameContext } from './GameContext.js';
-import { Input } from './Input.js';
+// Template package surface (physical boundary — also mapped as @sol/template-3d in index.html).
+import {
+  clamp,
+  randInt,
+  createGameContext,
+  Input,
+  AssetManager,
+  RenderPipeline,
+  QUALITY_PRESETS,
+  LightingSystem,
+  OutlineSystem,
+} from '../../packages/template-3d/index.js';
 import { SaveManager } from './SaveManager.js';
 import { AudioManager } from './AudioManager.js';
-import { AssetManager } from '../assets/AssetManager.js';
-import { RenderPipeline, QUALITY_PRESETS } from '../graphics/RenderPipeline.js';
-import { LightingSystem } from '../graphics/LightingSystem.js';
-import { OutlineSystem } from '../graphics/OutlineSystem.js';
 import { CharacterFactory } from '../characters/CharacterFactory.js';
 import { MonsterFactory } from '../characters/MonsterFactory.js';
 import { World } from '../world/World.js';

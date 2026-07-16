@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CharacterAnimationController } from './CharacterAnimationController.js';
+import { CharacterAnimationController } from '../../packages/template-3d/index.js';
 import { convertToStylized, inferMaterialRole } from '../graphics/StylizedMaterial.js';
 import { outlinedMesh, toonMaterial } from '../graphics/Materials.js';
 import { DEFAULT_HERO_CLASS_ID, getHeroClass, resolveHeroClassId } from '../data/content.js';

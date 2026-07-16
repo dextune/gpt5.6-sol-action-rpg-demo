@@ -97,7 +97,8 @@ ok(scaleCount(100, 'low') < scaleCount(100, 'high'), 'P1: quality particle LOD s
 ok(Object.keys(FX_THEMES).length >= 6, 'P1: FX_THEMES has multiple tokens');
 
 // —— P2 multihit coalesce ——
-ok(combatSrc.includes('#resolveMultiHits') && combatSrc.includes('liteImpact') && combatSrc.includes('coalesceVfx'),
+ok((combatSrc.includes('#resolveMultiHits') || combatSrc.includes('_resolveMultiHits'))
+  && combatSrc.includes('liteImpact') && combatSrc.includes('coalesceVfx'),
   'P2: CombatSystem multi-hit coalesce path present');
 ok(combatSrc.includes('1.6 + 0.25') || combatSrc.includes('1.6+0.25'),
   'P2: coalesce scale formula present (1.6 + 0.25×hits)');
@@ -117,7 +118,8 @@ ok(enemySrc.includes('hitTimer = Math.min(0.4') || enemySrc.includes('Math.min(0
 ok(typeof effects.swingTrail === 'function', 'P4: Effects.swingTrail exists');
 ok(effectsSrc.includes('hasBlade') || effectsSrc.includes('options.base'),
   'P4: swingTrail accepts blade base/tip samples');
-ok(combatSrc.includes('#bladeTrailSamples') && combatSrc.includes('getWorldPosition'),
+ok((combatSrc.includes('#bladeTrailSamples') || combatSrc.includes('_bladeTrailSamples'))
+  && combatSrc.includes('getWorldPosition'),
   'P4: CombatSystem samples blade world positions');
 const base = new THREE.Vector3(0, 1.2, 0);
 const tip = new THREE.Vector3(0, 1.2, 1.4);
@@ -179,7 +181,8 @@ ok(audioSrc.includes('options.combo') || audioSrc.includes('Number(options.combo
   'P9: hit() combo step weighting implemented');
 ok(audioSrc.includes('multiHit') && audioSrc.includes('Multihit smash'),
   'P9: multihit smash layer present');
-ok(combatSrc.includes('#hitMaterialFor') && combatSrc.includes("return 'gel'"),
+ok((combatSrc.includes('#hitMaterialFor') || combatSrc.includes('_hitMaterialFor'))
+  && combatSrc.includes("return 'gel'"),
   'P9: CombatSystem maps enemy shape → material');
 ok(Object.keys(APEX_AUDIO_PROFILES).length >= 12, 'P9: apex skill audio profiles present');
 // Safe to call without AudioContext — hit should early-return when muted/no context

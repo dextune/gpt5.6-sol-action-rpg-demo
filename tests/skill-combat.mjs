@@ -717,24 +717,30 @@ for (const id of ['whirlwind', 'skyfall', 'frost_nova', 'arcane_blink', 'meteor_
 
 // Projectile spawn option audit from CombatSystem source
 {
-  const combatSrc = await import('node:fs/promises').then(fs =>
-    fs.readFile(join(root, 'js/systems/CombatSystem.js'), 'utf8'),
-  );
-  // #spawnFriendlyOrb must default skillPowerApplied from options (not hard true)
+  const combatSrc = await import('node:fs/promises').then(async fs => {
+    const parts = await Promise.all([
+      fs.readFile(join(root, 'js/systems/CombatSystem.js'), 'utf8'),
+      fs.readFile(join(root, 'js/systems/combat/activeSkillMethods.js'), 'utf8'),
+      fs.readFile(join(root, 'js/systems/combat/energyBurstMethods.js'), 'utf8'),
+      fs.readFile(join(root, 'js/systems/combat/createSkillHandlers.js'), 'utf8'),
+    ]);
+    return parts.join('\n');
+  });
+  // spawnFriendlyOrb must default skillPowerApplied from options (not hard true)
   ok(combatSrc.includes('skillPowerApplied: Boolean(options.skillPowerApplied)'),
     'spawnFriendlyOrb stores skillPowerApplied from options');
   ok(combatSrc.includes('skillPowerApplied: Boolean(projectile.skillPowerApplied)'),
     'updateProjectiles uses per-projectile skillPowerApplied');
   // crescent must NOT set skillPowerApplied: true
-  const cresStart = combatSrc.indexOf('  #crescent(player');
-  const cresEnd = combatSrc.indexOf('  #skyfall(player');
+  const cresStart = combatSrc.search(/_crescent\s*\(\s*player/);
+  const cresEnd = combatSrc.search(/_skyfall\s*\(\s*player/);
   const cresBody = combatSrc.slice(cresStart, cresEnd > cresStart ? cresEnd : cresStart + 2000);
   ok(cresBody.includes('skillDamage(player.attackPower, combat)'), 'crescent uses skillDamage raw');
   ok(!/skillPowerApplied:\s*true/.test(cresBody), 'crescent does not force skillPowerApplied true');
   ok(!/\*\s*player\.skillPower/.test(cresBody), 'crescent does not bake skillPower (hit path multiplies)');
   // fireball must set skillPowerApplied true when baking
-  const fbStart = combatSrc.indexOf('  #fireball(player');
-  const fbEnd = combatSrc.indexOf('  #frostNova(player');
+  const fbStart = combatSrc.search(/_fireball\s*\(\s*player/);
+  const fbEnd = combatSrc.search(/_frostNova\s*\(\s*player/);
   const fbBody = combatSrc.slice(fbStart, fbEnd > fbStart ? fbEnd : fbStart + 2500);
   ok(/skillPowerApplied:\s*true/.test(fbBody), 'fireball sets skillPowerApplied true with baked damage');
 }
@@ -748,11 +754,17 @@ for (const id of ['whirlwind', 'skyfall', 'frost_nova', 'arcane_blink', 'meteor_
 }
 
 // Static audit: AoE skill methods must not bake skillPower into raw (only fireball projectile does).
-const combatSrc = await import('node:fs/promises').then(fs =>
-  fs.readFile(join(root, 'js/systems/CombatSystem.js'), 'utf8'),
-);
+const combatSrc = await import('node:fs/promises').then(async fs => {
+  const parts = await Promise.all([
+    fs.readFile(join(root, 'js/systems/CombatSystem.js'), 'utf8'),
+    fs.readFile(join(root, 'js/systems/combat/activeSkillMethods.js'), 'utf8'),
+    fs.readFile(join(root, 'js/systems/combat/energyBurstMethods.js'), 'utf8'),
+    fs.readFile(join(root, 'js/systems/combat/createSkillHandlers.js'), 'utf8'),
+  ]);
+  return parts.join('\n');
+});
 const judgmentHandler = methodBody(combatSrc, 'skyfall');
-ok(judgmentHandler.includes('bundle.playerLevel < 20') && combatSrc.includes('#skyfallLegacy(player, bundle)'),
+ok(judgmentHandler.includes('bundle.playerLevel < 20') && /_skyfallLegacy\s*\(\s*player,\s*bundle\)/.test(combatSrc),
   'Iron Judgment preserves the legacy path below level 20');
 ok(judgmentHandler.includes('completed.has(index)') && judgmentHandler.includes('completed.add(index)'),
   'Iron Judgment phase contacts are guarded to land once');
@@ -770,7 +782,7 @@ ok(enemySrc.includes('this.stunTimer > 0 || this.breakTimer > 0')
   && enemySrc.indexOf('this.stunTimer > 0 || this.breakTimer > 0') < enemySrc.indexOf('this.#combatAI(delta'),
   'enemy control suppresses AI while the shared update continues');
 ok(!combatSrc.includes('skillCombatAtRank'), 'CombatSystem does not re-resolve combat per phase');
-ok(combatSrc.includes('#skillBundle(bundle)') && combatSrc.includes('handler(player, bundle, phase, audio)'),
+ok(/_skillBundle\s*\(\s*bundle\)/.test(combatSrc) && combatSrc.includes('handler(player, bundle, phase, audio)'),
   'CombatSystem handlers consume the provided bundle');
 const { CombatSystem } = await import(pathToFileURL(join(root, 'js/systems/CombatSystem.js')).href);
 const combatSystem = new CombatSystem({});
@@ -1172,12 +1184,15 @@ peacockCombat.usePlayerSkill(peacock,rogueSkillPlayer,1);const afterReturn=peaco
 ok(peacockOutbound===12&&afterReturn===24&&peacockFinales===1,'Night Peacock phase switch prevents outbound respawn, returns once, and owns one finale');
 const fanHandlerBody=methodBody(combatSrc,'fanOfKnives');
 ok(combatSrc.includes('trailRate: options.trailRate ?? visual.trailRate')
-  && fanHandlerBody.includes("daggerTrailRate=this.#quality()==='low'?6:this.#quality()==='medium'?10:16")
+  && (fanHandlerBody.includes("daggerTrailRate=this._quality()==='low'?6:this._quality()==='medium'?10:16")
+    || fanHandlerBody.includes("daggerTrailRate=this.#quality()==='low'?6:this.#quality()==='medium'?10:16"))
   && fanHandlerBody.match(/trailRate:daggerTrailRate/g)?.length===3,
   'Fan and Night Peacock preserve projectile cores while quality-capping decorative dagger trails');
 const meteorHandlerBody=methodBody(combatSrc,'meteorStorm');
-ok(meteorHandlerBody.includes("this.#quality() === 'high' || i % 2 === 0")
-  && meteorHandlerBody.includes('this.#hitEnemiesInRadius(impactPoint, combat.hitRadius * .72'),
+ok((meteorHandlerBody.includes("this._quality() === 'high' || i % 2 === 0")
+    || meteorHandlerBody.includes("this.#quality() === 'high' || i % 2 === 0"))
+  && (meteorHandlerBody.includes('this._hitEnemiesInRadius(impactPoint, combat.hitRadius * .72')
+    || meteorHandlerBody.includes('this.#hitEnemiesInRadius(impactPoint, combat.hitRadius * .72')),
   'Meteor keeps every authoritative fracture hit while low/medium decoration uses alternating impacts');
 const cresPhaseEvents=[];const cresPhaseGame=makeWizardGame([]);cresPhaseGame.player=knightPlayer;cresPhaseGame.effects=new Proxy({recipeWorldsplitterAct(_p,_d,_t,act){cresPhaseEvents.push(act);}},{get:(t,k)=>t[k]??(()=>{})});const cresPhaseCombat=new CombatSystem(cresPhaseGame);
 const worldB=resolveSkillForm(content.SKILLS.crescent,9,100,{tier40:'wide_moon',tier80:'armor_sever'});cresPhaseCombat.usePlayerSkill(worldBundle,knightPlayer,1);ok(cresPhaseEvents.length===0,'Crescent rejects orphan nonzero phase');cresPhaseCombat.usePlayerSkill(worldBundle,knightPlayer,0);cresPhaseCombat.usePlayerSkill(worldB,knightPlayer,0);cresPhaseCombat.usePlayerSkill(worldBundle,knightPlayer,1);cresPhaseCombat.usePlayerSkill(worldB,knightPlayer,1);cresPhaseCombat.usePlayerSkill(worldB,knightPlayer,1);
@@ -1730,28 +1745,39 @@ ok(rushContacts.rush.length === 2
   && rushContacts.rush.map(origin => Math.sign(origin.x)).join(',') === '1,-1',
   'Dagger Rush samples actual main/offhand blade-tip origins in alternating order');
 function methodBody(src, name) {
-  // Prefer method definition (`#name(player`) over skillHandlers arrow refs.
-  const markers = [`  #${name}(player`, `  #${name}(p,`, `#${name}(player`];
-  let start = -1;
-  for (const m of markers) {
-    start = src.indexOf(m);
-    if (start >= 0) break;
-  }
-  if (start < 0) return '';
+  // Prefer method *definitions* (… ) { … }, not call sites like this._name(...);
+  const defRe = new RegExp(
+    `(?:^|\\n)[ \\t]*(?:_|#)${name}\\s*\\([^)]*\\)\\s*\\{`,
+    'm',
+  );
+  const m = defRe.exec(src);
+  if (!m) return '';
+  const start = m.index + (m[0].startsWith('\n') ? 1 : 0);
   const rest = src.slice(start);
-  const next = rest.search(/\n  #[a-zA-Z]/);
-  return next > 0 ? rest.slice(0, next) : rest.slice(0, 4000);
+  // Next method: class indent (`  _foo(`) or mixin object (`_foo(` / `  _foo(`).
+  // Skip the opening line by searching after the first newline.
+  const afterOpen = rest.indexOf('\n');
+  const tail = afterOpen >= 0 ? rest.slice(afterOpen) : rest;
+  const nextRel = tail.search(/\n[ \t]*(?:_|#)[a-zA-Z][a-zA-Z0-9_]*\s*\(/);
+  if (nextRel >= 0) return rest.slice(0, afterOpen + nextRel);
+  return rest.slice(0, 8000);
 }
 for (const name of ['frostNova', 'arcaneBlink', 'meteorStorm', 'whirlwind', 'skyfall', 'starburst', 'crescent']) {
   const body = methodBody(combatSrc, name);
-  ok(body.length > 40, `found handler body #${name}`);
-  ok(!/\*\s*player\.skillPower/.test(body), `#${name} does not pre-multiply player.skillPower`);
+  ok(body.length > 40, `found handler body _${name}`);
+  ok(!/\*\s*player\.skillPower/.test(body), `_${name} does not pre-multiply player.skillPower`);
 }
 const meleeBody = methodBody(combatSrc, 'meleeAttack');
 const daggerRushBody = methodBody(combatSrc, 'daggerRushBurst');
 const shadowstepBody = methodBody(combatSrc, 'shadowstep');
-ok(shadowstepBody.indexOf('#damageEnemy') < shadowstepBody.indexOf('activateShadowFrenzy'),
-  'Shadow Frenzy recast still performs dash damage before the no-refresh activation guard');
+ok(
+  Math.min(
+    shadowstepBody.indexOf('_damageEnemy') >= 0 ? shadowstepBody.indexOf('_damageEnemy') : Infinity,
+    shadowstepBody.indexOf('#damageEnemy') >= 0 ? shadowstepBody.indexOf('#damageEnemy') : Infinity,
+  )
+  < shadowstepBody.indexOf('activateShadowFrenzy'),
+  'Shadow Frenzy recast still performs dash damage before the no-refresh activation guard',
+);
 ok(meleeBody.includes('(combo + pulse) % 2') && meleeBody.includes('offhandEcho')
   && meleeBody.includes('frenzyTimingScale'),
   'rogue basics alternate blade contacts and schedule one haste-compressed offhand echo');

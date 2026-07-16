@@ -6,7 +6,27 @@ import { MeshoptDecoder } from '../../vendor/examples/jsm/libs/meshopt_decoder.m
 import { clone as cloneSkeleton } from '../../vendor/examples/jsm/utils/SkeletonUtils.js';
 import { loadAssetManifest, modelUrl } from './AssetManifest.js';
 import { TextureCache } from './TextureCache.js';
-import { createHeroModel, createEnemyModel } from '../graphics/ModelFactory.js';
+
+/**
+ * Minimal geometry fallback when a GLB is missing.
+ * Template-safe — does not import Sol ModelFactory / content.
+ * Games may pass `options.createFallbackModel` to cloneModel for richer fallbacks.
+ */
+function createMinimalFallback(key, options = {}) {
+  const group = new THREE.Group();
+  group.name = `fallback:${key}`;
+  const color = options.data?.color ?? (key.startsWith('hero.') ? 0xc4a484 : 0x738a62);
+  const scale = options.data?.scale ?? 1;
+  const body = new THREE.Mesh(
+    new THREE.CapsuleGeometry(0.28 * scale, 0.9 * scale, 4, 8),
+    new THREE.MeshStandardMaterial({ color, roughness: 0.75, metalness: 0.05 }),
+  );
+  body.position.y = 0.9 * scale;
+  group.add(body);
+  group.userData.fallback = true;
+  group.userData.refs = { group };
+  return { group, refs: { group } };
+}
 
 function disposeMaterial(material) {
   if (!material) return;
@@ -160,12 +180,17 @@ export class AssetManager extends EventTarget {
   }
 
   createFallback(key, options = {}) {
-    const refs = key.startsWith('hero.') ? createHeroModel() : createEnemyModel(options.data ?? {
-      shape: 'blob', color: 0x738a62, accent: 0xe2cd78, scale: 1,
-    }, Boolean(options.elite), Boolean(options.boss));
-    const scene = refs.group;
+    const factory = options.createFallbackModel ?? this.createFallbackModel ?? createMinimalFallback;
+    const refs = factory(key, options);
+    const scene = refs.group ?? refs.scene ?? refs;
     scene.userData.fallback = true;
-    return { scene, animations: [], fallback: true, refs, release: () => {} };
+    return {
+      scene,
+      animations: [],
+      fallback: true,
+      refs: refs.refs ?? refs,
+      release: () => {},
+    };
   }
 
   /**

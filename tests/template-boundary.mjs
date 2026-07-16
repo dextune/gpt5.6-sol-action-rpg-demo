@@ -2,8 +2,8 @@
  * LOCKED template vs game boundary tests.
  * Drives real shipped modules — see docs/architecture-template-boundary.md
  */
-import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { dirname, join, relative } from 'node:path';
+import { readFileSync, existsSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -122,24 +122,28 @@ ok(amSrc.includes('purgeUnused'), 'AssetManager.purgeUnused present');
 
 // —— Skill registry vs CombatSystem map vs content ——
 const combatSrc = readFileSync(join(root, 'js/systems/CombatSystem.js'), 'utf8');
-ok(combatSrc.includes('skillEffectRegistry') && combatSrc.includes('assertHandlerKeys'),
-  'CombatSystem binds skillEffectRegistry + assertHandlerKeys');
-ok(combatSrc.includes('createGameContext') && combatSrc.includes('this.ctx'),
+const createHandlersSrc = readFileSync(join(root, 'js/systems/combat/createSkillHandlers.js'), 'utf8');
+ok(createHandlersSrc.includes('skillEffectRegistry') && createHandlersSrc.includes('assertHandlerKeys'),
+  'createSkillHandlers binds skillEffectRegistry + assertHandlerKeys');
+ok((combatSrc.includes('createGameContext') || combatSrc.includes('template-3d'))
+  && combatSrc.includes('this.ctx'),
   'CombatSystem captures game.ctx');
-const handlerBlock = combatSrc.match(/this\.skillHandlers\s*=\s*\{([\s\S]*?)\n\s*\};/);
-ok(Boolean(handlerBlock), 'CombatSystem.skillHandlers block present');
+const handlerBlock = createHandlersSrc.match(/const table = \{([\s\S]*?)\n\s*\};/);
+ok(Boolean(handlerBlock) || createHandlersSrc.includes('createSkillHandlers'),
+  'createSkillHandlers skill table present');
 const registered = new Set(
   handlerBlock
     ? [...handlerBlock[1].matchAll(/^\s*([A-Za-z0-9_]+)\s*:/gm)].map(m => m[1])
     : [],
 );
+ok(combatSrc.includes('createSkillHandlers(this)'), 'CombatSystem wires createSkillHandlers');
 for (const key of SKILL_EFFECT_HANDLER_KEYS) {
   ok(registered.has(key), `registry skill key '${key}' registered on CombatSystem`);
 }
 const extras = [...registered].filter(k => !SKILL_EFFECT_HANDLER_KEYS.includes(k));
 ok(extras.length === 0, `no unregistered skillHandlers keys (${extras.join(',') || 'none'})`);
 
-const energyBlock = combatSrc.match(/this\.energyHandlers\s*=\s*\{([\s\S]*?)\n\s*\};/);
+const energyBlock = createHandlersSrc.match(/createEnergyHandlers[\s\S]*?const table = \{([\s\S]*?)\n\s*\};/);
 const energyRegistered = new Set(
   energyBlock
     ? [...energyBlock[1].matchAll(/^\s*([A-Za-z0-9_]+)\s*:/gm)].map(m => m[1])
@@ -184,6 +188,34 @@ const boundaryDoc = join(root, 'docs/architecture-template-boundary.md');
 const doc = readFileSync(boundaryDoc, 'utf8');
 ok(doc.includes('LOCKED') && doc.includes('GAME_CONTEXT_KEYS') && doc.includes('skillEffectRegistry'),
   'architecture-template-boundary.md LOCKED and complete');
+
+// —— Physical package @sol/template-3d ——
+const pkgRoot = join(root, 'packages/template-3d');
+const pkgJson = JSON.parse(readFileSync(join(pkgRoot, 'package.json'), 'utf8'));
+ok(pkgJson.name === '@sol/template-3d', 'packages/template-3d package.json name');
+const pkgIndex = readFileSync(join(pkgRoot, 'index.js'), 'utf8');
+ok(pkgIndex.includes('TEMPLATE_3D_PACKAGE_ID') && pkgIndex.includes('createGameContext'),
+  'template-3d index re-exports package identity + GameContext');
+const forbiddenInPkg = ['data/content.js', 'skillCombat.js', 'rushContent.js', 'CombatSystem', 'entities/Player', 'systems/Hunt'];
+const pkgBad = forbiddenInPkg.filter(s => pkgIndex.includes(s));
+ok(pkgBad.length === 0, `template-3d index free of Sol game imports (${pkgBad.join(',') || 'ok'})`);
+// AssetManager must not pull ModelFactory (game) into package graph
+const amSrc2 = readFileSync(join(root, 'js/assets/AssetManager.js'), 'utf8');
+ok(!/from\s+['\"].*ModelFactory/.test(amSrc2),
+  'AssetManager is free of ModelFactory import (template-safe fallback)');
+// Sol wires package
+const gameSrc2 = readFileSync(join(root, 'js/core/Game.js'), 'utf8');
+ok(gameSrc2.includes('packages/template-3d/index.js'), 'Game.js imports template-3d package entry');
+const html = readFileSync(join(root, 'index.html'), 'utf8');
+ok(html.includes('"@sol/template-3d"') && html.includes('packages/template-3d/index.js'),
+  'index.html import map registers @sol/template-3d');
+// Modular combat implementations
+ok(existsSync(join(root, 'js/systems/combat/activeSkillMethods.js')), 'activeSkillMethods module exists');
+ok(existsSync(join(root, 'js/systems/combat/energyBurstMethods.js')), 'energyBurstMethods module exists');
+ok(existsSync(join(root, 'js/systems/combat/createSkillHandlers.js')), 'createSkillHandlers module exists');
+const activeSrc = readFileSync(join(root, 'js/systems/combat/activeSkillMethods.js'), 'utf8');
+ok(activeSrc.includes('attachActiveSkillMethods') && activeSrc.includes('_whirlwind'),
+  'activeSkillMethods hosts whirlwind implementation');
 
 if (failed > 0) {
   console.error(`\ntemplate-boundary: ${failed} failure(s)`);

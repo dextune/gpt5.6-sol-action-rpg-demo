@@ -1,0 +1,10 @@
+{
+  "name": "@sol/template-3d",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Game-free browser Three.js runtime candidates for Sol ARPG (LOCKED boundary).",
+  "exports": {
+    ".": "./index.js"
+  }
+}

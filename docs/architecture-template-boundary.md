@@ -1,7 +1,8 @@
 # LOCKED · Template vs Game Boundary
 
-**Status: LOCKED (2026-07-16)**  
+**Status: LOCKED (2026-07-16) · T0–T5 physical package shipped**  
 **Enforcement:** `tests/template-boundary.mjs` (nested by `tests/integrity.mjs`)  
+**Package entry:** `packages/template-3d/` (`@sol/template-3d`, import map in `index.html`)  
 **Audience:** humans and agents  
 **Supersedes informal “we might extract a 3D template later” chat.**  
 Any change that blurs the layers below **must** update this file in the same PR and keep `tests/template-boundary.mjs` green.
@@ -168,14 +169,14 @@ Do **not** skip steps.
 
 | Step | Action | Exit |
 |------|--------|------|
-| **T0** | This document + `tests/template-boundary.mjs` | LOCKED now |
-| **T1** | Systems use `ctx` for new code; no new system↔system imports | lint/review habit |
-| **T2** | Optional: split CombatSystem handlers into files under `systems/combat/` | integrity green |
-| **T3** | Physical `packages/template-3d` move of §3 files | sample scene boots |
-| **T4** | Sol imports template package; dual integrity | CI green |
-| **T5** | Minimal second game (move + one VFX) proves template | accepted |
+| **T0** | This document + `tests/template-boundary.mjs` | **done** |
+| **T1** | Systems use `ctx` for new code; no new system↔system imports | **done** (constructors capture `this.ctx`) |
+| **T2** | Split skill/energy **implementations** under `systems/combat/` | **done** (`activeSkillMethods`, `energyBurstMethods`, `createSkillHandlers`) |
+| **T3** | Physical `packages/template-3d` entry re-exporting §3 candidates | **done** |
+| **T4** | Sol imports template package (`Game`, factories); integrity green | **done** |
+| **T5** | Minimal template-only consumer harness | **done** (`packages/template-3d/consumer-harness.mjs`) |
 
-Until T3, **do not** create empty package scaffolding that bitrots.
+**Do not** move Sol content/modes/UI into `packages/template-3d`. Further extraction may relocate file bodies behind the same entry without changing import surface.
 
 ---
 
