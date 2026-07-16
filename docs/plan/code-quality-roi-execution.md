@@ -2,7 +2,7 @@
 
 **Status:** ready to execute (not implemented)  
 **Captured:** 2026-07-16  
-**Basis:** cold code-quality review (post template-boundary + runtimeConstants)  
+**Basis:** cold code-quality review (post template-boundary + runtimeConstants) — full write-up: [code-quality-review-2026-07-16.md](./code-quality-review-2026-07-16.md)  
 **Constraint:** no full rewrite, no DI container, no TypeScript migration, no shake/hitStop/CDN changes.
 
 Related:
