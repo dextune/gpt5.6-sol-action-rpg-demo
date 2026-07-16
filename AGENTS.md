@@ -33,6 +33,7 @@ Detailed guides are in **`docs/`** — hub: [docs/README.md](./docs/README.md). 
 | Numbers only | quick-edit-recipes, config-and-tuning |
 | Add monster/zone/skill | content-data, extension-playbooks (§3 spectacle skill), combat |
 | Skill spectacle / polish | plan/skill-motion-spectacle, combat, graphics-vfx, audio |
+| Hero locomotion / pose bake only | plan/static-resource-character-motion, characters-visual |
 | Hit / effects | combat, graphics-vfx |
 | Sound / audio | audio, combat, assets |
 | Character / blade visuals | characters-visual |

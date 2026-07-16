@@ -41,6 +41,7 @@ Guides for small and large agents to safely modify the **GPT-5.6: Sol / Action R
 | [plan/weapon-visual-scale-detail.md](./plan/weapon-visual-scale-detail.md) | **plan: global 1.5× weapon visual scale + optional mesh detail (hit range independent)** |
 | [plan/monster-variety-hunt-defense.md](./plan/monster-variety-hunt-defense.md) | **plan: Hunt/Defense monster variety — roles, bestiary growth, affixes, wave recipes, visuals** |
 | [plan/presentation-and-motion-backlog.md](./plan/presentation-and-motion-backlog.md) | **backlog: VFX recipes, hit-feel, status juice, remaining motion (post pose-bake pass)** |
+| [plan/static-resource-character-motion.md](./plan/static-resource-character-motion.md) | **plan: Diablo-lite motion via baked clips only (walk, key density, settle; no blend trees/masks)** |
 
 ## Agent working rules (summary)
 

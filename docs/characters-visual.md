@@ -112,6 +112,10 @@ Runtime: `Player.trySkill` has limited anim fallbacks if a clip is missing — s
 - Skills with `timeline.hits` fire combat phases via `CharacterAnimationController.scheduleNormalized`.  
 - See [combat.md](./combat.md) cast flow and [plan/skill-motion-spectacle.md](./plan/skill-motion-spectacle.md).
 
+### Future motion (static resources only)
+
+Planned next motion upgrades that stay inside the bake/manifest pipeline (new clips such as `walk`, denser combat keys, settle continuity)—**not** runtime blend trees, bone masks, or procedural secondary motion—are specified in [plan/static-resource-character-motion.md](./plan/static-resource-character-motion.md).
+
 ## Outlines
 
 `OutlineSystem` silhouette color comes from the active look palette `outline`.
