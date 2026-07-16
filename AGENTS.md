@@ -44,6 +44,7 @@ Detailed guides are in **`docs/`** — hub: [docs/README.md](./docs/README.md). 
 | Performance | config-and-tuning, graphics-vfx, world |
 | Run / save | save-and-run |
 | Template vs game split / GameContext | architecture-template-boundary (**LOCKED**) |
+| Code quality ROI (UI/skills/growth) | plan/code-quality-roi-execution |
 | Full list | [docs/README.md](./docs/README.md) |
 
 ## Core paths
