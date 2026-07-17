@@ -25,7 +25,7 @@ Until a physical monorepo split lands, **logical ownership is frozen** by the ta
 ## 2. Hard rules (do not violate)
 
 1. **Template-candidate modules must not import Sol content.**  
-   Forbidden imports inside template-candidate files: `js/data/content.js`, `skillCombat.js`, `rushContent.js`, `fxThemes.js` (theme tokens are game-facing), `HERO_CLASSES`, skill effect handlers.
+   Forbidden imports inside template-candidate files: `js/data/content.js`, `skillCombat.js`, `fxThemes.js` (theme tokens are game-facing), `HERO_CLASSES`, skill effect handlers.
 
 2. **Game systems must not import other game systems for logic.**  
    Prefer `game.ctx` / `createGameContext(game)` (see `js/core/GameContext.js`). Cross-system calls go through the Game bag / context, not `import { CombatSystem } from …` inside HuntSystem.
@@ -91,11 +91,10 @@ Until then: **do not add Sol skill names into AssetManager / GameContext / Anima
 | `js/data/content.js` | zones, monsters, skills, classes, gear |
 | `js/data/skillCombat.js` | skill math, forms, mutations |
 | `js/data/fxThemes.js` | theme tokens |
-| `js/data/rushContent.js` | Rift Rush tables |
 | `js/config.js` | Sol tuning constants |
 | `js/systems/CombatSystem.js` | hit authority + skill handlers |
 | `js/systems/combat/skillEffectRegistry.js` | locked effect id list |
-| `js/systems/*` (Hunt, Defense, Rush, Loot, Enemy, XpGem) | mode / spawn / progression |
+| `js/systems/*` (Hunt, Defense, Loot, Enemy, XpGem) | mode / spawn / progression |
 | `js/entities/Player.js`, `Enemy.js` | Sol entity rules |
 | `js/characters/CharacterFactory.js`, `MonsterFactory.js` | Sol looks / kits |
 | `js/graphics/ModelFactory.js` | Sol fallback SDF heroes/props (game look) |
@@ -200,6 +199,6 @@ Before merging architecture-touching changes:
 - [assets.md](./assets.md) — manifest loading  
 - [combat.md](./combat.md) — hit authority  
 - [characters-visual.md](./characters-visual.md) — clip catalogs  
-- [plan/static-resource-character-motion.md](./plan/static-resource-character-motion.md) — bake-only motion  
+- [history/static-resource-character-motion.md](./history/static-resource-character-motion.md) — bake-only motion  
 
 **End of locked boundary.**

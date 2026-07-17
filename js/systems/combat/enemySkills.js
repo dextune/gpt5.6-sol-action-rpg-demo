@@ -17,23 +17,43 @@ _bossRoots(enemy) {
     point.y = (this.ctx ?? this.game).world.heightAt(point.x, point.z);
     this._delay(i * .09, () => this._telegraphCircle(point, 1.55, .72, 0x7de57b, () => {
       (this.ctx ?? this.game).effects.pillar(point, 0x73d26f, 4.5, { life: .62, bottom: .62 });
-      if ((this.ctx ?? this.game).player.position.distanceTo(point) < 1.85) this._damagePlayer(enemy.damage * .88, (this.ctx ?? this.game).player.position.clone().sub(point).setY(0).normalize(), 4.8);
+      if ((this.ctx ?? this.game).player.position.distanceTo(point) < 1.85) this._damagePlayer(enemy.damage * .88, (this.ctx ?? this.game).player.position.clone().sub(point).setY(0).normalize(), 4.8, enemy);
     }, { fillOpacity: .14 }));
   }
 },
 
 _bossStampede(enemy) {
-  const base = (this.ctx ?? this.game).player.position.clone().sub(enemy.position).setY(0).normalize();
+  // Ground trampling lanes — do NOT relocate the boss (old charge dashes felt like
+  // teleport-flee and dragged zone-boss fights into long chase downtime).
+  const game = this.ctx ?? this.game;
+  const origin = enemy.position.clone();
+  const toPlayer = game.player.position.clone().sub(origin).setY(0);
+  const base = toPlayer.lengthSq() > 1e-6 ? toPlayer.normalize() : enemy.facing.clone().setY(0).normalize();
+  const laneLength = 12;
   for (let i = -1; i <= 1; i += 1) {
-    this._delay((i + 1) * 1.08, () => {
-      const direction = base.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), i * .28);
-      const distance = 16;
-      this._lineTelegraph(enemy.position, direction, distance, 2.4, .72, 0xb7ef8a, () => {
+    this._delay((i + 1) * 0.42, () => {
+      if (!enemy.alive) return;
+      const direction = base.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), i * 0.32);
+      this._lineTelegraph(origin, direction, laneLength, 2.6, 0.68, 0xb7ef8a, () => {
         if (!enemy.alive) return;
-        this.charges.push({
-          enemy, start: enemy.position.clone(), end: enemy.position.clone().addScaledVector(direction, distance),
-          direction, duration: .52, time: 0, hit: false, damage: enemy.damage * 1.05,
+        game.effects.ring(origin, 0xb7ef8a, enemy.radius * 2.4, { life: 0.4, startScale: 0.12 });
+        game.effects.burst(origin.clone().addScaledVector(direction, 4), 0xa8f087, 16, {
+          speed: 4.2, size: 0.32, life: 0.55, gravity: 2,
         });
+        // Sample a few points along the lane for player contact.
+        const playerPos = game.player.position;
+        let hit = false;
+        for (let s = 0; s <= 6; s += 1) {
+          const sample = origin.clone().addScaledVector(direction, (s / 6) * laneLength);
+          sample.y = game.world.heightAt(sample.x, sample.z);
+          if (playerPos.distanceTo(sample) < 1.55 + (enemy.radius ?? 1)) {
+            hit = true;
+            break;
+          }
+        }
+        if (hit) {
+          this._damagePlayer(enemy.damage * 1.05, direction, 8, enemy);
+        }
       });
     });
   }
@@ -51,7 +71,7 @@ _bossSandstorm(enemy) {
     }
     if ((this.ctx ?? this.game).player.position.distanceTo(enemy.position) < 7.5) {
       const direction = (this.ctx ?? this.game).player.position.clone().sub(enemy.position).setY(0).normalize();
-      this._damagePlayer(enemy.damage * 1.15, direction, 8);
+      this._damagePlayer(enemy.damage * 1.15, direction, 8, enemy);
     }
   }, { follows: enemy, fillOpacity: .15 });
 },
@@ -64,7 +84,7 @@ _bossBlizzard(enemy) {
     this._delay(i * .12, () => this._telegraphCircle(point, 1.75, .62, 0xc9f6ff, () => {
       (this.ctx ?? this.game).effects.pillar(point, 0xdffbff, 5.5, { life: .6, bottom: .48 });
       (this.ctx ?? this.game).effects.burst(point, 0xe9fdff, 11, { speed: 3.8, size: .26, life: .65, gravity: 3 });
-      if ((this.ctx ?? this.game).player.position.distanceTo(point) < 2) this._damagePlayer(enemy.damage * .78, (this.ctx ?? this.game).player.position.clone().sub(point).setY(0).normalize(), 3.5);
+      if ((this.ctx ?? this.game).player.position.distanceTo(point) < 2) this._damagePlayer(enemy.damage * .78, (this.ctx ?? this.game).player.position.clone().sub(point).setY(0).normalize(), 3.5, enemy);
     }, { fillOpacity: .12 }));
   }
 },
@@ -79,7 +99,7 @@ _bossInferno(enemy) {
       point.y = (this.ctx ?? this.game).world.heightAt(point.x, point.z);
       this._delay(ringIndex * .22 + i * .035, () => this._telegraphCircle(point, 1.35, .68, 0xff6b45, () => {
         (this.ctx ?? this.game).effects.pillar(point, 0xff5e38, 5, { life: .68, bottom: .75 });
-        if ((this.ctx ?? this.game).player.position.distanceTo(point) < 1.65) this._damagePlayer(enemy.damage * .74, (this.ctx ?? this.game).player.position.clone().sub(point).setY(0).normalize(), 4.5);
+        if ((this.ctx ?? this.game).player.position.distanceTo(point) < 1.65) this._damagePlayer(enemy.damage * .74, (this.ctx ?? this.game).player.position.clone().sub(point).setY(0).normalize(), 4.5, enemy);
       }, { fillOpacity: .16 }));
     }
   });
@@ -100,7 +120,7 @@ _bossEclipse(enemy) {
       });
     }
     const distance = (this.ctx ?? this.game).player.position.distanceTo(center);
-    if (distance < 9.4) this._damagePlayer(enemy.damage * 1.2, (this.ctx ?? this.game).player.position.clone().sub(center).setY(0).normalize(), 10);
+    if (distance < 9.4) this._damagePlayer(enemy.damage * 1.2, (this.ctx ?? this.game).player.position.clone().sub(center).setY(0).normalize(), 10, enemy);
 
   }, { follows: enemy, fillOpacity: .18 });
 },

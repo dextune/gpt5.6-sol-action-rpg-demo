@@ -76,6 +76,19 @@ ok(content.HERO_CLASSES.wizard.attackStyle === 'magic', 'wizard attackStyle magi
 ok(content.HERO_CLASSES.aerin.attackStyle === 'melee', 'knight (aerin) attackStyle melee');
 ok(config.GAME_CONFIG.maxEnemies >= 42, 'max concurrent enemies setting');
 ok(config.GAME_CONFIG.saveVersion === 5, 'save data version 5');
+ok(config.HUNT_THREAT_CONFIG?.onLevelMaxGap === 3, 'HUNT_THREAT_CONFIG on-level gap');
+ok(Array.isArray(config.HUNT_THREAT_CONFIG?.receiveGapMul) && config.HUNT_THREAT_CONFIG.receiveGapMul.length >= 4, 'receive softcap table');
+
+const huntThreat = await import(pathToFileURL(join(root, 'js/systems/huntThreat.js')));
+ok(typeof huntThreat.threatFromGap === 'function', 'threatFromGap helper');
+ok(huntThreat.threatFromGap(0).id === 'onlevel', 'gap 0 is on-level');
+ok(huntThreat.threatFromGap(12).id === 'lethal', 'gap 12 is lethal');
+ok(huntThreat.receiveDamageMul(0) === 1, 'receive mul on-level is 1');
+ok(huntThreat.receiveDamageMul(12) <= 0.55, 'receive mul softcaps high gaps');
+ok(huntThreat.recommendedZoneId(1) === 'verdant', 'lv1 recommends verdant');
+ok(huntThreat.recommendedZoneId(12) === 'forest', 'lv12 recommends forest');
+ok(huntThreat.clampHuntSpawnLevel(50, content.ZONES.verdant) <= content.ZONES.verdant.maxLevel + config.HUNT_THREAT_CONFIG.spawnMaxSlack, 'spawn clamp respects band');
+ok(huntThreat.huntRewardMul(0) === config.HUNT_THREAT_CONFIG.onLevelRewardMul, 'on-level reward mul');
 
 const storage = new Map();
 globalThis.localStorage = {
@@ -117,7 +130,9 @@ ok(externalRefs.length === 0, 'no external network dependency');
 ok(allFiles.includes(join(root, 'vendor/three.module.min.js')), 'local Three.js file exists');
 ok(allFiles.includes(join(root, 'THIRD_PARTY_LICENSES/three-LICENSE.txt')), 'Three.js license exists');
 ok(html.includes('id="defense-btn"'), 'title Defense mode button');
-ok(html.includes('id="defense-wave-panel"'), 'defense wave HUD panel');
+ok(html.includes('id="zone-name"') && html.includes('id="world-tier"'), 'zone ribbon carries world tier / wave text');
+ok(html.includes('id="gold-count"') && html.includes('profile-gold-row'), 'gold lives in hunter profile');
+ok(!html.includes('resource-pills'), 'world resource pills removed from combat HUD');
 ok(Boolean(config.DEFENSE_CONFIG), 'DEFENSE_CONFIG exported');
 ok(config.DEFENSE_CONFIG.maxWave === 200, 'Defense maxWave is 200');
 ok(typeof config.defenseWaveHpMul === 'function', 'defenseWaveHpMul helper');

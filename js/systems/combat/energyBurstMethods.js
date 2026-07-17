@@ -111,7 +111,7 @@ _arrowStormBurst(player, def) {
         damage: player.attackPower * (def.stormMult ?? 0.55) * (finale ? 1.35 : 1),
         speed: (def.stormSpeed ?? 24) + i * 0.15,
         radius: 0.9,
-        life: def.stormLife ?? 3.3,
+        life: def.stormLife ?? 16.5,
         pierce: 2,
         knockback: finale ? 4.2 : 2.0,
         skill: false,

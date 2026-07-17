@@ -291,7 +291,7 @@ async function layoutSnapshot(page) {
       menu: rect('#touch-menu-btn'),
       zone: rect('.zone-ribbon'),
       minimap: rect('.minimap-shell'),
-      resources: rect('.resource-pills'),
+      resources: rect('.profile-gold-row') || rect('#gold-count'),
       player: rect('.player-card'),
       hunt: rect('.hunt-card'),
       health: rect('.combat-vitals-health'),

@@ -8,8 +8,19 @@ File: `js/systems/EnemySystem.js`
 
 - Target count: `GAME_CONFIG.targetEnemies` / `maxEnemies` (+ level adjustment)
 - Spawn: `world.randomSpawnAround` + `world.zoneAt` → `ZONE_SPAWNS`
-- Boss: `spawnBoss(zoneId)` → `ZONE_BOSSES`
+- Hunt spawn level: adaptive toward player, floored by type/zone, **clamped** with `clampHuntSpawnLevel` (`zone.maxLevel + HUNT_THREAT_CONFIG.spawnMaxSlack`)
+- On-level pack pressure when living count is low
+- Boss: `spawnBoss(zoneId)` → `ZONE_BOSSES` (level also band-clamped)
 - Despawn: `despawnRadius` + no recent hit
+
+## Hunt threat / on-level loop
+
+Files: `js/systems/huntThreat.js`, `HUNT_THREAT_CONFIG` in `js/config.js`
+
+- Zone/unit threat labels: Safe · On-level · Challenging · Danger · Lethal
+- Player **receive** damage softcap by unit level gap (`receiveDamageMul` → `CombatSystem._damagePlayer`)
+- On-level / grey / danger **XP & gold** multipliers (`huntRewardMul` → `XpGemSystem`, `LootSystem`)
+- Recommended zone helper for contracts and start tips
 
 ## HuntSystem
 
@@ -18,10 +29,23 @@ File: `js/systems/HuntSystem.js`
 - Kill streak, elite / boss counts
 - Boss gauge / appearance
 - World tier
-- Random contracts
+- Contracts: `guided` (recommended zone), kills, zone, elite, streak, boss
+- Field mark pings (elite pack) on a timer in on-level / challenging bands
 - Hunter titles (`HUNT_TITLES`)
 
-UI bindings: kill / streak / boss charge / contract elements.
+UI bindings: kill / streak / boss charge / contract elements; zone ribbon threat subtitle.
+
+## DefenseSystem
+
+File: `js/systems/DefenseSystem.js`  
+Data: `js/data/defenseContent.js`, `DEFENSE_CONFIG` in `js/config.js`
+
+- Wave FSM: prep → combat → clear → next (cap `maxWave`)
+- Encounter cards + decision mutators (Defense-only)
+- Champion break window, optional hazard pulses
+- Meta: `defenseMeta` (best/last wave, runs) — does **not** overwrite Hunt continue mid-run
+
+Title entry: **Defense**. Modes are `hunt` | `defense` only (Rift Rush removed).
 
 ## LootSystem
 

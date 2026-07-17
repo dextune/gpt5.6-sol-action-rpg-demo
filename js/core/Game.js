@@ -1,11 +1,10 @@
 import * as THREE from 'three';
-import { DEFENSE_CONFIG, GAME_CONFIG, GROWTH_CONFIG } from '../config.js';
-import { HERO_CLASSES, SKILLS, getClassActiveSkills, getClassSkillIds, skillKeyCode } from '../data/content.js';
+import { GAME_CONFIG } from '../config.js';
+import { HERO_CLASSES, getClassActiveSkills, skillKeyCode } from '../data/content.js';
 import { normalizeSkillRank } from '../data/skillCombat.js';
 // Template package surface (physical boundary — also mapped as @sol/template-3d in index.html).
 import {
   clamp,
-  randInt,
   createGameContext,
   Input,
   AssetManager,
@@ -18,6 +17,7 @@ import { SaveManager } from './SaveManager.js';
 import { AudioManager } from './AudioManager.js';
 import { CharacterFactory } from '../characters/CharacterFactory.js';
 import { MonsterFactory } from '../characters/MonsterFactory.js';
+import { createEnemyModel, createHeroModel } from '../graphics/ModelFactory.js';
 import { World } from '../world/World.js';
 import { Player } from '../entities/Player.js';
 import { Effects } from '../graphics/Effects.js';
@@ -27,9 +27,24 @@ import { LootSystem } from '../systems/LootSystem.js';
 import { XpGemSystem } from '../systems/XpGemSystem.js';
 import { HuntSystem } from '../systems/HuntSystem.js';
 import { DefenseSystem } from '../systems/DefenseSystem.js';
-import { RushSystem } from '../systems/RushSystem.js';
 import { UI } from '../ui/UI.js';
 import { TouchControls } from '../ui/TouchControls.js';
+import {
+  continueSavedGame,
+  endDefenseRun,
+  handleDefenseVictory as handleDefenseVictoryMode,
+  handlePlayerDeath as handlePlayerDeathMode,
+  mergeDefenseMeta,
+  respawnPlayer,
+  returnGameToTitle,
+  startDefenseMode,
+  startNewGame,
+} from './gameModes.js';
+import {
+  onEnemyKilled as onEnemyKilledFeedback,
+  onXpLevelUps as onXpLevelUpsFeedback,
+  updateKillFeedback,
+} from './killFeedback.js';
 
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const TMP_FORWARD = new THREE.Vector3();
@@ -67,7 +82,7 @@ export class Game {
     this.touchControls = new TouchControls(this);
 
     this.state = 'loading';
-    /** @type {'hunt' | 'defense' | 'rush'} */
+    /** @type {'hunt' | 'defense'} */
     this.mode = 'hunt';
     this.defenseMeta = { bestWave: 0, runs: 0, lastWave: 0 };
     this.elapsed = 0;
@@ -125,6 +140,32 @@ export class Game {
     this.lighting = new LightingSystem(this.scene, this.quality);
     this.outlineSystem = new OutlineSystem();
     this.assets = new AssetManager(this.renderer, { quality: this.quality });
+    // Never leave heroes/monsters as bare capsules when a GLB fails — use procedural kits.
+    this.assets.createFallbackModel = (key, options = {}) => {
+      if (typeof key === 'string' && key.startsWith('hero.')) {
+        return createHeroModel();
+      }
+      if (typeof key === 'string' && key.startsWith('monster.')) {
+        const archetype = key.slice('monster.'.length);
+        const shapeFromArchetype = {
+          slime: 'blob', hare: 'hare', boar: 'boar', wisp: 'wisp',
+          humanoid: 'raider', colossus: 'colossus',
+        };
+        const shape = options.data?.shape ?? shapeFromArchetype[archetype] ?? 'blob';
+        return createEnemyModel({
+          id: options.data?.id ?? archetype,
+          name: options.data?.name ?? archetype,
+          shape,
+          color: options.data?.color ?? 0x71816a,
+          accent: options.data?.accent ?? 0xe3c771,
+          scale: options.data?.scale ?? 1,
+          boss: options.boss ?? options.data?.boss,
+          zone: options.data?.zone,
+        }, Boolean(options.elite || options.boss));
+      }
+      // Weapons/env/props: null → AssetManager minimal capsule path.
+      return null;
+    };
     await this.assets.initialize();
 
     const modelKeys = Object.keys(this.assets.manifest.models);
@@ -147,7 +188,6 @@ export class Game {
     this.player = new Player(this.scene, this.characterFactory, this.quality);
     this.hunt = new HuntSystem(this);
     this.defense = new DefenseSystem(this);
-    this.rush = new RushSystem(this);
     this.combat = new CombatSystem(this);
     this.loot = new LootSystem(this);
     this.xpGems = new XpGemSystem(this);
@@ -160,7 +200,7 @@ export class Game {
     this.multikillTimer = 0;
     this.multikillWindow = 0.35;
     this.world.resolvePosition(this.player.position, .48);
-    this.#snapCamera();
+    this.snapCamera();
     this.#loadDefenseMeta();
 
     this.renderer.compile(this.scene, this.camera);
@@ -176,8 +216,7 @@ export class Game {
     if (this.query.get('autostart') === '1') {
       setTimeout(() => {
         const mode = this.query.get('mode');
-        if (mode === 'rush') this.startRush({ daily: this.query.get('daily') === '1' });
-        else if (mode === 'defense') this.startDefense();
+        if (mode === 'defense') this.startDefense();
         else this.newGame();
       }, 100);
     }
@@ -267,21 +306,12 @@ export class Game {
     this.playTime += delta;
     this.#handleMenus();
     if (this.state !== 'playing') return;
-    if (this.mode === 'rush' && this.rush?.blocksSimulation) {
-      this.#updateDeferred(delta);
-      this.rush.update(delta);
-      this.#updateKillFeedback(delta);
-      this.effects.update(delta);
-      this.world.update(delta * .2, this);
-      return;
-    }
     this.#handleInput(delta);
     this.#updateAim();
     this.#updateDeferred(delta);
 
     this.player.update(delta, this);
     if (this.mode === 'defense') this.defense.update(delta);
-    else if (this.mode === 'rush') this.rush.update(delta);
     else this.hunt.update(delta);
     this.enemies.update(delta);
     this.combat.update(delta);
@@ -326,7 +356,6 @@ export class Game {
   }
 
   #handleMenus() {
-    if (this.mode === 'rush' && this.rush?.active) return;
     if (this.state === 'paused') {
       if (this.input.consume('Escape')) this.ui.closePanel();
       else if (this.input.consume('KeyI')) this.ui.openPanel('inventory');
@@ -410,8 +439,7 @@ export class Game {
 
   #cameraOffsetHeight(distance = this.cameraDistance) {
     const lift = (distance - GAME_CONFIG.cameraDistance) * (GAME_CONFIG.cameraHeightPerDistance ?? .42);
-    const rushLift = this.mode === 'rush' ? 7 : 0;
-    return GAME_CONFIG.cameraHeight + lift + rushLift;
+    return GAME_CONFIG.cameraHeight + lift;
   }
 
   #updateCamera(delta) {
@@ -437,7 +465,7 @@ export class Game {
     this.camera.lookAt(this.cameraTarget);
   }
 
-  #snapCamera() {
+  snapCamera() {
     TMP_CAMERA.set(
       Math.sin(this.cameraYaw) * this.cameraDistance,
       this.#cameraOffsetHeight(this.cameraDistance),
@@ -472,209 +500,21 @@ export class Game {
   }
 
   newGame(options = {}) {
-    const classId = options.classId ?? this.ui?.selectedClassId ?? this.query.get('class');
-    this.#clearRun();
-    this.mode = 'hunt';
-    this.defense.reset();
-    this.player.reset(classId);
-    const pendingReward = this.rush?.consumePendingRewards?.(this.player) ?? { gold: 0, skillPoints: 0 };
-    this.hunt.reset();
-    this.playTime = 0;
-    this.autoSaveTimer = GAME_CONFIG.autoSaveSeconds;
-    this.saveRequested = false;
-    this.cameraYaw = .55;
-    this.cameraDistance = GAME_CONFIG.cameraDistance;
-    this.world.resolvePosition(this.player.position, .48);
-    this.state = 'playing';
-    this.ui.showHUD();
-    this.#snapCamera();
-    this.enemies.populate(52);
-    const heroName = this.player.name;
-    this.ui.notify(`Hunt started · ${heroName} enters the field.`, 'contract', 4.5);
-    if (pendingReward.gold > 0 || pendingReward.skillPoints > 0) {
-      this.ui.notify(
-        `Rift trophies claimed · ${pendingReward.gold}G${pendingReward.skillPoints ? ` · Skill Point +${pendingReward.skillPoints}` : ''}`,
-        'legendary',
-        4.5,
-      );
-    }
-    // Immediate localStorage write so Continue is available even if the tab closes early.
-    this.saveGame(false);
+    return startNewGame(this, options);
   }
 
   /** Endless wave arena — separate entry from Hunt; does not write Hunt continue saves mid-run. */
   startDefense(options = {}) {
-    const classId = options.classId ?? this.ui?.selectedClassId ?? this.query.get('class');
-    this.#clearRun();
-    this.mode = 'defense';
-    this.defense.reset();
-    this.player.reset(classId);
-    this.#bootstrapDefenseHero();
-    this.hunt.reset();
-    this.playTime = 0;
-    this.autoSaveTimer = GAME_CONFIG.autoSaveSeconds;
-    this.cameraYaw = .55;
-    this.cameraDistance = GAME_CONFIG.cameraDistance;
-    this.player.position.set(...GAME_CONFIG.respawnPosition);
-    this.world.resolvePosition(this.player.position, .48);
-    this.state = 'playing';
-    this.ui.showHUD();
-    this.#snapCamera();
-    this.defense.start();
-    const best = this.defenseMeta?.bestWave ?? 0;
-    this.ui.notify(
-      best > 0
-        ? `Defense · Best ${best} · Climb to wave ${DEFENSE_CONFIG.maxWave}`
-        : `Defense · Survive to wave ${DEFENSE_CONFIG.maxWave}`,
-      'contract',
-      4.2,
-    );
-  }
-
-  /** 75–90 second spectacle run; temporary hero state never writes the Hunt continuation save. */
-  startRush(options = {}) {
-    const classId = options.classId ?? this.ui?.selectedClassId ?? this.query.get('class');
-    this.#clearRun();
-    this.mode = 'rush';
-    this.defense.reset();
-    this.hunt.reset();
-    this.player.reset(classId);
-    this.playTime = 0;
-    this.saveRequested = false;
-    this.cameraYaw = .55;
-    this.cameraDistance = Math.max(GAME_CONFIG.cameraDistance, 17.2);
-    this.state = 'playing';
-    this.rush.start(options);
-    this.ui.showHUD();
-    this.#snapCamera();
-    return true;
-  }
-
-  retryRush() {
-    const result = this.rush?.result;
-    return this.startRush({
-      classId: this.player?.classId ?? this.ui?.selectedClassId,
-      daily: Boolean(result?.daily),
-      seed: result?.daily ? result.seed : undefined,
-    });
-  }
-
-  nextRush() {
-    return this.startRush({ classId: this.player?.classId ?? this.ui?.selectedClassId, daily: false });
-  }
-
-  chooseRushMutation(choiceId) {
-    return this.rush?.chooseMutation?.(choiceId) ?? false;
-  }
-
-  claimRushTrophy(trophyId) {
-    return this.rush?.claimTrophy?.(trophyId) ?? { ok: false, reason: 'unavailable' };
-  }
-
-  /**
-   * Defense-only opener: pad level, potions, skill points, and unlock early actives.
-   * Never called from Hunt paths.
-   */
-  #bootstrapDefenseHero() {
-    const cfg = DEFENSE_CONFIG;
-    const player = this.player;
-    const targetLevel = Math.max(1, cfg.startLevel ?? 3);
-    // Feed exact XP needed so unlockLevel actives auto-grant via addXp.
-    let guard = 40;
-    while (player.level < targetLevel && guard-- > 0) {
-      player.addXp(Math.max(1, player.xpNeeded - player.xp + 1));
-    }
-    player.skillPoints += Math.max(0, cfg.startSkillPoints ?? 0);
-    player.potions = Math.max(player.potions, cfg.startPotions ?? 5);
-    player.maxPotions = Math.max(player.maxPotions, 6);
-    player.hp = player.maxHp;
-    player.mp = player.maxMp;
-    player.energy = 40;
-    player.invalidateStats();
+    return startDefenseMode(this, options);
   }
 
   /** Wave 200 clear — end run with victory meta, return to title. */
   handleDefenseVictory() {
-    if (this.mode !== 'defense') return;
-    this.#persistDefenseMeta(true);
-    const wave = DEFENSE_CONFIG.maxWave;
-    const best = Math.max(wave, this.defenseMeta?.bestWave ?? 0);
-    this.ui.notify(`Victory · Wave ${wave} conquered · Best ${best}`, 'legendary', 5.5);
-    this.effects?.pillar?.(this.player.position, 0xffc45c, 16, { life: 1.8, bottom: 2.4, opacity: .6 });
-    this.effects?.ring?.(this.player.position, 0xffe38a, 12, { life: 1.6, startScale: .05 });
-    this.audio?.legendary?.();
-    this.#clearRun();
-    this.mode = 'hunt';
-    this.defense.reset();
-    this.player.reset();
-    this.world.resolvePosition(this.player.position, .48);
-    this.state = 'title';
-    this.ui.hideDeath();
-    this.ui.showTitle();
+    return handleDefenseVictoryMode(this);
   }
 
   continueGame() {
-    const data = this.save.load();
-    if (!data?.player) {
-      this.ui.notify('No valid save found in browser storage.', 'danger', 3.5);
-      this.ui.showTitle();
-      return false;
-    }
-    try {
-      this.#clearRun();
-      this.mode = 'hunt';
-      this.defense.reset();
-      this.player.load(data.player, this.world);
-      this.hunt.load(data.hunt ?? {});
-      this.defenseMeta = { bestWave: 0, lastWave: 0, runs: 0 };
-      if (data.defenseMeta) this.#mergeDefenseMeta(data.defenseMeta, false);
-      this.playTime = Math.max(0, Number(data.playTime) || 0);
-      this.cameraYaw = Number.isFinite(Number(data.cameraYaw)) ? Number(data.cameraYaw) : .55;
-      this.cameraDistance = clamp(
-        Number(data.cameraDistance) || GAME_CONFIG.cameraDistance,
-        GAME_CONFIG.cameraMinDistance,
-        GAME_CONFIG.cameraMaxDistance,
-      );
-      this.autoSaveTimer = GAME_CONFIG.autoSaveSeconds;
-      this.saveRequested = false;
-      this.state = 'playing';
-      if (this.ui) this.ui.selectedClassId = this.player.classId;
-      this.ui.showHUD();
-      this.#snapCamera();
-      this.enemies.populate(52);
-      // Re-write current schema so Continue stays durable after version upgrades.
-      this.saveGame(false);
-      this.ui.notify(
-        `Hunt resumed · ${this.player.name} · Lv.${this.player.level} · ${this.hunt.hunterTitle}`,
-        'contract',
-        3.8,
-      );
-      return true;
-    } catch (error) {
-      console.error('[continueGame] failed', error);
-      this.ui.notify('Could not load save. Try New Hunt or clear site data.', 'danger', 4.5);
-      this.state = 'title';
-      this.ui.showTitle();
-      return false;
-    }
-  }
-
-  #clearRun() {
-    this.combat?.clear();
-    this.enemies?.clear();
-    this.loot?.clear();
-    this.xpGems?.clear();
-    this.effects?.clear();
-    this.deferred.length = 0;
-    this.killChain = 0;
-    this.killChainTimer = 0;
-    this._chainMilestones?.clear?.();
-    this.multikillBuffer = [];
-    this.multikillTimer = 0;
-    this.#applyKillChainMods(false);
-    this.rush?.reset?.();
-    this.ui.hideDeath();
-    this.saveRequested = false;
+    return continueSavedGame(this);
   }
 
   setPaused(paused) {
@@ -686,25 +526,7 @@ export class Game {
   }
 
   returnToTitle() {
-    if (this.state !== 'title') {
-      if (this.mode === 'defense') {
-        // Abandon mid-run from pause menu; death path already persisted in #endDefenseRun.
-        if (this.defense?.phase !== 'failed' && this.defense?.phase !== 'idle') {
-          this.#persistDefenseMeta(true);
-        }
-      } else if (this.mode === 'hunt') {
-        this.saveGame(false);
-      }
-    }
-    this.#clearRun();
-    this.mode = 'hunt';
-    this.defense.reset();
-    this.player.reset();
-    this.world.resolvePosition(this.player.position, .48);
-    // Drop cache entries with zero live clones after run teardown.
-    this.purgeUnusedAssets();
-    this.state = 'title';
-    this.ui.showTitle();
+    return returnGameToTitle(this);
   }
 
   /**
@@ -717,315 +539,28 @@ export class Game {
   }
 
   handlePlayerDeath() {
-    if (this.mode === 'rush') {
-      if (this.rush?.phase === 'finishing' || this.rush?.phase === 'result') return;
-      this.player.setMoveDirection(TMP_MOVE.set(0, 0, 0));
-      this.combat.clear();
-      this.rush?.finish?.(false, 'The hunter fell before the apex was defeated.');
-      return;
-    }
-    if (this.state === 'dead') return;
-    this.state = 'dead';
-    this.deathTimer = this.mode === 'defense' ? 2.8 : this.deathDuration;
-    this.player.setMoveDirection(TMP_MOVE.set(0, 0, 0));
-    if (this.mode === 'defense') this.defense.fail();
-    else this.saveGame(false);
-    this.ui.showDeath();
-    this.combat.clear();
+    return handlePlayerDeathMode(this);
   }
 
   #endDefenseRun() {
-    this.#persistDefenseMeta(true);
-    const wave = Math.max(1, this.defense?.bestWaveThisRun || this.defense?.wave || 1);
-    const best = this.defenseMeta?.bestWave ?? wave;
-    this.ui.notify(`Defense ended · Wave ${wave} · Best ${best}`, 'danger', 4.5);
-    this.#clearRun();
-    this.mode = 'hunt';
-    this.defense.reset();
-    this.player.reset();
-    this.world.resolvePosition(this.player.position, .48);
-    this.state = 'title';
-    this.ui.hideDeath();
-    this.ui.showTitle();
+    return endDefenseRun(this);
   }
 
   #respawn() {
-    const penalty = Math.floor(this.player.gold * .04);
-    this.player.gold = Math.max(0, this.player.gold - penalty);
-    this.player.position.set(...GAME_CONFIG.respawnPosition);
-    this.world.resolvePosition(this.player.position, .48);
-    this.player.restore();
-    this.enemies.clear();
-    this.combat.clear();
-    this.xpGems?.clear();
-    this.killChain = 0;
-    this.killChainTimer = 0;
-    this.multikillBuffer = [];
-    this.multikillTimer = 0;
-    this.#applyKillChainMods(false);
-    this.state = 'playing';
-    this.ui.hideDeath();
-    this.#snapCamera();
-    this.enemies.populate(40);
-    this.ui.notify(penalty > 0 ? `Revived at hub · Repair cost ${penalty}G` : 'Revived at hub.', 'danger', 3.8);
-    this.requestSave();
+    return respawnPlayer(this);
   }
 
   onEnemyKilled(enemy) {
-    if (enemy.deathHandled) return;
-    enemy.deathHandled = true;
-    this.player.extendShadowFrenzyOnKill?.();
-
-    if (this.mode === 'defense') this.defense.onKill(enemy);
-    else if (this.mode === 'rush') this.rush.onKill(enemy);
-    else this.hunt.onKill(enemy);
-    if (this.mode !== 'rush') {
-      this.loot.dropFromEnemy(enemy);
-      this.xpGems?.spawnFromKill(enemy);
-    }
-
-    // Kill → skill uptime: CDR + MP (immediate, independent of XP gems).
-    this.#applyKillSkillRefund(enemy);
-
-    const position = enemy.position.clone().add(new THREE.Vector3(0, Math.max(.7, enemy.refs.modelHeight * .45), 0));
-
-    // Kill chain (2.5s window) — shared HUD counter for hunt + defense.
-    if (this.killChainTimer > 0) this.killChain += 1;
-    else this.killChain = 1;
-    this.killChainTimer = this.killChainInterval;
-    this.#applyKillChainMods(this.killChain >= 10);
-    this.#checkChainMilestones();
-
-    // Multikill buffer: suppress individual death bursts until window resolves.
-    this.multikillBuffer.push({
-      position: position.clone(),
-      ground: enemy.position.clone(),
-      accent: enemy.data?.accent ?? 0xeaf7d7,
-      elite: enemy.elite,
-      boss: enemy.boss,
-      color: enemy.boss ? (enemy.data?.accent ?? 0xffd66b) : enemy.elite ? 0xffd66b : 0xeaf7d7,
-    });
-    this.multikillTimer = this.multikillWindow;
-
-    if (enemy.overkill) {
-      this.ui.floatText(position.clone().add(new THREE.Vector3(0, 0.4, 0)), 'OVERKILL', 'overkill');
-    }
-    if (enemy.elite) this.ui.notify(`Elite slain · ${enemy.data.name}`, 'uncommon', 2.8);
-    if (enemy.boss) {
-      this.effects.pillar(enemy.position, enemy.data.accent, 14, { life: 1.55, bottom: 2.2 });
-      this.effects.ring(enemy.position, enemy.data.accent, 10, { life: 1.4, startScale: .06 });
-      this.ui.notify(`Boss defeated · ${enemy.data.name}`, 'boss', 5);
-    }
-
-    if (this.mode === 'hunt') this.requestSave();
+    return onEnemyKilledFeedback(this, enemy);
   }
 
   /** Level-ups from XP gem collection (mirrors former onEnemyKilled XP path). */
   onXpLevelUps(levelUps = []) {
-    if (!levelUps.length) return;
-    for (const level of levelUps) {
-      this.audio.levelUp();
-      this.ui.notify(`LEVEL UP · Lv.${level} · Skill Point +1`, 'level', 4.4);
-      for (const id of getClassSkillIds(this.player.classId)) {
-        const skill = SKILLS[id];
-        if (skill && !skill.passive && skill.unlockLevel === level) {
-          this.ui.notify(`New skill unlocked · ${skill.name} [${skill.key}]`, 'level', 4.2);
-        }
-      }
-      // Combat beat: nova + brief invuln (once per level gained).
-      this.#levelUpNova();
-    }
-    // Auto-spend SP so growth completes without opening the skill menu.
-    const spent = this.player.autoSpendSkillPoints({
-      onUnlock: (skill) => this.ui.notify(`Skill ready · ${skill.name} [${skill.key}]`, 'level', 3.0),
-    });
-    if (spent > 0) this.ui.notify(`Skills reinforced ×${spent}`, 'level', 2.6);
-    if (this.mode === 'hunt') this.requestSave();
-  }
-
-  /** Kill refund: reduce active skill CDs + restore MP by enemy tier. */
-  #applyKillSkillRefund(enemy) {
-    const cfg = GROWTH_CONFIG;
-    const player = this.player;
-    if (!player?.alive) return;
-    let cdr = cfg.killCdrFodder;
-    let mpGain = cfg.killMpFodder;
-    if (enemy.boss) {
-      cdr = cfg.killCdrBoss;
-      mpGain = cfg.killMpBoss;
-    } else if (enemy.elite) {
-      cdr = cfg.killCdrElite;
-      mpGain = cfg.killMpElite;
-    }
-    for (const skill of getClassActiveSkills(player.classId)) {
-      const id = skill.id;
-      const cd = player.skillCooldowns[id] ?? 0;
-      if (cd > 0) {
-        player.skillCooldowns[id] = Math.max(cfg.killCdrFloor, cd - cdr);
-      }
-    }
-    player.mp = Math.min(player.maxMp, player.mp + mpGain);
-  }
-
-  /**
-   * Level-up combat nova: knockback nearby foes, delete fodder, chunk elites/bosses.
-   * Presentation only uses mesh FX (no PointLights / camera shake).
-   */
-  #levelUpNova() {
-    const cfg = GROWTH_CONFIG;
-    const player = this.player;
-    if (!player) return;
-    const origin = player.position;
-    player.invulnerable = Math.max(player.invulnerable ?? 0, cfg.levelNovaInvuln);
-
-    this.effects.pillar(origin, 0xffe38a, 10, { life: 1.05, bottom: 1.45, opacity: 0.55 });
-    this.effects.ring(origin, 0xffe38a, cfg.levelNovaRadius + 0.8, { life: 0.9, startScale: 0.05, opacity: 0.92 });
-    this.effects.ring(origin, 0xfff2c4, cfg.levelNovaRadius * 0.55, {
-      life: 0.45, startScale: 0.12, height: 0.1, opacity: 0.8,
-    });
-    this.effects.burst(origin.clone().add(new THREE.Vector3(0, 1.05, 0)), 0xffd66b, 36, {
-      speed: 6.2, size: 0.36, life: 0.72, upward: 0.5,
-    });
-
-    const radius = cfg.levelNovaRadius;
-    const r2 = radius * radius;
-    const enemies = this.enemies?.enemies ?? [];
-    for (const enemy of enemies) {
-      if (!enemy.alive) continue;
-      const dx = enemy.position.x - origin.x;
-      const dz = enemy.position.z - origin.z;
-      if (dx * dx + dz * dz > r2) continue;
-      const dist = Math.hypot(dx, dz) || 0.001;
-      const dir = new THREE.Vector3(dx / dist, 0, dz / dist);
-      const amount = enemy.fodder
-        ? cfg.levelNovaFodderDamage
-        : Math.max(1, Math.round(enemy.maxHp * cfg.levelNovaNonFodderHpFrac));
-      enemy.takeDamage(amount, this, {
-        direction: dir,
-        knockback: cfg.levelNovaKnockback,
-        skill: true,
-        multiHit: false,
-        overkill: Boolean(enemy.fodder),
-      });
-    }
+    return onXpLevelUpsFeedback(this, levelUps);
   }
 
   #updateKillFeedback(delta) {
-    if (this.killChainTimer > 0) {
-      this.killChainTimer -= delta;
-      if (this.killChainTimer <= 0) {
-        this.killChain = 0;
-        this._chainMilestones?.clear?.();
-        this.#applyKillChainMods(false);
-      }
-    }
-    if (this.multikillTimer > 0) {
-      this.multikillTimer -= delta;
-      if (this.multikillTimer <= 0) this.#flushMultikill();
-    }
-  }
-
-  #flushMultikill() {
-    const kills = this.multikillBuffer;
-    this.multikillBuffer = [];
-    this.multikillTimer = 0;
-    if (!kills.length) return;
-
-    const defensePop = this.mode === 'defense' ? 1.35 : 1;
-    if (kills.length >= 3) {
-      const centroid = new THREE.Vector3();
-      for (const k of kills) centroid.add(k.ground);
-      centroid.multiplyScalar(1 / kills.length);
-      const label = kills.length >= 6 ? 'MASSACRE!' : kills.length >= 4 ? 'QUAD!' : 'TRIPLE!';
-      this.effects.starburst(centroid.clone().add(new THREE.Vector3(0, 1.1, 0)), 0xffe38a, 4.2 + kills.length * 0.15, {
-        life: 0.35, opacity: 0.9,
-      });
-      this.effects.ring(centroid, 0xffd66b, 4.5 + kills.length * 0.35, {
-        life: 0.55, startScale: 0.08, opacity: 0.9,
-      });
-      this.effects.ring(centroid, 0xfff2c4, 2.8 + kills.length * 0.2, {
-        life: 0.32, startScale: 0.15, height: 0.08, opacity: 0.75,
-      });
-      this.effects.burst(centroid.clone().add(new THREE.Vector3(0, 1, 0)), 0xffe38a, Math.round(28 * defensePop + kills.length * 4), {
-        speed: 6.5, size: 0.38, life: 0.75, upward: 0.55,
-      });
-      this.ui.floatText(centroid.clone().add(new THREE.Vector3(0, 1.6, 0)), label, 'multikill');
-      this.audio?.killSting?.(this.killChain);
-      // Still show light elite/boss accent pops at each site without full individual bursts.
-      for (const k of kills) {
-        if (k.boss || k.elite) {
-          this.effects.burst(k.position, k.color, k.boss ? 18 : 10, {
-            speed: 4, size: 0.28, life: 0.5,
-          });
-        }
-      }
-      return;
-    }
-
-    for (const k of kills) this.#individualKillBurst(k, defensePop);
-  }
-
-  #individualKillBurst(k, defensePop = 1) {
-    const burstCount = Math.round((k.boss ? 46 : k.elite ? 22 : 12) * defensePop);
-    this.effects.burst(k.position, k.color, burstCount, {
-      speed: (k.boss ? 7.5 : 4.4) * (this.mode === 'defense' ? 1.12 : 1),
-      size: (k.boss ? .55 : .3) * (this.mode === 'defense' ? 1.1 : 1),
-      life: k.boss ? 1.2 : .62,
-    });
-    if (this.mode === 'defense' && (k.elite || k.boss)) {
-      this.effects.ring(k.ground, k.accent ?? 0xffd36d, k.boss ? 7 : 3.4, {
-        life: k.boss ? 1.1 : .55, startScale: .08,
-      });
-    }
-  }
-
-  #checkChainMilestones() {
-    const chain = this.killChain;
-    const every = GROWTH_CONFIG.chainAttackEvery;
-    const marks = new Set([25, 50, 100]);
-    if (every > 0 && chain >= every) {
-      for (let m = every; m <= chain; m += every) marks.add(m);
-    }
-    for (const mark of [...marks].sort((a, b) => a - b)) {
-      if (chain >= mark && !this._chainMilestones.has(mark)) {
-        this._chainMilestones.add(mark);
-        this.ui.notify(`${mark} KILL CHAIN!`, mark >= 100 ? 'boss' : 'level', 3.6);
-        this.audio?.killSting?.(mark);
-        this.effects?.ring?.(this.player.position, 0xffe38a, 3.5 + mark * 0.02, {
-          life: 0.55, startScale: 0.1,
-        });
-        // Permanent-in-run attack bump every N chain kills (Hunt + Defense).
-        if (every > 0 && mark % every === 0) this.#applyChainAttackGrowth();
-      }
-    }
-  }
-
-  #applyChainAttackGrowth() {
-    const cfg = GROWTH_CONFIG;
-    const mods = this.player?.runMods;
-    if (!mods) return;
-    const before = mods.attack ?? 1;
-    mods.attack = Math.min(cfg.chainAttackCap, before + cfg.chainAttackBump);
-    if (mods.attack > before) {
-      this.player.invalidateStats?.();
-      this.ui?.notify?.(
-        `Kill surge · Attack +${Math.round(cfg.chainAttackBump * 100)}% (run)`,
-        'level',
-        2.4,
-      );
-    }
-  }
-
-  #applyKillChainMods(active) {
-    const mods = this.player?.runMods;
-    if (!mods) return;
-    if (active) {
-      mods.moveSpeed = 0.06;
-      mods.killChainXp = 0.10;
-    } else {
-      mods.moveSpeed = 0;
-      mods.killChainXp = 0;
-    }
+    return updateKillFeedback(this, delta);
   }
 
   requestSave() {
@@ -1034,7 +569,7 @@ export class Game {
   }
 
   saveGame(showFailure = false) {
-    // Never serialize temporary Defense/Rush heroes as Hunt continue progress.
+    // Never serialize temporary Defense heroes as Hunt continue progress.
     if (this.mode !== 'hunt') return false;
     if (!this.player || !this.hunt || this.state === 'title' || this.state === 'loading') return false;
     const success = this.save.save({
@@ -1057,41 +592,7 @@ export class Game {
   }
 
   #mergeDefenseMeta(meta = {}, incrementRuns = false) {
-    const bestWave = Math.max(0, Number(this.defenseMeta.bestWave) || 0, Number(meta.bestWave) || 0);
-    const lastWave = Math.max(0, Number(meta.lastWave) || 0, Number(this.defenseMeta.lastWave) || 0);
-    const runs = Math.max(0, Number(this.defenseMeta.runs) || 0, Number(meta.runs) || 0)
-      + (incrementRuns ? 0 : 0);
-    this.defenseMeta = {
-      bestWave,
-      lastWave,
-      runs: incrementRuns ? runs + 1 : runs,
-    };
-  }
-
-  /** Update best-wave meta without writing Defense player into Hunt blob. */
-  #persistDefenseMeta(incrementRuns = false) {
-    const run = this.defense?.serializeMeta?.() ?? { bestWave: 0, lastWave: 0 };
-    const next = {
-      bestWave: Math.max(
-        Number(this.defenseMeta.bestWave) || 0,
-        Number(run.bestWave) || 0,
-        Number(run.lastWave) || 0,
-      ),
-      lastWave: Math.max(Number(run.lastWave) || 0, Number(run.bestWave) || 0),
-      runs: (Number(this.defenseMeta.runs) || 0) + (incrementRuns ? 1 : 0),
-    };
-    this.defenseMeta = next;
-
-    const existing = this.save.load();
-    if (!existing?.player) return false;
-    return this.save.save({
-      player: existing.player,
-      hunt: existing.hunt,
-      playTime: existing.playTime,
-      cameraYaw: existing.cameraYaw,
-      cameraDistance: existing.cameraDistance,
-      defenseMeta: next,
-    });
+    return mergeDefenseMeta(this, meta, incrementRuns);
   }
 
   shake(_amount = .2, _duration = .2) {
@@ -1131,7 +632,6 @@ export class Game {
       enemies: this.enemies?.enemies?.filter(enemy => enemy.alive).length ?? 0,
       assets: this.assets?.getStats?.() ?? null,
       player: this.player ? { level: this.player.level, hp: this.player.hp, x: this.player.position.x, z: this.player.position.z } : null,
-      rush: this.mode === 'rush' ? this.rush?.hud ?? null : null,
     };
   }
 

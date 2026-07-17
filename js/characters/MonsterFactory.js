@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CharacterAnimationController } from '../../packages/template-3d/index.js';
 import { convertToStylized, inferMaterialRole } from '../graphics/StylizedMaterial.js';
+import { createEnemyModel } from '../graphics/ModelFactory.js';
 
 const SHAPE_ARCHETYPE = Object.freeze({
   blob: 'slime', plant: 'slime', beetle: 'slime', crab: 'slime', toad: 'slime',
@@ -12,6 +13,29 @@ const SHAPE_ARCHETYPE = Object.freeze({
   raider: 'humanoid', shaman: 'humanoid', knight: 'humanoid', cyclops: 'humanoid',
   golem: 'colossus', colossus: 'colossus', drake: 'colossus', scorpion: 'colossus',
 });
+
+/**
+ * Canonical shape that "owns" each baked GLB archetype.
+ * Non-canonical shapes (beetle, wolf, toad, …) previously reused the same GLB and
+ * read as plain colored blobs — they now use ModelFactory procedural silhouettes.
+ */
+const ARCHETYPE_CANONICAL_SHAPE = Object.freeze({
+  slime: 'blob',
+  hare: 'hare',
+  boar: 'boar',
+  wisp: 'wisp',
+  humanoid: 'raider',
+  colossus: 'colossus',
+});
+
+/** Shapes with dedicated ModelFactory builders (unique limb/prop silhouette). */
+const PROCEDURAL_SHAPES = Object.freeze(new Set([
+  'blob', 'hare', 'boar', 'wisp', 'raider',
+  'beetle', 'wolf', 'plant', 'golem', 'shaman',
+  'harpy', 'stag', 'crab', 'raptor', 'cyclops',
+  'scorpion', 'knight', 'imp', 'lizard', 'panther',
+  'colossus', 'drake', 'toad', 'fox', 'owl', 'asp',
+]));
 
 /** Per-shape silhouette multipliers so remapped bodies still read differently (B1-a). */
 const SHAPE_SCALE = Object.freeze({
@@ -124,12 +148,94 @@ export class MonsterFactory {
     return SHAPE_ARCHETYPE[data.shape] ?? 'humanoid';
   }
 
+  /**
+   * Use unique procedural silhouette when shape is not the GLB owner.
+   * Keeps 6 baked archetypes for the canonical forms (blob/hare/boar/…) and
+   * avoids plant/beetle/wolf/etc. all reading as the same colored capsule/blob.
+   */
+  #shouldUseProcedural(shape, archetype) {
+    if (!shape || !PROCEDURAL_SHAPES.has(shape)) return false;
+    const canonical = ARCHETYPE_CANONICAL_SHAPE[archetype];
+    return shape !== canonical;
+  }
+
+  #createProcedural(data, options = {}) {
+    const elite = Boolean(options.elite);
+    const boss = Boolean(options.boss ?? data.boss);
+    const archetype = this.archetypeFor(data);
+    const shapeMul = SHAPE_SCALE[data.shape] ?? 1;
+    const scaleMul = shapeMul * (boss ? 1.05 : elite ? 1.06 : 1);
+    const procedural = createEnemyModel({
+      ...data,
+      name: data.name ?? data.id ?? data.shape,
+      scale: (data.scale ?? 1) * scaleMul,
+      boss,
+    }, elite || boss);
+    const group = procedural.group;
+    group.name = `Enemy_${data.id}`;
+    group.userData.proceduralShape = data.shape;
+    group.userData.modelHeight = procedural.modelHeight;
+
+    // Hide ModelFactory's own health bar — MonsterFactory attaches the combat HUD bar.
+    if (procedural.healthGroup) procedural.healthGroup.visible = false;
+
+    const materials = [];
+    group.traverse(object => {
+      if (!object.isMesh) return;
+      object.castShadow = true;
+      object.receiveShadow = true;
+      if (object.material) materials.push(object.material);
+    });
+    this.outlines.configure(group, {
+      color: 0x1e2d36,
+      priority: boss ? 8 : elite ? 4 : 2,
+      maxDistance: boss ? 52 : elite ? 38 : 30,
+    });
+    const modelHeight = procedural.modelHeight || (archetype === 'colossus' ? 4 : 2);
+    const health = makeHealthBar(modelHeight * (group.scale.x || 1), elite, boss);
+    group.add(health.group);
+    // Procedural builds have no skeletal clips — controller stays inert (no capsule).
+    const animation = new CharacterAnimationController(group, [], {
+      referenceRunSpeed: archetype === 'hare' ? 6.4 : archetype === 'boar' ? 5.6 : 4.8,
+      defaultFade: .14,
+    });
+    return {
+      group,
+      animation,
+      refs: {
+        group,
+        rig: procedural.rig ?? group,
+        modelHeight,
+        healthGroup: health.group,
+        healthFill: health.fill,
+        healthWidth: health.width,
+        materials,
+        archetype,
+        shape: data.shape,
+        fallback: false,
+        procedural: true,
+      },
+    };
+  }
+
   create(data, options = {}) {
     const elite = Boolean(options.elite);
     const boss = Boolean(options.boss ?? data.boss);
     const archetype = this.archetypeFor(data);
+    const shape = data.shape ?? ARCHETYPE_CANONICAL_SHAPE[archetype] ?? 'blob';
+
+    if (this.#shouldUseProcedural(shape, archetype)) {
+      return this.#createProcedural({ ...data, shape }, options);
+    }
+
     const quality = boss ? 'high' : options.quality ?? 'medium';
     const asset = this.assets.cloneModel(`monster.${archetype}`, { quality, data, elite, boss });
+    // If GLB path collapsed to capsule, rebuild with procedural silhouette instead.
+    if (asset.fallback) {
+      console.warn(`[MonsterFactory] GLB fallback for monster.${archetype}; using procedural ${shape}`);
+      return this.#createProcedural({ ...data, shape }, options);
+    }
+
     const group = asset.scene;
     group.name = `Enemy_${data.id}`;
     const modelHeight = Number(group.userData.modelHeight) || (archetype === 'colossus' ? 4 : 2);
@@ -197,7 +303,9 @@ export class MonsterFactory {
         healthWidth: health.width,
         materials,
         archetype,
+        shape,
         fallback: asset.fallback,
+        procedural: false,
       },
     };
   }

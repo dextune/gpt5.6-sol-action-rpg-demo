@@ -17,8 +17,10 @@ Query params:
 
 - `?quality=low|medium|high`
 - `?debug=1` (show debug HUD on start)
-- `?autostart=1` (auto start new game after title)
-- `?class=aerin|wizard|rogue` (pre-select title class)
+- `?autostart=1` (auto start after title; with `?mode=defense` starts Defense, else New Hunt)
+- `?class=aerin|wizard|rogue|ranger` (pre-select title class)
+
+Title modes: **New Hunt**, **Defense**, **Continue**. Rift Rush / Daily Rift were removed.
 
 `server.mjs` uses `safePath` which accounts for Windows path separators. Watch for 403 when modifying the path guard.
 

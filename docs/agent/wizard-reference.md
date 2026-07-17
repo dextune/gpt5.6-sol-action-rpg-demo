@@ -45,7 +45,7 @@ Balance: `SKILLS.*.combat` + `skillCombatAtRank` — see [../combat.md](../comba
 | Binaries | `assets/models/hero/wizard_*.glb`, `assets/models/props/weapon_staff.glb` |
 | Icon | `assets/textures/ui/icon_staff.png` |
 | Save version | `js/config.js` (`saveVersion: 4`) |
-| Plan | `docs/plan/multi-class-wizard.md` |
+| Plan | `docs/history/multi-class-wizard.md` |
 | Integrity | `tests/integrity.mjs`, `tests/import-integrity.mjs` |
 
 ## Bake commands used
@@ -99,4 +99,4 @@ Applied in Player getters with passive aggregation.
 
 - Unique cast/skill clips + `cast_*` basic attacks  
 - Themed SFX, FX recipes, frost slow / fire burn  
-- See [../plan/skill-motion-spectacle.md](../plan/skill-motion-spectacle.md)  
+- See [../history/skill-motion-spectacle.md](../history/skill-motion-spectacle.md)  

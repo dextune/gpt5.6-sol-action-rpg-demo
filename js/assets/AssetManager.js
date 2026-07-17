@@ -124,27 +124,44 @@ export class AssetManager extends EventTarget {
 
   async loadModel(key, quality = this.quality) {
     if (!this.manifest) await this.initialize();
-    const cacheKey = `${key}@${quality}`;
-    const cached = this.models.get(cacheKey);
-    if (cached) return cached.gltf;
-    if (this.pending.has(cacheKey)) return this.pending.get(cacheKey);
-    const url = this.resolveModelUrl(key, quality);
-    if (!url) throw new Error(`Unknown model asset: ${key}`);
-    const promise = this.loader.loadAsync(url).then(gltf => {
-      gltf.scene.name ||= key;
-      gltf.scene.userData.assetKey = key;
-      // clones = live skeleton instances; 0 means cache-only (purgeable).
-      const entry = { gltf, clones: 0, url, quality };
-      this.models.set(cacheKey, entry);
-      this.pending.delete(cacheKey);
-      return gltf;
-    }).catch(error => {
-      this.pending.delete(cacheKey);
-      this.failed.add(cacheKey);
-      throw error;
-    });
-    this.pending.set(cacheKey, promise);
-    return promise;
+    // Cascade qualities so a missing/broken medium lod still serves high/low.
+    const qualities = [quality, 'high', 'medium', 'low']
+      .filter((q, i, arr) => arr.indexOf(q) === i);
+    let lastError = null;
+    for (const q of qualities) {
+      const cacheKey = `${key}@${q}`;
+      const cached = this.models.get(cacheKey);
+      if (cached) return cached.gltf;
+      if (this.pending.has(cacheKey)) {
+        try { return await this.pending.get(cacheKey); } catch (error) {
+          lastError = error;
+          continue;
+        }
+      }
+      const url = this.resolveModelUrl(key, q);
+      if (!url) continue;
+      const promise = this.loader.loadAsync(url).then(gltf => {
+        gltf.scene.name ||= key;
+        gltf.scene.userData.assetKey = key;
+        // clones = live skeleton instances; 0 means cache-only (purgeable).
+        const entry = { gltf, clones: 0, url, quality: q };
+        this.models.set(cacheKey, entry);
+        this.pending.delete(cacheKey);
+        this.failed.delete(cacheKey);
+        return gltf;
+      }).catch(error => {
+        this.pending.delete(cacheKey);
+        this.failed.add(cacheKey);
+        throw error;
+      });
+      this.pending.set(cacheKey, promise);
+      try {
+        return await promise;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw lastError ?? new Error(`Unknown model asset: ${key}`);
   }
 
   async loadTexture(key) {
@@ -191,9 +208,32 @@ export class AssetManager extends EventTarget {
 
   createFallback(key, options = {}) {
     const factory = options.createFallbackModel ?? this.createFallbackModel ?? createMinimalFallback;
-    const refs = factory(key, options);
-    const scene = refs.group ?? refs.scene ?? refs;
+    let refs;
+    try {
+      refs = factory(key, options);
+    } catch (error) {
+      console.error(`[AssetManager] createFallbackModel failed for ${key}, using capsule:`, error);
+      refs = createMinimalFallback(key, options);
+    }
+    const scene = refs?.group ?? refs?.scene ?? refs;
+    if (!scene?.isObject3D) {
+      const minimal = createMinimalFallback(key, options);
+      return {
+        scene: minimal.group,
+        animations: [],
+        fallback: true,
+        refs: minimal.refs,
+        release: () => {},
+      };
+    }
     scene.userData.fallback = true;
+    scene.userData.fallbackKey = key;
+    // Detect pure capsule minimal fallback vs rich ModelFactory rebuild.
+    const isCapsule = scene.name?.startsWith?.('fallback:')
+      || (scene.children?.length === 1 && scene.children[0]?.geometry?.type === 'CapsuleGeometry');
+    if (isCapsule) {
+      console.warn(`[AssetManager] CAPSULE fallback active for ${key} — GLB missing/unloadable`);
+    }
     return {
       scene,
       animations: [],

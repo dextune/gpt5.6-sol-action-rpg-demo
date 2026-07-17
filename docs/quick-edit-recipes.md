@@ -33,6 +33,13 @@ For larger feature additions see [extension-playbooks.md](./extension-playbooks.
 - Boss gauge: in `HuntSystem.onKill`, `bossCharge += elite?9:2.35`
 - Boss wait: `bossPendingTimer = 2.25`
 
+### Hunt threat · on-level loop
+- Bands / softcap / rewards: `HUNT_THREAT_CONFIG` in `js/config.js`
+- Helpers: `js/systems/huntThreat.js` (`threatFromGap`, `receiveDamageMul`, `recommendedZoneId`, `clampHuntSpawnLevel`)
+- Zone ribbon / toast / minimap threat: `hudCombat.js`, `UI.zoneEntered`, `minimap.js`
+- Guided contracts + field marks: `HuntSystem`
+- Enemy level nameplate: `Enemy.#createLevelLabel`
+
 ### Potion · dash feel
 - `PLAYER_CONFIG` potionHealRatio, dash*
 - Cooldown UI: ability-slot potion/dash

@@ -1,6 +1,13 @@
+import * as THREE from 'three';
 import { HUNT_TITLES, ZONES } from '../data/content.js';
-import { clamp, randInt, uid, weightedPick } from '../core/Utils.js';
+import { HUNT_THREAT_CONFIG } from '../config.js';
+import { clamp, rand, randInt, uid, weightedPick } from '../core/Utils.js';
 import { createGameContext } from '../core/GameContext.js';
+import {
+  recommendedHuntTip,
+  recommendedZoneId,
+  zoneThreat,
+} from './huntThreat.js';
 
 /** English reward preview lines by contract reward tier (1–5). */
 const CONTRACT_REWARD_HINTS = Object.freeze({
@@ -37,6 +44,10 @@ export class HuntSystem {
     this.bossPendingTimer = 0;
     this.contractCooldown = 0;
     this.contract = null;
+    this.fieldMarkTimer = rand(
+      HUNT_THREAT_CONFIG.fieldMarkMinSec,
+      HUNT_THREAT_CONFIG.fieldMarkMaxSec,
+    );
   }
 
   get worldTier() {
@@ -48,6 +59,15 @@ export class HuntSystem {
   }
 
   get bossReady() { return this.bossCharge >= 100; }
+
+  /** Recommended hunting zone for the current player level. */
+  recommendedZoneId() {
+    return recommendedZoneId(this.game.player?.level ?? 1);
+  }
+
+  recommendedHuntTip() {
+    return recommendedHuntTip(this.game.player?.level ?? 1);
+  }
 
   update(delta) {
     if (!this.contract) this.contract = this.#makeContract();
@@ -62,6 +82,60 @@ export class HuntSystem {
         if (boss) this.bossCharge = 0;
       }
     }
+
+    if (this.game.mode === 'hunt' && this.game.state === 'playing' && this.game.player?.alive) {
+      this.#tickFieldMark(delta);
+    }
+  }
+
+  #tickFieldMark(delta) {
+    this.fieldMarkTimer -= delta;
+    if (this.fieldMarkTimer > 0) return;
+    this.fieldMarkTimer = rand(
+      HUNT_THREAT_CONFIG.fieldMarkMinSec,
+      HUNT_THREAT_CONFIG.fieldMarkMaxSec,
+    );
+    const player = this.game.player;
+    const zone = this.game.world.currentZone;
+    const threat = zoneThreat(player.level, zone);
+    // Only ping in readable on-level / challenging bands — not greys or suicide lethal.
+    if (threat.id !== 'onlevel' && threat.id !== 'challenging') return;
+    if (this.game.enemies.livingCount > HUNT_THREAT_CONFIG.packPressureLiving + 8) return;
+
+    const world = this.game.world;
+    const origin = world.randomSpawnAround(
+      player.position,
+      14,
+      28,
+    );
+    world.resolvePosition(origin, 0.7);
+    const markZone = world.zoneAt(origin.x, origin.z);
+    // Keep field marks inside the player's current hunting ground when possible.
+    if (markZone.id !== zone.id) {
+      origin.set(zone.center[0] + rand(-12, 12), 0, zone.center[1] + rand(-12, 12));
+      world.resolvePosition(origin, 0.7);
+    }
+
+    const pack = this.game.enemies.spawnPack(null, randInt(4, 6), origin);
+    // Guarantee one elite in the mark for greed/readability.
+    const living = this.game.enemies.enemies.filter(e => e.alive && !e.boss);
+    const seed = pack[0] ?? living[living.length - 1];
+    if (seed) {
+      const elitePos = origin.clone().add(new THREE.Vector3(rand(-1.5, 1.5), 0, rand(-1.5, 1.5)));
+      world.resolvePosition(elitePos, 0.7);
+      this.game.enemies.spawn(seed.data, elitePos, {
+        level: seed.level,
+        elite: true,
+        eliteAffix: this.game.enemies.rollEliteAffix(zone.id),
+        fodder: false,
+      });
+    } else {
+      this.game.enemies.spawnPack(null, 5, origin);
+    }
+
+    this.game.effects?.ring?.(origin, 0xffd56f, 3.4, { life: 0.85, startScale: 0.1, opacity: 0.6 });
+    this.game.effects?.pillar?.(origin, 0xffd56f, 5.5, { life: 0.55, bottom: 0.7 });
+    this.game.ui?.notify?.('Field mark · elite pack nearby', 'uncommon', 3.2);
   }
 
   onKill(enemy) {
@@ -102,6 +176,7 @@ export class HuntSystem {
     else if (contract.type === 'elite' && enemy.elite) amount = 1;
     else if (contract.type === 'boss' && enemy.boss) amount = 1;
     else if (contract.type === 'zone' && enemy.data.zone === contract.zoneId) amount = 1;
+    else if (contract.type === 'guided' && enemy.data.zone === contract.zoneId) amount = 1;
     else if (contract.type === 'streak' && this.streak >= contract.target) contract.progress = contract.target;
     contract.progress = clamp(contract.progress + amount, 0, contract.target);
     if (contract.progress >= contract.target) this.#completeContract();
@@ -142,12 +217,14 @@ export class HuntSystem {
 
   /**
    * Level-based type weights:
-   * early — kills / zone · mid — elite / streak · late — boss slightly higher.
+   * early — guided / zone · mid — elite / streak · late — boss slightly higher.
+   * Pure "any kills" is de-emphasized when a clear band exists.
    */
   #pickContractType(level) {
     const entries = [
-      { id: 'kills', weight: level < 8 ? 3.4 : level < 16 ? 2.2 : 1.5 },
-      { id: 'zone', weight: level < 8 ? 2.9 : level < 16 ? 2.0 : 1.4 },
+      { id: 'guided', weight: level < 40 ? 3.6 : 1.6 },
+      { id: 'zone', weight: level < 8 ? 1.4 : level < 16 ? 1.2 : 1.0 },
+      { id: 'kills', weight: level < 8 ? 1.6 : level < 16 ? 1.1 : 0.75 },
       { id: 'elite', weight: level < 6 ? 0.85 : level < 14 ? 2.1 : 2.5 },
     ];
     if (level >= 8) {
@@ -162,6 +239,8 @@ export class HuntSystem {
   #makeContract() {
     const level = this.game.player.level;
     const currentZone = this.game.world.currentZone?.id ?? 'verdant';
+    const recId = recommendedZoneId(level);
+    const recZone = ZONES[recId] ?? ZONES.verdant;
     const zone = ZONES[currentZone] ?? ZONES.verdant;
     const type = this.#pickContractType(level);
     const scale = Math.max(0, Math.floor(level / 10));
@@ -179,7 +258,13 @@ export class HuntSystem {
       rewardHint: rewardHintForTier(rewardTier),
     };
 
-    if (type === 'kills') {
+    if (type === 'guided') {
+      contract.zoneId = recId;
+      contract.target = 12 + scale * 3 + randInt(0, 6);
+      contract.label = `On-level hunt · ${recZone.name} · ${contract.target}`;
+      contract.description = `Hunt in ${recZone.name} (Lv.${recZone.minLevel}–${recZone.maxLevel}).`;
+      contract.rewardHint = `${rewardHintForTier(rewardTier)} · On-level bonus`;
+    } else if (type === 'kills') {
       contract.target = 18 + scale * 4 + randInt(0, 8);
       contract.label = `Cull ${contract.target} beasts`;
       contract.description = 'Defeat any wild monsters across the hunting grounds.';
@@ -203,8 +288,10 @@ export class HuntSystem {
       contract.rewardHint = rewardHintForTier(contract.rewardTier);
     }
 
-    // Ensure reward hint always matches final tier.
-    contract.rewardHint = rewardHintForTier(contract.rewardTier);
+    // Ensure reward hint always matches final tier (guided keeps on-level note).
+    if (type !== 'guided') {
+      contract.rewardHint = rewardHintForTier(contract.rewardTier);
+    }
     return contract;
   }
 
@@ -240,3 +327,4 @@ export class HuntSystem {
     }
   }
 }
+

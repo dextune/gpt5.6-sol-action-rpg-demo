@@ -537,47 +537,50 @@ const HERO_SHARED_CLIPS = Object.freeze([
  */
 function classWeaponHold(profileId = 'aerin') {
   if (profileId === 'rogue') {
+    // Compact dual-dagger combat ready: hands mid-torso, blades forward/down,
+    // elbows tucked — not shoulder-rest "blades on shoulders" idle.
     return {
       idleDuration: 1.45,
       idle: {
         a: {
-          pelvis: [.08, -.12, 0],
-          spine: [-.12, -.08, .05],
-          chest: [-.16, -.1, -.04],
-          neck: [.06, .05, 0],
-          head: [.05, .08, -.02],
-          left_upper_arm: [-.55, .32, .55],
-          left_lower_arm: [-1.28, .12, .28],
-          left_hand: [.15, .22, .18],
-          right_upper_arm: [-.55, -.32, -.55],
-          right_lower_arm: [-1.28, -.12, -.28],
-          right_hand: [.15, -.22, -.18],
-          left_upper_leg: [.28, .08, .1],
-          left_lower_leg: [.42, 0, 0],
+          pelvis: [.1, -.1, 0],
+          spine: [-.1, -.06, .04],
+          chest: [-.12, -.08, -.03],
+          neck: [.05, .04, 0],
+          head: [.04, .06, -.02],
+          // Upper arms tucked; hands mid-ribs; blades track forward-down (not shoulder rest).
+          left_upper_arm: [-.28, .1, .14],
+          left_lower_arm: [-.72, .04, .1],
+          left_hand: [.04, .06, .05],
+          right_upper_arm: [-.28, -.1, -.14],
+          right_lower_arm: [-.72, -.04, -.1],
+          right_hand: [.04, -.06, -.05],
+          left_upper_leg: [.3, .08, .1],
+          left_lower_leg: [.45, 0, 0],
           left_foot: [-.12, 0, .04],
-          right_upper_leg: [-.1, -.12, -.12],
-          right_lower_leg: [.55, 0, 0],
+          right_upper_leg: [-.08, -.12, -.12],
+          right_lower_leg: [.58, 0, 0],
           right_foot: [-.08, 0, -.02],
           cape_root: [.12, 0, 0],
           hair_root: [-.03, 0, 0],
         },
         b: {
-          pelvis: [.07, -.1, 0],
-          spine: [-.11, -.06, .04],
-          chest: [-.14, -.08, -.03],
-          neck: [.04, .04, 0],
-          head: [.03, .06, -.015],
-          left_upper_arm: [-.52, .3, .52],
-          left_lower_arm: [-1.22, .1, .26],
-          left_hand: [.14, .2, .16],
-          right_upper_arm: [-.52, -.3, -.52],
-          right_lower_arm: [-1.22, -.1, -.26],
-          right_hand: [.14, -.2, -.16],
-          left_upper_leg: [.26, .08, .1],
-          left_lower_leg: [.4, 0, 0],
+          pelvis: [.09, -.08, 0],
+          spine: [-.09, -.05, .03],
+          chest: [-.1, -.06, -.025],
+          neck: [.04, .03, 0],
+          head: [.03, .05, -.015],
+          left_upper_arm: [-.26, .09, .12],
+          left_lower_arm: [-.68, .04, .09],
+          left_hand: [.04, .05, .04],
+          right_upper_arm: [-.26, -.09, -.12],
+          right_lower_arm: [-.68, -.04, -.09],
+          right_hand: [.04, -.05, -.04],
+          left_upper_leg: [.28, .08, .1],
+          left_lower_leg: [.42, 0, 0],
           left_foot: [-.1, 0, .04],
-          right_upper_leg: [-.08, -.12, -.12],
-          right_lower_leg: [.52, 0, 0],
+          right_upper_leg: [-.06, -.12, -.12],
+          right_lower_leg: [.55, 0, 0],
           right_foot: [-.07, 0, -.02],
           cape_root: [.16, .02, 0],
           hair_root: [.04, 0, 0],
@@ -586,31 +589,32 @@ function classWeaponHold(profileId = 'aerin') {
         bobMid: [0, -.025, .03],
       },
       runArms: (phase) => {
-        const pump = Math.sin(phase * Math.PI * 2) * .14;
+        const pump = Math.sin(phase * Math.PI * 2) * .12;
         return {
-          spine: [-.12, -.05, pump * .25],
-          chest: [-.16, -.06, -.03 + pump * .2],
-          left_upper_arm: [-.48 + pump * .15, .28, .48],
-          left_lower_arm: [-1.15, .08, .22],
-          left_hand: [.12, .16, .12],
-          right_upper_arm: [-.48 - pump * .15, -.28, -.48],
-          right_lower_arm: [-1.15, -.08, -.22],
-          right_hand: [.12, -.16, -.12],
+          spine: [-.1, -.04, pump * .2],
+          chest: [-.12, -.05, -.02 + pump * .15],
+          // Keep compact dagger hold while running (not shoulder blades).
+          left_upper_arm: [-.24 + pump * .08, .1, .12],
+          left_lower_arm: [-.68, .04, .09],
+          left_hand: [.04, .05, .04],
+          right_upper_arm: [-.24 - pump * .08, -.1, -.12],
+          right_lower_arm: [-.68, -.04, -.09],
+          right_hand: [.04, -.05, -.04],
           cape_root: [.4, pump * .1, 0],
           hair_root: [.12, 0, 0],
         };
       },
       sprintArms: (phase) => {
-        const pump = Math.sin(phase * Math.PI * 2) * .18;
+        const pump = Math.sin(phase * Math.PI * 2) * .16;
         return {
-          spine: [-.16, -.04, pump * .3],
-          chest: [-.22, -.05, -.04 + pump * .25],
-          left_upper_arm: [-.42 + pump * .18, .24, .42],
-          left_lower_arm: [-1.05, .06, .18],
-          left_hand: [.1, .12, .1],
-          right_upper_arm: [-.42 - pump * .18, -.24, -.42],
-          right_lower_arm: [-1.05, -.06, -.18],
-          right_hand: [.1, -.12, -.1],
+          spine: [-.14, -.03, pump * .25],
+          chest: [-.18, -.04, -.03 + pump * .18],
+          left_upper_arm: [-.2 + pump * .1, .08, .1],
+          left_lower_arm: [-.62, .03, .08],
+          left_hand: [.03, .04, .03],
+          right_upper_arm: [-.2 - pump * .1, -.08, -.1],
+          right_lower_arm: [-.62, -.03, -.08],
+          right_hand: [.03, -.04, -.03],
           cape_root: [.68, pump * .12, 0],
           hair_root: [.26, 0, 0],
         };
@@ -1018,15 +1022,113 @@ function classRestRot(profileId) {
 }
 
 /**
+ * Per-class combat motion timing profiles (combat-motion-sophistication §8–§10).
+ * antiRatio / contactRatio are fractions of clip duration for anticipation coil
+ * and contact window; finisher boosts lengthen last-step anti + recovery.
+ * contactSnap > 1 = snappier spacing into contact; durationScale stretches base clips.
+ *
+ * Phase budget (normalized 0–1, basic light / heavy / skill):
+ *   anticipation 15–32% · contact 5–15% · recovery remainder
+ * Class bias: knight +anti +recovery · rogue −anti very-fast contact ·
+ * wizard medium channel + fast release · ranger draw hold + fast loose.
+ */
+const COMBAT_MOTION_PROFILE = Object.freeze({
+  aerin: Object.freeze({
+    antiRatio: 0.26,
+    contactRatio: 0.12,
+    finisherAntiBoost: 0.08,
+    finisherRecoveryBoost: 0.12,
+    contactSnap: 0.88,
+    durationScale: 1.1,
+    mass: 1.18,
+  }),
+  rogue: Object.freeze({
+    antiRatio: 0.16,
+    contactRatio: 0.08,
+    finisherAntiBoost: 0.04,
+    finisherRecoveryBoost: 0.05,
+    contactSnap: 1.18,
+    durationScale: 0.9,
+    mass: 0.86,
+  }),
+  wizard: Object.freeze({
+    antiRatio: 0.28,
+    contactRatio: 0.1,
+    finisherAntiBoost: 0.06,
+    finisherRecoveryBoost: 0.08,
+    contactSnap: 1.06,
+    durationScale: 1.02,
+    mass: 0.95,
+  }),
+  ranger: Object.freeze({
+    antiRatio: 0.3,
+    contactRatio: 0.08,
+    finisherAntiBoost: 0.05,
+    finisherRecoveryBoost: 0.04,
+    contactSnap: 1.12,
+    durationScale: 0.96,
+    mass: 0.92,
+  }),
+});
+
+function combatMotionProfile(profileId = 'aerin') {
+  return COMBAT_MOTION_PROFILE[profileId] ?? COMBAT_MOTION_PROFILE.aerin;
+}
+
+/**
+ * Absolute phase times for ready → anti peak → contact → follow → settle → end.
+ * Finisher / last-step: longer anti + recovery (finisherAntiBoost / finisherRecoveryBoost).
+ */
+function combatPhaseTimes(duration, profile, { finisher = false } = {}) {
+  const antiN = Math.min(0.38, profile.antiRatio + (finisher ? profile.finisherAntiBoost : 0));
+  const contactN = Math.min(0.18, profile.contactRatio);
+  // Snap compresses the gap between anti peak and contact extreme.
+  const snap = Math.max(0.7, Math.min(1.35, profile.contactSnap ?? 1));
+  const contactStartN = Math.min(0.55, antiN + (contactN * 0.45) / snap);
+  const followN = Math.min(0.78, contactStartN + contactN * 0.85 + (finisher ? 0.04 : 0.02));
+  const settleN = Math.min(0.94, 0.84 + (finisher ? profile.finisherRecoveryBoost * 0.5 : 0));
+  const round = (n) => Math.round(n * 1000) / 1000;
+  return {
+    tReady: 0,
+    tAnti: round(duration * antiN),
+    tContact: round(duration * contactStartN),
+    tFollow: round(duration * followN),
+    tSettle: round(duration * settleN),
+    tEnd: round(duration),
+    antiN,
+    contactN: contactStartN,
+    followN,
+    settleN,
+  };
+}
+
+/** Scale a base duration by class profile (and optional finisher recovery stretch). */
+function combatClipDuration(baseDuration, profile, { finisher = false } = {}) {
+  const scale = profile.durationScale ?? 1;
+  const fin = finisher ? 1 + (profile.finisherRecoveryBoost ?? 0) * 0.55 : 1;
+  return Math.round(baseDuration * scale * fin * 1000) / 1000;
+}
+
+/**
  * Combat clips: always start from class rest, use full-body weight shift,
  * and include anticipation → contact → follow-through → settle keys so
  * attacks/casts stop reading as wooden arm-only snaps.
+ * Phase budgets + class bias come from COMBAT_MOTION_PROFILE (Wave A).
  */
 function buildClassCombatClipSpecs(profileId, F) {
   const rest = classRestRot(profileId);
   const bob = classWeaponHold(profileId).idle.bob ?? [0, 0, 0];
+  const profile = combatMotionProfile(profileId);
+  const mass = profile.mass ?? 1;
   const pose = (t, rot = {}, pos = {}) => F(t, { ...rest, ...rot }, { pelvis: bob, root: [0, 0, 0], ...pos });
   const end = (t, extra = {}) => pose(t, extra);
+  // Amplify authored euler deltas by class mass (knight heavier arcs, rogue tighter).
+  const m = (v) => (Array.isArray(v) ? v.map((x) => x * mass) : v);
+  const mm = (obj) => {
+    const out = {};
+    for (const [k, v] of Object.entries(obj)) out[k] = Array.isArray(v) ? m(v) : v;
+    return out;
+  };
 
   // Soft knee / hip helpers for weight transfer (relative to rest legs).
   const weightL = (amount = 1) => ({
@@ -1044,266 +1146,510 @@ function buildClassCombatClipSpecs(profileId, F) {
     left_lower_leg: [rest.left_lower_leg[0] + .1 * amount, 0, 0],
   });
 
-  if (profileId === 'rogue') {
-    // Dual-dagger: R / L / R / X-cross / spin / twin thrust / flurry — fuller arcs + settle.
+  /** Five-phase strike from authored extremes (ready coil / contact / follow extras optional). */
+  const strikePhases = (duration, { finisher = false, ready = {}, coil = {}, contact = {}, follow = {}, settle = {}, readyPos = {}, coilPos = {}, contactPos = {}, followPos = {} } = {}) => {
+    const p = combatPhaseTimes(duration, profile, { finisher });
     return [
-      ['attack_1', .56, [
-        pose(0, { pelvis: [.08, -.18, 0], chest: [-.16, -.22, -.08], right_upper_arm: [-.75, -.48, -.52], right_lower_arm: [-1.05, -.12, -.38], ...weightR(.6) }),
-        pose(.1, { pelvis: [.12, -.32, 0], spine: [-.12, -.18, 0], chest: [-.22, -.52, -.14], neck: [.08, -.1, 0], head: [.06, -.08, 0],
-          right_upper_arm: [-1.2, -.78, -.8], right_lower_arm: [-1.25, -.16, -.58], right_hand: [.2, -.25, -.15],
-          left_upper_arm: [-.42, .28, .48], left_lower_arm: [-1.12, .1, .22], cape_root: [.28, -.1, 0], ...weightR(1) }, { pelvis: [0, -.02, .02] }),
-        pose(.22, { pelvis: [.04, .22, 0], spine: [-.04, .28, 0], chest: [-.06, .58, .2], neck: [-.04, .12, 0], head: [-.03, .1, 0],
-          right_upper_arm: [-.22, .92, .58], right_lower_arm: [-.1, 0, .48], right_hand: [-.05, .1, .2],
-          left_upper_arm: [-.52, .12, .38], left_lower_arm: [-1.15, .08, .25], cape_root: [.48, .12, 0], ...weightL(.7) }, { pelvis: [0, .02, .06] }),
-        pose(.36, { pelvis: [.05, .1, 0], chest: [-.08, .28, .1], right_upper_arm: [-.4, .45, .3], right_lower_arm: [-.55, -.04, .15],
-          left_upper_arm: [-.5, .2, .42], cape_root: [.35, .05, 0], ...weightL(.3) }),
-        pose(.46, { pelvis: [.04, .04, 0], chest: [-.06, .12, .04], right_upper_arm: [-.45, .22, .16],
-          right_lower_arm: [-.75, -.06, .05], left_upper_arm: [-.52, .24, .45], ...weightL(.12) }),
-        end(.56),
-      ]],
-      ['attack_2', .58, [
-        pose(0, { pelvis: [.06, .14, 0], chest: [-.12, .22, .06], left_upper_arm: [-.7, .42, .58], left_lower_arm: [-1.08, .12, .32], ...weightL(.55) }),
-        pose(.12, { pelvis: [.1, .32, 0], spine: [-.1, .22, 0], chest: [-.2, .6, .16], neck: [.06, .12, 0],
-          left_upper_arm: [-1.15, .8, .78], left_lower_arm: [-1.18, .16, .52], left_hand: [.18, .24, .16],
-          right_upper_arm: [-.48, -.28, -.42], right_lower_arm: [-1.08, -.08, -.22], cape_root: [.3, .1, 0], ...weightL(1) }),
-        pose(.26, { pelvis: [.04, -.24, 0], spine: [-.06, -.32, 0], chest: [-.1, -.68, -.22], neck: [-.02, -.1, 0],
-          left_upper_arm: [-.18, -.95, .48], left_lower_arm: [-.15, 0, .38], left_hand: [-.04, -.08, .15],
-          right_upper_arm: [-.58, -.38, -.48], cape_root: [.52, -.14, 0], ...weightR(.75) }, { pelvis: [0, .01, .05] }),
-        pose(.4, { pelvis: [.05, -.1, 0], chest: [-.1, -.3, -.1], left_upper_arm: [-.4, -.4, .35], left_lower_arm: [-.7, .05, .2],
-          right_upper_arm: [-.55, -.32, -.45], ...weightR(.3) }),
-        end(.58),
-      ]],
-      ['attack_3', .62, [
-        pose(0, { pelvis: [.1, -.22, 0], chest: [-.18, -.38, -.12], right_upper_arm: [-.9, -.58, -.62], right_lower_arm: [-1.18, -.12, -.42], left_upper_arm: [-.52, .32, .52], ...weightR(.7) }),
-        pose(.14, { pelvis: [.14, -.42, 0], spine: [-.16, -.28, 0], chest: [-.24, -.75, -.24], neck: [.1, -.12, 0],
-          right_upper_arm: [-1.3, -1.0, -.88], right_lower_arm: [-1.28, -.16, -.68], cape_root: [.32, -.16, 0], ...weightR(1.1) }, { pelvis: [0, -.03, .02] }),
-        pose(.3, { pelvis: [.04, .3, 0], spine: [-.05, .38, 0], chest: [-.05, .8, .28], neck: [-.05, .15, 0],
-          right_upper_arm: [-.12, 1.1, .72], right_lower_arm: [.08, 0, .52], left_upper_arm: [-.72, -.22, .18], left_lower_arm: [-.92, 0, .12],
-          cape_root: [.58, .16, 0], ...weightL(.8) }, { pelvis: [0, .02, .08] }),
-        pose(.44, { pelvis: [.05, .12, 0], chest: [-.08, .35, .12], right_upper_arm: [-.35, .55, .35], right_lower_arm: [-.4, 0, .2], ...weightL(.35) }),
-        end(.62),
-      ]],
-      ['attack_4', .74, [
-        pose(0, { pelvis: [.1, 0, 0], chest: [-.16, 0, -.06], right_upper_arm: [-.8, -.52, -.58], left_upper_arm: [-.8, .52, .58],
-          right_lower_arm: [-1.12, 0, -.38], left_lower_arm: [-1.12, 0, .38], ...weightR(.4) }),
-        pose(.16, { pelvis: [.12, 0, 0], spine: [-.14, 0, 0], chest: [-.24, 0, -.1], neck: [.08, 0, 0],
-          right_upper_arm: [-1.25, -.8, -.82], left_upper_arm: [-1.25, .8, .82], right_lower_arm: [-1.28, 0, -.58], left_lower_arm: [-1.28, 0, .58],
-          cape_root: [.38, 0, 0], ...weightR(.5) }, { pelvis: [0, -.02, .03] }),
-        pose(.34, { pelvis: [.03, 0, 0], chest: [.1, 0, .1], neck: [-.04, 0, 0],
-          right_upper_arm: [-.28, 1.05, .68], left_upper_arm: [-.28, -1.05, .68], right_lower_arm: [.08, 0, .42], left_lower_arm: [.08, 0, -.42],
-          cape_root: [.68, 0, 0], ...weightL(.5) }, { pelvis: [0, .02, .1] }),
-        pose(.5, { pelvis: [.05, 0, 0], chest: [.04, 0, .04], right_upper_arm: [-.45, .5, .3], left_upper_arm: [-.45, -.5, .3],
-          right_lower_arm: [-.5, 0, .1], left_lower_arm: [-.5, 0, -.1] }),
-        end(.74),
-      ]],
-      ['attack_5', .76, [
-        pose(0, { pelvis: [.1, -.22, 0], chest: [-.16, -.42, -.1], right_upper_arm: [-.85, -.52, -.58], left_upper_arm: [-.85, .52, .58], ...weightR(.6) }),
-        pose(.14, { pelvis: [.06, .4, 0], spine: [-.05, .45, 0], chest: [-.12, .7, .08], right_upper_arm: [-.55, .4, .2], left_upper_arm: [-.55, -.35, .25], cape_root: [.45, .08, 0] }),
-        pose(.28, { pelvis: [0, 1.25, 0], spine: [0, .95, 0], chest: [-.1, 1.7, .12], neck: [0, .2, 0],
-          right_upper_arm: [-.38, 1.55, .52], left_upper_arm: [-.38, -1.45, .52], cape_root: [.78, .16, 0], ...weightL(.4) }, { pelvis: [0, .04, 0] }),
-        pose(.46, { pelvis: [0, 2.55, 0], spine: [0, 1.95, 0], chest: [-.1, 2.95, -.12], neck: [0, -.1, 0],
-          right_upper_arm: [-.55, 2.55, -.55], left_upper_arm: [-.55, 1.35, .55], cape_root: [.98, -.14, 0] }, { pelvis: [0, .02, 0] }),
-        pose(.6, { pelvis: [0, 1.2, 0], spine: [0, .9, 0], chest: [-.1, 1.4, 0], right_upper_arm: [-.5, 1.2, 0], left_upper_arm: [-.5, .4, .3] }),
-        end(.76),
-      ]],
-      ['attack_6', .72, [
-        pose(0, { pelvis: [.1, -.2, 0], spine: [-.14, 0, 0], chest: [-.2, -.28, -.1],
-          right_upper_arm: [-.95, -.38, -.52], left_upper_arm: [-.95, .38, .52], right_lower_arm: [-1.18, 0, -.32], left_lower_arm: [-1.18, 0, .32], ...weightR(.7) }),
-        pose(.16, { pelvis: [.14, -.38, 0], spine: [-.22, 0, 0], chest: [-.3, -.5, -.16], neck: [.1, 0, 0],
-          right_upper_arm: [-1.4, -.58, -.72], left_upper_arm: [-1.4, .58, .72], cape_root: [.42, -.12, 0], ...weightR(1) }, { pelvis: [0, -.04, .06] }),
-        pose(.34, { pelvis: [.03, .18, 0], spine: [-.04, 0, 0], chest: [-.04, .55, .22], neck: [-.04, 0, 0],
-          right_upper_arm: [-.18, 1.0, .62], left_upper_arm: [-.18, -1.0, .62], right_lower_arm: [.12, 0, .42], left_lower_arm: [.12, 0, -.42],
-          cape_root: [.62, .14, 0], ...weightL(.6) }, { pelvis: [0, .02, .12] }),
-        pose(.5, { pelvis: [.05, .06, 0], chest: [-.06, .2, .08], right_upper_arm: [-.4, .4, .25], left_upper_arm: [-.4, -.4, .25], ...weightL(.25) }),
-        end(.72),
-      ]],
-      ['attack_7', .86, [
-        pose(0, { pelvis: [.12, -.28, 0], spine: [-.16, -.12, 0], chest: [-.22, -.55, -.14],
-          right_upper_arm: [-1.0, -.62, -.68], left_upper_arm: [-1.0, .62, .68], ...weightR(.8) }),
-        pose(.16, { pelvis: [.15, -.48, 0], spine: [-.24, -.22, 0], chest: [-.3, -.9, -.24], neck: [.12, -.1, 0],
-          right_upper_arm: [-1.38, -1.05, -.92], left_upper_arm: [-1.38, 1.05, .92], cape_root: [.42, -.22, 0], ...weightR(1.15) }, { pelvis: [0, -.04, .02] }),
-        pose(.32, { pelvis: [0, .55, 0], spine: [0, .5, 0], chest: [-.1, .85, .16], right_upper_arm: [-.5, .9, .35], left_upper_arm: [-.5, -.8, .35], cape_root: [.55, .1, 0] }),
-        pose(.48, { pelvis: [0, 1.35, 0], spine: [0, 1.05, 0], chest: [-.06, 1.75, .15], neck: [0, .15, 0],
-          right_upper_arm: [-.4, 1.85, .5], left_upper_arm: [-.4, -1.55, .5], cape_root: [.82, .18, 0], ...weightL(.5) }, { pelvis: [0, .03, .06] }),
-        pose(.64, { pelvis: [0, 1.75, 0], spine: [0, 1.35, 0], chest: [-.06, 2.15, -.08], right_upper_arm: [-.52, 2.25, -.45], left_upper_arm: [-.52, 1.05, .48], cape_root: [.92, -.12, 0] }),
-        end(.86),
-      ]],
+      pose(p.tReady, mm(ready), readyPos),
+      pose(p.tAnti, mm(coil), coilPos),
+      pose(p.tContact, mm(contact), contactPos),
+      pose(p.tFollow, mm(follow), followPos),
+      pose(p.tSettle, mm(settle)),
+      end(p.tEnd),
+    ];
+  };
+
+  if (profileId === 'rogue') {
+    // Dual-dagger haste: R / L / R / X-cross / spin / twin thrust / flurry.
+    // Short anti, very-fast contact snap, alternating main/offhand readability (§10.2).
+    const d1 = combatClipDuration(.56, profile);
+    const d2 = combatClipDuration(.58, profile);
+    const d3 = combatClipDuration(.62, profile);
+    const d4 = combatClipDuration(.74, profile);
+    const d5 = combatClipDuration(.76, profile);
+    const d6 = combatClipDuration(.72, profile);
+    const d7 = combatClipDuration(.86, profile, { finisher: true });
+    return [
+      ['attack_1', d1, strikePhases(d1, {
+        ready: { pelvis: [.08, -.18, 0], chest: [-.16, -.22, -.08], right_upper_arm: [-.75, -.48, -.52], right_lower_arm: [-1.05, -.12, -.38], ...weightR(.6) },
+        coil: { pelvis: [.12, -.34, 0], spine: [-.12, -.2, 0], chest: [-.24, -.58, -.16], neck: [.08, -.1, 0], head: [.06, -.08, 0],
+          right_upper_arm: [-1.28, -.82, -.85], right_lower_arm: [-1.3, -.16, -.62], right_hand: [.22, -.28, -.16],
+          left_upper_arm: [-.42, .28, .48], left_lower_arm: [-1.12, .1, .22], cape_root: [.3, -.12, 0], ...weightR(1.05) },
+        coilPos: { pelvis: [0, -.02, .02] },
+        contact: { pelvis: [.04, .24, 0], spine: [-.04, .3, 0], chest: [-.05, .62, .22], neck: [-.04, .12, 0], head: [-.03, .1, 0],
+          right_upper_arm: [-.18, .98, .62], right_lower_arm: [-.05, 0, .52], right_hand: [-.06, .12, .22],
+          left_upper_arm: [-.52, .12, .38], left_lower_arm: [-1.15, .08, .25], cape_root: [.5, .14, 0], ...weightL(.75) },
+        contactPos: { pelvis: [0, .02, .06] },
+        follow: { pelvis: [.05, .1, 0], chest: [-.08, .28, .1], right_upper_arm: [-.38, .48, .32], right_lower_arm: [-.5, -.04, .15],
+          left_upper_arm: [-.5, .2, .42], cape_root: [.35, .05, 0], ...weightL(.3) },
+        settle: { pelvis: [.04, .04, 0], chest: [-.06, .12, .04], right_upper_arm: [-.45, .22, .16],
+          right_lower_arm: [-.75, -.06, .05], left_upper_arm: [-.52, .24, .45], ...weightL(.12) },
+      })],
+      ['attack_2', d2, strikePhases(d2, {
+        ready: { pelvis: [.06, .14, 0], chest: [-.12, .22, .06], left_upper_arm: [-.7, .42, .58], left_lower_arm: [-1.08, .12, .32], ...weightL(.55) },
+        coil: { pelvis: [.1, .34, 0], spine: [-.1, .24, 0], chest: [-.22, .64, .18], neck: [.06, .12, 0],
+          left_upper_arm: [-1.22, .85, .82], left_lower_arm: [-1.22, .16, .55], left_hand: [.2, .26, .18],
+          right_upper_arm: [-.48, -.28, -.42], right_lower_arm: [-1.08, -.08, -.22], cape_root: [.32, .12, 0], ...weightL(1.05) },
+        contact: { pelvis: [.04, -.26, 0], spine: [-.06, -.34, 0], chest: [-.1, -.72, -.24], neck: [-.02, -.1, 0],
+          left_upper_arm: [-.15, -1.02, .52], left_lower_arm: [-.1, 0, .42], left_hand: [-.05, -.1, .16],
+          right_upper_arm: [-.58, -.38, -.48], cape_root: [.55, -.16, 0], ...weightR(.8) },
+        contactPos: { pelvis: [0, .01, .05] },
+        follow: { pelvis: [.05, -.1, 0], chest: [-.1, -.3, -.1], left_upper_arm: [-.4, -.42, .35], left_lower_arm: [-.7, .05, .2],
+          right_upper_arm: [-.55, -.32, -.45], ...weightR(.3) },
+        settle: { pelvis: [.04, -.04, 0], chest: [-.08, -.12, -.04], left_upper_arm: [-.48, .15, .42], right_upper_arm: [-.5, -.28, -.42], ...weightR(.1) },
+      })],
+      ['attack_3', d3, strikePhases(d3, {
+        ready: { pelvis: [.1, -.22, 0], chest: [-.18, -.38, -.12], right_upper_arm: [-.9, -.58, -.62], right_lower_arm: [-1.18, -.12, -.42], left_upper_arm: [-.52, .32, .52], ...weightR(.7) },
+        coil: { pelvis: [.14, -.44, 0], spine: [-.16, -.3, 0], chest: [-.26, -.8, -.26], neck: [.1, -.12, 0],
+          right_upper_arm: [-1.35, -1.05, -.92], right_lower_arm: [-1.32, -.16, -.72], cape_root: [.34, -.18, 0], ...weightR(1.15) },
+        coilPos: { pelvis: [0, -.03, .02] },
+        contact: { pelvis: [.04, .32, 0], spine: [-.05, .4, 0], chest: [-.04, .85, .3], neck: [-.05, .15, 0],
+          right_upper_arm: [-.1, 1.15, .78], right_lower_arm: [.1, 0, .55], left_upper_arm: [-.72, -.22, .18], left_lower_arm: [-.92, 0, .12],
+          cape_root: [.6, .18, 0], ...weightL(.85) },
+        contactPos: { pelvis: [0, .02, .08] },
+        follow: { pelvis: [.05, .12, 0], chest: [-.08, .35, .12], right_upper_arm: [-.32, .58, .38], right_lower_arm: [-.35, 0, .22], ...weightL(.35) },
+        settle: { pelvis: [.04, .04, 0], chest: [-.08, .12, .04], right_upper_arm: [-.48, .22, .18], left_upper_arm: [-.52, .28, .48], ...weightL(.12) },
+      })],
+      ['attack_4', d4, strikePhases(d4, {
+        ready: { pelvis: [.1, 0, 0], chest: [-.16, 0, -.06], right_upper_arm: [-.8, -.52, -.58], left_upper_arm: [-.8, .52, .58],
+          right_lower_arm: [-1.12, 0, -.38], left_lower_arm: [-1.12, 0, .38], ...weightR(.4) },
+        coil: { pelvis: [.12, 0, 0], spine: [-.14, 0, 0], chest: [-.26, 0, -.12], neck: [.08, 0, 0],
+          right_upper_arm: [-1.32, -.85, -.88], left_upper_arm: [-1.32, .85, .88], right_lower_arm: [-1.32, 0, -.62], left_lower_arm: [-1.32, 0, .62],
+          cape_root: [.4, 0, 0], ...weightR(.55) },
+        coilPos: { pelvis: [0, -.02, .03] },
+        contact: { pelvis: [.03, 0, 0], chest: [.12, 0, .12], neck: [-.04, 0, 0],
+          right_upper_arm: [-.25, 1.12, .72], left_upper_arm: [-.25, -1.12, .72], right_lower_arm: [.1, 0, .45], left_lower_arm: [.1, 0, -.45],
+          cape_root: [.72, 0, 0], ...weightL(.55) },
+        contactPos: { pelvis: [0, .02, .1] },
+        follow: { pelvis: [.05, 0, 0], chest: [.04, 0, .04], right_upper_arm: [-.42, .52, .32], left_upper_arm: [-.42, -.52, .32],
+          right_lower_arm: [-.45, 0, .12], left_lower_arm: [-.45, 0, -.12] },
+        settle: { pelvis: [.04, 0, 0], chest: [-.02, 0, 0], right_upper_arm: [-.52, .28, .22], left_upper_arm: [-.52, -.28, .22] },
+      })],
+      ['attack_5', d5, strikePhases(d5, {
+        ready: { pelvis: [.1, -.22, 0], chest: [-.16, -.42, -.1], right_upper_arm: [-.85, -.52, -.58], left_upper_arm: [-.85, .52, .58], ...weightR(.6) },
+        coil: { pelvis: [.06, .42, 0], spine: [-.05, .48, 0], chest: [-.12, .75, .1], right_upper_arm: [-.55, .42, .22], left_upper_arm: [-.55, -.38, .28], cape_root: [.48, .1, 0] },
+        contact: { pelvis: [0, 1.35, 0], spine: [0, 1.05, 0], chest: [-.1, 1.85, .14], neck: [0, .22, 0],
+          right_upper_arm: [-.35, 1.65, .55], left_upper_arm: [-.35, -1.55, .55], cape_root: [.82, .18, 0], ...weightL(.45) },
+        contactPos: { pelvis: [0, .04, 0] },
+        follow: { pelvis: [0, 2.65, 0], spine: [0, 2.05, 0], chest: [-.1, 3.1, -.14], neck: [0, -.1, 0],
+          right_upper_arm: [-.55, 2.65, -.58], left_upper_arm: [-.55, 1.4, .55], cape_root: [1.02, -.16, 0] },
+        followPos: { pelvis: [0, .02, 0] },
+        settle: { pelvis: [0, 1.1, 0], spine: [0, .85, 0], chest: [-.1, 1.3, 0], right_upper_arm: [-.5, 1.15, 0], left_upper_arm: [-.5, .4, .3] },
+      })],
+      ['attack_6', d6, strikePhases(d6, {
+        ready: { pelvis: [.1, -.2, 0], spine: [-.14, 0, 0], chest: [-.2, -.28, -.1],
+          right_upper_arm: [-.95, -.38, -.52], left_upper_arm: [-.95, .38, .52], right_lower_arm: [-1.18, 0, -.32], left_lower_arm: [-1.18, 0, .32], ...weightR(.7) },
+        coil: { pelvis: [.14, -.4, 0], spine: [-.24, 0, 0], chest: [-.32, -.55, -.18], neck: [.1, 0, 0],
+          right_upper_arm: [-1.45, -.62, -.78], left_upper_arm: [-1.45, .62, .78], cape_root: [.45, -.14, 0], ...weightR(1.05) },
+        coilPos: { pelvis: [0, -.04, .06] },
+        contact: { pelvis: [.03, .2, 0], spine: [-.04, 0, 0], chest: [-.02, .6, .25], neck: [-.04, 0, 0],
+          right_upper_arm: [-.15, 1.08, .68], left_upper_arm: [-.15, -1.08, .68], right_lower_arm: [.15, 0, .45], left_lower_arm: [.15, 0, -.45],
+          cape_root: [.65, .16, 0], ...weightL(.65) },
+        contactPos: { pelvis: [0, .02, .12] },
+        follow: { pelvis: [.05, .06, 0], chest: [-.06, .2, .08], right_upper_arm: [-.38, .42, .28], left_upper_arm: [-.38, -.42, .28], ...weightL(.25) },
+        settle: { pelvis: [.04, .02, 0], chest: [-.08, .08, .03], right_upper_arm: [-.48, .22, .15], left_upper_arm: [-.48, -.22, .15], ...weightL(.1) },
+      })],
+      ['attack_7', d7, strikePhases(d7, {
+        finisher: true,
+        ready: { pelvis: [.12, -.3, 0], spine: [-.18, -.14, 0], chest: [-.24, -.6, -.16],
+          right_upper_arm: [-1.05, -.68, -.72], left_upper_arm: [-1.05, .68, .72], ...weightR(.85) },
+        coil: { pelvis: [.16, -.52, 0], spine: [-.26, -.24, 0], chest: [-.34, -.98, -.28], neck: [.14, -.12, 0],
+          right_upper_arm: [-1.45, -1.12, -.98], left_upper_arm: [-1.45, 1.12, .98], cape_root: [.48, -.26, 0], ...weightR(1.25) },
+        coilPos: { pelvis: [0, -.04, .02] },
+        contact: { pelvis: [0, .6, 0], spine: [0, .55, 0], chest: [-.08, .95, .18], right_upper_arm: [-.48, .98, .4], left_upper_arm: [-.48, -.88, .4], cape_root: [.6, .12, 0] },
+        follow: { pelvis: [0, 1.55, 0], spine: [0, 1.2, 0], chest: [-.05, 1.95, .18], neck: [0, .18, 0],
+          right_upper_arm: [-.35, 2.05, .55], left_upper_arm: [-.35, -1.7, .55], cape_root: [.9, .22, 0], ...weightL(.55) },
+        followPos: { pelvis: [0, .03, .06] },
+        settle: { pelvis: [0, 1.65, 0], spine: [0, 1.25, 0], chest: [-.06, 2.0, -.08], right_upper_arm: [-.5, 2.1, -.4], left_upper_arm: [-.5, .95, .45], cape_root: [.9, -.1, 0] },
+      })],
     ];
   }
 
-  // Knight / wizard / ranger shared attack vocabulary + caster casts.
-  // Each swing: ready → windup → contact → follow → settle (legs + head included).
-  const attacks = [
-    // 1 — horizontal cut (right → left)
-    ['attack_1', .64, [
-      pose(0, { pelvis: [.04, -.16, 0], spine: [-.08, -.12, 0], chest: [-.1, -.28, -.1], neck: [.04, -.06, 0],
-        right_upper_arm: [-.55, -.55, -.48], right_lower_arm: [-.85, -.06, -.32], right_hand: [.1, -.12, -.08],
-        left_upper_arm: [-.2, .18, .35], left_lower_arm: [-.55, .06, .12], ...weightR(.55) }),
-      pose(.12, { pelvis: [.06, -.34, 0], spine: [-.14, -.28, 0], chest: [-.18, -.55, -.18], neck: [.08, -.12, 0], head: [.05, -.08, 0],
-        right_upper_arm: [-1.15, -.85, -.78], right_lower_arm: [-1.05, -.08, -.58], right_hand: [.18, -.2, -.12],
-        left_upper_arm: [-.12, .22, .4], left_lower_arm: [-.45, .08, .18], cape_root: [.3, -.12, 0], ...weightR(1) }, { pelvis: [0, -.02, .02] }),
-      pose(.26, { pelvis: [.02, .22, 0], spine: [-.04, .32, .04], chest: [-.06, .68, .22], neck: [-.04, .14, 0], head: [-.03, .12, 0],
-        right_upper_arm: [-.35, 1.0, .65], right_lower_arm: [-.12, 0, .55], right_hand: [-.06, .12, .18],
-        left_upper_arm: [-.35, -.18, .12], left_lower_arm: [-.7, 0, .08], cape_root: [.58, .16, 0], ...weightL(.75) }, { pelvis: [0, .02, .07] }),
-      pose(.4, { pelvis: [.03, .08, 0], spine: [-.04, .12, 0], chest: [-.06, .28, .1], neck: [0, .05, 0],
-        right_upper_arm: [-.4, .45, .28], right_lower_arm: [-.5, -.02, .15], left_upper_arm: [-.28, .08, .28],
-        cape_root: [.35, .06, 0], ...weightL(.3) }),
-      pose(.52, { pelvis: [.02, .03, 0], spine: [-.02, .05, 0], chest: [-.04, .12, .04],
-        right_upper_arm: [-.35, .22, .14], right_lower_arm: [-.55, -.02, .05], left_upper_arm: [-.24, .1, .28],
-        ...weightL(.12) }),
-      end(.64),
-    ]],
-    // 2 — rising diagonal (left-low → right-high)
-    ['attack_2', .68, [
-      pose(0, { pelvis: [.03, .12, 0], spine: [-.06, .18, 0], chest: [-.08, .32, .1], neck: [.02, .08, 0],
-        right_upper_arm: [-.45, .48, .42], right_lower_arm: [-.7, 0, .28], left_upper_arm: [-.22, .12, .3], ...weightL(.5) }),
-      pose(.14, { pelvis: [.05, .28, 0], spine: [-.1, .35, 0], chest: [-.14, .58, .2], neck: [.04, .14, 0], head: [.03, .1, 0],
-        right_upper_arm: [-1.0, .95, .68], right_lower_arm: [-.85, 0, .55], right_hand: [.12, .15, .12],
-        left_upper_arm: [-.15, .2, .38], cape_root: [.28, .12, 0], ...weightL(.9) }, { pelvis: [0, -.01, .02] }),
-      pose(.3, { pelvis: [.02, -.2, 0], spine: [-.08, -.38, 0], chest: [-.12, -.75, -.26], neck: [-.02, -.12, 0], head: [-.02, -.1, 0],
-        right_upper_arm: [-.32, -1.08, -.62], right_lower_arm: [-.1, 0, -.48], right_hand: [-.05, -.1, -.15],
-        left_upper_arm: [-.18, .22, .35], cape_root: [.55, -.14, 0], ...weightR(.8) }, { pelvis: [0, .02, .06] }),
-      pose(.46, { pelvis: [.03, -.08, 0], chest: [-.08, -.3, -.1], right_upper_arm: [-.4, -.45, -.28], right_lower_arm: [-.55, 0, -.15],
-        left_upper_arm: [-.22, .15, .3], ...weightR(.35) }),
-      pose(.58, { pelvis: [.02, -.03, 0], chest: [-.05, -.12, -.04], right_upper_arm: [-.38, -.2, -.14],
-        right_lower_arm: [-.6, 0, -.06], left_upper_arm: [-.22, .12, .28], ...weightR(.12) }),
-      end(.68),
-    ]],
-    // 3 — heavy overhead into cross
-    ['attack_3', .74, [
-      pose(0, { pelvis: [.05, -.22, 0], spine: [-.1, -.18, 0], chest: [-.14, -.42, -.16], neck: [.06, -.08, 0],
-        right_upper_arm: [-.85, -.7, -.72], right_lower_arm: [-.95, -.05, -.52], left_upper_arm: [-.15, .28, .38], ...weightR(.7) }),
-      pose(.16, { pelvis: [.08, -.48, 0], spine: [-.18, -.42, 0], chest: [-.22, -.85, -.32], neck: [.1, -.16, 0], head: [.06, -.12, 0],
-        right_upper_arm: [-1.35, -1.15, -.95], right_lower_arm: [-1.1, -.08, -.82], right_hand: [.2, -.22, -.15],
-        left_upper_arm: [-.1, .38, .42], left_lower_arm: [-.4, .1, .2], cape_root: [.32, -.2, 0], ...weightR(1.15) }, { pelvis: [0, -.03, .02] }),
-      pose(.34, { pelvis: [.02, .32, 0], spine: [-.06, .42, .05], chest: [-.1, .98, .38], neck: [-.06, .16, 0], head: [-.04, .14, 0],
-        right_upper_arm: [-.15, 1.38, .85], right_lower_arm: [.12, 0, .72], right_hand: [-.08, .15, .22],
-        left_upper_arm: [-.42, -.32, .1], left_lower_arm: [-.75, 0, .05], cape_root: [.7, .22, 0], ...weightL(.85) }, { pelvis: [0, .03, .08] }),
-      pose(.5, { pelvis: [.03, .12, 0], chest: [-.08, .4, .15], right_upper_arm: [-.3, .65, .4], right_lower_arm: [-.25, 0, .3],
-        left_upper_arm: [-.3, .05, .25], cape_root: [.42, .08, 0], ...weightL(.35) }),
-      pose(.62, { pelvis: [.02, .05, 0], chest: [-.05, .16, .06], right_upper_arm: [-.32, .28, .16],
-        right_lower_arm: [-.45, 0, .1], left_upper_arm: [-.26, .08, .26], ...weightL(.12) }),
-      end(.74),
-    ]],
-    // 4 — thrust / shoulder drive
-    ['attack_4', .86, [
-      pose(0, { pelvis: [.06, -.28, 0], spine: [-.14, -.15, 0], chest: [-.22, -.48, -.2], neck: [.06, -.1, 0],
-        right_upper_arm: [-.95, -.72, -.7], right_lower_arm: [-1.05, -.06, -.58], left_upper_arm: [-.2, .35, .42],
-        left_lower_arm: [-.55, .1, .18], ...weightR(.85) }),
-      pose(.18, { pelvis: [.1, -.52, 0], spine: [-.26, -.28, 0], chest: [-.36, -.95, -.36], neck: [.12, -.18, 0], head: [.08, -.14, 0],
-        right_upper_arm: [-1.42, -1.28, -1.0], right_lower_arm: [-1.18, -.08, -.9], right_hand: [.22, -.25, -.18],
-        left_upper_arm: [-.12, .45, .48], cape_root: [.38, -.26, 0], ...weightR(1.2) }, { pelvis: [0, -.04, .04] }),
-      pose(.36, { pelvis: [0, .42, .04], spine: [-.06, .38, 0], chest: [-.04, 1.2, .42], neck: [-.06, .18, 0], head: [-.04, .15, 0],
-        right_upper_arm: [.12, 1.48, .92], right_lower_arm: [.28, 0, .78], right_hand: [-.1, .18, .25],
-        left_upper_arm: [-.6, -.38, .14], left_lower_arm: [-.85, 0, .05], cape_root: [.85, .28, 0], ...weightL(.9) }, { pelvis: [0, .02, .12] }),
-      pose(.55, { pelvis: [.02, .15, 0], spine: [-.04, .12, 0], chest: [-.05, .45, .16],
-        right_upper_arm: [-.25, .7, .45], right_lower_arm: [-.15, 0, .35], left_upper_arm: [-.35, 0, .22], cape_root: [.5, .1, 0], ...weightL(.4) }),
-      pose(.7, { pelvis: [.02, .06, 0], chest: [-.04, .18, .06], right_upper_arm: [-.32, .32, .18],
-        right_lower_arm: [-.4, 0, .12], left_upper_arm: [-.28, .06, .26], ...weightL(.15) }),
-      end(.86),
-    ]],
-    // 5 — spin slash (high-level)
-    ['attack_5', .78, [
-      pose(0, { pelvis: [.05, -.18, 0], spine: [-.1, -.2, 0], chest: [-.12, -.45, -.14],
-        right_upper_arm: [-.9, -.55, -.62], left_upper_arm: [-.25, .25, .35], ...weightR(.6) }),
-      pose(.12, { pelvis: [.04, .35, 0], spine: [-.04, .4, 0], chest: [-.1, .55, .08], right_upper_arm: [-.55, .35, .15], left_upper_arm: [-.35, -.2, .2], cape_root: [.4, .08, 0] }),
-      pose(.26, { pelvis: [0, 1.15, 0], spine: [0, .95, 0], chest: [-.1, 1.65, .12], neck: [0, .18, 0],
-        right_upper_arm: [-.28, 1.55, .52], left_upper_arm: [-.42, -1.05, -.28], cape_root: [.72, .18, 0], ...weightL(.4) }, { pelvis: [0, .04, 0] }),
-      pose(.44, { pelvis: [0, 2.35, 0], spine: [0, 1.9, 0], chest: [-.1, 2.75, -.12], neck: [0, -.08, 0],
-        right_upper_arm: [-.48, 2.35, -.55], left_upper_arm: [-.35, 1.15, .38], cape_root: [.95, -.18, 0] }, { pelvis: [0, .02, 0] }),
-      pose(.58, { pelvis: [0, 1.1, 0], spine: [0, .85, 0], chest: [-.1, 1.3, 0], right_upper_arm: [-.45, 1.1, 0], left_upper_arm: [-.3, .3, .25] }),
-      pose(.68, { pelvis: [0, .4, 0], spine: [0, .3, 0], chest: [-.08, .45, 0], right_upper_arm: [-.4, .45, .08], left_upper_arm: [-.28, .18, .22] }),
-      end(.78),
-    ]],
-    // 6 — reverse cross cut
-    ['attack_6', .76, [
-      pose(0, { pelvis: [.04, .15, 0], spine: [-.08, .2, 0], chest: [-.12, .38, .1],
-        right_upper_arm: [-.55, .65, .42], left_upper_arm: [-.2, -.15, .22], ...weightL(.55) }),
-      pose(.14, { pelvis: [.05, .3, 0], chest: [-.14, .55, .16], right_upper_arm: [-.85, 1.0, .55], left_upper_arm: [-.15, .15, .32], cape_root: [.28, .1, 0], ...weightL(.8) }),
-      pose(.3, { pelvis: [.04, -.38, 0], spine: [-.14, -.35, 0], chest: [-.24, -.88, -.28], neck: [.06, -.12, 0], head: [.04, -.1, 0],
-        right_upper_arm: [-1.35, -1.12, -.88], right_lower_arm: [-.9, 0, -.55], left_upper_arm: [-.18, .35, .42],
-        cape_root: [.45, -.18, 0], ...weightR(1) }, { pelvis: [0, -.02, .04] }),
-      pose(.46, { pelvis: [.02, .28, 0], spine: [-.05, .3, 0], chest: [-.1, 1.0, .36], neck: [-.04, .12, 0],
-        right_upper_arm: [.08, 1.35, .88], right_lower_arm: [.15, 0, .65], left_upper_arm: [-.48, -.28, .12],
-        cape_root: [.78, .22, 0], ...weightL(.7) }, { pelvis: [0, .02, .08] }),
-      pose(.6, { pelvis: [.03, .08, 0], chest: [-.06, .35, .12], right_upper_arm: [-.3, .55, .35], left_upper_arm: [-.28, .05, .22], ...weightL(.25) }),
-      pose(.68, { pelvis: [.02, .03, 0], chest: [-.04, .14, .05], right_upper_arm: [-.32, .25, .14], left_upper_arm: [-.26, .08, .24], ...weightL(.1) }),
-      end(.76),
-    ]],
-    // 7 — finisher smash
-    ['attack_7', .94, [
-      pose(0, { pelvis: [.06, -.32, 0], spine: [-.16, -.12, 0], chest: [-.26, -.6, -.22], neck: [.08, -.1, 0],
-        right_upper_arm: [-1.15, -.88, -.82], left_upper_arm: [-.18, .4, .48], left_lower_arm: [-.5, .1, .2], ...weightR(.95) }),
-      pose(.2, { pelvis: [.1, -.58, 0], spine: [-.3, -.28, 0], chest: [-.4, -1.1, -.38], neck: [.14, -.18, 0], head: [.1, -.14, 0],
-        right_upper_arm: [-1.52, -1.38, -1.05], right_lower_arm: [-1.15, -.1, -.88], right_hand: [.24, -.28, -.18],
-        left_upper_arm: [-.12, .5, .52], cape_root: [.42, -.28, 0], ...weightR(1.25) }, { pelvis: [0, -.05, .03] }),
-      pose(.4, { pelvis: [0, .48, .06], spine: [-.05, .42, 0], chest: [-.02, 1.35, .48], neck: [-.08, .18, 0], head: [-.05, .16, 0],
-        right_upper_arm: [.22, 1.62, .98], right_lower_arm: [.3, 0, .82], right_hand: [-.12, .2, .28],
-        left_upper_arm: [-.7, -.42, .16], left_lower_arm: [-.9, 0, .05], cape_root: [.92, .3, 0], ...weightL(1) }, { pelvis: [0, .03, .1] }),
-      pose(.6, { pelvis: [.02, .18, 0], spine: [-.04, .15, 0], chest: [-.04, .5, .18],
-        right_upper_arm: [-.2, .75, .48], right_lower_arm: [-.1, 0, .35], left_upper_arm: [-.35, 0, .22], cape_root: [.55, .12, 0], ...weightL(.4) }),
-      pose(.78, { pelvis: [.02, .07, 0], chest: [-.03, .2, .07], right_upper_arm: [-.3, .32, .18],
-        right_lower_arm: [-.35, 0, .12], left_upper_arm: [-.28, .06, .26], ...weightL(.15) }),
-      end(.94),
-    ]],
-  ];
+  // —— Knight golden reference (Wave B0) —— iron weight, wide arcs, finisher bias.
+  if (profileId === 'aerin') {
+    const d1 = combatClipDuration(.68, profile);
+    const d2 = combatClipDuration(.72, profile);
+    const d3 = combatClipDuration(.78, profile);
+    const d4 = combatClipDuration(.9, profile);
+    const d5 = combatClipDuration(.84, profile);
+    const d6 = combatClipDuration(.8, profile);
+    const d7 = combatClipDuration(1.02, profile, { finisher: true });
+    return [
+      // 1 — horizontal cut (right → left), crisp entry
+      ['attack_1', d1, strikePhases(d1, {
+        ready: { pelvis: [.05, -.18, 0], spine: [-.1, -.14, 0], chest: [-.12, -.32, -.12], neck: [.05, -.07, 0],
+          right_upper_arm: [-.62, -.62, -.55], right_lower_arm: [-.92, -.08, -.38], right_hand: [.12, -.14, -.1],
+          left_upper_arm: [-.22, .2, .38], left_lower_arm: [-.58, .06, .14], ...weightR(.65) },
+        coil: { pelvis: [.08, -.4, 0], spine: [-.18, -.34, 0], chest: [-.24, -.68, -.24], neck: [.1, -.14, 0], head: [.07, -.1, 0],
+          right_upper_arm: [-1.28, -.98, -.9], right_lower_arm: [-1.18, -.1, -.7], right_hand: [.22, -.24, -.16],
+          left_upper_arm: [-.12, .25, .42], left_lower_arm: [-.45, .08, .18], cape_root: [.38, -.16, 0], ...weightR(1.15) },
+        coilPos: { pelvis: [0, -.03, .03] },
+        contact: { pelvis: [.02, .28, 0], spine: [-.05, .4, .05], chest: [-.05, .82, .28], neck: [-.05, .16, 0], head: [-.04, .14, 0],
+          right_upper_arm: [-.28, 1.18, .78], right_lower_arm: [-.05, 0, .65], right_hand: [-.08, .15, .22],
+          left_upper_arm: [-.4, -.22, .1], left_lower_arm: [-.75, 0, .08], cape_root: [.7, .22, 0], ...weightL(.9) },
+        contactPos: { pelvis: [0, .025, .09] },
+        follow: { pelvis: [.03, .1, 0], spine: [-.04, .15, 0], chest: [-.06, .35, .12], neck: [0, .06, 0],
+          right_upper_arm: [-.38, .55, .35], right_lower_arm: [-.45, -.02, .18], left_upper_arm: [-.28, .08, .28],
+          cape_root: [.4, .08, 0], ...weightL(.35) },
+        settle: { pelvis: [.02, .04, 0], spine: [-.02, .06, 0], chest: [-.04, .14, .05],
+          right_upper_arm: [-.35, .25, .16], right_lower_arm: [-.55, -.02, .06], left_upper_arm: [-.24, .1, .28], ...weightL(.12) },
+      })],
+      // 2 — rising diagonal (left-low → right-high)
+      ['attack_2', d2, strikePhases(d2, {
+        ready: { pelvis: [.04, .14, 0], spine: [-.08, .2, 0], chest: [-.1, .38, .12], neck: [.03, .09, 0],
+          right_upper_arm: [-.5, .55, .48], right_lower_arm: [-.75, 0, .32], left_upper_arm: [-.24, .14, .32], ...weightL(.55) },
+        coil: { pelvis: [.06, .34, 0], spine: [-.12, .42, 0], chest: [-.18, .7, .24], neck: [.05, .16, 0], head: [.04, .12, 0],
+          right_upper_arm: [-1.12, 1.08, .78], right_lower_arm: [-.95, 0, .62], right_hand: [.14, .18, .14],
+          left_upper_arm: [-.15, .22, .4], cape_root: [.32, .14, 0], ...weightL(1.05) },
+        coilPos: { pelvis: [0, -.015, .02] },
+        contact: { pelvis: [.02, -.26, 0], spine: [-.1, -.48, 0], chest: [-.15, -.92, -.32], neck: [-.03, -.14, 0], head: [-.02, -.12, 0],
+          right_upper_arm: [-.28, -1.22, -.72], right_lower_arm: [-.05, 0, -.55], right_hand: [-.06, -.12, -.18],
+          left_upper_arm: [-.18, .24, .36], cape_root: [.65, -.18, 0], ...weightR(.95) },
+        contactPos: { pelvis: [0, .025, .07] },
+        follow: { pelvis: [.03, -.1, 0], chest: [-.08, -.35, -.12], right_upper_arm: [-.4, -.5, -.32], right_lower_arm: [-.55, 0, -.18],
+          left_upper_arm: [-.22, .15, .3], ...weightR(.4) },
+        settle: { pelvis: [.02, -.04, 0], chest: [-.05, -.14, -.05], right_upper_arm: [-.38, -.22, -.15],
+          right_lower_arm: [-.6, 0, -.06], left_upper_arm: [-.22, .12, .28], ...weightR(.12) },
+      })],
+      // 3 — heavy overhead into cross
+      ['attack_3', d3, strikePhases(d3, {
+        ready: { pelvis: [.06, -.26, 0], spine: [-.12, -.22, 0], chest: [-.18, -.5, -.2], neck: [.07, -.1, 0],
+          right_upper_arm: [-.95, -.8, -.82], right_lower_arm: [-1.05, -.06, -.6], left_upper_arm: [-.15, .32, .42], ...weightR(.8) },
+        coil: { pelvis: [.1, -.55, 0], spine: [-.22, -.5, 0], chest: [-.28, -1.02, -.4], neck: [.12, -.18, 0], head: [.08, -.14, 0],
+          right_upper_arm: [-1.5, -1.32, -1.1], right_lower_arm: [-1.22, -.1, -.95], right_hand: [.24, -.26, -.18],
+          left_upper_arm: [-.1, .42, .45], left_lower_arm: [-.4, .1, .2], cape_root: [.4, -.26, 0], ...weightR(1.3) },
+        coilPos: { pelvis: [0, -.04, .025] },
+        contact: { pelvis: [.02, .4, 0], spine: [-.06, .5, .06], chest: [-.08, 1.15, .45], neck: [-.07, .18, 0], head: [-.05, .16, 0],
+          right_upper_arm: [-.1, 1.55, .98], right_lower_arm: [.18, 0, .82], right_hand: [-.1, .18, .26],
+          left_upper_arm: [-.48, -.38, .08], left_lower_arm: [-.8, 0, .05], cape_root: [.82, .28, 0], ...weightL(1.0) },
+        contactPos: { pelvis: [0, .035, .1] },
+        follow: { pelvis: [.03, .14, 0], chest: [-.08, .48, .18], right_upper_arm: [-.28, .75, .48], right_lower_arm: [-.2, 0, .35],
+          left_upper_arm: [-.3, .05, .25], cape_root: [.48, .1, 0], ...weightL(.4) },
+        settle: { pelvis: [.02, .05, 0], chest: [-.05, .18, .07], right_upper_arm: [-.32, .3, .18],
+          right_lower_arm: [-.45, 0, .1], left_upper_arm: [-.26, .08, .26], ...weightL(.12) },
+      })],
+      // 4 — thrust / shoulder drive
+      ['attack_4', d4, strikePhases(d4, {
+        ready: { pelvis: [.07, -.32, 0], spine: [-.16, -.18, 0], chest: [-.26, -.55, -.24], neck: [.07, -.12, 0],
+          right_upper_arm: [-1.05, -.82, -.8], right_lower_arm: [-1.15, -.08, -.65], left_upper_arm: [-.2, .38, .45],
+          left_lower_arm: [-.55, .1, .18], ...weightR(.95) },
+        coil: { pelvis: [.12, -.6, 0], spine: [-.3, -.34, 0], chest: [-.42, -1.12, -.42], neck: [.14, -.2, 0], head: [.1, -.16, 0],
+          right_upper_arm: [-1.58, -1.42, -1.15], right_lower_arm: [-1.28, -.1, -1.02], right_hand: [.26, -.3, -.22],
+          left_upper_arm: [-.12, .5, .52], cape_root: [.45, -.32, 0], ...weightR(1.35) },
+        coilPos: { pelvis: [0, -.05, .04] },
+        contact: { pelvis: [0, .5, .05], spine: [-.06, .45, 0], chest: [-.02, 1.4, .5], neck: [-.08, .2, 0], head: [-.05, .18, 0],
+          right_upper_arm: [.18, 1.68, 1.05], right_lower_arm: [.35, 0, .9], right_hand: [-.12, .22, .3],
+          left_upper_arm: [-.7, -.45, .12], left_lower_arm: [-.95, 0, .05], cape_root: [.98, .35, 0], ...weightL(1.05) },
+        contactPos: { pelvis: [0, .03, .14] },
+        follow: { pelvis: [.02, .18, 0], spine: [-.04, .14, 0], chest: [-.05, .52, .2],
+          right_upper_arm: [-.22, .8, .52], right_lower_arm: [-.12, 0, .4], left_upper_arm: [-.35, 0, .22], cape_root: [.55, .12, 0], ...weightL(.45) },
+        settle: { pelvis: [.02, .06, 0], chest: [-.04, .2, .07], right_upper_arm: [-.32, .35, .2],
+          right_lower_arm: [-.4, 0, .12], left_upper_arm: [-.28, .06, .26], ...weightL(.15) },
+      })],
+      // 5 — spin slash
+      ['attack_5', d5, strikePhases(d5, {
+        ready: { pelvis: [.06, -.22, 0], spine: [-.12, -.24, 0], chest: [-.16, -.52, -.16],
+          right_upper_arm: [-1.0, -.65, -.7], left_upper_arm: [-.28, .28, .38], ...weightR(.7) },
+        coil: { pelvis: [.05, .42, 0], spine: [-.05, .48, 0], chest: [-.12, .65, .1], right_upper_arm: [-.6, .42, .18], left_upper_arm: [-.4, -.25, .22], cape_root: [.48, .1, 0] },
+        contact: { pelvis: [0, 1.35, 0], spine: [0, 1.1, 0], chest: [-.1, 1.9, .15], neck: [0, .2, 0],
+          right_upper_arm: [-.25, 1.75, .6], left_upper_arm: [-.45, -1.2, -.32], cape_root: [.85, .22, 0], ...weightL(.5) },
+        contactPos: { pelvis: [0, .05, 0] },
+        follow: { pelvis: [0, 2.7, 0], spine: [0, 2.15, 0], chest: [-.1, 3.15, -.15], neck: [0, -.1, 0],
+          right_upper_arm: [-.52, 2.65, -.65], left_upper_arm: [-.35, 1.3, .42], cape_root: [1.08, -.22, 0] },
+        followPos: { pelvis: [0, .025, 0] },
+        settle: { pelvis: [0, 1.0, 0], spine: [0, .75, 0], chest: [-.1, 1.2, 0], right_upper_arm: [-.45, 1.05, 0], left_upper_arm: [-.3, .28, .25] },
+      })],
+      // 6 — reverse cross cut
+      ['attack_6', d6, strikePhases(d6, {
+        ready: { pelvis: [.05, .18, 0], spine: [-.1, .24, 0], chest: [-.14, .45, .12],
+          right_upper_arm: [-.62, .75, .5], left_upper_arm: [-.22, -.18, .24], ...weightL(.6) },
+        coil: { pelvis: [.06, .36, 0], chest: [-.16, .65, .2], right_upper_arm: [-.95, 1.15, .65], left_upper_arm: [-.15, .18, .35], cape_root: [.32, .12, 0], ...weightL(.9) },
+        contact: { pelvis: [.04, -.45, 0], spine: [-.16, -.42, 0], chest: [-.28, -1.02, -.34], neck: [.07, -.14, 0], head: [.05, -.12, 0],
+          right_upper_arm: [-1.5, -1.28, -1.0], right_lower_arm: [-1.0, 0, -.65], left_upper_arm: [-.18, .38, .45],
+          cape_root: [.52, -.22, 0], ...weightR(1.15) },
+        contactPos: { pelvis: [0, -.025, .05] },
+        follow: { pelvis: [.02, .32, 0], spine: [-.05, .35, 0], chest: [-.08, 1.15, .42], neck: [-.05, .14, 0],
+          right_upper_arm: [.12, 1.5, 1.0], right_lower_arm: [.2, 0, .75], left_upper_arm: [-.52, -.32, .12],
+          cape_root: [.9, .28, 0], ...weightL(.8) },
+        followPos: { pelvis: [0, .025, .1] },
+        settle: { pelvis: [.03, .08, 0], chest: [-.06, .35, .12], right_upper_arm: [-.3, .55, .35], left_upper_arm: [-.28, .05, .22], ...weightL(.25) },
+      })],
+      // 7 — finisher smash (longest anti + recovery)
+      ['attack_7', d7, strikePhases(d7, {
+        finisher: true,
+        ready: { pelvis: [.08, -.38, 0], spine: [-.2, -.16, 0], chest: [-.32, -.72, -.28], neck: [.1, -.12, 0],
+          right_upper_arm: [-1.28, -1.0, -.95], left_upper_arm: [-.2, .45, .52], left_lower_arm: [-.55, .1, .22], ...weightR(1.1) },
+        coil: { pelvis: [.12, -.7, 0], spine: [-.36, -.34, 0], chest: [-.5, -1.32, -.48], neck: [.16, -.22, 0], head: [.12, -.18, 0],
+          right_upper_arm: [-1.72, -1.55, -1.22], right_lower_arm: [-1.28, -.12, -1.05], right_hand: [.28, -.32, -.22],
+          left_upper_arm: [-.12, .55, .58], cape_root: [.52, -.35, 0], ...weightR(1.45) },
+        coilPos: { pelvis: [0, -.06, .04] },
+        contact: { pelvis: [0, .58, .08], spine: [-.05, .5, 0], chest: [0, 1.55, .58], neck: [-.1, .22, 0], head: [-.06, .2, 0],
+          right_upper_arm: [.28, 1.85, 1.15], right_lower_arm: [.38, 0, .95], right_hand: [-.15, .25, .35],
+          left_upper_arm: [-.8, -.5, .18], left_lower_arm: [-1.0, 0, .05], cape_root: [1.1, .38, 0], ...weightL(1.2) },
+        contactPos: { pelvis: [0, .04, .12] },
+        follow: { pelvis: [.02, .22, 0], spine: [-.04, .18, 0], chest: [-.04, .6, .22],
+          right_upper_arm: [-.18, .88, .55], right_lower_arm: [-.08, 0, .4], left_upper_arm: [-.35, 0, .22], cape_root: [.65, .15, 0], ...weightL(.5) },
+        settle: { pelvis: [.02, .08, 0], chest: [-.03, .22, .08], right_upper_arm: [-.3, .35, .2],
+          right_lower_arm: [-.35, 0, .12], left_upper_arm: [-.28, .06, .26], ...weightL(.18) },
+      })],
+    ];
+  }
 
-  const casts = [
-    // cast_1 — short push (right-hand orb flick)
-    ['cast_1', .62, [
-      pose(0, { spine: [-.06, .04, 0], chest: [-.1, .06, -.02], neck: [.04, .04, 0],
-        right_upper_arm: [-.55, -.15, -.35], right_lower_arm: [-.75, -.04, -.18], left_upper_arm: [-.4, .15, .32], left_lower_arm: [-.7, .06, .15], ...weightR(.35) }),
-      pose(.14, { pelvis: [.04, -.08, 0], spine: [-.12, -.05, 0], chest: [-.16, -.08, -.06], neck: [.06, -.04, 0], head: [.04, -.02, 0],
-        right_upper_arm: [-1.15, -.35, -.55], right_lower_arm: [-1.0, -.08, -.35], right_hand: [.12, -.1, -.08],
-        left_upper_arm: [-.48, .22, .38], cape_root: [.22, -.06, 0], ...weightR(.7) }, { pelvis: [0, -.02, .01] }),
-      pose(.3, { pelvis: [.02, .1, 0], spine: [-.04, .12, 0], chest: [-.06, .22, .12], neck: [-.02, .1, 0], head: [-.02, .08, 0],
-        right_upper_arm: [-.4, .72, .52], right_lower_arm: [-.1, 0, .42], right_hand: [-.05, .1, .15],
-        left_upper_arm: [-.32, -.08, .2], left_lower_arm: [-.55, 0, .1], cape_root: [.4, .1, 0], ...weightL(.45) }, { pelvis: [0, .015, .04] }),
-      pose(.44, { chest: [-.06, .1, .04], right_upper_arm: [-.42, .3, .2], right_lower_arm: [-.45, 0, .1], left_upper_arm: [-.35, .1, .28], ...weightL(.2) }),
-      pose(.54, { chest: [-.05, .05, .02], right_upper_arm: [-.4, .18, .12], right_lower_arm: [-.55, 0, .05], left_upper_arm: [-.36, .12, .3], ...weightL(.08) }),
-      end(.62),
-    ]],
-    // cast_2 — side channel → release
-    ['cast_2', .66, [
-      pose(0, { spine: [-.06, .08, 0], chest: [-.08, .12, .04], right_upper_arm: [-.45, .28, .22], left_upper_arm: [-.42, -.18, .22], ...weightL(.3) }),
-      pose(.16, { pelvis: [.03, -.06, 0], spine: [-.12, .05, 0], chest: [-.14, .08, 0], neck: [.05, .05, 0],
-        right_upper_arm: [-1.18, .42, .32], right_lower_arm: [-.85, 0, .15], left_upper_arm: [-.85, -.32, .28], left_lower_arm: [-.75, 0, .12],
-        cape_root: [.25, .04, 0], ...weightL(.55) }, { pelvis: [0, -.015, .01] }),
-      pose(.34, { pelvis: [.02, .12, 0], spine: [-.04, .15, 0], chest: [-.04, .28, .08], neck: [-.02, .1, 0], head: [-.02, .08, 0],
-        right_upper_arm: [-.35, .95, .58], right_lower_arm: [-.1, 0, .4], left_upper_arm: [-.28, .18, .32], left_lower_arm: [-.4, 0, .15],
-        cape_root: [.45, .12, 0], ...weightR(.4) }, { pelvis: [0, .02, .04] }),
-      pose(.48, { chest: [-.05, .12, .03], right_upper_arm: [-.4, .4, .25], left_upper_arm: [-.32, .1, .28], ...weightR(.15) }),
-      pose(.58, { chest: [-.04, .05, .01], right_upper_arm: [-.38, .18, .12], left_upper_arm: [-.34, .12, .26], ...weightR(.06) }),
-      end(.66),
-    ]],
-    // cast_3 — dual palm press / nova prep
-    ['cast_3', .7, [
-      pose(0, { spine: [-.08, 0, 0], chest: [-.1, 0, -.04], right_upper_arm: [-.65, -.08, -.35], left_upper_arm: [-.65, .08, .35],
-        right_lower_arm: [-.7, 0, -.15], left_lower_arm: [-.7, 0, .15], ...weightR(.25) }),
-      pose(.18, { pelvis: [.04, -.18, 0], spine: [-.14, 0, 0], chest: [-.18, 0, -.08], neck: [.08, 0, 0], head: [.05, 0, 0],
-        right_upper_arm: [-1.35, -.12, -.55], left_upper_arm: [-1.3, .12, .55], right_lower_arm: [-1.05, 0, -.28], left_lower_arm: [-1.05, 0, .28],
-        right_hand: [.15, -.08, -.05], left_hand: [.15, .08, .05], cape_root: [.3, -.08, 0], ...weightR(.55) }, { pelvis: [0, -.025, 0] }),
-      pose(.38, { pelvis: [.02, .1, 0], spine: [.04, 0, 0], chest: [.12, 0, .06], neck: [-.04, 0, 0], head: [-.03, 0, 0],
-        right_upper_arm: [-.55, .55, .28], left_upper_arm: [-.55, -.55, .28], right_lower_arm: [-.2, 0, .25], left_lower_arm: [-.2, 0, -.25],
-        cape_root: [.55, .1, 0], ...weightL(.4) }, { pelvis: [0, .02, .03] }),
-      pose(.52, { chest: [.04, 0, .02], right_upper_arm: [-.48, .25, .15], left_upper_arm: [-.48, -.25, .15], ...weightL(.15) }),
-      end(.7),
-    ]],
-    // cast_4 — overhead channel / power cast
-    ['cast_4', .82, [
-      pose(0, { spine: [-.12, 0, 0], chest: [-.14, 0, -.05], neck: [.05, 0, 0],
-        right_upper_arm: [-.85, -.1, -.42], left_upper_arm: [-.85, .1, .42], right_lower_arm: [-.8, 0, -.2], left_lower_arm: [-.8, 0, .2], ...weightR(.4) }),
-      pose(.22, { pelvis: [.05, -.12, 0], spine: [-.22, 0, 0], chest: [-.22, 0, -.1], neck: [.1, 0, 0], head: [.06, 0, 0],
-        right_upper_arm: [-1.75, -.15, -.62], left_upper_arm: [-1.75, .15, .62], right_lower_arm: [-1.15, 0, -.32], left_lower_arm: [-1.15, 0, .32],
-        cape_root: [.4, -.1, 0], ...weightR(.75) }, { pelvis: [0, .08, 0] }),
-      pose(.42, { pelvis: [.02, .1, 0], spine: [.06, 0, 0], chest: [.08, 0, .06], neck: [-.05, 0, 0], head: [-.04, 0, 0],
-        right_upper_arm: [-.45, .85, .35], left_upper_arm: [-.45, -.85, .35], right_lower_arm: [-.15, 0, .3], left_lower_arm: [-.15, 0, -.3],
-        cape_root: [.65, .15, 0], ...weightL(.5) }, { pelvis: [0, .04, .02] }),
-      pose(.6, { spine: [0, 0, 0], chest: [.02, 0, .02], right_upper_arm: [-.45, .35, .18], left_upper_arm: [-.45, -.35, .18], ...weightL(.2) }),
-      end(.82),
-    ]],
+  // —— Wizard: channel → release (not sword chops). Attacks lighter; cast_* are primary grammar.
+  if (profileId === 'wizard') {
+    const dA = combatClipDuration(.6, profile);
+    const dB = combatClipDuration(.64, profile);
+    const dC = combatClipDuration(.68, profile);
+    const dD = combatClipDuration(.74, profile);
+    const c1 = combatClipDuration(.64, profile);
+    const c2 = combatClipDuration(.7, profile);
+    const c3 = combatClipDuration(.76, profile);
+    const c4 = combatClipDuration(.9, profile, { finisher: true });
+    const attacks = [
+      ['attack_1', dA, strikePhases(dA, {
+        ready: { spine: [-.08, .04, 0], chest: [-.12, .06, -.03], right_upper_arm: [-.6, -.2, -.4], right_lower_arm: [-.85, -.05, -.22], left_upper_arm: [-.42, .16, .34], ...weightR(.4) },
+        coil: { pelvis: [.04, -.1, 0], spine: [-.16, -.08, 0], chest: [-.2, -.12, -.1], neck: [.08, -.05, 0], head: [.05, -.03, 0],
+          right_upper_arm: [-1.25, -.42, -.62], right_lower_arm: [-1.1, -.08, -.4], left_upper_arm: [-.5, .24, .4], cape_root: [.28, -.08, 0], ...weightR(.75) },
+        coilPos: { pelvis: [0, -.02, .015] },
+        contact: { pelvis: [.02, .12, 0], spine: [-.04, .18, 0], chest: [-.04, .35, .18], neck: [-.03, .12, 0], head: [-.02, .1, 0],
+          right_upper_arm: [-.32, .9, .65], right_lower_arm: [.05, 0, .5], left_upper_arm: [-.3, -.1, .18], cape_root: [.5, .14, 0], ...weightL(.5) },
+        contactPos: { pelvis: [0, .02, .05] },
+        follow: { chest: [-.05, .14, .06], right_upper_arm: [-.4, .4, .28], right_lower_arm: [-.35, 0, .15], left_upper_arm: [-.35, .1, .28], ...weightL(.2) },
+        settle: { chest: [-.05, .06, .02], right_upper_arm: [-.42, .2, .14], left_upper_arm: [-.38, .12, .3] },
+      })],
+      ['attack_2', dB, strikePhases(dB, {
+        ready: { spine: [-.06, .1, 0], chest: [-.1, .14, .04], right_upper_arm: [-.5, .32, .25], left_upper_arm: [-.45, -.2, .24], ...weightL(.35) },
+        coil: { pelvis: [.03, -.08, 0], spine: [-.14, .06, 0], chest: [-.16, .1, 0], neck: [.06, .05, 0],
+          right_upper_arm: [-1.25, .48, .38], right_lower_arm: [-.95, 0, .18], left_upper_arm: [-.95, -.38, .32], left_lower_arm: [-.85, 0, .14],
+          cape_root: [.3, .05, 0], ...weightL(.6) },
+        coilPos: { pelvis: [0, -.015, .01] },
+        contact: { pelvis: [.02, .14, 0], spine: [-.04, .18, 0], chest: [-.02, .35, .12], neck: [-.03, .12, 0],
+          right_upper_arm: [-.3, 1.05, .68], right_lower_arm: [-.05, 0, .48], left_upper_arm: [-.25, .2, .35], cape_root: [.52, .14, 0], ...weightR(.45) },
+        contactPos: { pelvis: [0, .02, .045] },
+        follow: { chest: [-.05, .14, .04], right_upper_arm: [-.38, .45, .28], left_upper_arm: [-.32, .12, .3], ...weightR(.18) },
+        settle: { chest: [-.04, .06, .01], right_upper_arm: [-.4, .2, .14], left_upper_arm: [-.36, .12, .28] },
+      })],
+      ['attack_3', dC, strikePhases(dC, {
+        ready: { spine: [-.1, 0, 0], chest: [-.12, 0, -.05], right_upper_arm: [-.7, -.1, -.4], left_upper_arm: [-.7, .1, .4],
+          right_lower_arm: [-.8, 0, -.18], left_lower_arm: [-.8, 0, .18], ...weightR(.3) },
+        coil: { pelvis: [.04, -.2, 0], spine: [-.18, 0, 0], chest: [-.22, 0, -.1], neck: [.1, 0, 0],
+          right_upper_arm: [-1.45, -.15, -.62], left_upper_arm: [-1.4, .15, .62], right_lower_arm: [-1.15, 0, -.32], left_lower_arm: [-1.15, 0, .32],
+          cape_root: [.35, -.1, 0], ...weightR(.65) },
+        coilPos: { pelvis: [0, -.03, 0] },
+        contact: { pelvis: [.02, .12, 0], spine: [.06, 0, 0], chest: [.15, 0, .08], neck: [-.05, 0, 0],
+          right_upper_arm: [-.5, .65, .35], left_upper_arm: [-.5, -.65, .35], right_lower_arm: [-.15, 0, .3], left_lower_arm: [-.15, 0, -.3],
+          cape_root: [.62, .12, 0], ...weightL(.45) },
+        contactPos: { pelvis: [0, .02, .035] },
+        follow: { chest: [.05, 0, .03], right_upper_arm: [-.48, .3, .18], left_upper_arm: [-.48, -.3, .18], ...weightL(.18) },
+        settle: { chest: [.02, 0, .01], right_upper_arm: [-.5, .15, .1], left_upper_arm: [-.5, -.15, .1] },
+      })],
+      ['attack_4', dD, strikePhases(dD, {
+        ready: { spine: [-.14, 0, 0], chest: [-.16, 0, -.06], neck: [.06, 0, 0],
+          right_upper_arm: [-.95, -.12, -.48], left_upper_arm: [-.95, .12, .48], right_lower_arm: [-.9, 0, -.22], left_lower_arm: [-.9, 0, .22], ...weightR(.45) },
+        coil: { pelvis: [.05, -.15, 0], spine: [-.26, 0, 0], chest: [-.26, 0, -.12], neck: [.12, 0, 0], head: [.08, 0, 0],
+          right_upper_arm: [-1.9, -.18, -.7], left_upper_arm: [-1.9, .18, .7], right_lower_arm: [-1.25, 0, -.38], left_lower_arm: [-1.25, 0, .38],
+          cape_root: [.48, -.12, 0], ...weightR(.85) },
+        coilPos: { pelvis: [0, .1, 0] },
+        contact: { pelvis: [.02, .12, 0], spine: [.08, 0, 0], chest: [.12, 0, .08], neck: [-.06, 0, 0],
+          right_upper_arm: [-.42, 1.0, .42], left_upper_arm: [-.42, -1.0, .42], right_lower_arm: [-.1, 0, .35], left_lower_arm: [-.1, 0, -.35],
+          cape_root: [.75, .18, 0], ...weightL(.55) },
+        contactPos: { pelvis: [0, .05, .025] },
+        follow: { spine: [0, 0, 0], chest: [.03, 0, .03], right_upper_arm: [-.45, .4, .2], left_upper_arm: [-.45, -.4, .2], ...weightL(.22) },
+        settle: { chest: [0, 0, 0], right_upper_arm: [-.48, .18, .1], left_upper_arm: [-.48, -.18, .1] },
+      })],
+    ];
+    const casts = [
+      // cast_1 — short orb flick / push
+      ['cast_1', c1, strikePhases(c1, {
+        ready: { spine: [-.08, .05, 0], chest: [-.12, .08, -.03], neck: [.05, .05, 0],
+          right_upper_arm: [-.6, -.18, -.4], right_lower_arm: [-.85, -.05, -.22], left_upper_arm: [-.45, .18, .36], left_lower_arm: [-.75, .06, .18], ...weightR(.4) },
+        coil: { pelvis: [.05, -.12, 0], spine: [-.16, -.08, 0], chest: [-.22, -.12, -.1], neck: [.08, -.05, 0], head: [.05, -.03, 0],
+          right_upper_arm: [-1.35, -.42, -.65], right_lower_arm: [-1.15, -.1, -.42], right_hand: [.15, -.12, -.1],
+          left_upper_arm: [-.55, .28, .42], cape_root: [.28, -.08, 0], ...weightR(.8) },
+        coilPos: { pelvis: [0, -.025, .015] },
+        contact: { pelvis: [.02, .14, 0], spine: [-.04, .18, 0], chest: [-.04, .32, .18], neck: [-.03, .14, 0], head: [-.02, .1, 0],
+          right_upper_arm: [-.32, .9, .68], right_lower_arm: [.05, 0, .52], right_hand: [-.06, .12, .2],
+          left_upper_arm: [-.28, -.1, .2], left_lower_arm: [-.55, 0, .1], cape_root: [.5, .14, 0], ...weightL(.55) },
+        contactPos: { pelvis: [0, .02, .05] },
+        follow: { chest: [-.05, .12, .05], right_upper_arm: [-.4, .35, .25], right_lower_arm: [-.4, 0, .12], left_upper_arm: [-.35, .1, .28], ...weightL(.22) },
+        settle: { chest: [-.05, .05, .02], right_upper_arm: [-.42, .18, .14], left_upper_arm: [-.38, .12, .3] },
+      })],
+      // cast_2 — side channel → release
+      ['cast_2', c2, strikePhases(c2, {
+        ready: { spine: [-.08, .1, 0], chest: [-.1, .15, .05], right_upper_arm: [-.5, .32, .28], left_upper_arm: [-.48, -.22, .26], ...weightL(.35) },
+        coil: { pelvis: [.04, -.1, 0], spine: [-.16, .08, 0], chest: [-.18, .12, 0], neck: [.07, .06, 0],
+          right_upper_arm: [-1.35, .5, .4], right_lower_arm: [-1.0, 0, .2], left_upper_arm: [-1.0, -.4, .35], left_lower_arm: [-.9, 0, .15],
+          cape_root: [.32, .06, 0], ...weightL(.7) },
+        coilPos: { pelvis: [0, -.02, .015] },
+        contact: { pelvis: [.02, .16, 0], spine: [-.04, .2, 0], chest: [-.02, .38, .12], neck: [-.03, .14, 0], head: [-.02, .1, 0],
+          right_upper_arm: [-.28, 1.12, .72], right_lower_arm: [0, 0, .5], left_upper_arm: [-.25, .22, .38], left_lower_arm: [-.35, 0, .18],
+          cape_root: [.55, .16, 0], ...weightR(.5) },
+        contactPos: { pelvis: [0, .025, .05] },
+        follow: { chest: [-.05, .14, .04], right_upper_arm: [-.38, .48, .3], left_upper_arm: [-.3, .12, .3], ...weightR(.18) },
+        settle: { chest: [-.04, .05, .01], right_upper_arm: [-.4, .2, .14], left_upper_arm: [-.36, .12, .28] },
+      })],
+      // cast_3 — dual palm press / nova prep
+      ['cast_3', c3, strikePhases(c3, {
+        ready: { spine: [-.1, 0, 0], chest: [-.12, 0, -.05], right_upper_arm: [-.75, -.1, -.4], left_upper_arm: [-.75, .1, .4],
+          right_lower_arm: [-.8, 0, -.18], left_lower_arm: [-.8, 0, .18], ...weightR(.3) },
+        coil: { pelvis: [.05, -.22, 0], spine: [-.18, 0, 0], chest: [-.24, 0, -.12], neck: [.1, 0, 0], head: [.06, 0, 0],
+          right_upper_arm: [-1.55, -.15, -.65], left_upper_arm: [-1.5, .15, .65], right_lower_arm: [-1.2, 0, -.35], left_lower_arm: [-1.2, 0, .35],
+          right_hand: [.18, -.1, -.06], left_hand: [.18, .1, .06], cape_root: [.38, -.1, 0], ...weightR(.7) },
+        coilPos: { pelvis: [0, -.03, 0] },
+        contact: { pelvis: [.02, .14, 0], spine: [.06, 0, 0], chest: [.16, 0, .08], neck: [-.05, 0, 0], head: [-.04, 0, 0],
+          right_upper_arm: [-.5, .68, .35], left_upper_arm: [-.5, -.68, .35], right_lower_arm: [-.15, 0, .3], left_lower_arm: [-.15, 0, -.3],
+          cape_root: [.65, .14, 0], ...weightL(.5) },
+        contactPos: { pelvis: [0, .025, .04] },
+        follow: { chest: [.06, 0, .03], right_upper_arm: [-.48, .3, .18], left_upper_arm: [-.48, -.3, .18], ...weightL(.18) },
+        settle: { chest: [.02, 0, .01], right_upper_arm: [-.5, .15, .1], left_upper_arm: [-.5, -.15, .1] },
+      })],
+      // cast_4 — overhead power channel (finisher-like)
+      ['cast_4', c4, strikePhases(c4, {
+        finisher: true,
+        ready: { spine: [-.14, 0, 0], chest: [-.18, 0, -.06], neck: [.06, 0, 0],
+          right_upper_arm: [-1.0, -.12, -.5], left_upper_arm: [-1.0, .12, .5], right_lower_arm: [-.95, 0, -.25], left_lower_arm: [-.95, 0, .25], ...weightR(.5) },
+        coil: { pelvis: [.06, -.18, 0], spine: [-.3, 0, 0], chest: [-.3, 0, -.14], neck: [.14, 0, 0], head: [.08, 0, 0],
+          right_upper_arm: [-2.05, -.2, -.78], left_upper_arm: [-2.05, .2, .78], right_lower_arm: [-1.35, 0, -.4], left_lower_arm: [-1.35, 0, .4],
+          cape_root: [.5, -.14, 0], ...weightR(.95) },
+        coilPos: { pelvis: [0, .12, 0] },
+        contact: { pelvis: [.02, .14, 0], spine: [.1, 0, 0], chest: [.14, 0, .1], neck: [-.07, 0, 0], head: [-.05, 0, 0],
+          right_upper_arm: [-.4, 1.1, .48], left_upper_arm: [-.4, -1.1, .48], right_lower_arm: [-.08, 0, .4], left_lower_arm: [-.08, 0, -.4],
+          cape_root: [.85, .22, 0], ...weightL(.65) },
+        contactPos: { pelvis: [0, .06, .03] },
+        follow: { spine: [0, 0, 0], chest: [.04, 0, .03], right_upper_arm: [-.45, .45, .22], left_upper_arm: [-.45, -.45, .22], ...weightL(.25) },
+        settle: { chest: [0, 0, 0], right_upper_arm: [-.48, .2, .12], left_upper_arm: [-.48, -.2, .12] },
+      })],
+    ];
+    return [...attacks, ...casts];
+  }
+
+  // —— Ranger: draw → loose grammar (bow torsion, string line, quick re-nock).
+  if (profileId === 'ranger') {
+    const dA = combatClipDuration(.58, profile);
+    const dB = combatClipDuration(.62, profile);
+    const dC = combatClipDuration(.66, profile);
+    const dD = combatClipDuration(.72, profile);
+    const c1 = combatClipDuration(.62, profile);
+    const c2 = combatClipDuration(.68, profile);
+    const c3 = combatClipDuration(.74, profile);
+    const c4 = combatClipDuration(.88, profile, { finisher: true });
+    const attacks = [
+      ['attack_1', dA, strikePhases(dA, {
+        ready: { spine: [-.1, -.06, 0], chest: [-.14, -.1, -.05], neck: [.05, .04, 0],
+          left_upper_arm: [-.85, .28, .55], left_lower_arm: [-.6, .1, .35], right_upper_arm: [-.7, -.4, -.5], right_lower_arm: [-1.1, -.08, -.25], ...weightR(.45) },
+        coil: { pelvis: [.05, -.18, 0], spine: [-.18, -.12, 0], chest: [-.24, -.2, -.12], neck: [.08, .06, 0], head: [.05, .05, 0],
+          left_upper_arm: [-1.25, .42, .6], left_lower_arm: [-.7, .12, .4], right_upper_arm: [-1.4, -.6, -.72], right_lower_arm: [-1.25, -.1, -.4],
+          cape_root: [.4, -.1, 0], ...weightR(.85) },
+        coilPos: { pelvis: [0, -.02, .02] },
+        contact: { pelvis: [.02, .1, 0], spine: [-.04, .16, 0], chest: [-.04, .28, .1], neck: [-.02, .08, 0],
+          right_upper_arm: [-.25, .85, .55], right_lower_arm: [.05, 0, .4], left_upper_arm: [-.45, -.12, .22], left_lower_arm: [-.35, 0, .15],
+          cape_root: [.55, .12, 0], ...weightL(.5) },
+        contactPos: { pelvis: [0, .015, .04] },
+        follow: { chest: [-.05, .1, .04], right_upper_arm: [-.4, .4, .25], left_upper_arm: [-.5, .1, .32], ...weightL(.2) },
+        settle: { chest: [-.06, .04, .01], left_upper_arm: [-.72, .22, .5], right_upper_arm: [-.55, -.32, -.42] },
+      })],
+      ['attack_2', dB, strikePhases(dB, {
+        ready: { spine: [-.08, .08, 0], chest: [-.1, .1, .03], left_upper_arm: [-.8, .25, .5], right_upper_arm: [-.55, .2, -.2], ...weightL(.35) },
+        coil: { pelvis: [.04, -.12, 0], spine: [-.16, .05, 0], chest: [-.2, .08, -.04], neck: [.06, .05, 0],
+          left_upper_arm: [-1.2, .4, .55], right_upper_arm: [-1.3, .35, .15], right_lower_arm: [-1.0, 0, .1], cape_root: [.32, .05, 0], ...weightL(.65) },
+        contact: { pelvis: [.02, .12, 0], spine: [-.04, .14, 0], chest: [-.02, .28, .1],
+          right_upper_arm: [-.28, .95, .55], right_lower_arm: [0, 0, .4], left_upper_arm: [-.4, -.1, .25], cape_root: [.5, .12, 0], ...weightR(.45) },
+        contactPos: { pelvis: [0, .015, .04] },
+        follow: { chest: [-.05, .1, .03], right_upper_arm: [-.4, .4, .25], left_upper_arm: [-.55, .12, .35], ...weightR(.15) },
+        settle: { left_upper_arm: [-.72, .2, .48], right_upper_arm: [-.55, -.28, -.4] },
+      })],
+      ['attack_3', dC, strikePhases(dC, {
+        ready: { spine: [-.1, 0, 0], chest: [-.12, 0, -.04], left_upper_arm: [-.85, .22, .5], right_upper_arm: [-.85, -.22, -.45], ...weightR(.35) },
+        coil: { pelvis: [.04, -.16, 0], spine: [-.16, 0, 0], chest: [-.2, 0, -.08], neck: [.08, 0, 0],
+          left_upper_arm: [-1.3, .35, .55], right_upper_arm: [-1.45, -.4, -.6], cape_root: [.35, -.08, 0], ...weightR(.7) },
+        coilPos: { pelvis: [0, -.02, 0] },
+        contact: { pelvis: [.02, .1, 0], spine: [.04, 0, 0], chest: [.08, 0, .05],
+          left_upper_arm: [-.4, -.5, .3], right_upper_arm: [-.35, .75, .4], cape_root: [.55, .1, 0], ...weightL(.45) },
+        contactPos: { pelvis: [0, .015, .03] },
+        follow: { chest: [.03, 0, .02], left_upper_arm: [-.5, .1, .35], right_upper_arm: [-.45, .35, .2], ...weightL(.15) },
+        settle: { left_upper_arm: [-.72, .2, .48], right_upper_arm: [-.55, -.3, -.42] },
+      })],
+      ['attack_4', dD, strikePhases(dD, {
+        ready: { spine: [-.12, 0, 0], chest: [-.14, 0, -.05], left_upper_arm: [-.9, .2, .5], right_upper_arm: [-.95, -.15, -.5], ...weightR(.4) },
+        coil: { pelvis: [.05, -.14, 0], spine: [-.22, 0, 0], chest: [-.24, 0, -.1], neck: [.1, 0, 0],
+          left_upper_arm: [-1.4, .3, .55], right_upper_arm: [-1.7, -.2, -.65], cape_root: [.42, -.1, 0], ...weightR(.8) },
+        coilPos: { pelvis: [0, .06, 0] },
+        contact: { pelvis: [.02, .1, 0], spine: [.05, 0, 0], chest: [.08, 0, .06],
+          left_upper_arm: [-.4, -.7, .35], right_upper_arm: [-.35, .9, .4], cape_root: [.65, .15, 0], ...weightL(.5) },
+        contactPos: { pelvis: [0, .03, .02] },
+        follow: { chest: [.03, 0, .02], left_upper_arm: [-.5, -.2, .3], right_upper_arm: [-.45, .4, .2], ...weightL(.18) },
+        settle: { left_upper_arm: [-.72, .2, .48], right_upper_arm: [-.55, -.3, -.42] },
+      })],
+    ];
+    const casts = [
+      // cast_1 — short draw → flick loose
+      ['cast_1', c1, strikePhases(c1, {
+        ready: { spine: [-.1, -.05, 0], chest: [-.14, -.08, -.04], neck: [.05, .04, 0],
+          left_upper_arm: [-.85, .25, .55], left_lower_arm: [-.55, .1, .35], right_upper_arm: [-.75, -.38, -.5], right_lower_arm: [-1.1, -.08, -.25], ...weightR(.4) },
+        coil: { pelvis: [.05, -.2, 0], spine: [-.18, -.12, 0], chest: [-.26, -.2, -.12], neck: [.09, .06, 0], head: [.05, .05, 0],
+          left_upper_arm: [-1.3, .4, .6], left_lower_arm: [-.7, .12, .4], right_upper_arm: [-1.55, -.6, -.75], right_lower_arm: [-1.3, -.1, -.45],
+          cape_root: [.42, -.1, 0], ...weightR(.9) },
+        coilPos: { pelvis: [0, -.025, .02] },
+        contact: { pelvis: [.02, .1, 0], spine: [-.04, .16, 0], chest: [-.04, .28, .1], neck: [-.02, .08, 0],
+          right_upper_arm: [-.22, .9, .58], right_lower_arm: [.08, 0, .42], left_upper_arm: [-.42, -.12, .22], left_lower_arm: [-.35, 0, .15],
+          cape_root: [.55, .12, 0], ...weightL(.5) },
+        contactPos: { pelvis: [0, .015, .04] },
+        follow: { chest: [-.05, .1, .04], right_upper_arm: [-.4, .4, .25], left_upper_arm: [-.55, .1, .35], ...weightL(.18) },
+        settle: { left_upper_arm: [-.72, .22, .5], right_upper_arm: [-.55, -.32, -.42] },
+      })],
+      // cast_2 — side draw → release
+      ['cast_2', c2, strikePhases(c2, {
+        ready: { spine: [-.08, .06, 0], chest: [-.1, .08, .02], left_upper_arm: [-.8, .22, .5], right_upper_arm: [-.6, .15, -.15], ...weightL(.3) },
+        coil: { pelvis: [.04, -.14, 0], spine: [-.16, .05, 0], chest: [-.2, .08, -.04], neck: [.07, .05, 0],
+          left_upper_arm: [-1.25, .38, .55], right_upper_arm: [-1.4, .3, .1], right_lower_arm: [-1.1, 0, .08], cape_root: [.35, .05, 0], ...weightL(.7) },
+        coilPos: { pelvis: [0, -.02, .01] },
+        contact: { pelvis: [.02, .12, 0], spine: [-.04, .14, 0], chest: [-.02, .28, .1],
+          right_upper_arm: [-.25, 1.0, .6], right_lower_arm: [.05, 0, .45], left_upper_arm: [-.4, -.1, .25], cape_root: [.55, .14, 0], ...weightR(.5) },
+        contactPos: { pelvis: [0, .02, .04] },
+        follow: { chest: [-.05, .1, .03], right_upper_arm: [-.4, .42, .25], left_upper_arm: [-.55, .12, .35], ...weightR(.15) },
+        settle: { left_upper_arm: [-.72, .2, .48], right_upper_arm: [-.55, -.28, -.4] },
+      })],
+      // cast_3 — dual-line aim / power draw
+      ['cast_3', c3, strikePhases(c3, {
+        ready: { spine: [-.1, 0, 0], chest: [-.12, 0, -.04], left_upper_arm: [-.9, .2, .5], right_upper_arm: [-.9, -.2, -.45], ...weightR(.35) },
+        coil: { pelvis: [.05, -.18, 0], spine: [-.18, 0, 0], chest: [-.22, 0, -.1], neck: [.1, 0, 0],
+          left_upper_arm: [-1.4, .32, .55], right_upper_arm: [-1.55, -.35, -.6], cape_root: [.4, -.08, 0], ...weightR(.75) },
+        coilPos: { pelvis: [0, -.025, 0] },
+        contact: { pelvis: [.02, .1, 0], spine: [.05, 0, 0], chest: [.1, 0, .06],
+          left_upper_arm: [-.38, -.55, .32], right_upper_arm: [-.32, .8, .42], cape_root: [.6, .12, 0], ...weightL(.5) },
+        contactPos: { pelvis: [0, .02, .03] },
+        follow: { chest: [.04, 0, .02], left_upper_arm: [-.5, .1, .35], right_upper_arm: [-.45, .35, .2], ...weightL(.15) },
+        settle: { left_upper_arm: [-.72, .2, .48], right_upper_arm: [-.55, -.3, -.42] },
+      })],
+      // cast_4 — full power draw (finisher)
+      ['cast_4', c4, strikePhases(c4, {
+        finisher: true,
+        ready: { spine: [-.14, 0, 0], chest: [-.16, 0, -.05], neck: [.06, 0, 0],
+          left_upper_arm: [-.95, .2, .52], right_upper_arm: [-1.0, -.18, -.52], ...weightR(.45) },
+        coil: { pelvis: [.06, -.16, 0], spine: [-.26, 0, 0], chest: [-.28, 0, -.12], neck: [.12, 0, 0], head: [.07, 0, 0],
+          left_upper_arm: [-1.5, .28, .58], right_upper_arm: [-1.9, -.25, -.72], right_lower_arm: [-1.3, 0, -.3], cape_root: [.48, -.12, 0], ...weightR(.95) },
+        coilPos: { pelvis: [0, .08, 0] },
+        contact: { pelvis: [.02, .12, 0], spine: [.06, 0, 0], chest: [.1, 0, .08], neck: [-.05, 0, 0],
+          left_upper_arm: [-.35, -.75, .38], right_upper_arm: [-.3, 1.0, .48], cape_root: [.75, .18, 0], ...weightL(.6) },
+        contactPos: { pelvis: [0, .04, .025] },
+        follow: { chest: [.04, 0, .03], left_upper_arm: [-.48, -.2, .3], right_upper_arm: [-.42, .42, .22], ...weightL(.22) },
+        settle: { left_upper_arm: [-.72, .2, .48], right_upper_arm: [-.55, -.3, -.42] },
+      })],
+    ];
+    return [...attacks, ...casts];
+  }
+
+  // Fallback (should not hit for known hero profiles): light attack set without casts.
+  const d1 = combatClipDuration(.64, profile);
+  return [
+    ['attack_1', d1, strikePhases(d1, {
+      ready: { chest: [-.1, -.2, -.08], right_upper_arm: [-.55, -.5, -.45], ...weightR(.5) },
+      coil: { chest: [-.18, -.5, -.16], right_upper_arm: [-1.1, -.8, -.75], ...weightR(1) },
+      contact: { chest: [-.05, .6, .2], right_upper_arm: [-.3, .95, .6], ...weightL(.7) },
+      follow: { chest: [-.05, .25, .08], right_upper_arm: [-.4, .4, .25], ...weightL(.3) },
+      settle: { chest: [-.04, .1, .03], right_upper_arm: [-.35, .2, .12] },
+    })],
   ];
-  return [...attacks, ...casts];
 }
 
 function heroAnimations(skeletonInfo, profileId = null) {
@@ -1399,214 +1745,304 @@ function heroAnimations(skeletonInfo, profileId = null) {
       left_upper_arm: [-1.28, 0, .12], right_upper_arm: [-1.28, 0, -.12], cape_root: [.95, 0, 0] }, { pelvis: [0, -.98, -.25] }),
   ], skeletonInfo));
 
+  // —— Active skills densified to §9.1 / §12 (Wave C) ——
+  // Contact peaks align with content timeline.hits (normalized * duration).
+  // Multi-phase skills place one body extreme per act.
   clips.push(animationClip('skill_whirlwind', 1.12, [
-    pose(0, { pelvis: [.05, -.2, 0], chest: [-.14, -.4, -.16], right_upper_arm: [-.85, -.7, -.72], left_upper_arm: [-.2, .28, .35],
-      right_lower_arm: [-.9, 0, -.45], left_upper_leg: [.15, .08, .06], right_upper_leg: [-.1, -.1, -.08] }),
-    pose(.18, { pelvis: [.08, -.55, 0], spine: [-.22, -.7, 0], chest: [-.28, -1.15, -.28], neck: [.1, -.15, 0],
-      right_upper_arm: [-1.4, -1.15, -.95], left_upper_arm: [-.15, .6, .52], cape_root: [.48, -.28, 0] }, { pelvis: [0, -.03, .02] }),
-    pose(.4, { pelvis: [0, .9, 0], spine: [-.08, .85, 0], chest: [-.1, 1.35, .18], right_upper_arm: [-.35, 1.3, .55], left_upper_arm: [-.45, -.9, -.25], cape_root: [.75, .2, 0] }),
-    pose(.62, { pelvis: [0, 2.0, 0], spine: [-.08, 1.7, 0], chest: [-.1, 2.55, .18], neck: [0, .15, 0],
-      right_upper_arm: [-.25, 2.15, .75], left_upper_arm: [-.55, -1.35, -.35], cape_root: [1.0, .35, 0] }, { pelvis: [0, .03, 0] }),
-    pose(.82, { pelvis: [0, 3.5, 0], spine: [-.08, 2.6, 0], chest: [-.1, 3.7, -.15], neck: [0, -.08, 0],
-      right_upper_arm: [-.4, 2.95, -.65], left_upper_arm: [-.4, 1.6, .4], cape_root: [1.12, -.3, 0] }),
-    pose(.96, { pelvis: [0, 1.6, 0], spine: [0, 1.2, 0], chest: [-.1, 1.7, 0], right_upper_arm: [-.45, 1.3, 0], left_upper_arm: [-.3, .4, .25] }),
+    // Base hits 0.22/0.48/0.74 + form densify peaks for L20/L100 (6-spin body extremes)
+    pose(0, { pelvis: [.05, -.22, 0], spine: [-.1, -.2, 0], chest: [-.16, -.45, -.18], neck: [.05, -.08, 0],
+      right_upper_arm: [-.9, -.75, -.78], left_upper_arm: [-.22, .3, .38],
+      right_lower_arm: [-.95, 0, -.48], left_upper_leg: [.18, .08, .06], right_upper_leg: [-.12, -.1, -.08] }),
+    pose(.112, { pelvis: [.08, -.5, 0], spine: [-.2, -.6, 0], chest: [-.26, -1.0, -.26], neck: [.1, -.12, 0],
+      right_upper_arm: [-1.35, -1.05, -.9], left_upper_arm: [-.15, .55, .5], cape_root: [.45, -.24, 0] }, { pelvis: [0, -.03, .02] }),
+    pose(.134, { pelvis: [0, .55, 0], spine: [-.06, .55, 0], chest: [-.08, .9, .15], // ~n0.12 L20 hit0
+      right_upper_arm: [-.4, 1.0, .45], left_upper_arm: [-.45, -.7, -.2], cape_root: [.7, .15, 0] }, { pelvis: [0, .015, .03] }),
+    pose(.246, { pelvis: [0, .95, 0], spine: [-.08, .9, 0], chest: [-.08, 1.45, .22], neck: [-.04, .12, 0], // n0.22
+      right_upper_arm: [-.3, 1.4, .62], left_upper_arm: [-.5, -.95, -.28], cape_root: [.82, .24, 0] }, { pelvis: [0, .02, .04] }),
+    pose(.336, { pelvis: [0, 1.25, 0], spine: [-.06, 1.1, 0], chest: [-.1, 1.7, .12], // ~n0.30
+      right_upper_arm: [-.35, 1.55, .35], left_upper_arm: [-.48, -1.05, .05], cape_root: [.88, .12, 0] }),
+    pose(.426, { pelvis: [0, 1.55, 0], spine: [-.06, 1.3, 0], chest: [-.08, 2.0, .18], // ~n0.38 L100
+      right_upper_arm: [-.28, 1.85, .7], left_upper_arm: [-.52, -1.2, -.3], cape_root: [.95, .28, 0] }, { pelvis: [0, .02, 0] }),
+    pose(.538, { pelvis: [0, 2.15, 0], spine: [-.08, 1.85, 0], chest: [-.08, 2.75, .2], neck: [0, .16, 0], // n0.48
+      right_upper_arm: [-.22, 2.3, .82], left_upper_arm: [-.58, -1.45, -.4], cape_root: [1.05, .38, 0] }, { pelvis: [0, .035, 0] }),
+    pose(.582, { pelvis: [0, 2.4, 0], spine: [-.06, 2.0, 0], chest: [-.1, 3.0, .05], // ~n0.52
+      right_upper_arm: [-.35, 2.5, .3], left_upper_arm: [-.45, -.2, .35], cape_root: [1.08, .15, 0] }),
+    pose(.739, { pelvis: [0, 3.1, 0], spine: [-.08, 2.4, 0], chest: [-.08, 3.5, -.12], // ~n0.66
+      right_upper_arm: [-.4, 2.85, -.5], left_upper_arm: [-.4, 1.2, .4], cape_root: [1.12, -.2, 0] }),
+    pose(.829, { pelvis: [0, 3.65, 0], spine: [-.08, 2.75, 0], chest: [-.08, 3.9, -.18], neck: [0, -.1, 0], // n0.74
+      right_upper_arm: [-.42, 3.15, -.72], left_upper_arm: [-.38, 1.75, .45], cape_root: [1.18, -.32, 0] }, { pelvis: [0, .02, 0] }),
+    pose(.941, { pelvis: [0, 1.8, 0], spine: [0, 1.35, 0], chest: [-.1, 2.0, 0], // ~n0.84 settle-through
+      right_upper_arm: [-.45, 1.5, 0], left_upper_arm: [-.32, .55, .28], cape_root: [.8, .05, 0] }),
     end(1.12),
   ], skeletonInfo));
   clips.push(animationClip('skill_crescent', .94, [
-    pose(0, { pelvis: [.05, -.22, 0], spine: [-.1, -.15, 0], chest: [-.14, -.55, -.18],
-      right_upper_arm: [-1.0, -.85, -.78], right_lower_arm: [-.95, 0, -.55], left_upper_arm: [-.2, .3, .38],
-      left_upper_leg: [.12, .08, .05], right_upper_leg: [-.12, -.1, -.1] }),
-    pose(.2, { pelvis: [.08, -.48, 0], spine: [-.26, -.3, 0], chest: [-.34, -.95, -.32], neck: [.1, -.14, 0], head: [.06, -.1, 0],
-      right_upper_arm: [-1.52, -1.32, -1.02], right_lower_arm: [-1.12, 0, -.82], cape_root: [.45, -.22, 0] }, { pelvis: [0, -.03, .03] }),
-    pose(.38, { pelvis: [0, .35, .08], spine: [-.08, .38, 0], chest: [-.08, 1.1, .35], neck: [-.05, .14, 0],
-      right_upper_arm: [.1, 1.4, .92], right_lower_arm: [.22, 0, .78], left_upper_arm: [-.45, -.25, .12],
-      cape_root: [.82, .26, 0] }, { pelvis: [0, .02, .1] }),
-    pose(.58, { pelvis: [.02, .12, 0], chest: [-.06, .4, .14], right_upper_arm: [-.25, .65, .4], right_lower_arm: [-.15, 0, .3], left_upper_arm: [-.3, .05, .25] }),
+    // Base hit n0.38; L20 aftercut ~0.72; L100 acts ~0.18/0.50/0.82
+    pose(0, { pelvis: [.05, -.24, 0], spine: [-.12, -.18, 0], chest: [-.16, -.6, -.2], neck: [.05, -.08, 0],
+      right_upper_arm: [-1.05, -.9, -.82], right_lower_arm: [-1.0, 0, -.58], left_upper_arm: [-.2, .32, .4],
+      left_upper_leg: [.14, .08, .05], right_upper_leg: [-.14, -.1, -.1] }),
+    pose(.169, { pelvis: [.08, -.4, 0], spine: [-.22, -.28, 0], chest: [-.28, -.8, -.28], neck: [.1, -.12, 0], // ~n0.18 load
+      right_upper_arm: [-1.4, -1.2, -.95], right_lower_arm: [-1.1, 0, -.75], cape_root: [.4, -.2, 0] }, { pelvis: [0, -.03, .02] }),
+    pose(.263, { pelvis: [.09, -.5, 0], spine: [-.26, -.34, 0], chest: [-.36, -1.0, -.34], neck: [.12, -.16, 0], head: [.08, -.12, 0], // n0.28 L20
+      right_upper_arm: [-1.55, -1.35, -1.05], right_lower_arm: [-1.18, 0, -.88], cape_root: [.48, -.24, 0] }, { pelvis: [0, -.035, .03] }),
+    pose(.357, { pelvis: [0, .4, .1], spine: [-.08, .42, 0], chest: [-.06, 1.22, .4], neck: [-.06, .16, 0], head: [-.04, .14, 0], // n0.38 primary
+      right_upper_arm: [.15, 1.52, 1.0], right_lower_arm: [.28, 0, .85], left_upper_arm: [-.5, -.3, .1],
+      cape_root: [.9, .3, 0] }, { pelvis: [0, .025, .12] }),
+    pose(.47, { pelvis: [.02, .2, 0], chest: [-.05, .6, .18], right_upper_arm: [-.15, .95, .55], // ~n0.50 L100 mid
+      right_lower_arm: [-.05, 0, .4], left_upper_arm: [-.35, .05, .25], cape_root: [.6, .15, 0] }),
+    pose(.677, { pelvis: [.02, .08, 0], chest: [-.04, .35, .1], right_upper_arm: [-.28, .55, .3], // ~n0.72 aftercut silhouette
+      right_lower_arm: [-.2, 0, .2], left_upper_arm: [-.3, .08, .26], cape_root: [.45, .08, 0] }),
+    pose(.771, { pelvis: [.02, .04, 0], chest: [-.03, .18, .05], right_upper_arm: [-.35, .35, .18], // ~n0.82 rupture act hold
+      left_upper_arm: [-.28, .1, .26] }),
     end(.94),
   ], skeletonInfo));
   clips.push(animationClip('skill_skyfall', 1.2, [
-    pose(0, { pelvis: [-.12, -.05, 0], spine: [-.1, 0, 0], chest: [-.18, 0, 0], neck: [.05, 0, 0],
-      right_upper_arm: [-.7, -.1, -.42], left_upper_arm: [-.7, .1, .42], left_upper_leg: [.2, 0, .05], right_upper_leg: [.15, 0, -.05] }),
-    pose(.22, { pelvis: [-.45, 0, 0], spine: [-.22, 0, 0], chest: [-.28, 0, 0], neck: [.1, 0, 0],
-      right_upper_arm: [-1.25, -.1, -.7], left_upper_arm: [-1.25, .1, .7], cape_root: [.55, 0, 0],
-      left_upper_leg: [.45, 0, .08], right_upper_leg: [.35, 0, -.06] }, { root: [0, .55, 0] }),
-    pose(.42, { pelvis: [-.62, 0, 0], spine: [-.32, 0, 0], chest: [-.36, 0, 0],
-      right_upper_arm: [-1.5, 0, -.92], left_upper_arm: [-1.5, 0, .92], cape_root: [.85, 0, 0] }, { root: [0, 1.55, .08] }),
-    pose(.62, { pelvis: [.15, 0, 0], spine: [.1, 0, 0], chest: [.16, 0, 0], neck: [-.06, 0, 0],
-      right_upper_arm: [.3, 0, -.5], left_upper_arm: [.3, 0, .5], cape_root: [1.05, 0, 0] }, { root: [0, 2.75, .18] }),
-    pose(.82, { pelvis: [-.72, 0, 0], spine: [-.42, 0, 0], chest: [-.52, 0, 0], neck: [.12, 0, 0],
-      right_upper_arm: [-1.35, 0, -.28], left_upper_arm: [-1.05, 0, .28], cape_root: [.55, 0, 0],
-      left_upper_leg: [.55, 0, .1], right_upper_leg: [.4, 0, -.08], left_lower_leg: [.5, 0, 0], right_lower_leg: [.4, 0, 0] }, { root: [0, .08, .42] }),
-    pose(1.0, { pelvis: [-.2, 0, 0], spine: [-.12, 0, 0], chest: [-.15, 0, 0], right_upper_arm: [-.6, 0, -.3], left_upper_arm: [-.55, 0, .3] }, { root: [0, 0, .1] }),
+    // crouch load → air stretch → land squash; L20 hits ~0.24 plant / 0.72 slam
+    pose(0, { pelvis: [-.14, -.06, 0], spine: [-.12, 0, 0], chest: [-.2, 0, 0], neck: [.06, 0, 0],
+      right_upper_arm: [-.75, -.12, -.45], left_upper_arm: [-.75, .12, .45], left_upper_leg: [.25, 0, .06], right_upper_leg: [.18, 0, -.05],
+      left_lower_leg: [.15, 0, 0], right_lower_leg: [.12, 0, 0] }),
+    pose(.18, { pelvis: [-.5, 0, 0], spine: [-.26, 0, 0], chest: [-.32, 0, 0], neck: [.12, 0, 0], head: [.06, 0, 0],
+      right_upper_arm: [-1.35, -.12, -.78], left_upper_arm: [-1.35, .12, .78], cape_root: [.6, 0, 0],
+      left_upper_leg: [.52, 0, .1], right_upper_leg: [.4, 0, -.08], left_lower_leg: [.35, 0, 0] }, { root: [0, .45, 0], pelvis: [0, -.04, 0] }),
+    pose(.288, { pelvis: [-.55, 0, 0], spine: [-.3, 0, 0], chest: [-.36, 0, 0],
+      right_upper_arm: [-1.55, 0, -.95], left_upper_arm: [-1.55, 0, .95], cape_root: [.8, 0, 0] }, { root: [0, 1.2, .05] }),
+    pose(.48, { pelvis: [-.65, 0, 0], spine: [-.35, 0, 0], chest: [-.4, 0, 0],
+      right_upper_arm: [-1.6, 0, -1.0], left_upper_arm: [-1.6, 0, 1.0], cape_root: [.95, 0, 0] }, { root: [0, 2.0, .12] }),
+    pose(.62, { pelvis: [.18, 0, 0], spine: [.12, 0, 0], chest: [.2, 0, 0], neck: [-.08, 0, 0],
+      right_upper_arm: [.35, 0, -.55], left_upper_arm: [.35, 0, .55], cape_root: [1.12, 0, 0] }, { root: [0, 2.9, .2] }),
+    pose(.864, { pelvis: [-.82, 0, 0], spine: [-.48, 0, 0], chest: [-.6, 0, 0], neck: [.14, 0, 0], head: [.1, 0, 0],
+      right_upper_arm: [-1.45, 0, -.32], left_upper_arm: [-1.15, 0, .32], cape_root: [.6, 0, 0],
+      left_upper_leg: [.65, 0, .12], right_upper_leg: [.48, 0, -.1], left_lower_leg: [.6, 0, 0], right_lower_leg: [.5, 0, 0] }, { root: [0, .06, .48] }),
+    pose(1.02, { pelvis: [-.22, 0, 0], spine: [-.14, 0, 0], chest: [-.18, 0, 0], right_upper_arm: [-.65, 0, -.32], left_upper_arm: [-.58, 0, .32] }, { root: [0, 0, .12] }),
     end(1.2),
   ], skeletonInfo));
   clips.push(animationClip('skill_starburst', 1.5, [
-    pose(0, { spine: [-.08, 0, 0], chest: [-.12, 0, 0], right_upper_arm: [-.55, -.08, -.32], left_upper_arm: [-.55, .08, .32] }),
-    pose(.22, { pelvis: [-.2, 0, 0], spine: [-.18, 0, 0], chest: [-.2, 0, 0], neck: [.08, 0, 0],
-      right_upper_arm: [-1.15, -.1, -.65], left_upper_arm: [-1.15, .1, .65], right_lower_arm: [-.55, 0, -.2], left_lower_arm: [-.55, 0, .2],
-      cape_root: [.45, 0, 0] }, { pelvis: [0, -.06, 0] }),
-    pose(.48, { pelvis: [-.35, 0, 0], spine: [-.28, 0, 0], chest: [-.3, 0, 0],
-      right_upper_arm: [-1.65, 0, -.95], left_upper_arm: [-1.65, 0, .95], right_lower_arm: [-.7, 0, -.28], left_lower_arm: [-.7, 0, .28],
-      cape_root: [.75, 0, 0] }, { pelvis: [0, -.12, 0] }),
-    pose(.78, { pelvis: [.1, 0, 0], spine: [.1, 0, 0], chest: [.12, 0, 0], neck: [-.05, 0, 0],
-      right_upper_arm: [-2.5, 0, -.32], left_upper_arm: [-2.5, 0, .32], right_lower_arm: [-.2, 0, 0], left_lower_arm: [-.2, 0, 0],
-      cape_root: [1.0, 0, 0] }, { pelvis: [0, .14, 0] }),
-    pose(1.05, { pelvis: [-.2, 0, 0], spine: [-.14, 0, 0], chest: [-.16, 0, 0],
-      right_upper_arm: [-.85, 1.55, -.45], left_upper_arm: [-.85, -1.55, .45], cape_root: [.85, .35, 0] }),
-    pose(1.25, { pelvis: [-.08, 0, 0], chest: [-.08, 0, 0], right_upper_arm: [-.55, .6, -.2], left_upper_arm: [-.55, -.6, .2] }),
+    // open → raise → release; form peaks L20 n0.20/0.68, L100 n0.16/0.48/0.82
+    pose(0, { spine: [-.1, 0, 0], chest: [-.14, 0, -.02], right_upper_arm: [-.6, -.1, -.35], left_upper_arm: [-.6, .1, .35],
+      left_upper_leg: [.1, 0, .04], right_upper_leg: [.08, 0, -.04] }),
+    pose(.2, { pelvis: [-.22, 0, 0], spine: [-.2, 0, 0], chest: [-.24, 0, -.04], neck: [.1, 0, 0],
+      right_upper_arm: [-1.25, -.12, -.72], left_upper_arm: [-1.25, .12, .72], right_lower_arm: [-.6, 0, -.22], left_lower_arm: [-.6, 0, .22],
+      cape_root: [.5, 0, 0] }, { pelvis: [0, -.07, 0] }),
+    pose(.24, { pelvis: [-.18, 0, 0], spine: [-.12, 0, 0], chest: [-.1, 0, 0], // ~n0.16 L100 act0
+      right_upper_arm: [-1.0, .4, -.4], left_upper_arm: [-1.0, -.4, .4], cape_root: [.55, .05, 0] }, { pelvis: [0, -.02, 0] }),
+    pose(.3, { pelvis: [-.1, 0, 0], spine: [-.05, 0, 0], chest: [.05, 0, .02], // ~n0.20 L20 seal
+      right_upper_arm: [-.7, .9, -.2], left_upper_arm: [-.7, -.9, .2], cape_root: [.65, .1, 0] }, { pelvis: [0, .04, 0] }),
+    pose(.42, { pelvis: [-.4, 0, 0], spine: [-.32, 0, 0], chest: [-.35, 0, -.06],
+      right_upper_arm: [-1.8, 0, -1.05], left_upper_arm: [-1.8, 0, 1.05], right_lower_arm: [-.78, 0, -.32], left_lower_arm: [-.78, 0, .32],
+      cape_root: [.85, 0, 0] }, { pelvis: [0, -.14, 0] }),
+    pose(.72, { pelvis: [-.15, 0, 0], spine: [-.08, 0, 0], chest: [-.05, 0, 0], // ~n0.48 L100 mid
+      right_upper_arm: [-1.4, .6, -.4], left_upper_arm: [-1.4, -.6, .4], cape_root: [.9, .15, 0] }, { pelvis: [0, .05, 0] }),
+    pose(.78, { pelvis: [.12, 0, 0], spine: [.12, 0, 0], chest: [.15, 0, .02], neck: [-.06, 0, 0], head: [-.04, 0, 0], // primary release
+      right_upper_arm: [-2.65, 0, -.28], left_upper_arm: [-2.65, 0, .28], right_lower_arm: [-.15, 0, 0], left_lower_arm: [-.15, 0, 0],
+      cape_root: [1.1, 0, 0] }, { pelvis: [0, .16, 0] }),
+    pose(1.02, { pelvis: [-.15, 0, 0], spine: [-.1, 0, 0], chest: [-.12, 0, 0], // ~n0.68 L20 seal finale
+      right_upper_arm: [-.95, 1.4, -.4], left_upper_arm: [-.95, -1.4, .4], cape_root: [.9, .3, 0] }),
+    pose(1.23, { pelvis: [-.1, 0, 0], chest: [-.1, 0, 0], // ~n0.82 L100
+      right_upper_arm: [-.7, .9, -.25], left_upper_arm: [-.7, -.9, .25], cape_root: [.7, .15, 0] }),
+    pose(1.35, { pelvis: [-.06, 0, 0], right_upper_arm: [-.55, .5, -.18], left_upper_arm: [-.55, -.5, .18] }),
     end(1.5),
   ], skeletonInfo));
 
-  // cast_* are already authored in buildClassCombatClipSpecs; wizard skills only below.
+  // cast_* authored in buildClassCombatClipSpecs; wizard skills:
   clips.push(animationClip('skill_fireball', 1.0, [
-    pose(0, { spine: [-.08, -.05, 0], chest: [-.12, -.08, -.04], neck: [.04, -.03, 0],
-      right_upper_arm: [-.75, -.25, -.42], right_lower_arm: [-.85, -.05, -.28], left_upper_arm: [-.35, .18, .28],
-      left_upper_leg: [.1, .05, .04], right_upper_leg: [-.06, -.06, -.05] }),
-    pose(.2, { pelvis: [.05, -.18, 0], spine: [-.16, -.18, 0], chest: [-.22, -.32, -.12], neck: [.08, -.08, 0], head: [.05, -.05, 0],
-      right_upper_arm: [-1.4, -.55, -.72], right_lower_arm: [-1.05, -.08, -.45], right_hand: [.15, -.12, -.1],
-      left_upper_arm: [-.42, .22, .32], cape_root: [.38, -.1, 0] }, { pelvis: [0, -.025, .02] }),
-    pose(.4, { pelvis: [.02, .12, 0], spine: [-.04, .28, 0], chest: [-.04, .52, .22], neck: [-.04, .12, 0], head: [-.03, .1, 0],
-      right_upper_arm: [-.18, 1.15, .72], right_lower_arm: [.12, 0, .55], right_hand: [-.06, .12, .18],
-      left_upper_arm: [-.42, -.18, .14], left_lower_arm: [-.65, 0, .08], cape_root: [.58, .16, 0] }, { pelvis: [0, .02, .05] }),
-    pose(.62, { pelvis: [.03, .04, 0], chest: [-.05, .2, .08], right_upper_arm: [-.35, .5, .3], right_lower_arm: [-.3, 0, .2], left_upper_arm: [-.35, .1, .25] }),
+    // hit @ 0.36
+    pose(0, { spine: [-.1, -.06, 0], chest: [-.14, -.1, -.05], neck: [.05, -.04, 0],
+      right_upper_arm: [-.8, -.28, -.45], right_lower_arm: [-.9, -.06, -.3], left_upper_arm: [-.38, .2, .3],
+      left_upper_leg: [.12, .05, .04], right_upper_leg: [-.08, -.06, -.05] }),
+    pose(.18, { pelvis: [.06, -.2, 0], spine: [-.18, -.22, 0], chest: [-.26, -.38, -.14], neck: [.1, -.1, 0], head: [.06, -.06, 0],
+      right_upper_arm: [-1.5, -.6, -.8], right_lower_arm: [-1.15, -.1, -.5], right_hand: [.18, -.14, -.12],
+      left_upper_arm: [-.48, .25, .35], cape_root: [.42, -.12, 0] }, { pelvis: [0, -.03, .025] }),
+    pose(.36, { pelvis: [.02, .14, 0], spine: [-.04, .32, 0], chest: [-.02, .6, .26], neck: [-.05, .14, 0], head: [-.04, .12, 0],
+      right_upper_arm: [-.15, 1.25, .8], right_lower_arm: [.15, 0, .6], right_hand: [-.08, .14, .2],
+      left_upper_arm: [-.45, -.22, .12], left_lower_arm: [-.7, 0, .08], cape_root: [.65, .18, 0] }, { pelvis: [0, .025, .06] }),
+    pose(.55, { pelvis: [.03, .06, 0], chest: [-.05, .25, .1], right_upper_arm: [-.32, .55, .35], right_lower_arm: [-.25, 0, .25], left_upper_arm: [-.35, .1, .25] }),
+    pose(.78, { chest: [-.05, .1, .04], right_upper_arm: [-.4, .28, .18], left_upper_arm: [-.36, .12, .28] }),
     end(1.0),
   ], skeletonInfo));
   clips.push(animationClip('skill_frost_nova', 1.06, [
-    pose(0, { spine: [-.08, 0, 0], chest: [-.1, 0, -.04], right_upper_arm: [-.55, -.05, -.32], left_upper_arm: [-.55, .05, .32],
-      right_lower_arm: [-.65, 0, -.12], left_lower_arm: [-.65, 0, .12] }),
-    pose(.18, { pelvis: [.04, -.2, 0], spine: [-.14, 0, 0], chest: [-.18, 0, -.08], neck: [.08, 0, 0],
-      right_upper_arm: [-1.15, .25, -.28], left_upper_arm: [-1.15, -.25, .28], right_lower_arm: [-.95, 0, -.2], left_lower_arm: [-.95, 0, .2],
-      cape_root: [.32, -.06, 0] }, { pelvis: [0, -.03, 0] }),
-    pose(.4, { pelvis: [.02, .1, 0], spine: [.05, 0, 0], chest: [.1, 0, .06], neck: [-.04, 0, 0], head: [-.03, 0, 0],
-      right_upper_arm: [-.32, 1.05, .55], left_upper_arm: [-.32, -1.05, .55], right_lower_arm: [-.1, 0, .35], left_lower_arm: [-.1, 0, -.35],
-      cape_root: [.55, .08, 0] }, { pelvis: [0, .02, .03] }),
-    pose(.65, { chest: [.04, 0, .02], right_upper_arm: [-.4, .45, .25], left_upper_arm: [-.4, -.45, .25], cape_root: [.35, .04, 0] }),
+    // hit @ 0.28 → t=0.297
+    pose(0, { spine: [-.1, 0, 0], chest: [-.12, 0, -.05], right_upper_arm: [-.6, -.06, -.35], left_upper_arm: [-.6, .06, .35],
+      right_lower_arm: [-.7, 0, -.14], left_lower_arm: [-.7, 0, .14], left_upper_leg: [.1, 0, .04], right_upper_leg: [.08, 0, -.04] }),
+    pose(.16, { pelvis: [.05, -.24, 0], spine: [-.18, 0, 0], chest: [-.22, 0, -.1], neck: [.1, 0, 0], head: [.06, 0, 0],
+      right_upper_arm: [-1.3, .3, -.32], left_upper_arm: [-1.3, -.3, .32], right_lower_arm: [-1.05, 0, -.24], left_lower_arm: [-1.05, 0, .24],
+      cape_root: [.38, -.08, 0] }, { pelvis: [0, -.035, 0] }),
+    pose(.297, { pelvis: [.02, .12, 0], spine: [.06, 0, 0], chest: [.14, 0, .08], neck: [-.05, 0, 0], head: [-.04, 0, 0],
+      right_upper_arm: [-.28, 1.18, .62], left_upper_arm: [-.28, -1.18, .62], right_lower_arm: [-.05, 0, .4], left_lower_arm: [-.05, 0, -.4],
+      cape_root: [.62, .1, 0] }, { pelvis: [0, .025, .035] }),
+    pose(.5, { chest: [.06, 0, .03], right_upper_arm: [-.38, .55, .3], left_upper_arm: [-.38, -.55, .3], cape_root: [.4, .05, 0] }),
+    pose(.78, { chest: [.02, 0, .01], right_upper_arm: [-.45, .25, .15], left_upper_arm: [-.45, -.25, .15] }),
     end(1.06),
   ], skeletonInfo));
   clips.push(animationClip('skill_blink', 1.14, [
-    pose(0, { pelvis: [-.1, -.04, 0], spine: [-.1, 0, 0], chest: [-.16, 0, 0], right_upper_arm: [-.55, 0, -.28], left_upper_arm: [-.55, 0, .28] }),
-    pose(.2, { pelvis: [-.4, 0, 0], spine: [-.22, 0, 0], chest: [-.28, 0, 0], neck: [.1, 0, 0],
-      right_upper_arm: [-1.15, 0, -.48], left_upper_arm: [-1.15, 0, .48], left_upper_leg: [.35, 0, .08], right_upper_leg: [.28, 0, -.06],
-      cape_root: [.6, 0, 0] }, { root: [0, .25, 0], pelvis: [0, -.08, 0] }),
-    pose(.4, { pelvis: [-.5, 0, 0], spine: [-.28, 0, 0], chest: [-.32, 0, 0],
-      right_upper_arm: [-1.35, 0, -.52], left_upper_arm: [-1.35, 0, .52], cape_root: [.78, 0, 0] }, { root: [0, .75, .08] }),
-    pose(.58, { pelvis: [.08, 0, 0], spine: [.08, 0, 0], chest: [.06, 0, 0], neck: [-.04, 0, 0],
-      right_upper_arm: [-.22, .42, .22], left_upper_arm: [-.22, -.42, .22], cape_root: [.55, .08, 0] }, { root: [0, 1.15, .14] }),
-    pose(.8, { pelvis: [-.16, 0, 0], spine: [-.1, 0, 0], chest: [-.12, 0, 0],
-      right_upper_arm: [-.75, 0, -.22], left_upper_arm: [-.75, 0, .22], cape_root: [.42, 0, 0],
-      left_upper_leg: [.25, 0, .05], right_upper_leg: [.18, 0, -.04] }, { root: [0, .04, .28] }),
+    // crouch-out → stretch → rise-in settle
+    pose(0, { pelvis: [-.12, -.05, 0], spine: [-.12, 0, 0], chest: [-.18, 0, 0], right_upper_arm: [-.6, 0, -.3], left_upper_arm: [-.6, 0, .3],
+      left_upper_leg: [.15, 0, .04], right_upper_leg: [.12, 0, -.04] }),
+    pose(.18, { pelvis: [-.45, 0, 0], spine: [-.26, 0, 0], chest: [-.32, 0, 0], neck: [.12, 0, 0],
+      right_upper_arm: [-1.25, 0, -.52], left_upper_arm: [-1.25, 0, .52], left_upper_leg: [.4, 0, .1], right_upper_leg: [.32, 0, -.08],
+      cape_root: [.68, 0, 0] }, { root: [0, .28, 0], pelvis: [0, -.1, 0] }),
+    pose(.38, { pelvis: [-.55, 0, 0], spine: [-.32, 0, 0], chest: [-.36, 0, 0],
+      right_upper_arm: [-1.45, 0, -.58], left_upper_arm: [-1.45, 0, .58], cape_root: [.88, 0, 0] }, { root: [0, .85, .1] }),
+    pose(.55, { pelvis: [.1, 0, 0], spine: [.1, 0, 0], chest: [.08, 0, 0], neck: [-.05, 0, 0],
+      right_upper_arm: [-.18, .5, .28], left_upper_arm: [-.18, -.5, .28], cape_root: [.6, .1, 0] }, { root: [0, 1.25, .16] }),
+    pose(.78, { pelvis: [-.18, 0, 0], spine: [-.12, 0, 0], chest: [-.14, 0, 0],
+      right_upper_arm: [-.8, 0, -.24], left_upper_arm: [-.8, 0, .24], cape_root: [.45, 0, 0],
+      left_upper_leg: [.28, 0, .06], right_upper_leg: [.2, 0, -.05] }, { root: [0, .05, .3] }),
+    pose(.95, { pelvis: [-.08, 0, 0], chest: [-.1, 0, 0], right_upper_arm: [-.55, 0, -.22], left_upper_arm: [-.55, 0, .22] }, { root: [0, 0, .1] }),
     end(1.14),
   ], skeletonInfo));
   clips.push(animationClip('skill_meteor', 1.55, [
-    pose(0, { spine: [-.1, 0, 0], chest: [-.14, 0, -.04], right_upper_arm: [-.65, -.05, -.38], left_upper_arm: [-.65, .05, .38] }),
-    pose(.28, { pelvis: [-.18, 0, 0], spine: [-.18, 0, 0], chest: [-.2, 0, -.08], neck: [.08, 0, 0],
-      right_upper_arm: [-1.35, -.1, -.58], left_upper_arm: [-1.35, .1, .58], right_lower_arm: [-.75, 0, -.22], left_lower_arm: [-.75, 0, .22],
-      cape_root: [.5, 0, 0] }, { pelvis: [0, -.06, 0] }),
-    pose(.55, { pelvis: [-.32, 0, 0], spine: [-.26, 0, 0], chest: [-.26, 0, -.1],
-      right_upper_arm: [-1.85, -.05, -.72], left_upper_arm: [-1.85, .05, .72], cape_root: [.75, 0, 0] }, { pelvis: [0, -.1, 0] }),
-    pose(.9, { pelvis: [.08, 0, 0], spine: [.08, 0, 0], chest: [.1, 0, .04], neck: [-.05, 0, 0],
-      right_upper_arm: [-2.25, .28, -.22], left_upper_arm: [-2.25, -.28, .22], cape_root: [.98, 0, 0] }, { pelvis: [0, .12, 0] }),
-    pose(1.2, { pelvis: [-.1, 0, 0], spine: [-.08, 0, 0], chest: [-.08, 0, 0],
-      right_upper_arm: [-.95, 1.15, -.38], left_upper_arm: [-.95, -1.15, .38], cape_root: [.8, .22, 0] }),
-    pose(1.35, { right_upper_arm: [-.55, .5, -.2], left_upper_arm: [-.55, -.5, .2] }),
+    // overhead call → release peak ~0.58
+    pose(0, { spine: [-.12, 0, 0], chest: [-.16, 0, -.05], right_upper_arm: [-.7, -.06, -.42], left_upper_arm: [-.7, .06, .42],
+      left_upper_leg: [.1, 0, .04], right_upper_leg: [.08, 0, -.04] }),
+    pose(.24, { pelvis: [-.2, 0, 0], spine: [-.22, 0, 0], chest: [-.24, 0, -.1], neck: [.1, 0, 0], head: [.06, 0, 0],
+      right_upper_arm: [-1.5, -.12, -.65], left_upper_arm: [-1.5, .12, .65], right_lower_arm: [-.85, 0, -.25], left_lower_arm: [-.85, 0, .25],
+      cape_root: [.55, 0, 0] }, { pelvis: [0, -.07, 0] }),
+    pose(.5, { pelvis: [-.36, 0, 0], spine: [-.3, 0, 0], chest: [-.3, 0, -.12],
+      right_upper_arm: [-2.0, -.08, -.8], left_upper_arm: [-2.0, .08, .8], cape_root: [.85, 0, 0] }, { pelvis: [0, -.12, 0] }),
+    pose(.9, { pelvis: [.1, 0, 0], spine: [.1, 0, 0], chest: [.12, 0, .05], neck: [-.06, 0, 0], head: [-.04, 0, 0],
+      right_upper_arm: [-2.4, .32, -.2], left_upper_arm: [-2.4, -.32, .2], cape_root: [1.05, 0, 0] }, { pelvis: [0, .14, 0] }),
+    pose(1.18, { pelvis: [-.12, 0, 0], spine: [-.1, 0, 0], chest: [-.1, 0, 0],
+      right_upper_arm: [-1.0, 1.25, -.42], left_upper_arm: [-1.0, -1.25, .42], cape_root: [.85, .25, 0] }),
+    pose(1.35, { right_upper_arm: [-.58, .55, -.22], left_upper_arm: [-.58, -.55, .22] }),
     end(1.55),
   ], skeletonInfo));
 
   clips.push(animationClip('skill_twin_fang', .74, [
-    pose(0, { pelvis: [.08, -.16, 0], chest: [-.12, -.32, -.1], right_upper_arm: [-.65, -.42, -.42], right_lower_arm: [-.7, -.08, -.32],
-      left_upper_arm: [-.4, .28, .4], left_lower_arm: [-1.0, .08, .22] }),
-    pose(.12, { pelvis: [.04, .18, 0], spine: [-.04, .2, 0], chest: [-.05, .42, .14], neck: [-.02, .1, 0],
-      right_upper_arm: [-.28, .88, .55], right_lower_arm: [-.05, 0, .48], left_upper_arm: [-.4, .15, .35], cape_root: [.4, .1, 0] }, { pelvis: [0, .015, .04] }),
-    pose(.28, { pelvis: [.08, -.24, 0], spine: [-.1, -.22, 0], chest: [-.14, -.52, -.14], neck: [.05, -.08, 0],
-      right_upper_arm: [-.42, -.58, -.32], left_upper_arm: [-.95, .52, .62], left_lower_arm: [-.35, 0, .42], cape_root: [.5, -.12, 0] }),
-    pose(.44, { pelvis: [.04, .28, 0], spine: [-.04, .28, 0], chest: [-.05, .55, .18],
-      left_upper_arm: [-.22, -.95, .5], left_lower_arm: [.05, 0, .35], right_upper_arm: [-.2, .28, -.15], cape_root: [.6, .14, 0] }, { pelvis: [0, .02, .05] }),
-    pose(.58, { pelvis: [.05, .08, 0], chest: [-.08, .15, .05], right_upper_arm: [-.4, .15, -.25], left_upper_arm: [-.4, -.25, .3] }),
+    // Base 0.22/0.52/0.72 + L100 thousand-fang densify (8 contacts)
+    pose(0, { pelvis: [.08, -.18, 0], chest: [-.14, -.35, -.12], right_upper_arm: [-.7, -.45, -.45], right_lower_arm: [-.75, -.08, -.35],
+      left_upper_arm: [-.42, .3, .42], left_lower_arm: [-1.05, .08, .24], left_upper_leg: [.15, .06, .05], right_upper_leg: [-.1, -.08, -.08] }),
+    pose(.059, { pelvis: [.1, -.26, 0], spine: [-.08, -.16, 0], chest: [-.16, -.45, -.14], // n0.08
+      right_upper_arm: [-.95, -.65, -.58], left_upper_arm: [-.4, .28, .4], cape_root: [.28, -.08, 0] }, { pelvis: [0, -.015, .015] }),
+    pose(.133, { pelvis: [.04, .16, 0], spine: [-.04, .18, 0], chest: [-.05, .4, .14], // n0.18
+      right_upper_arm: [-.3, .85, .52], right_lower_arm: [-.05, 0, .45], left_upper_arm: [-.4, .15, .35], cape_root: [.4, .1, 0] }, { pelvis: [0, .015, .04] }),
+    pose(.163, { pelvis: [.04, .2, 0], spine: [-.04, .22, 0], chest: [-.04, .48, .16], neck: [-.03, .1, 0], // n0.22 base
+      right_upper_arm: [-.25, .95, .6], right_lower_arm: [0, 0, .52], left_upper_arm: [-.4, .15, .35], cape_root: [.45, .12, 0] }, { pelvis: [0, .02, .05] }),
+    pose(.207, { pelvis: [.08, -.2, 0], spine: [-.08, -.18, 0], chest: [-.14, -.42, -.12], // n0.28
+      right_upper_arm: [-.5, -.55, -.35], left_upper_arm: [-.9, .48, .58], cape_root: [.48, -.1, 0] }),
+    pose(.281, { pelvis: [.05, .18, 0], spine: [-.04, .2, 0], chest: [-.06, .4, .14], // n0.38
+      left_upper_arm: [-.28, -.85, .45], left_lower_arm: [0, 0, .32], right_upper_arm: [-.25, .35, -.1], cape_root: [.55, .1, 0] }, { pelvis: [0, .015, .04] }),
+    pose(.355, { pelvis: [.04, -.14, 0], chest: [-.1, -.3, -.1], // n0.48
+      right_upper_arm: [-.7, -.5, -.4], left_upper_arm: [-.55, .35, .4], cape_root: [.5, -.08, 0] }),
+    pose(.385, { pelvis: [.04, .3, 0], spine: [-.04, .3, 0], chest: [-.04, .6, .2], // n0.52 base
+      left_upper_arm: [-.18, -1.05, .55], left_lower_arm: [.08, 0, .4], right_upper_arm: [-.18, .3, -.12], cape_root: [.65, .16, 0] }, { pelvis: [0, .025, .06] }),
+    pose(.429, { pelvis: [.03, .08, 0], chest: [-.06, .22, .08], // n0.58
+      right_upper_arm: [-.4, .55, .35], left_upper_arm: [-.4, -.55, .35], cape_root: [.55, .08, 0] }, { pelvis: [0, .01, .03] }),
+    pose(.518, { pelvis: [.03, .14, 0], chest: [-.05, .32, .12], // n0.70
+      right_upper_arm: [-.3, .7, .42], left_upper_arm: [-.3, -.7, .42], cape_root: [.58, .1, 0] }, { pelvis: [0, .015, .04] }),
+    pose(.533, { pelvis: [.03, .12, 0], spine: [0, .1, 0], chest: [-.04, .28, .1], // n0.72 base
+      right_upper_arm: [-.35, .55, .35], left_upper_arm: [-.35, -.55, .35], cape_root: [.55, .08, 0] }, { pelvis: [0, .015, .04] }),
+    pose(.622, { pelvis: [.04, .05, 0], chest: [-.06, .12, .04], // n0.84
+      right_upper_arm: [-.42, .25, -.15], left_upper_arm: [-.42, -.22, .28] }),
     end(.74),
   ], skeletonInfo));
   clips.push(animationClip('skill_fan_knives', .86, [
-    pose(0, { spine: [-.08, 0, 0], chest: [-.12, 0, -.05], right_upper_arm: [-.55, -.52, -.52], left_upper_arm: [-.55, .52, .52],
-      right_lower_arm: [-.75, 0, -.32], left_lower_arm: [-.75, 0, .32] }),
-    pose(.16, { pelvis: [.08, -.26, 0], spine: [-.14, 0, 0], chest: [-.24, 0, -.08], neck: [.08, 0, 0],
-      right_upper_arm: [-1.15, -.75, -.72], left_upper_arm: [-1.15, .75, .72], right_lower_arm: [-1.0, 0, -.52], left_lower_arm: [-1.0, 0, .52],
-      cape_root: [.38, 0, 0] }, { pelvis: [0, -.02, .02] }),
-    pose(.36, { pelvis: [.03, .14, 0], spine: [.04, 0, 0], chest: [.1, 0, .08], neck: [-.04, 0, 0],
-      right_upper_arm: [-.32, 1.12, .7], left_upper_arm: [-.32, -1.12, .7], right_lower_arm: [.08, 0, .4], left_lower_arm: [.08, 0, -.4],
-      cape_root: [.68, 0, 0] }, { pelvis: [0, .02, .06] }),
-    pose(.55, { chest: [.04, 0, .03], right_upper_arm: [-.42, .45, .3], left_upper_arm: [-.42, -.45, .3] }),
+    // Base n0.34; L20 return ~0.68; L100 acts 0.18/0.50/0.82
+    pose(0, { spine: [-.1, 0, 0], chest: [-.14, 0, -.06], right_upper_arm: [-.6, -.55, -.55], left_upper_arm: [-.6, .55, .55],
+      right_lower_arm: [-.8, 0, -.35], left_lower_arm: [-.8, 0, .35], left_upper_leg: [.12, .05, .04], right_upper_leg: [-.08, -.05, -.05] }),
+    pose(.14, { pelvis: [.09, -.3, 0], spine: [-.16, 0, 0], chest: [-.28, 0, -.1], neck: [.1, 0, 0], head: [.05, 0, 0],
+      right_upper_arm: [-1.25, -.85, -.8], left_upper_arm: [-1.25, .85, .8], right_lower_arm: [-1.1, 0, -.58], left_lower_arm: [-1.1, 0, .58],
+      cape_root: [.42, 0, 0] }, { pelvis: [0, -.025, .025] }),
+    pose(.155, { pelvis: [.06, -.18, 0], chest: [-.18, 0, -.06], // ~n0.18 L100 act0 prep-snap
+      right_upper_arm: [-.9, -.4, -.45], left_upper_arm: [-.9, .4, .45], cape_root: [.5, .05, 0] }, { pelvis: [0, .01, .03] }),
+    pose(.206, { pelvis: [.04, .08, 0], chest: [.05, 0, .05], // ~n0.24 L20 outbound mid
+      right_upper_arm: [-.45, .7, .45], left_upper_arm: [-.45, -.7, .45], cape_root: [.6, .08, 0] }, { pelvis: [0, .015, .04] }),
+    pose(.292, { pelvis: [.03, .16, 0], spine: [.05, 0, 0], chest: [.12, 0, .1], neck: [-.05, 0, 0], head: [-.03, 0, 0], // n0.34 base
+      right_upper_arm: [-.28, 1.22, .78], left_upper_arm: [-.28, -1.22, .78], right_lower_arm: [.12, 0, .45], left_lower_arm: [.12, 0, -.45],
+      cape_root: [.75, 0, 0] }, { pelvis: [0, .025, .07] }),
+    pose(.43, { pelvis: [.03, .08, 0], chest: [.06, 0, .05], // ~n0.50 L100 mid
+      right_upper_arm: [-.35, .75, .45], left_upper_arm: [-.35, -.75, .45], cape_root: [.55, .05, 0] }),
+    pose(.585, { pelvis: [.02, .04, 0], chest: [.04, 0, .03], // ~n0.68 return
+      right_upper_arm: [-.4, .5, .3], left_upper_arm: [-.4, -.5, .3], cape_root: [.45, 0, 0] }),
+    pose(.705, { chest: [.03, 0, .02], right_upper_arm: [-.42, .35, .2], left_upper_arm: [-.42, -.35, .2] }), // ~n0.82
     end(.86),
   ], skeletonInfo));
   clips.push(animationClip('skill_shadowstep', 1.05, [
-    pose(0, { pelvis: [-.1, -.04, 0], spine: [-.1, 0, 0], chest: [-.16, 0, 0], right_upper_arm: [-.5, 0, -.32], left_upper_arm: [-.5, 0, .32] }),
-    pose(.18, { pelvis: [-.4, 0, 0], spine: [-.24, 0, 0], chest: [-.32, 0, 0],
-      right_upper_arm: [-.95, 0, -.52], left_upper_arm: [-.95, 0, .52], left_upper_leg: [.4, 0, .08], right_upper_leg: [.3, 0, -.06],
-      cape_root: [.75, 0, 0] }, { pelvis: [0, -.14, 0] }),
-    pose(.4, { pelvis: [-.48, .25, 0], spine: [-.26, .22, 0], chest: [-.35, .35, .08],
-      right_upper_arm: [-.35, .55, .28], left_upper_arm: [-1.2, -.35, .28], cape_root: [1.0, .15, 0] }, { root: [0, .1, .25], pelvis: [0, -.1, 0] }),
-    pose(.6, { pelvis: [-.28, .35, 0], spine: [-.14, .28, 0], chest: [-.2, .48, .1],
-      right_upper_arm: [-.28, .78, .38], left_upper_arm: [-1.25, -.42, .28], cape_root: [1.08, .18, 0] }, { root: [0, .14, .38] }),
-    pose(.8, { pelvis: [-.08, -.28, 0], spine: [-.08, -.12, 0], chest: [-.1, -.4, -.08],
-      right_upper_arm: [-.78, -.65, -.48], left_upper_arm: [-.3, .28, .32], cape_root: [.55, -.15, 0] }, { root: [0, 0, .15] }),
+    // stretch into dash → settle ready
+    pose(0, { pelvis: [-.12, -.05, 0], spine: [-.12, 0, 0], chest: [-.18, 0, 0], right_upper_arm: [-.55, 0, -.35], left_upper_arm: [-.55, 0, .35],
+      left_upper_leg: [.15, 0, .04], right_upper_leg: [.12, 0, -.04] }),
+    pose(.15, { pelvis: [-.45, 0, 0], spine: [-.28, 0, 0], chest: [-.36, 0, 0], neck: [.1, 0, 0],
+      right_upper_arm: [-1.05, 0, -.58], left_upper_arm: [-1.05, 0, .58], left_upper_leg: [.48, 0, .1], right_upper_leg: [.35, 0, -.08],
+      cape_root: [.85, 0, 0] }, { pelvis: [0, -.16, 0] }),
+    pose(.38, { pelvis: [-.52, .28, 0], spine: [-.28, .25, 0], chest: [-.38, .4, .1],
+      right_upper_arm: [-.32, .62, .32], left_upper_arm: [-1.3, -.4, .3], cape_root: [1.1, .18, 0] }, { root: [0, .12, .28], pelvis: [0, -.12, 0] }),
+    pose(.58, { pelvis: [-.3, .4, 0], spine: [-.15, .32, 0], chest: [-.22, .55, .12],
+      right_upper_arm: [-.25, .85, .42], left_upper_arm: [-1.35, -.48, .3], cape_root: [1.15, .22, 0] }, { root: [0, .16, .42] }),
+    pose(.78, { pelvis: [-.08, -.3, 0], spine: [-.08, -.14, 0], chest: [-.1, -.45, -.1],
+      right_upper_arm: [-.85, -.7, -.52], left_upper_arm: [-.28, .3, .35], cape_root: [.6, -.18, 0] }, { root: [0, 0, .16] }),
+    pose(.92, { pelvis: [-.04, -.1, 0], chest: [-.1, -.15, -.04], right_upper_arm: [-.55, -.3, -.35], left_upper_arm: [-.5, .25, .35] }),
     end(1.05),
   ], skeletonInfo));
   clips.push(animationClip('skill_death_lotus', 1.35, [
-    pose(0, { pelvis: [.08, -.18, 0], chest: [-.14, -.42, -.12], right_upper_arm: [-.75, -.52, -.52], left_upper_arm: [-.75, .52, .52] }),
-    pose(.16, { pelvis: [0, .7, 0], spine: [0, .55, 0], chest: [-.1, .9, .08], right_upper_arm: [-.45, .85, .35], left_upper_arm: [-.45, -.8, .35], cape_root: [.55, .12, 0] }),
-    pose(.34, { pelvis: [0, 1.55, 0], spine: [0, 1.2, 0], chest: [-.08, 1.85, .1], neck: [0, .15, 0],
-      right_upper_arm: [-.35, 1.5, .5], left_upper_arm: [-.35, -1.45, .5], cape_root: [.82, .22, 0] }, { pelvis: [0, .05, 0] }),
-    pose(.55, { pelvis: [0, 3.0, 0], spine: [0, 2.25, 0], chest: [-.08, 3.4, -.08],
-      right_upper_arm: [-.5, 2.85, -.48], left_upper_arm: [-.5, .25, .5], cape_root: [1.05, -.18, 0] }, { pelvis: [0, .1, 0] }),
-    pose(.8, { pelvis: [0, 4.7, 0], spine: [0, 3.45, 0], chest: [-.08, 5.1, .1],
-      right_upper_arm: [-.32, 4.45, .52], left_upper_arm: [-.32, 1.65, .45], cape_root: [1.2, .28, 0] }, { pelvis: [0, .04, 0] }),
-    pose(1.02, { pelvis: [0, 6.2, 0], spine: [0, 4.35, 0], chest: [-.14, 6.5, -.1],
-      right_upper_arm: [-.88, 5.55, -.55], left_upper_arm: [-.88, 2.95, .55], cape_root: [.9, -.22, 0] }, { pelvis: [0, -.06, 0] }),
-    pose(1.18, { pelvis: [0, 2.8, 0], spine: [0, 2.0, 0], chest: [-.1, 3.0, 0], right_upper_arm: [-.5, 2.4, 0], left_upper_arm: [-.5, 1.0, .3] }),
+    // multi-peak spin: body extremes near 0.18 / 0.5 / 0.84
+    pose(0, { pelvis: [.09, -.2, 0], chest: [-.16, -.48, -.14], right_upper_arm: [-.8, -.58, -.58], left_upper_arm: [-.8, .58, .58],
+      left_upper_leg: [.15, .06, .05], right_upper_leg: [-.1, -.08, -.08] }),
+    pose(.14, { pelvis: [0, .75, 0], spine: [0, .6, 0], chest: [-.1, .98, .1], right_upper_arm: [-.42, .95, .4], left_upper_arm: [-.42, -.9, .4], cape_root: [.6, .14, 0] }),
+    pose(.243, { pelvis: [0, 1.35, 0], spine: [0, 1.05, 0], chest: [-.08, 1.65, .12], neck: [0, .14, 0],
+      right_upper_arm: [-.32, 1.4, .55], left_upper_arm: [-.32, -1.35, .55], cape_root: [.78, .2, 0] }, { pelvis: [0, .04, 0] }),
+    pose(.4, { pelvis: [0, 2.4, 0], spine: [0, 1.8, 0], chest: [-.08, 2.7, 0], right_upper_arm: [-.45, 2.2, .2], left_upper_arm: [-.45, -.4, .4], cape_root: [.95, .1, 0] }),
+    pose(.675, { pelvis: [0, 3.6, 0], spine: [0, 2.7, 0], chest: [-.08, 4.0, -.1],
+      right_upper_arm: [-.48, 3.35, -.55], left_upper_arm: [-.48, .5, .55], cape_root: [1.12, -.2, 0] }, { pelvis: [0, .08, 0] }),
+    pose(.9, { pelvis: [0, 5.0, 0], spine: [0, 3.7, 0], chest: [-.08, 5.5, .12],
+      right_upper_arm: [-.3, 4.7, .58], left_upper_arm: [-.3, 1.85, .5], cape_root: [1.25, .3, 0] }, { pelvis: [0, .05, 0] }),
+    pose(1.134, { pelvis: [0, 6.4, 0], spine: [0, 4.5, 0], chest: [-.16, 6.7, -.12],
+      right_upper_arm: [-.95, 5.75, -.6], left_upper_arm: [-.95, 3.1, .6], cape_root: [.95, -.25, 0] }, { pelvis: [0, -.07, 0] }),
+    pose(1.22, { pelvis: [0, 2.6, 0], spine: [0, 1.9, 0], chest: [-.1, 2.8, 0], right_upper_arm: [-.5, 2.3, 0], left_upper_arm: [-.5, .95, .3] }),
     end(1.35),
   ], skeletonInfo));
 
   clips.push(animationClip('skill_pierce_shot', .96, [
-    pose(0, { spine: [-.08, -.05, 0], chest: [-.12, -.08, -.04], neck: [.04, .04, 0],
-      right_upper_arm: [-.95, -.32, -.48], right_lower_arm: [-.7, -.05, -.28], left_upper_arm: [-.75, .22, .4], left_lower_arm: [-.55, .08, .28],
-      left_upper_leg: [.15, .08, .06], right_upper_leg: [-.08, -.08, -.08] }),
-    pose(.22, { pelvis: [.05, -.2, 0], spine: [-.16, -.12, 0], chest: [-.22, -.18, -.1], neck: [.08, .06, 0], head: [.04, .05, 0],
-      right_upper_arm: [-1.48, -.55, -.68], right_lower_arm: [-.95, -.08, -.4], left_upper_arm: [-1.15, .38, .48], left_lower_arm: [-.65, .1, .35],
-      cape_root: [.38, -.08, 0] }, { pelvis: [0, -.02, .02] }),
-    pose(.42, { pelvis: [.02, .1, 0], spine: [-.04, .18, 0], chest: [-.04, .32, .12], neck: [-.02, .08, 0],
-      right_upper_arm: [-.22, .88, .55], right_lower_arm: [.08, 0, .4], left_upper_arm: [-.42, -.12, .2], left_lower_arm: [-.35, 0, .15],
-      cape_root: [.52, .12, 0] }, { pelvis: [0, .015, .04] }),
-    pose(.62, { chest: [-.05, .12, .04], right_upper_arm: [-.4, .4, .25], left_upper_arm: [-.45, .1, .3] }),
+    // hit @ 0.34 → t=0.326
+    pose(0, { spine: [-.1, -.06, 0], chest: [-.14, -.1, -.05], neck: [.05, .05, 0],
+      right_upper_arm: [-1.0, -.35, -.52], right_lower_arm: [-.75, -.06, -.3], left_upper_arm: [-.8, .25, .42], left_lower_arm: [-.6, .1, .3],
+      left_upper_leg: [.18, .08, .06], right_upper_leg: [-.1, -.08, -.08] }),
+    pose(.18, { pelvis: [.06, -.22, 0], spine: [-.18, -.14, 0], chest: [-.26, -.22, -.12], neck: [.1, .07, 0], head: [.05, .06, 0],
+      right_upper_arm: [-1.6, -.6, -.75], right_lower_arm: [-1.05, -.1, -.45], left_upper_arm: [-1.25, .42, .52], left_lower_arm: [-.7, .12, .38],
+      cape_root: [.42, -.1, 0] }, { pelvis: [0, -.025, .025] }),
+    pose(.326, { pelvis: [.02, .12, 0], spine: [-.04, .2, 0], chest: [-.02, .38, .14], neck: [-.03, .1, 0], head: [-.02, .08, 0],
+      right_upper_arm: [-.18, .98, .62], right_lower_arm: [.12, 0, .45], left_upper_arm: [-.38, -.15, .18], left_lower_arm: [-.3, 0, .12],
+      cape_root: [.58, .14, 0] }, { pelvis: [0, .02, .05] }),
+    pose(.52, { chest: [-.05, .14, .05], right_upper_arm: [-.38, .45, .28], left_upper_arm: [-.48, .08, .32] }),
+    pose(.75, { left_upper_arm: [-.72, .2, .48], right_upper_arm: [-.55, -.3, -.4] }),
     end(.96),
   ], skeletonInfo));
   clips.push(animationClip('skill_trap', 1.0, [
-    pose(0, { spine: [-.08, 0, 0], chest: [-.1, 0, -.03], right_upper_arm: [-.55, -.05, -.28], left_upper_arm: [-.5, .08, .28] }),
-    pose(.2, { pelvis: [.05, -.2, 0], spine: [-.14, 0, 0], chest: [-.18, 0, -.06], neck: [.08, 0, 0],
-      right_upper_arm: [-1.1, .22, -.32], left_upper_arm: [-.95, -.18, .32], left_upper_leg: [.3, .1, .08], right_upper_leg: [-.05, -.08, -.08],
-      left_lower_leg: [.4, 0, 0], cape_root: [.4, 0, 0] }, { pelvis: [0, -.03, 0] }),
-    pose(.42, { pelvis: [.02, .06, 0], spine: [.04, 0, 0], chest: [.06, 0, .04], neck: [-.03, 0, 0],
-      right_upper_arm: [-.38, .68, .38], left_upper_arm: [-.32, -.5, .32], cape_root: [.55, .08, 0] }, { pelvis: [0, .015, .02] }),
-    pose(.65, { chest: [.02, 0, .01], right_upper_arm: [-.42, .3, .18], left_upper_arm: [-.4, -.2, .25] }),
+    // plant commitment down → recover ready
+    pose(0, { spine: [-.1, 0, 0], chest: [-.12, 0, -.04], right_upper_arm: [-.6, -.06, -.3], left_upper_arm: [-.55, .1, .3],
+      left_upper_leg: [.12, .05, .04], right_upper_leg: [-.06, -.05, -.05] }),
+    pose(.18, { pelvis: [.06, -.24, 0], spine: [-.18, 0, 0], chest: [-.22, 0, -.08], neck: [.1, 0, 0], head: [.05, 0, 0],
+      right_upper_arm: [-1.2, .28, -.35], left_upper_arm: [-1.05, -.22, .35], left_upper_leg: [.38, .12, .1], right_upper_leg: [-.08, -.1, -.1],
+      left_lower_leg: [.5, 0, 0], cape_root: [.45, 0, 0] }, { pelvis: [0, -.04, 0] }),
+    pose(.4, { pelvis: [.02, .08, 0], spine: [.05, 0, 0], chest: [.08, 0, .05], neck: [-.04, 0, 0],
+      right_upper_arm: [-.35, .75, .42], left_upper_arm: [-.28, -.55, .35], cape_root: [.6, .1, 0] }, { pelvis: [0, .02, .025] }),
+    pose(.62, { chest: [.03, 0, .02], right_upper_arm: [-.42, .35, .2], left_upper_arm: [-.4, -.2, .25] }),
+    pose(.82, { left_upper_arm: [-.72, .2, .48], right_upper_arm: [-.55, -.3, -.4] }),
     end(1.0),
   ], skeletonInfo));
   clips.push(animationClip('skill_vault_shot', 1.1, [
-    pose(0, { pelvis: [-.08, -.04, 0], spine: [-.1, 0, 0], chest: [-.12, 0, 0], right_upper_arm: [-.58, 0, -.32], left_upper_arm: [-.58, 0, .32] }),
-    pose(.18, { pelvis: [-.35, .2, 0], spine: [-.18, .12, 0], chest: [-.2, .1, 0],
-      right_upper_arm: [-.9, 0, -.48], left_upper_arm: [-.9, 0, .48], left_upper_leg: [.45, 0, .1], right_upper_leg: [.3, 0, -.08],
-      cape_root: [.75, .08, 0] }, { pelvis: [0, -.1, 0] }),
-    pose(.38, { pelvis: [-.35, .25, 0], spine: [-.16, .12, 0], right_upper_arm: [-1.05, 0, -.52], left_upper_arm: [-1.05, 0, .52],
-      cape_root: [.88, .1, 0] }, { pelvis: [0, -.08, 0], root: [0, .08, -.08] }),
-    pose(.55, { pelvis: [-.15, -.22, 0], spine: [-.08, -.1, 0], chest: [-.08, -.18, 0],
-      right_upper_arm: [-.28, .68, .38], left_upper_arm: [-.85, -.28, .22], cape_root: [.68, -.1, 0] }, { root: [0, .04, -.18] }),
-    pose(.75, { pelvis: [0, .08, 0], chest: [-.04, .12, .04], right_upper_arm: [-.18, .98, .52], left_upper_arm: [-.28, -.18, .2], cape_root: [.5, .08, 0] }),
+    // vault stretch → aerial loose → land
+    pose(0, { pelvis: [-.1, -.05, 0], spine: [-.12, 0, 0], chest: [-.14, 0, 0], right_upper_arm: [-.62, 0, -.35], left_upper_arm: [-.62, 0, .35],
+      left_upper_leg: [.15, 0, .04], right_upper_leg: [.12, 0, -.04] }),
+    pose(.16, { pelvis: [-.4, .22, 0], spine: [-.2, .14, 0], chest: [-.24, .12, 0], neck: [.08, .05, 0],
+      right_upper_arm: [-1.0, 0, -.52], left_upper_arm: [-1.0, 0, .52], left_upper_leg: [.52, 0, .12], right_upper_leg: [.35, 0, -.1],
+      cape_root: [.85, .1, 0] }, { pelvis: [0, -.12, 0] }),
+    pose(.35, { pelvis: [-.38, .28, 0], spine: [-.18, .14, 0], right_upper_arm: [-1.15, 0, -.58], left_upper_arm: [-1.15, 0, .58],
+      cape_root: [.95, .12, 0] }, { pelvis: [0, -.1, 0], root: [0, .1, -.1] }),
+    pose(.52, { pelvis: [-.16, -.25, 0], spine: [-.1, -.12, 0], chest: [-.1, -.22, 0],
+      right_upper_arm: [-.25, .78, .45], left_upper_arm: [-.95, -.32, .25], cape_root: [.75, -.12, 0] }, { root: [0, .05, -.2] }),
+    pose(.72, { pelvis: [0, .1, 0], chest: [-.04, .14, .05], right_upper_arm: [-.15, 1.08, .6], left_upper_arm: [-.25, -.2, .22], cape_root: [.55, .1, 0] }),
+    pose(.9, { left_upper_arm: [-.72, .2, .48], right_upper_arm: [-.4, .3, .2] }),
     end(1.1),
   ], skeletonInfo));
   clips.push(animationClip('skill_hunter_mark', 1.2, [
-    pose(0, { spine: [-.08, 0, 0], chest: [-.12, 0, -.04], right_upper_arm: [-.65, -.05, -.38], left_upper_arm: [-.65, .05, .38] }),
-    pose(.24, { pelvis: [.04, -.14, 0], spine: [-.14, 0, 0], chest: [-.18, 0, -.08], neck: [.08, 0, 0],
-      right_upper_arm: [-1.35, -.08, -.52], left_upper_arm: [-1.3, .08, .52], right_lower_arm: [-.85, 0, -.22], left_lower_arm: [-.85, 0, .22],
-      cape_root: [.5, 0, 0] }, { pelvis: [0, -.02, 0] }),
-    pose(.5, { pelvis: [.02, .08, 0], spine: [.04, 0, 0], chest: [.08, 0, .04], neck: [-.04, 0, 0], head: [-.03, 0, 0],
-      right_upper_arm: [-.38, .88, .42], left_upper_arm: [-.38, -.88, .42], cape_root: [.7, .12, 0] }, { pelvis: [0, .02, .02] }),
-    pose(.8, { chest: [.03, 0, .01], right_upper_arm: [-.42, .4, .22], left_upper_arm: [-.42, -.4, .22] }),
+    // stable aim pose → small release
+    pose(0, { spine: [-.1, 0, 0], chest: [-.14, 0, -.05], right_upper_arm: [-.7, -.06, -.4], left_upper_arm: [-.7, .06, .4],
+      left_upper_leg: [.12, .05, .04], right_upper_leg: [-.06, -.05, -.05] }),
+    pose(.2, { pelvis: [.05, -.16, 0], spine: [-.16, 0, 0], chest: [-.2, 0, -.1], neck: [.1, 0, 0], head: [.05, 0, 0],
+      right_upper_arm: [-1.45, -.1, -.58], left_upper_arm: [-1.4, .1, .58], right_lower_arm: [-.95, 0, -.25], left_lower_arm: [-.95, 0, .25],
+      cape_root: [.55, 0, 0] }, { pelvis: [0, -.025, 0] }),
+    pose(.48, { pelvis: [.02, .1, 0], spine: [.05, 0, 0], chest: [.1, 0, .05], neck: [-.05, 0, 0], head: [-.04, 0, 0],
+      right_upper_arm: [-.35, .98, .48], left_upper_arm: [-.35, -.98, .48], cape_root: [.78, .14, 0] }, { pelvis: [0, .025, .025] }),
+    pose(.75, { chest: [.04, 0, .02], right_upper_arm: [-.42, .45, .25], left_upper_arm: [-.42, -.45, .25] }),
+    pose(.98, { left_upper_arm: [-.72, .2, .48], right_upper_arm: [-.55, -.3, -.4] }),
     end(1.2),
   ], skeletonInfo));
 
@@ -2262,7 +2698,20 @@ function bladeShape(kind, length, width) {
     greatsword: [[-.22, 0], [-width, length * .14], [-width * .92, length * .77], [0, length], [width * .92, length * .77], [width, length * .14], [.22, 0]],
     leaf: [[-.12, 0], [-width * .42, length * .18], [-width, length * .55], [-width * .42, length * .84], [0, length], [width * .42, length * .84], [width, length * .55], [width * .42, length * .18], [.12, 0]],
     katana: [[-.07, 0], [-width * .5, length * .18], [-width * .4, length * .86], [-width * .12, length], [width * .32, length * .9], [width * .42, length * .18], [.07, 0]],
-    dagger: [[-.09, 0], [-width, length * .16], [-width * .68, length * .52], [-width * .3, length * .84], [0, length], [width * .55, length * .7], [width * .8, length * .3], [.09, 0]],
+    // Narrow base → acute tip (stiletto-ish dual-dagger read).
+    dagger: [
+      [-.055, 0],
+      [-width * .95, length * .1],
+      [-width * .55, length * .38],
+      [-width * .22, length * .72],
+      [-width * .06, length * .92],
+      [0, length],
+      [width * .06, length * .92],
+      [width * .22, length * .72],
+      [width * .55, length * .38],
+      [width * .95, length * .1],
+      [.055, 0],
+    ],
     relic: [[-.16, 0], [-width * .72, length * .2], [-width, length * .62], [-width * .36, length * .82], [0, length], [width * .36, length * .82], [width, length * .62], [width * .72, length * .2], [.16, 0]],
   }[kind] ?? [];
   shape.moveTo(points[0][0], points[0][1]);
@@ -2281,7 +2730,8 @@ function createWeapon(kind) {
     leaf: { length: 1.58, width: .24 },
     katana: { length: 1.72, width: .14 },
     relic: { length: 1.76, width: .25 },
-    dagger: { length: .98, width: .15 },
+    // 85% of prior .98 length; narrower width for a sharper dual-dagger silhouette.
+    dagger: { length: .833, width: .1 },
   }[kind];
   const group = new THREE.Group();
   group.name = `weapon_${kind}`;
@@ -2290,14 +2740,15 @@ function createWeapon(kind) {
   const gripMat = material('weapon_grip', 0x3c2c28, .8, .05);
   const trimMat = material('weapon_trim', 0xc99d4d, .35, .82);
   const runeMat = material('weapon_rune', 0x6fc8ff, .24, .2, 0x4faeff, .75);
+  const isDagger = kind === 'dagger';
   const bladeGeo = new THREE.ExtrudeGeometry(bladeShape(kind, specs.length, specs.width), {
-    depth: kind === 'greatsword' ? .12 : .075,
+    depth: kind === 'greatsword' ? .12 : isDagger ? .048 : .075,
     bevelEnabled: true,
-    bevelSegments: 3,
+    bevelSegments: isDagger ? 2 : 3,
     steps: 1,
-    bevelSize: kind === 'greatsword' ? .045 : .028,
-    bevelThickness: .024,
-    curveSegments: 16,
+    bevelSize: kind === 'greatsword' ? .045 : isDagger ? .014 : .028,
+    bevelThickness: isDagger ? .012 : .024,
+    curveSegments: isDagger ? 20 : 16,
   });
   bladeGeo.center();
   bladeGeo.translate(0, specs.length * .5 + .22, 0);

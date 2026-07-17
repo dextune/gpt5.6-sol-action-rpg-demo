@@ -13,7 +13,7 @@
 | `js/core/AudioManager.js` | swing / hit / **themed skill** SFX |
 | `js/core/Game.js` | keyboard input → `tryAttack` (**J only**, no mouse), **shake/hitStop no-op** |
 
-Spectacle design plan (implemented): [plan/skill-motion-spectacle.md](./plan/skill-motion-spectacle.md).
+Spectacle design plan (implemented): [history/skill-motion-spectacle.md](./history/skill-motion-spectacle.md).
 
 ## Player basic attack flow
 
@@ -193,4 +193,4 @@ If a skill multi-hit "only lands once", check whether `multiHit` is missing.
 - [audio.md](./audio.md) — themed skill banks
 - [characters-visual.md](./characters-visual.md) — clip names
 - [extension-playbooks.md](./extension-playbooks.md) §3 skills, §5 tempo, §6 presentation
-- [plan/skill-motion-spectacle.md](./plan/skill-motion-spectacle.md)
+- [history/skill-motion-spectacle.md](./history/skill-motion-spectacle.md)

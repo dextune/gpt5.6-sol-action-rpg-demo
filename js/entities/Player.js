@@ -738,8 +738,12 @@ export class Player {
   }
 
   usePotion(game) {
-    if (game?.mode === 'defense' && game.defense?.mutator?.id === 'scarce') {
-      game.ui?.notify?.('Scarce Tide · potions sealed', 'danger', 2.2);
+    if (game?.mode === 'defense' && (game.defense?.mutator?.id === 'scarce' || game.defense?.mutator?.id === 'no_potion' || this.potionLock)) {
+      game.ui?.notify?.(
+        game.defense?.mutator?.id === 'no_potion' ? 'Dry Canteen · potions locked' : 'Scarce Tide · potions sealed',
+        'danger',
+        2.0,
+      );
       return false;
     }
     if (this.potionCooldown > 0 || this.potions <= 0 || this.hp >= this.maxHp || !this.alive) return false;

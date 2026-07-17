@@ -122,4 +122,4 @@ If juice rises and effects cut off early → raise the relevant pool **and** kee
 
 - [combat.md](./combat.md) — when to call recipes
 - [content-data.md](./content-data.md) — `theme` / `recipe` fields
-- [plan/skill-motion-spectacle.md](./plan/skill-motion-spectacle.md)
+- [history/skill-motion-spectacle.md](./history/skill-motion-spectacle.md)

@@ -20,7 +20,7 @@ export function createSkillHandlers(combat) {
     meteor_storm: (p, bundle, _phase, audio) => combat._meteorStorm(p, bundle, audio),
     twin_fang: (p, bundle, phase, audio) => combat._twinFang(p, bundle, phase, audio),
     fan_of_knives: (p, bundle, phase, audio) => combat._fanOfKnives(p, bundle, phase, audio),
-    shadowstep: (p, bundle, _phase, audio) => combat._shadowstep(p, bundle, audio),
+    shadowstep: (p, bundle, phase, audio) => combat._shadowstep(p, bundle, phase, audio),
     death_lotus: (p, bundle, phase, audio) => combat._deathLotus(p, bundle, phase, audio),
     piercing_shot: (p, bundle, phase, audio) => combat._piercingShot(p, bundle, phase, audio),
     caltrop_trap: (p, bundle, _phase, audio) => combat._caltropTrap(p, bundle, audio),

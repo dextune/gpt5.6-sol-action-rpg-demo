@@ -1,8 +1,10 @@
 # Short-Form Rift Rush
 
+> **Removed from product** — Rift Rush and Daily Rift were fully deleted from runtime, UI, and tests. This document is history only. Defense is the remaining wave-climb mode.
+
 ## 1. Product intent
 
-Rift Rush is a self-contained, replayable action-RPG run that exposes the game's best combat systems within the first minute. It complements persistent Hunt and long-form Defense rather than replacing either mode.
+Rift Rush was a self-contained, replayable action-RPG run that exposed the game's best combat systems within the first minute. It complemented persistent Hunt and long-form Defense rather than replacing either mode.
 
 The smallest complete loop is:
 

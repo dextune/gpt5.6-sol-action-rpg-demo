@@ -61,8 +61,8 @@ ok(Object.isFrozen(ctx), 'createGameContext returns frozen facade');
 for (const key of GAME_CONTEXT_KEYS) {
   ok(ctx[key] === fakeGame[key], `ctx.${key} live-getter matches game`);
 }
-fakeGame.mode = 'rush';
-ok(ctx.mode === 'rush', 'ctx getters stay live after game field mutation');
+fakeGame.mode = 'defense';
+ok(ctx.mode === 'defense', 'ctx getters stay live after game field mutation');
 let threw = false;
 try { createGameContext(null); } catch { threw = true; }
 ok(threw, 'createGameContext rejects null game');
@@ -85,7 +85,7 @@ const TEMPLATE_CANDIDATES = [
 const FORBIDDEN_IMPORT_SNIPPETS = [
   'data/content.js',
   'data/skillCombat.js',
-  'data/rushContent.js',
+
   'data/fxThemes.js',
   'systems/CombatSystem',
   'systems/HuntSystem',
@@ -208,7 +208,7 @@ const { LOCOMOTION_CONFIG } = await import(
 );
 ok(LOCOMOTION_CONFIG.referenceRunSpeed > 0 && LOCOMOTION_CONFIG.walkRunSpeedRatio > 0,
   'LOCOMOTION_CONFIG has cascade scale keys');
-const forbiddenInPkg = ['data/content.js', 'skillCombat.js', 'rushContent.js', 'CombatSystem', 'entities/Player', 'systems/Hunt'];
+const forbiddenInPkg = ['data/content.js', 'skillCombat.js', 'CombatSystem', 'entities/Player', 'systems/Hunt'];
 const pkgBad = forbiddenInPkg.filter(s => pkgIndex.includes(s));
 ok(pkgBad.length === 0, `template-3d index free of Sol game imports (${pkgBad.join(',') || 'ok'})`);
 // AssetManager must not pull ModelFactory (game) into package graph

@@ -22,8 +22,8 @@ These guides document the architecture and the work done to introduce multi-clas
 - [../combat.md](../combat.md) — damage, statuses, skillPower rules, skill identity table  
 - [../graphics-vfx.md](../graphics-vfx.md) — recipes + quality LOD  
 - [../audio.md](../audio.md) — themed skill SFX banks  
-- [../plan/multi-class-wizard.md](../plan/multi-class-wizard.md) — original multi-class plan  
-- [../plan/skill-motion-spectacle.md](../plan/skill-motion-spectacle.md) — **implemented** skill/motion spectacle standard  
+- [../history/multi-class-wizard.md](../history/multi-class-wizard.md) — original multi-class plan  
+- [../history/skill-motion-spectacle.md](../history/skill-motion-spectacle.md) — **implemented** skill/motion spectacle standard  
 - [../save-and-run.md](../save-and-run.md) — run, save, verify  
 
 ## Hard constraints (do not break)
@@ -42,12 +42,12 @@ These guides document the architecture and the work done to introduce multi-clas
 | `aerin` | Iron knight (default) | `hero.aerin` | `melee` | Knight Longsword (`sword`) — plate helm GLB |
 | `wizard` | Arcane caster | `hero.wizard` | `magic` | Apprentice Staff (`staff`) |
 | `rogue` | Night fang — short-reach crit flurry | `hero.rogue` | `melee` | Fledgling Dagger (`dagger`) — runtime hood kit |
-| `ranger` | Wildshot — bow volleys, trap & mark | `hero.ranger` | `ranged` | Fledgling Bow (`bow`) — [../plan/ranger-class.md](../plan/ranger-class.md) |
+| `ranger` | Wildshot — bow volleys, trap & mark | `hero.ranger` | `ranged` | Fledgling Bow (`bow`) — [../history/ranger-class.md](../history/ranger-class.md) |
 
 Melee basic-attack combo length grows with player level (3→7); clips `attack_1`–`attack_7` when baked.  
 Wizard basics use `cast_1`–`cast_4`. Ranger plan reuses projectile basics with bow presentation. See [combat-facing.md](./combat-facing.md) and Player `basicComboLength`.
 
-Class mechanics are data on the `HERO_CLASSES` row (see [../plan/character-improvements.md](../plan/character-improvements.md)):
+Class mechanics are data on the `HERO_CLASSES` row (see [../history/character-improvements.md](../history/character-improvements.md)):
 
 - **Basic attack** — `getClassBasicAttack(classId)` merges style defaults with `meleeProfile` / `basicAttack`
   overrides (`rangeMult`/`arcMult`/`flurry`, melee range/mult curves, magic `bolts`/`comboMults`).

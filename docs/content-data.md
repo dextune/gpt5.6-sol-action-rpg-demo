@@ -42,7 +42,7 @@ Helper `enemy(id, name, zone, shape, level, hp, damage, defense, speed, range, x
 
 **Defense composition:** `DEFENSE_WAVE_ROLE_RECIPES` + `defenseRecipeForWave(wave)` drive role quotas.  
 **Elite affixes:** `ELITE_AFFIXES` (shielded, enraged, volatile, hasted, fortified, arcane, frostbitten, molten, vampiric, summoning).  
-See [plan/monster-variety-hunt-defense.md](./plan/monster-variety-hunt-defense.md).
+See [history/monster-variety-hunt-defense.md](./history/monster-variety-hunt-defense.md).
 
 ## Rarities `RARITIES`
 
@@ -98,7 +98,7 @@ Pure math helpers: `js/data/skillCombat.js`. Themes: `js/data/fxThemes.js`.
 4. Prefer `timeline.hits` for body-synced multi-pulse skills.
 5. Rank text uses the same `[base, perRank]` pairs as `combat`.
 
-Full identity matrix: [plan/skill-motion-spectacle.md](./plan/skill-motion-spectacle.md), [combat.md](./combat.md).
+Full identity matrix: [history/skill-motion-spectacle.md](./history/skill-motion-spectacle.md), [combat.md](./combat.md).
 
 ## Hunt titles `HUNT_TITLES`
 
@@ -175,4 +175,4 @@ Skill point scarcity → Hunt 100-kill bonus or points per level.
 - `js/entities/Player.js`, `Enemy.js`
 - `tests/integrity.mjs`, `tests/skill-combat.mjs`
 - [extension-playbooks.md](./extension-playbooks.md)
-- [combat.md](./combat.md), [plan/skill-motion-spectacle.md](./plan/skill-motion-spectacle.md)
+- [combat.md](./combat.md), [history/skill-motion-spectacle.md](./history/skill-motion-spectacle.md)

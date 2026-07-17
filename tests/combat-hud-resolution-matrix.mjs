@@ -130,7 +130,7 @@ async function snapshot(page) {
       option: rect('#combat-option-enhance'),
       zone: rect('.zone-ribbon'),
       minimap: rect('.minimap-shell'),
-      resources: rect('.resource-pills'),
+      resources: rect('.profile-gold-row') || rect('#gold-count'),
       notifications: rect('#notifications'),
       ability: rect('.ability-bar'),
       health: rect('.combat-vitals-health'),

@@ -3,7 +3,8 @@
 **Date:** 2026-07-16 (post W1–W6 + three validation cycles)  
 **Subject:** `gpt5.6-sol-action-rpg-demo` (working tree after ROI plan execution)  
 **Baseline review:** [code-quality-review-2026-07-16.md](./code-quality-review-2026-07-16.md)  
-**Execution plan:** [code-quality-roi-execution.md](./code-quality-roi-execution.md)  
+**Execution plan (done):** [code-quality-roi-execution.md](./code-quality-roi-execution.md)  
+**Next plan (executed N1–N5):** [code-quality-next-roi.md](./code-quality-next-roi.md)  
 **Lens:** Same as the cold review — can this browser ARPG demo keep growing without collapsing, not “ideal engine purity”.  
 **Scope:** Feasible improvements only. No rewrite fantasy.
 

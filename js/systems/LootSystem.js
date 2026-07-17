@@ -7,6 +7,7 @@ import {
 } from '../data/content.js';
 import { chance, clamp, pick, rand, randInt, uid, weightedPick } from '../core/Utils.js';
 import { createGameContext } from '../core/GameContext.js';
+import { huntRewardMul } from './huntThreat.js';
 
 const RARITY_ORDER = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
 const STAT_KEYS = ['power', 'defense', 'hp', 'crit', 'haste', 'leech', 'xpBonus', 'goldBonus', 'skillPower', 'moveSpeed', 'luck'];
@@ -293,25 +294,37 @@ export class LootSystem {
   }
 
   dropFromEnemy(enemy) {
+    // Instant auto-loot — no world gold/item pickups on the field.
     const defense = this.game.mode === 'defense';
     const wave = defense ? Math.max(1, Number(enemy.wave ?? this.game.defense?.wave) || 1) : 0;
     const [minGold, maxGold] = enemy.goldRange ?? [1, 3];
     const waveBonus = defense ? 1 + wave * .035 : 1 + this.game.hunt.worldTier * .04;
-    const multiplier = (enemy.elite ? 2.2 : 1) * (enemy.boss ? 5 : 1) * waveBonus;
+    let threatMul = 1;
+    if (!defense && this.game.player) {
+      // Hunt on-level / danger reward bias (see huntThreat.huntRewardMul).
+      threatMul = huntRewardMul((enemy.level ?? 1) - this.game.player.level);
+    }
+    const multiplier = (enemy.elite ? 2.2 : 1) * (enemy.boss ? 5 : 1) * waveBonus * threatMul;
     const amount = Math.max(1, Math.round(randInt(minGold, maxGold) * multiplier));
-    const offset = new THREE.Vector3(rand(-1.2, 1.2), 0, rand(-1.2, 1.2));
-    const drops = [this.spawnConsumable('gold', enemy.position.clone().add(offset), amount)];
     const player = this.game.player;
+    const at = enemy.position.clone().add(new THREE.Vector3(0, Math.max(0.8, (enemy.refs?.modelHeight ?? 1.6) * 0.45), 0));
+    const goldGained = player.addGold(amount);
+    this.game.ui?.floatText?.(at, `+${goldGained}G`, 'loot');
+    this.game.audio?.pickup?.('common');
+    this.game.effects?.burst?.(at, 0xffd36d, 8, { speed: 2.8, size: 0.2, life: 0.35, upward: 0.35 });
     const potionChance = enemy.boss
       ? LOOT_CONFIG.potionDropChance.boss
       : enemy.elite
         ? LOOT_CONFIG.potionDropChance.elite
         : LOOT_CONFIG.potionDropChance.normal;
     if (player.potions < player.maxPotions && chance(potionChance)) {
-      const potionOffset = new THREE.Vector3(rand(-1.2, 1.2), 0, rand(-1.2, 1.2));
-      drops.push(this.spawnConsumable('potion', enemy.position.clone().add(potionOffset), LOOT_CONFIG.potionDropAmount));
+      player.potions = Math.min(player.maxPotions, player.potions + LOOT_CONFIG.potionDropAmount);
+      this.game.ui?.floatText?.(at.clone().add(new THREE.Vector3(0, 0.35, 0)), 'Potion +1', 'heal');
+      this.game.audio?.pickup?.('uncommon');
+      this.game.effects?.burst?.(at, 0x62f29b, 6, { speed: 2.4, size: 0.18, life: 0.32, upward: 0.4 });
     }
-    return drops;
+    this.game.requestSave?.();
+    return [];
   }
 
   spawnGear(item, position) {
@@ -373,6 +386,13 @@ export class LootSystem {
       const pickup = this.pickups[i];
       pickup.age += delta;
       pickup.life -= delta;
+      // Legacy / scripted world drops obey the same global auto-loot contract.
+      if (player.alive) this.#collect(pickup);
+      if (pickup.collected) {
+        this.#removePickup(pickup);
+        this.pickups.splice(i, 1);
+        continue;
+      }
       const group = pickup.group;
       const bob = Math.sin(pickup.age * 2.7 + i) * .12;
       group.position.y = pickup.baseY + bob;

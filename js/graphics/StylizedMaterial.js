@@ -78,10 +78,12 @@ export class StylizedMaterial extends THREE.MeshStandardMaterial {
 const ROLE_STYLES = Object.freeze({
   skin: { roughness: .68, metalness: 0, shadowTint: 0x5b4240, rimStrength: .045 },
   cloth: { roughness: .9, metalness: 0, shadowTint: 0x263b48, rimStrength: .035 },
+  cape: { roughness: .88, metalness: 0, shadowTint: 0x2a1820, rimStrength: .04 },
   leather: { roughness: .72, metalness: .02, shadowTint: 0x372c29, rimStrength: .035 },
   hair: { roughness: .48, metalness: 0, shadowTint: 0x1d2b3b, rimStrength: .06 },
   metal: { roughness: .32, metalness: .78, shadowTint: 0x394047, rimStrength: .085 },
   eye: { roughness: .28, metalness: 0, bandStrength: .12, rimStrength: .04 },
+  eye_white: { roughness: .45, metalness: 0, bandStrength: .08, rimStrength: .02 },
   leaf: { roughness: .86, metalness: 0, shadowTint: 0x28442f, rimStrength: .025 },
   bark: { roughness: .94, metalness: 0, shadowTint: 0x49372d, rimStrength: 0 },
   stone: { roughness: .9, metalness: .01, shadowTint: 0x454740, rimStrength: 0 },
@@ -92,10 +94,14 @@ const ROLE_STYLES = Object.freeze({
 export function inferMaterialRole(name = '') {
   const lower = name.toLowerCase();
   if (lower.includes('skin')) return 'skin';
-  if (lower.includes('cloth') || lower.includes('cape')) return 'cloth';
+  // Cape is its own role so palette can restore crimson (not cloth steel).
+  if (lower.includes('cape') || lower.includes('plume')) return 'cape';
+  if (lower.includes('cloth')) return 'cloth';
   if (lower.includes('leather') || lower.includes('belt') || lower.includes('boot') || lower.includes('glove')) return 'leather';
   if (lower.includes('hair') || lower.includes('brow') || lower.includes('mouth')) return 'hair';
   if (lower.includes('metal') || lower.includes('trim') || lower.includes('buckle') || lower.includes('blade') || lower.includes('guard') || lower.includes('rune')) return 'metal';
+  // eye_white / glint must not inherit pupil emissive eye role.
+  if (lower.includes('eye_white') || lower.includes('glint') || lower.includes('eye-white')) return 'eye_white';
   if (lower.includes('eye')) return 'eye';
   if (lower.includes('leaf') || lower.includes('moss') || lower.includes('blossom')) return 'leaf';
   if (lower.includes('bark') || lower.includes('trunk')) return 'bark';

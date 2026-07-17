@@ -1,61 +1,26 @@
-import * as THREE from 'three';
-import {
-  GAME_CONFIG,
-  GEAR_ENHANCE,
-  PLAYER_CONFIG,
-  WEAPON_ENHANCE,
-  WEAPON_OPTION_ENHANCE,
-} from '../config.js';
-import {
-  DEFAULT_HERO_CLASS_ID,
-  HERO_CLASSES,
-  RARITIES,
-  SKILLS,
-  WEAPON_EVOLUTIONS,
-  ZONES,
-  getClassActiveSkills,
-  getClassPassiveSkills,
-  getHeroClass,
-  resolveHeroClassId,
-} from '../data/content.js';
-import {
-  gearEnhanceCost,
-  gearEnhanceSuccessChance,
-  gearSellValue,
-  weaponEnhanceCost,
-  weaponEnhanceSuccessChance,
-  weaponOptionEnhanceCost,
-} from '../systems/LootSystem.js';
-import { resolveSkillForm, skillMutationOptions } from '../data/skillCombat.js';
-import { clamp, formatTime } from '../core/Utils.js';
-import {
-  ATTACK_STYLE_LABEL,
-  CLASS_ACCENT,
-  COMBAT_VALUE_LABELS,
-  HUD_FORM_TIERS,
-  MUTATION_FAMILY_GLYPHS,
-  MUTATION_ROLE_MARKERS,
-  NEUTRAL_MUTATION_ICON,
-  PERCENT_STATS,
-  RARITY_RANK,
-  STAT_KEYS,
-  STAT_LABELS,
-  escapeHtml,
-  formatCombatDeltas,
-  formatCombatSnapshot,
-  formatCombatValue,
-  formatSaveAge,
-  formatStatDelta,
-  hexColor,
-  itemIcon,
-  mutationAccessibleText,
-  mutationIconView,
-  statText,
-  titleCaseId,
-} from './uiShared.js';
+import { DEFAULT_HERO_CLASS_ID, resolveHeroClassId } from '../data/content.js';
+import { clamp } from '../core/Utils.js';
 import { hideDeath as hideDeathPanel, setDeathProgress as setDeathProgressPanel, showDeath as showDeathPanel } from './panels/deathOverlay.js';
 import { setDebugVisible as setDebugVisiblePanel, updateDebug as updateDebugPanel } from './panels/debugHud.js';
-
+import { renderInventory } from './panels/inventoryPanel.js';
+import { renderSkills } from './panels/skillsPanel.js';
+import { renderHunter } from './panels/hunterPanel.js';
+import { renderSystem } from './panels/systemPanel.js';
+import { handlePanelAction } from './panels/panelActions.js';
+import {
+  fillClassCards,
+  refreshContinueButton,
+  showTitle as showTitlePanel,
+  syncClassSelect,
+} from './panels/titleScreen.js';
+import {
+  runCombatOptionEnhance,
+  runCombatWeaponEnhance,
+  updateHUD,
+  updateReticle,
+} from './panels/hudCombat.js';
+import { drawMinimap } from './panels/minimap.js';
+import { zoneThreat, zoneToastDetail } from '../systems/huntThreat.js';
 export class UI {
   constructor(game) {
     this.game = game;
@@ -67,22 +32,18 @@ export class UI {
     this.selectedClassId = resolveHeroClassId(game.query?.get?.('class') || DEFAULT_HERO_CLASS_ID);
     this.elements = {};
     for (const id of [
-      'loading-screen', 'loading-text', 'loading-bar', 'title-screen', 'class-select', 'new-game-btn', 'rush-btn', 'daily-rush-btn', 'daily-rush-meta', 'defense-btn', 'continue-btn', 'continue-meta',
+      'loading-screen', 'loading-text', 'loading-bar', 'title-screen', 'class-select', 'new-game-btn', 'defense-btn', 'continue-btn', 'continue-meta',
       'hud', 'profile-toggle', 'hunt-record-panel', 'player-name', 'portrait-level', 'player-level-text', 'hunter-title', 'hp-fill', 'mobile-hp-fill', 'mp-fill', 'mobile-mp-fill', 'xp-fill', 'xp-text',
       'class-state-row', 'frenzy-chip', 'overflow-chip',
       'ranger-state-row', 'thorns-chip', 'verdict-chip',
-      'world-tier', 'zone-name', 'zone-subtitle', 'defense-wave-panel', 'defense-wave-label', 'defense-wave-remaining',
-      'rush-hud', 'rush-act', 'rush-time', 'rush-score', 'rush-kicker', 'rush-encounter', 'rush-objective-progress', 'rush-progress-fill', 'rush-description', 'rush-hazard', 'rush-chain',
+      'world-tier', 'zone-name', 'zone-subtitle',
       'kill-count', 'streak-count', 'elite-count', 'boss-count',
       'boss-charge-text', 'boss-charge-fill', 'contract-title', 'contract-fill', 'contract-progress', 'contract-hint',
-      'boss-hud', 'boss-name', 'boss-level', 'boss-health-fill', 'boss-break-row', 'boss-break-fill', 'boss-break-text', 'gold-count', 'item-count', 'potion-count',
+      'boss-hud', 'boss-name', 'boss-level', 'boss-health-fill', 'boss-break-row', 'boss-break-fill', 'boss-break-text', 'gold-count', 'potion-count',
       'combat-forge', 'combat-weapon-enhance', 'combat-option-enhance',
       'combat-weapon-level', 'combat-weapon-cost', 'combat-option-level', 'combat-option-cost',
       'minimap', 'notifications', 'float-layer', 'aim-reticle', 'zone-toast',
       'panel-layer', 'panel-title', 'panel-content', 'panel-close', 'death-screen', 'death-timer-fill',
-      'rush-draft', 'rush-draft-title', 'rush-draft-copy', 'rush-draft-options',
-      'rush-result', 'rush-result-eyebrow', 'rush-result-title', 'rush-result-copy', 'rush-result-grade', 'rush-result-metrics',
-      'rush-trophy-options', 'rush-trophy-status', 'rush-retry-btn', 'rush-next-btn', 'rush-title-btn',
       'damage-flash', 'fatal-error', 'debug-hud',
     ]) this.elements[id] = document.getElementById(id);
     this.minimapContext = this.elements.minimap.getContext('2d');
@@ -108,14 +69,6 @@ export class UI {
     this.elements['defense-btn']?.addEventListener('click', async () => {
       await this.game.audio.unlock();
       if (typeof this.game.startDefense === 'function') this.game.startDefense({ classId: this.selectedClassId });
-    });
-    this.elements['rush-btn']?.addEventListener('click', async () => {
-      await this.game.audio.unlock();
-      this.game.startRush?.({ classId: this.selectedClassId, daily: false });
-    });
-    this.elements['daily-rush-btn']?.addEventListener('click', async () => {
-      await this.game.audio.unlock();
-      this.game.startRush?.({ classId: this.selectedClassId, daily: true });
     });
     this.elements['continue-btn'].addEventListener('click', async () => {
       if (this.elements['continue-btn'].disabled) return;
@@ -164,29 +117,7 @@ export class UI {
       const expanded = this.elements['profile-toggle'].getAttribute('aria-expanded') === 'true';
       this.#setHuntRecordExpanded(!expanded);
     });
-    this.elements['rush-draft-options']?.addEventListener('click', event => {
-      const button = event.target.closest?.('[data-rush-mutation]');
-      if (button) this.game.chooseRushMutation?.(button.dataset.rushMutation);
-    });
-    this.elements['rush-trophy-options']?.addEventListener('click', event => {
-      const button = event.target.closest?.('[data-rush-trophy]');
-      if (button) this.game.claimRushTrophy?.(button.dataset.rushTrophy);
-    });
-    this.elements['rush-retry-btn']?.addEventListener('click', () => this.game.retryRush?.());
-    this.elements['rush-next-btn']?.addEventListener('click', () => this.game.nextRush?.());
-    this.elements['rush-title-btn']?.addEventListener('click', () => this.game.returnToTitle?.());
     window.addEventListener('keydown', event => {
-      if (!this.elements['rush-draft']?.classList.contains('hidden')) {
-        const index = event.code === 'Digit1' || event.code === 'Numpad1'
-          ? 0
-          : event.code === 'Digit2' || event.code === 'Numpad2' ? 1 : -1;
-        if (index >= 0) {
-          event.preventDefault();
-          const option = this.game.rush?.draft?.options?.[index];
-          if (option) this.game.chooseRushMutation?.(option.id);
-          return;
-        }
-      }
       if (this.elements['title-screen'].classList.contains('active') && event.code === 'Enter') {
         event.preventDefault();
         (this.game.save.hasSave() ? this.elements['continue-btn'] : this.elements['new-game-btn']).click();
@@ -194,135 +125,21 @@ export class UI {
     });
   }
 
-  /** Refresh combat forge button labels / affordability. */
-  #syncCombatForge(player) {
-    const forge = this.elements['combat-forge'];
-    if (!forge) return;
-    const playing = this.game.state === 'playing' || this.game.state === 'paused';
-    forge.classList.toggle('hidden', !playing || !player?.alive || this.game.mode === 'rush');
-    const weapon = player?.weapon;
-    if (!weapon) {
-      if (this.elements['combat-weapon-enhance']) this.elements['combat-weapon-enhance'].disabled = true;
-      if (this.elements['combat-option-enhance']) this.elements['combat-option-enhance'].disabled = true;
-      return;
-    }
-    const wLv = Number(weapon.weaponEnhanceLevel ?? weapon.enhanceLevel) || 0;
-    const oLv = Number(weapon.optionEnhanceLevel) || 0;
-    const wMax = wLv >= WEAPON_ENHANCE.maxLevel;
-    const oMax = oLv >= WEAPON_OPTION_ENHANCE.maxLevel;
-    const wCost = weaponEnhanceCost(weapon);
-    const oCost = weaponOptionEnhanceCost(weapon);
-    const wChance = weaponEnhanceSuccessChance(weapon);
-    if (this.elements['combat-weapon-level']) {
-      this.elements['combat-weapon-level'].textContent = wMax ? 'MAX' : `+${wLv}`;
-    }
-    if (this.elements['combat-option-level']) {
-      this.elements['combat-option-level'].textContent = oMax ? 'MAX' : `+${oLv}`;
-    }
-    if (this.elements['combat-weapon-cost']) {
-      this.elements['combat-weapon-cost'].textContent = wMax
-        ? 'Done'
-        : `${wCost.toLocaleString('en-US')}G · ${Math.round(wChance * 100)}%`;
-    }
-    if (this.elements['combat-option-cost']) {
-      this.elements['combat-option-cost'].textContent = oMax
-        ? 'Done'
-        : `${oCost.toLocaleString('en-US')}G`;
-    }
-    const wBtn = this.elements['combat-weapon-enhance'];
-    const oBtn = this.elements['combat-option-enhance'];
-    if (wBtn) {
-      wBtn.disabled = wMax || player.gold < wCost;
-      wBtn.classList.toggle('is-max', wMax);
-      wBtn.classList.toggle('is-unaffordable', !wMax && player.gold < wCost);
-    }
-    if (oBtn) {
-      oBtn.disabled = oMax || player.gold < oCost;
-      oBtn.classList.toggle('is-max', oMax);
-      oBtn.classList.toggle('is-unaffordable', !oMax && player.gold < oCost);
-    }
-  }
-
   #runCombatWeaponEnhance() {
-    const result = this.game.player.enhanceWeapon();
-    if (!result.ok) {
-      this.notify(
-        result.reason === 'gold'
-          ? `Need ${result.cost.toLocaleString('en-US')}G to evolve the weapon.`
-          : 'Weapon evolution is complete.',
-        'danger',
-        2.8,
-      );
-      return;
-    }
-    if (result.success === false) {
-      this.game.audio.click();
-      this.notify(`Weapon enhance failed · remains at +${result.level}`, 'danger', 3.2);
-      this.game.requestSave();
-      this.#syncCombatForge(this.game.player);
-      return;
-    }
-    this.game.audio.levelUp?.();
-    this.notify(`Weapon evolved · ${this.game.player.weapon.name} · +${result.level}`, 'level', 3.6);
-    this.game.requestSave();
-    this.#syncCombatForge(this.game.player);
+    return runCombatWeaponEnhance(this);
   }
 
   #runCombatOptionEnhance() {
-    const result = this.game.player.enhanceWeaponOptions();
-    if (!result.ok) {
-      this.notify(
-        result.reason === 'gold'
-          ? `Need ${result.cost.toLocaleString('en-US')}G to enhance weapon options.`
-          : 'Weapon options are complete.',
-        'danger',
-        2.8,
-      );
-      return;
-    }
-    this.game.audio.click();
-    this.notify(`Weapon option improved · ${titleCaseId(result.stat)} · Lv.${result.level}`, 'loot', 3.2);
-    this.game.requestSave();
-    this.#syncCombatForge(this.game.player);
+    return runCombatOptionEnhance(this);
   }
 
   #syncClassSelect() {
-    const id = resolveHeroClassId(this.selectedClassId);
-    this.selectedClassId = id;
-    for (const card of this.classCards) {
-      const selected = card.dataset.classId === id;
-      card.classList.toggle('is-selected', selected);
-      card.setAttribute('aria-pressed', selected ? 'true' : 'false');
-    }
+    return syncClassSelect(this);
   }
 
   /** Densify title class cards: energy name, attack style, Q/E/R/C skill names. */
   #fillClassCards() {
-    for (const card of this.classCards) {
-      const classId = resolveHeroClassId(card.dataset.classId);
-      const hero = getHeroClass(classId);
-      const accent = CLASS_ACCENT[classId] ?? '#78d2ff';
-      card.style.setProperty('--class-accent', accent);
-
-      const tags = card.querySelector('[data-class-tags]');
-      if (tags) {
-        const styleLabel = ATTACK_STYLE_LABEL[hero.attackStyle] ?? 'Melee';
-        const energyLabel = hero.energy?.label ? escapeHtml(hero.energy.label) : '—';
-        tags.innerHTML = `
-          <span class="class-tag style">${escapeHtml(styleLabel)}</span>
-          <span class="class-tag energy">${energyLabel === '—' ? 'No energy' : energyLabel}</span>`;
-      }
-
-      const skillsEl = card.querySelector('[data-class-skills]');
-      if (skillsEl) {
-        const skills = getClassActiveSkills(classId);
-        skillsEl.innerHTML = skills.map(skill => {
-          const key = escapeHtml(skill.key ?? '?');
-          const name = escapeHtml(skill.name ?? skill.id);
-          return `<span class="class-skill"><kbd>${key}</kbd> ${name}</span>`;
-        }).join('');
-      }
-    }
+    return fillClassCards(this);
   }
 
   setLoading(progress, text) {
@@ -331,54 +148,20 @@ export class UI {
   }
 
   showTitle() {
-    document.body.dataset.mode = 'title';
-    this.elements['loading-screen'].classList.remove('active');
-    this.elements['title-screen'].classList.add('active');
-    this.elements.hud.classList.add('hidden');
-    this.elements['panel-layer'].classList.add('hidden');
-    this.elements['death-screen'].classList.add('hidden');
-    this.elements['defense-wave-panel']?.classList.add('hidden');
-    this.elements['rush-hud']?.classList.add('hidden');
-    this.hideRushOverlays();
-    this.#fillClassCards();
-    this.#refreshContinueButton();
-    const dailyMeta = this.elements['daily-rush-meta'];
-    if (dailyMeta) {
-      const today = new Date().toISOString().slice(0, 10);
-      const best = this.game.rush?.meta?.daily?.[today];
-      dailyMeta.textContent = best ? `Today ${best.grade} · ${Number(best.score).toLocaleString('en-US')} pts` : 'Same challenge today';
-    }
+    return showTitlePanel(this);
   }
 
   #refreshContinueButton() {
-    const btn = this.elements['continue-btn'];
-    const meta = this.elements['continue-meta'];
-    if (!btn || !meta) return;
-    const summary = this.game.save.getSummary?.() ?? null;
-    const save = summary ? true : this.game.save.hasSave();
-    btn.disabled = !save;
-    if (!summary) {
-      meta.textContent = 'No save data';
-      return;
-    }
-    const hero = summary.classId ? getHeroClass(summary.classId) : null;
-    const label = hero?.title || hero?.name || summary.name || 'Hunter';
-    const age = formatSaveAge(summary.savedAt);
-    meta.textContent = age
-      ? `${label} Lv.${summary.level} · ${summary.kills} kills · ${age}`
-      : `${label} Lv.${summary.level} · ${formatTime(summary.playTime)} · ${summary.kills} kills`;
+    return refreshContinueButton(this);
   }
 
   showHUD() {
-    const mode = this.game.mode === 'defense' ? 'defense' : this.game.mode === 'rush' ? 'rush' : 'hunt';
+    const mode = this.game.mode === 'defense' ? 'defense' : 'hunt';
     document.body.dataset.mode = mode;
     this.elements['title-screen'].classList.remove('active');
     this.elements.hud.classList.remove('hidden');
     this.elements['death-screen'].classList.add('hidden');
-    this.elements['defense-wave-panel']?.classList.toggle('hidden', mode !== 'defense');
-    this.elements['rush-hud']?.classList.toggle('hidden', mode !== 'rush');
     this.#setHuntRecordExpanded(false);
-    this.hideRushOverlays();
     this.lastZoneId = null;
     this.lastAbilityClassId = null;
     this.lastAbilitySignature = null;
@@ -415,474 +198,16 @@ export class UI {
   }
 
   #updateHUD() {
-    const player = this.game.player;
-    const hunt = this.game.hunt;
-    const zone = this.game.world.currentZone;
-    const isDefense = this.game.mode === 'defense';
-    const isRush = this.game.mode === 'rush';
-    const defenseHud = this.game.defense?.hud;
-    this.elements.hud.classList.toggle('defense-active', isDefense);
-    this.elements.hud.classList.toggle('rush-active', isRush);
-    this.elements['player-name'].textContent = player.name;
-    const levelLabel = `LV.${player.level}`;
-    if (this.elements['portrait-level']) this.elements['portrait-level'].textContent = levelLabel;
-    if (this.elements['player-level-text']) this.elements['player-level-text'].textContent = levelLabel;
-    this.elements['hunter-title'].textContent = isDefense ? 'Wave Survival' : isRush ? 'Rift Vanguard' : hunt.hunterTitle;
-    const hpTransform = `scaleY(${player.healthRatio})`;
-    if (this.elements['hp-fill'].style.transform !== hpTransform) {
-      this.elements['hp-fill'].style.transform = hpTransform;
-    }
-    const mobileHpTransform = `scaleX(${player.healthRatio})`;
-    if (this.elements['mobile-hp-fill'].style.transform !== mobileHpTransform) {
-      this.elements['mobile-hp-fill'].style.transform = mobileHpTransform;
-    }
-    const mpTransform = `scaleY(${player.manaRatio})`;
-    if (this.elements['mp-fill'].style.transform !== mpTransform) {
-      this.elements['mp-fill'].style.transform = mpTransform;
-    }
-    const mobileMpTransform = `scaleX(${player.manaRatio})`;
-    if (this.elements['mobile-mp-fill'].style.transform !== mobileMpTransform) {
-      this.elements['mobile-mp-fill'].style.transform = mobileMpTransform;
-    }
-    const xpRatio = clamp(player.xp / Math.max(1, player.xpNeeded), 0, 1);
-    if (this.elements['xp-fill']) this.elements['xp-fill'].style.width = `${xpRatio * 100}%`;
-    if (this.elements['xp-text']) {
-      this.elements['xp-text'].textContent = `${Math.floor(player.xp)} / ${player.xpNeeded}`;
-    }
-    if (this.elements['class-state-row']) {
-      const frenzyVisible = Boolean(player.frenzyActive);
-      const overflowVisible = player.classId === 'wizard';
-      const thornsVisible = player.classId === 'ranger' && Boolean(player.thornField);
-      const verdictVisible = player.classId === 'ranger' && Boolean(player.predatorVerdict);
-      const rangerVisible = thornsVisible || verdictVisible;
-      const stateCount = Number(frenzyVisible) + Number(overflowVisible)
-        + Number(thornsVisible) + Number(verdictVisible);
-      this.elements.hud.classList.toggle('class-state-active', stateCount > 0);
-      this.elements.hud.dataset.classStateCount = String(stateCount);
-      const frenzy = this.elements['frenzy-chip'];
-      const overflow = this.elements['overflow-chip'];
-      const ranger = this.elements['ranger-state-row'];
-      frenzy.classList.toggle('hidden', !frenzyVisible);
-      overflow.classList.toggle('hidden', !overflowVisible);
-      ranger.classList.toggle('hidden', !rangerVisible);
-      this.elements['thorns-chip'].classList.toggle('hidden', !thornsVisible);
-      this.elements['verdict-chip'].classList.toggle('hidden', !verdictVisible);
-      if (frenzyVisible) {
-        frenzy.querySelector('span').textContent = `${player.shadowFrenzy.remaining.toFixed(1)}s`;
-        frenzy.style.setProperty('--frenzy-ratio', player.frenzyRatio);
-        frenzy.setAttribute('aria-label', `Shadow Frenzy: ${player.shadowFrenzy.remaining.toFixed(1)} seconds remaining`);
-      }
-      if (overflowVisible) {
-        const value = clamp(Number(player.arcaneOverflow) || 0, 0, 100);
-        const ready = value >= 100;
-        overflow.classList.toggle('is-ready', ready);
-        overflow.querySelector('span').textContent = ready ? 'READY' : `${Math.floor(value)}/100`;
-        overflow.style.setProperty('--overflow-ratio', value / 100);
-        overflow.setAttribute('aria-label', ready ? 'Arcane Overflow ready' : `Arcane Overflow: ${Math.floor(value)} of 100`);
-      }
-      if (thornsVisible) {
-        this.elements['thorns-chip'].querySelector('span').textContent = `${player.thornField.planted ?? 0}/4`;
-      }
-      if (verdictVisible) {
-        this.elements['verdict-chip'].querySelector('span').textContent = `${Math.round(100 * player.predatorVerdict.stored / Math.max(1, player.predatorVerdict.cap))}%`;
-      }
-      this.elements['class-state-row'].classList.toggle('hidden', !(frenzyVisible || overflowVisible || rangerVisible));
-    }
-    if (isDefense) {
-      const wave = defenseHud?.wave ?? 1;
-      const maxWave = defenseHud?.maxWave ?? 200;
-      const remaining = defenseHud?.remaining ?? 0;
-      this.elements['world-tier'].textContent = `WAVE ${wave}/${maxWave}`;
-      if (this.elements['defense-wave-label']) {
-        this.elements['defense-wave-label'].textContent = `WAVE ${wave} / ${maxWave}`;
-      }
-      if (this.elements['defense-wave-remaining']) {
-        this.elements['defense-wave-remaining'].textContent = `${remaining} left`;
-      }
-      const mutLabel = this.game.defense?.hud?.mutator;
-      this.elements['contract-title'].textContent = mutLabel ? `Wave Survival · ${mutLabel}` : 'Wave Survival';
-      this.elements['contract-progress'].textContent = `${remaining} remaining · ${wave}/${maxWave}`;
-      const clearRatio = clamp(wave / Math.max(1, maxWave), 0, 1);
-      this.elements['contract-fill'].style.width = `${clearRatio * 100}%`;
-      if (this.elements['contract-hint']) {
-        this.elements['contract-hint'].textContent = 'Clear waves · gold & power shards scale up';
-      }
-      const defenseKills = defenseHud?.kills ?? defenseHud?.totalKills;
-      this.elements['kill-count'].textContent = (defenseKills ?? hunt.totalKills ?? 0).toLocaleString('en-US');
-      this.elements['streak-count'].textContent = this.game.killChain ?? defenseHud?.streak ?? 0;
-      this.elements['elite-count'].textContent = defenseHud?.elitesKilled ?? 0;
-      this.elements['boss-count'].textContent = defenseHud?.bossesKilled ?? 0;
-    } else if (isRush) {
-      const rushHud = this.game.rush?.hud;
-      this.elements['world-tier'].textContent = this.game.rush?.daily ? 'DAILY RIFT' : 'RIFT RUSH';
-      this.elements['kill-count'].textContent = Number(rushHud?.kills ?? 0).toLocaleString('en-US');
-      this.elements['streak-count'].textContent = this.game.killChain ?? 0;
-      this.elements['elite-count'].textContent = rushHud?.elites ?? 0;
-      this.elements['boss-count'].textContent = rushHud?.bosses ?? 0;
-      this.#updateRushHUD(rushHud);
-    } else {
-      this.elements['world-tier'].textContent = `WORLD TIER ${hunt.worldTier}`;
-      this.elements['kill-count'].textContent = hunt.totalKills.toLocaleString('en-US');
-      this.elements['streak-count'].textContent = this.game.killChain ?? hunt.streak;
-      this.elements['elite-count'].textContent = hunt.elitesKilled;
-      this.elements['boss-count'].textContent = hunt.bossesKilled;
-      const contract = hunt.contract;
-      if (contract) {
-        this.elements['contract-title'].textContent = contract.label;
-        this.elements['contract-progress'].textContent = `${Math.floor(contract.progress)} / ${contract.target}`;
-        this.elements['contract-fill'].style.width = `${clamp(contract.progress / contract.target, 0, 1) * 100}%`;
-        if (this.elements['contract-hint']) {
-          this.elements['contract-hint'].textContent = contract.rewardHint
-            || `Reward tier ${contract.rewardTier ?? 1}`;
-        }
-      } else if (this.elements['contract-hint']) {
-        this.elements['contract-hint'].textContent = '';
-      }
-    }
-    this.elements['zone-name'].textContent = zone.name;
-    this.elements['zone-subtitle'].textContent = isDefense ? 'Defense Arena' : isRush ? 'Rift Arena' : zone.subtitle;
-    this.elements['boss-charge-text'].textContent = `${Math.floor(hunt.bossCharge)}%`;
-    this.elements['boss-charge-fill'].style.width = `${hunt.bossCharge}%`;
-    this.elements['gold-count'].textContent = player.gold.toLocaleString('en-US');
-    if (this.elements['item-count']) {
-      this.elements['item-count'].textContent = Number(player.inventory?.length ?? 0).toLocaleString('en-US');
-    }
-    this.elements['potion-count'].textContent = player.potions;
-    this.#syncCombatForge(player);
-
-    this.#updateAbility('dash', player.cooldownRatio('dash'), player.dashCooldown);
-    this.#updateAbility('potion', player.cooldownRatio('potion'), player.potionCooldown);
-    this.#syncAbilityBar(player);
-    for (const skill of getClassActiveSkills(player.classId)) {
-      const unlocked = player.skillRank(skill.id) > 0;
-      const slot = this.boundSkillSlots[skill.id] ?? this.skillKeySlots[skill.key];
-      if (!slot) continue;
-      slot.classList.toggle('locked', !unlocked);
-      this.#updateAbilitySlot(slot, player.cooldownRatio(skill.id), player.skillCooldowns[skill.id]);
-      slot.classList.toggle('insufficient', unlocked && player.mp < skill.mp);
-    }
-    this.#updateBossHUD();
-    // Smooth damage flash — hard class toggle at a threshold looked like random screen flicker.
-    const flash = this.elements['damage-flash'];
-    if (flash) {
-      const pulse = player.hitTimer > 0 ? Math.min(1, player.hitTimer / .19) : 0;
-      flash.style.opacity = String(pulse * .55);
-      flash.classList.toggle('active', pulse > .02);
-    }
-
-    if (zone.id !== this.lastZoneId) {
-      if (this.lastZoneId !== null) this.zoneEntered(zone);
-      this.lastZoneId = zone.id;
-    }
+    return updateHUD(this);
   }
 
-  #updateRushHUD(hud) {
-    if (!hud || !this.elements['rush-hud']) return;
-    this.elements['rush-act'].textContent = hud.daily ? `DAILY · ${hud.act}` : hud.act;
-    this.elements['rush-time'].textContent = Math.max(0, Number(hud.timeRemaining) || 0).toFixed(1);
-    this.elements['rush-time'].classList.toggle('is-urgent', hud.timeRemaining <= 15);
-    this.elements['rush-score'].textContent = Number(hud.score ?? 0).toLocaleString('en-US');
-    this.elements['rush-kicker'].textContent = hud.kicker ?? 'RIFT OBJECTIVE';
-    this.elements['rush-encounter'].textContent = hud.encounter ?? 'Rift Rush';
-    const progress = Math.max(0, Number(hud.progress) || 0);
-    const target = Math.max(0, Number(hud.target) || 0);
-    this.elements['rush-objective-progress'].textContent = target > 0 ? `${Math.min(progress, target)} / ${target}` : '—';
-    this.elements['rush-progress-fill'].style.width = `${target > 0 ? clamp(progress / target, 0, 1) * 100 : 0}%`;
-    this.elements['rush-description'].textContent = hud.description ?? '';
-    this.elements['rush-hazard'].textContent = hud.hazard ? `HAZARD · ${hud.hazard.name}` : 'Hazard dormant';
-    this.elements['rush-chain'].textContent = `CHAIN ${this.game.killChain ?? 0}`;
-  }
-
-  showRushDraft(draft) {
-    if (!draft || !this.elements['rush-draft']) return;
-    this.elements['rush-draft-title'].textContent = `${draft.key} · ${draft.skillName}`;
-    this.elements['rush-draft-copy'].textContent = `Choose one Level ${draft.gate} mutation. Combat resumes immediately.`;
-    this.elements['rush-draft-options'].innerHTML = draft.options.map((option, index) => {
-      const icon = mutationIconView(option.icon);
-      return `<button type="button" class="rush-draft-card" data-rush-mutation="${escapeHtml(option.id)}" aria-label="${escapeHtml(`${option.label}. ${option.summary ?? ''}`)}">
-        <kbd>${index + 1}</kbd>
-        <span class="rush-draft-icon" data-icon="${escapeHtml(icon.token)}">${escapeHtml(icon.glyph)}<i>${escapeHtml(icon.marker)}</i></span>
-        <small>${escapeHtml(draft.skillName)}</small>
-        <strong>${escapeHtml(option.label ?? option.id)}</strong>
-        <p>${escapeHtml(option.summary ?? '')}</p>
-      </button>`;
-    }).join('');
-    this.elements['rush-draft'].classList.remove('hidden');
-    document.body.classList.add('rush-overlay-open');
-  }
-
-  hideRushDraft() {
-    this.elements['rush-draft']?.classList.add('hidden');
-    if (this.elements['rush-result']?.classList.contains('hidden')) document.body.classList.remove('rush-overlay-open');
-  }
-
-  showRushResult(result) {
-    if (!result || !this.elements['rush-result']) return;
-    const completed = Boolean(result.completed);
-    const claimed = Boolean(result.claimed);
-    this.elements['rush-result-eyebrow'].textContent = completed ? (result.daily ? 'DAILY RIFT CONQUERED' : 'RIFT CONQUERED') : 'RIFT FAILED';
-    this.elements['rush-result-title'].textContent = completed ? (result.executed ? 'Apex executed' : 'Apex defeated') : 'The rift closed';
-    this.elements['rush-result-copy'].textContent = `${result.reason ?? ''}${result.newBest ? ' · New best score!' : ''}`;
-    this.elements['rush-result-grade'].textContent = result.grade?.id ?? 'C';
-    this.elements['rush-result-grade'].style.setProperty('--grade-color', result.grade?.color ?? '#d9dde2');
-    const metrics = [
-      ['SCORE', Number(result.score).toLocaleString('en-US')],
-      ['TIME', `${Number(result.clearTime).toFixed(1)}s`],
-      ['KILLS', result.kills],
-      ['PEAK CHAIN', result.peakChain],
-      ['MULTIKILLS', result.multikills],
-      ['DAMAGE TAKEN', result.damageTaken],
-      ['BREAKS', result.breaks],
-      ['EXECUTION', result.executed ? 'YES' : 'NO'],
-    ];
-    this.elements['rush-result-metrics'].innerHTML = metrics
-      .map(([label, value]) => `<span><small>${escapeHtml(label)}</small><strong>${escapeHtml(value)}</strong></span>`)
-      .join('');
-    const trophies = result.trophies ?? [];
-    this.elements['rush-trophy-options'].innerHTML = trophies.length
-      ? trophies.map(trophy => `<button type="button" data-rush-trophy="${escapeHtml(trophy.id)}" class="rush-trophy-card ${result.claimed === trophy.id ? 'is-claimed' : ''}" ${claimed ? 'disabled' : ''}>
-          <i>${escapeHtml(trophy.icon ?? '◆')}</i><strong>${escapeHtml(trophy.name)}</strong><p>${escapeHtml(trophy.description)}</p>
-        </button>`).join('')
-      : '<p class="rush-no-trophy">Defeat the apex to claim a trophy.</p>';
-    this.elements['rush-trophy-status'].textContent = claimed
-      ? `Claimed · ${trophies.find(trophy => trophy.id === result.claimed)?.name ?? 'Trophy'}`
-      : completed ? 'One reward per completed run' : 'No trophy on a failed run';
-    const requiresClaim = completed && trophies.length > 0 && !claimed;
-    this.elements['rush-retry-btn'].disabled = requiresClaim;
-    this.elements['rush-next-btn'].disabled = requiresClaim || result.daily;
-    this.elements['rush-title-btn'].disabled = requiresClaim;
-    this.elements['rush-result'].classList.remove('hidden');
-    document.body.classList.add('rush-overlay-open');
-    const shell = this.elements['rush-result'].querySelector('.rush-result-shell');
-    requestAnimationFrame(() => {
-      if (!shell) return;
-      shell.scrollTop = claimed ? shell.scrollHeight : 0;
-    });
-  }
-
-  hideRushResult() {
-    this.elements['rush-result']?.classList.add('hidden');
-    if (this.elements['rush-draft']?.classList.contains('hidden')) document.body.classList.remove('rush-overlay-open');
-  }
-
-  hideRushOverlays() {
-    this.hideRushDraft();
-    this.hideRushResult();
-    document.body.classList.remove('rush-overlay-open');
-  }
-
-  #abilityBarSignature(player) {
-    const skills = getClassActiveSkills(player.classId).map(skill => {
-      const choices = player.skillEvolution?.[skill.id] ?? {};
-      return `${skill.id}:${player.skillRank(skill.id)}:${choices.tier40 ?? ''}:${choices.tier80 ?? ''}`;
-    });
-    return `${player.classId}|${player.level}|${skills.join('|')}`;
-  }
-
-  #syncAbilityBar(player) {
-    const classId = player.classId;
-    const signature = this.#abilityBarSignature(player);
-    if (this.lastAbilitySignature === signature) return;
-    this.lastAbilitySignature = signature;
-    const classChanged = this.lastAbilityClassId !== classId;
-    this.lastAbilityClassId = classId;
-    const hero = getHeroClass(classId);
-    if (classChanged) {
-      const attackLabel = document.getElementById('attack-slot-label');
-      if (attackLabel) attackLabel.textContent = hero.attackLabel ?? 'Attack';
-      const attackSlot = this.abilitySlots.attack;
-      if (attackSlot) {
-        const icon = attackSlot.querySelector('.ability-icon');
-        if (icon) {
-          icon.classList.toggle('sword-icon', hero.attackStyle !== 'magic');
-          icon.classList.toggle('starburst-icon', hero.attackStyle === 'magic');
-        }
-      }
-      for (const skillId of Object.keys(this.boundSkillSlots)) delete this.abilitySlots[skillId];
-      this.boundSkillSlots = {};
-    }
-    for (const skill of getClassActiveSkills(classId)) {
-      const slot = this.skillKeySlots[skill.key];
-      if (!slot) continue;
-      // data-slot is the stable touch binding/CSS position. The class skill id is metadata only.
-      slot.dataset.slot = `skill-${skill.key.toLowerCase()}`;
-      slot.dataset.skillId = skill.id;
-      this.boundSkillSlots[skill.id] = slot;
-      this.abilitySlots[skill.id] = slot;
-      const nameEl = slot.querySelector('b');
-      if (nameEl) nameEl.textContent = skill.name;
-      const lock = slot.querySelector('.lock-level');
-      if (lock) lock.textContent = `LV.${skill.unlockLevel}`;
-      const kbd = slot.querySelector('kbd');
-      if (kbd) kbd.textContent = skill.key;
-
-      const rank = player.skillRank(skill.id);
-      const unlocked = rank > 0;
-      const bundle = resolveSkillForm(
-        skill, Math.max(1, rank), player.level, player.skillEvolution?.[skill.id] ?? {},
-      );
-      const highestForm = unlocked ? (bundle.activeForms.at(-1) ?? 0) : 0;
-      const tier = HUD_FORM_TIERS[highestForm] ?? null;
-      slot.classList.remove('evolution-tier-i', 'evolution-tier-ii', 'evolution-tier-apex');
-      if (tier) slot.classList.add(tier.className);
-      slot.dataset.formTier = tier?.text ?? '';
-      slot.dataset.skillRank = String(rank);
-
-      const tierBadge = slot.querySelector('.skill-tier-badge');
-      const form = tier ? skill.evolution?.forms?.[highestForm] : null;
-      if (tierBadge) {
-        tierBadge.textContent = tier?.text ?? '';
-        tierBadge.classList.toggle('hidden', !tier);
-        tierBadge.title = tier ? `Level ${highestForm} form: ${form?.label ?? tier.text}` : '';
-      }
-
-      const mutationLabels = [];
-      const mutationContainer = slot.querySelector('.skill-mutation-badges');
-      for (const gate of [40, 80]) {
-        const badge = mutationContainer?.querySelector(`[data-mutation-tier="${gate}"]`);
-        if (!badge) continue;
-        const mutationId = unlocked ? bundle.mutations?.[`tier${gate}`] : null;
-        const mutation = mutationId ? skill.evolution?.mutations?.[gate]?.[mutationId] : null;
-        const fullLabel = mutation?.label ?? '';
-        const summary = mutation?.summary ?? '';
-        const icon = mutationIconView(mutation?.icon);
-        badge.textContent = fullLabel ? `${icon.glyph}${icon.marker}` : '';
-        badge.dataset.icon = fullLabel ? icon.token : '';
-        badge.classList.toggle('hidden', !fullLabel);
-        badge.title = fullLabel ? mutationAccessibleText(fullLabel, summary, gate) : '';
-        if (fullLabel) {
-          badge.setAttribute('aria-label', mutationAccessibleText(fullLabel, summary, gate));
-          mutationLabels.push(`Level ${gate} mutation ${fullLabel}`);
-        } else {
-          badge.removeAttribute('aria-label');
-        }
-      }
-      mutationContainer?.classList.toggle('hidden', mutationLabels.length === 0);
-
-      const formLabel = form?.label ? `, ${form.label} ${tier.text}` : '';
-      const mutationDescription = mutationLabels.length ? `, ${mutationLabels.join(', ')}` : '';
-      slot.setAttribute('aria-label', `${skill.key}: ${skill.name}, rank ${rank}${formLabel}${mutationDescription}`);
-      slot.title = `${skill.name}${form?.label ? ` · ${form.label}` : ''}${mutationLabels.length ? ` · ${mutationLabels.join(' · ')}` : ''}`;
-    }
-  }
-
-  #updateAbility(id, ratio, seconds) {
-    const slot = this.abilitySlots[id];
-    if (!slot) return;
-    this.#updateAbilitySlot(slot, ratio, seconds);
-  }
-
-  #updateAbilitySlot(slot, ratio, seconds) {
-    if (!slot) return;
-    const value = clamp(ratio || 0, 0, 1);
-    slot.style.setProperty('--cooldown', value);
-    slot.classList.toggle('cooling', seconds > .05);
-    slot.dataset.cd = seconds > .05 ? seconds.toFixed(seconds >= 10 ? 0 : 1) : '';
-  }
-
-  #updateBossHUD() {
-    const boss = this.game.enemies.activeBoss;
-    this.elements.hud.classList.toggle('boss-active', Boolean(boss));
-    if (!boss) {
-      this.elements['boss-hud'].classList.add('hidden');
-      this.elements['boss-break-row']?.classList.add('hidden');
-      return;
-    }
-    this.elements['boss-hud'].classList.remove('hidden');
-    this.elements['boss-name'].textContent = boss.data.name;
-    this.elements['boss-level'].textContent = `LV.${boss.level}`;
-    this.elements['boss-health-fill'].style.width = `${boss.healthRatio * 100}%`;
-    const isRush = this.game.mode === 'rush';
-    this.elements['boss-break-row']?.classList.toggle('hidden', !isRush);
-    if (isRush) {
-      const rush = this.game.rush?.hud;
-      const broken = (rush?.breakWindow ?? 0) > 0;
-      const ratio = broken ? 1 : clamp((rush?.breakValue ?? 0) / Math.max(1, rush?.breakMax ?? 100), 0, 1);
-      this.elements['boss-break-fill'].style.width = `${ratio * 100}%`;
-      this.elements['boss-break-row'].classList.toggle('is-broken', broken);
-      this.elements['boss-break-text'].textContent = broken ? `EXECUTE ${rush.breakWindow.toFixed(1)}s` : `${Math.floor(ratio * 100)}%`;
-    }
-  }
 
   #updateReticle() {
-    const reticle = this.elements['aim-reticle'];
-    const pointer = this.game.input.pointerPixels;
-    if (pointer.x > 0 && pointer.y > 0) {
-      reticle.style.left = `${pointer.x}px`;
-      reticle.style.top = `${pointer.y}px`;
-    }
+    return updateReticle(this);
   }
 
   #drawMinimap() {
-    const context = this.minimapContext;
-    const canvas = this.elements.minimap;
-    const width = canvas.width;
-    const center = width / 2;
-    const range = 62;
-    const scale = (center - 7) / range;
-    const player = this.game.player;
-    context.clearRect(0, 0, width, width);
-    context.save();
-    context.beginPath();
-    context.arc(center, center, center - 3, 0, Math.PI * 2);
-    context.clip();
-    const gradient = context.createRadialGradient(center, center, 4, center, center, center);
-    gradient.addColorStop(0, '#496f58');
-    gradient.addColorStop(1, '#172f35');
-    context.fillStyle = gradient;
-    context.fillRect(0, 0, width, width);
-
-    for (const zone of Object.values(ZONES)) {
-      const x = center + (zone.center[0] - player.position.x) * scale;
-      const y = center + (zone.center[1] - player.position.z) * scale;
-      context.globalAlpha = zone.id === this.game.world.currentZone.id ? .24 : .11;
-      context.fillStyle = hexColor(zone.ground);
-      context.beginPath();
-      context.arc(x, y, zone.radius * scale, 0, Math.PI * 2);
-      context.fill();
-    }
-    context.globalAlpha = .18;
-    context.strokeStyle = '#d8f1e1';
-    context.lineWidth = 1;
-    for (const r of [20, 40, 60]) {
-      context.beginPath(); context.arc(center, center, r * scale, 0, Math.PI * 2); context.stroke();
-    }
-    context.beginPath(); context.moveTo(center, 0); context.lineTo(center, width); context.moveTo(0, center); context.lineTo(width, center); context.stroke();
-
-    const campX = center + (0 - player.position.x) * scale;
-    const campY = center + (0 - player.position.z) * scale;
-    if (campX > 0 && campX < width && campY > 0 && campY < width) {
-      context.globalAlpha = .9;
-      context.strokeStyle = '#8effd3';
-      context.lineWidth = 2;
-      context.beginPath(); context.arc(campX, campY, 5, 0, Math.PI * 2); context.stroke();
-      context.fillStyle = '#d7fff0'; context.fillRect(campX - 1, campY - 1, 2, 2);
-    }
-
-    context.globalAlpha = 1;
-    for (const enemy of this.game.enemies.enemies) {
-      if (!enemy.alive) continue;
-      const dx = enemy.position.x - player.position.x;
-      const dz = enemy.position.z - player.position.z;
-      if (dx * dx + dz * dz > range * range) continue;
-      const x = center + dx * scale;
-      const y = center + dz * scale;
-      context.fillStyle = enemy.boss ? '#d78fff' : enemy.elite ? '#ffd56f' : '#ff7180';
-      context.shadowColor = context.fillStyle;
-      context.shadowBlur = enemy.boss ? 8 : enemy.elite ? 4 : 0;
-      context.beginPath(); context.arc(x, y, enemy.boss ? 4.8 : enemy.elite ? 3.2 : 2.1, 0, Math.PI * 2); context.fill();
-    }
-    context.shadowBlur = 0;
-    const yaw = this.game.player.mesh.rotation.y;
-    context.save();
-    context.translate(center, center);
-    context.rotate(-yaw);
-    context.fillStyle = '#f7fff0';
-    context.strokeStyle = '#16343c';
-    context.lineWidth = 2;
-    context.beginPath(); context.moveTo(0, -8); context.lineTo(6, 7); context.lineTo(0, 4); context.lineTo(-6, 7); context.closePath(); context.fill(); context.stroke();
-    context.restore();
-    context.restore();
+    return drawMinimap(this);
   }
 
   notify(message, type = 'normal', duration = 3) {
@@ -918,11 +243,18 @@ export class UI {
 
   zoneEntered(zone) {
     const toast = this.elements['zone-toast'];
+    const playerLevel = this.game.player?.level ?? 1;
+    const threat = zoneThreat(playerLevel, zone);
     toast.querySelector('strong').textContent = zone.name;
-    toast.querySelector('span').textContent = `${zone.subtitle} · Recommended Lv.${zone.minLevel}–${zone.maxLevel}`;
+    toast.querySelector('span').textContent = zoneToastDetail(zone, playerLevel);
+    toast.dataset.threat = threat.id;
     toast.classList.remove('show');
     void toast.offsetWidth;
     toast.classList.add('show');
+    // Once per zone visit: lethal soft warning (Hunt only).
+    if (this.game.mode === 'hunt' && threat.id === 'lethal') {
+      this.notify('This hunting ground far exceeds your level.', 'danger', 4.2);
+    }
   }
 
   openPanel(type = 'inventory') {
@@ -951,432 +283,23 @@ export class UI {
   }
 
   #renderInventory() {
-    this.elements['panel-title'].textContent = 'Weapon Forge';
-    const player = this.game.player;
-    const weapon = player.weapon;
-    const weaponLevel = Number(weapon.weaponEnhanceLevel ?? weapon.enhanceLevel) || 0;
-    const optionLevel = Number(weapon.optionEnhanceLevel) || 0;
-    const weaponMax = weaponLevel >= WEAPON_ENHANCE.maxLevel;
-    const optionMax = optionLevel >= WEAPON_OPTION_ENHANCE.maxLevel;
-    const weaponCost = weaponEnhanceCost(weapon);
-    const weaponChance = weaponEnhanceSuccessChance(weapon);
-    const optionCost = weaponOptionEnhanceCost(weapon);
-    const stages = WEAPON_EVOLUTIONS[player.classId] ?? [];
-    const stageTrack = stages.map(stage => `<span class="weapon-stage ${weaponLevel >= stage.level ? 'is-complete' : ''}${weaponLevel === stage.level ? ' is-current' : ''}"><i></i><small>+${stage.level}</small><b>${escapeHtml(stage.name)}</b></span>`).join('');
-    const options = Object.entries(weapon.optionStats ?? {})
-      .filter(([, value]) => Number(value) > 0)
-      .map(([key, value]) => `<span>${STAT_LABELS[key] ?? titleCaseId(key)} +${PERCENT_STATS.has(key) ? `${(Number(value) * 100).toFixed(1)}%` : Math.round(value)}</span>`)
-      .join('') || '<span>No weapon options yet.</span>';
-    this.elements['panel-content'].innerHTML = `
-      <div class="weapon-forge-layout">
-        <section class="equipment-column weapon-forge-card">
-          <p class="section-label"><span>SIGNATURE WEAPON</span><b>Score ${Math.round(weapon.score ?? 0)}</b></p>
-          <article class="equipment-slot weapon-slot" style="--rarity:${hexColor(weapon.rarityColor)}">
-            <img class="equipment-icon" src="${itemIcon(weapon)}" alt="">
-            <small>${escapeHtml(getHeroClass(player.classId).title)} · ${escapeHtml(weapon.model)}</small>
-            <strong style="color:${hexColor(weapon.rarityColor)}">${escapeHtml(weapon.name)}</strong>
-            <div class="item-stats">${this.#itemStats(weapon, 8)}</div>
-          </article>
-          <div class="weapon-option-list"><p class="section-label"><span>WEAPON OPTIONS · ${optionLevel}/${WEAPON_OPTION_ENHANCE.maxLevel}</span></p>${options}</div>
-          <div class="character-stats">
-            <span>Attack <b>${Math.round(player.attackPower)}</b></span><span>Defense <b>${Math.round(player.defense)}</b></span>
-            <span>Health <b>${player.maxHp}</b></span><span>Crit <b>${(player.critChance * 100).toFixed(1)}%</b></span>
-            <span>Atk Speed <b>${player.attackSpeed.toFixed(2)}</b></span><span>Skill Power <b>${Math.round(player.skillPower * 100)}%</b></span>
-            <span>Lifesteal <b>${(player.leech * 100).toFixed(1)}%</b></span><span>Luck <b>${(player.luck * 100).toFixed(1)}%</b></span>
-            <span>Gold <b>${player.gold.toLocaleString('en-US')}</b></span><span>Weapon <b>1 / 1</b></span>
-          </div>
-        </section>
-        <section class="enhancement-column">
-          <div class="enhancement-banner"><span>GOLD RESOURCES</span><strong>${player.gold.toLocaleString('en-US')}G</strong><small>Hunting rewards are gold only. Your signature weapon never drops.</small></div>
-          <article class="enhancement-card weapon-enhancement-card">
-            <div><span class="enhancement-kicker">WEAPON ENHANCE</span><h3>Evolution ${weaponLevel} / ${WEAPON_ENHANCE.maxLevel}</h3><p>Raises attack and advances the weapon's name, model, color, and rarity at milestone levels. Failure keeps the current level.</p></div>
-            <div class="weapon-stage-track">${stageTrack}</div>
-            <button type="button" class="forge-button" data-action="weapon-enhance" ${weaponMax || player.gold < weaponCost ? 'disabled' : ''}>${weaponMax ? 'Evolution Complete' : `Weapon Enhance · ${weaponCost.toLocaleString('en-US')}G · ${Math.round(weaponChance * 100)}%`}</button>
-          </article>
-          <article class="enhancement-card option-enhancement-card">
-            <div><span class="enhancement-kicker">WEAPON OPTION ENHANCE</span><h3>Options ${optionLevel} / ${WEAPON_OPTION_ENHANCE.maxLevel}</h3><p>Unlocks and improves secondary weapon stats. This track does not change the weapon model.</p></div>
-            <button type="button" class="forge-button option-button" data-action="weapon-option-enhance" ${optionMax || player.gold < optionCost ? 'disabled' : ''}>${optionMax ? 'Options Complete' : `Option Enhance · ${optionCost.toLocaleString('en-US')}G`}</button>
-          </article>
-        </section>
-      </div>`;
-  }
-
-  #equipmentSlot(slot) {
-    const labels = { weapon: 'Main Weapon', armor: 'Armor', charm: 'Hunt Charm' };
-    const item = this.game.player.getItem(this.game.player.equipped[slot]);
-    if (!item) return `<article class="equipment-slot"><small>${labels[slot]}</small><strong>Empty</strong><div class="item-stats"><span>Obtain gear from hunting.</span></div></article>`;
-    const plus = Number(item.enhanceLevel) || 0;
-    const plusLabel = plus > 0 ? ` · +${plus}` : '';
-    return `<article class="equipment-slot" style="--rarity:${hexColor(item.rarityColor)}">
-      <img class="equipment-icon" src="${itemIcon(item)}" alt="">
-      <small>${labels[slot]} · ${RARITIES[item.rarity].name}${plusLabel}</small><span class="item-score">S ${item.score}</span>
-      <strong style="color:${hexColor(item.rarityColor)}">${plus > 0 ? `+${plus} ` : ''}${escapeHtml(item.name)}</strong>
-      <div class="item-stats">${this.#itemStats(item, 6)}</div>
-    </article>`;
-  }
-
-  #itemCard(item) {
-    const player = this.game.player;
-    const equipped = player.equipped[item.slot] === item.id;
-    const canEquip = player.canEquipItem?.(item) ?? true;
-    const equipLabel = equipped ? 'Equipped' : canEquip ? 'Equip' : 'Class';
-    const plus = Number(item.enhanceLevel) || 0;
-    const maxed = plus >= GEAR_ENHANCE.maxLevel;
-    const cost = gearEnhanceCost(item);
-    const chancePct = Math.round(gearEnhanceSuccessChance(item) * 100);
-    const sellVal = (!equipped && !item.locked) ? gearSellValue(item) : 0;
-    const canAfford = player.gold >= cost;
-    const enhanceDisabled = maxed || !canAfford;
-    const plusBadge = plus > 0 ? `<span class="enhance-badge">+${plus}</span>` : '';
-    const enhanceMeta = maxed
-      ? `<span class="meta-enhance maxed">+${plus} MAX</span>`
-      : `<span class="meta-enhance${canAfford ? '' : ' unaffordable'}">+${plus}→+${plus + 1} · ${cost.toLocaleString('en-US')}G · ${chancePct}%</span>`;
-    const sellMeta = equipped
-      ? '<span class="meta-sell muted">Equipped</span>'
-      : item.locked
-        ? '<span class="meta-sell muted">Locked</span>'
-        : `<span class="meta-sell">Sell ${sellVal.toLocaleString('en-US')}G</span>`;
-    const enhanceTitle = maxed
-      ? 'Already at max enhance'
-      : canAfford
-        ? `Spend ${cost}G. Failure keeps the current level.`
-        : `Need ${cost}G (have ${player.gold})`;
-    return `<article class="item-card ${equipped ? 'equipped' : ''}${canEquip ? '' : ' wrong-class'}${plus > 0 ? ' enhanced' : ''}" style="--rarity:${hexColor(item.rarityColor)}">
-      <img class="item-icon" src="${itemIcon(item)}" alt="">
-      <header><small>${RARITIES[item.rarity].name} · iLv.${item.itemLevel}${plus > 0 ? ` · +${plus}` : ''}</small><strong>${plus > 0 ? `+${plus} ` : ''}${escapeHtml(item.name)}</strong></header>
-      <span class="item-score">S ${item.score}</span>
-      ${plusBadge}
-      <div class="item-stats">${this.#itemStats(item, 6, { compare: !equipped })}</div>
-      <div class="item-meta" aria-hidden="true">${enhanceMeta}${sellMeta}</div>
-      <div class="item-actions">
-        <button type="button" data-action="equip" data-item="${item.id}" ${equipped || !canEquip ? 'disabled' : ''}>${equipLabel}</button>
-        <button type="button" data-action="enhance" data-item="${item.id}" ${enhanceDisabled ? 'disabled' : ''} title="${enhanceTitle}">Enhance</button>
-        <button type="button" data-action="sell" data-item="${item.id}" ${equipped || item.locked ? 'disabled' : ''} title="${sellVal ? `Sell for ${sellVal} gold` : 'Cannot sell'}">Sell</button>
-      </div>
-    </article>`;
-  }
-
-  #itemStats(item, limit = 6, options = {}) {
-    const compare = Boolean(options.compare);
-    const equippedItem = compare
-      ? this.game.player.getItem(this.game.player.equipped[item.slot])
-      : null;
-    const showDelta = Boolean(equippedItem && equippedItem.id !== item.id);
-    const values = [];
-    for (const key of STAT_KEYS) {
-      const value = Number(item[key]) || 0;
-      const base = showDelta ? (Number(equippedItem[key]) || 0) : 0;
-      if (!value && !(showDelta && base)) continue;
-      if (!value && !showDelta) continue;
-      if (!value && showDelta && !base) continue;
-      // Prefer showing stats that exist on the candidate (or on equipped when comparing).
-      if (!value && showDelta) {
-        const delta = -base;
-        const deltaHtml = `<em class="stat-down">${formatStatDelta(key, delta)}</em>`;
-        values.push(`<span>${STAT_LABELS[key]} 0 ${deltaHtml}</span>`);
-        continue;
-      }
-      const main = statText(key, value);
-      if (!showDelta) {
-        values.push(`<span>${main}</span>`);
-        continue;
-      }
-      const delta = value - base;
-      if (Math.abs(delta) < 1e-9) {
-        values.push(`<span>${main}</span>`);
-      } else {
-        const cls = delta > 0 ? 'stat-up' : 'stat-down';
-        values.push(`<span>${main} <em class="${cls}">${formatStatDelta(key, delta)}</em></span>`);
-      }
-    }
-    if (item.slot === 'weapon') {
-      const speed = Number(item.speed ?? 1);
-      let speedHtml = `Speed ×${speed.toFixed(2)}`;
-      if (showDelta) {
-        const baseSpeed = Number(equippedItem.speed ?? 1);
-        const delta = speed - baseSpeed;
-        if (Math.abs(delta) >= 0.005) {
-          const cls = delta > 0 ? 'stat-up' : 'stat-down';
-          speedHtml += ` <em class="${cls}">${formatStatDelta('speed', delta)}</em>`;
-        }
-      }
-      values.push(`<span>${speedHtml}</span>`);
-    }
-    if (showDelta && (item.score != null || equippedItem.score != null)) {
-      const scoreDelta = (item.score ?? 0) - (equippedItem.score ?? 0);
-      if (Math.abs(scoreDelta) >= 1) {
-        const cls = scoreDelta > 0 ? 'stat-up' : 'stat-down';
-        values.push(`<span>Score <em class="${cls}">${scoreDelta > 0 ? '+' : ''}${Math.round(scoreDelta)}</em></span>`);
-      }
-    }
-    return values.slice(0, limit).join('') || '<span>No special stats</span>';
+    return renderInventory(this);
   }
 
   #renderSkills() {
-    const player = this.game.player;
-    const hero = getHeroClass(player.classId);
-    this.elements['panel-title'].textContent = hero.skillPanelTitle ?? 'Skills';
-    const active = getClassActiveSkills(player.classId).map(skill => this.#skillCard(skill)).join('');
-    const passive = getClassPassiveSkills(player.classId).map(skill => this.#skillCard(skill)).join('');
-    const debugControls = this.game.debugEnabled ? this.#debugSkillControls() : '';
-    this.elements['panel-content'].innerHTML = `
-      <div class="skills-layout">
-        ${debugControls}
-        <div class="skill-points-banner"><div><span>AVAILABLE POINTS</span><strong>Earned from level-ups and hunt milestones.</strong></div><b>${player.skillPoints} SP</b></div>
-        <section class="skill-group"><h3>Active Arts</h3>${active}</section>
-        <section class="skill-group"><h3>Passives</h3>${passive}</section>
-      </div>`;
-  }
-
-  #skillCard(skill) {
-    const player = this.game.player;
-    const unlocked = player.level >= skill.unlockLevel;
-    const rank = player.skillRank(skill.id);
-    const displayRank = skill.passive ? rank : unlocked ? Math.max(1, rank) : 0;
-    const canUpgrade = unlocked && player.skillPoints > 0 && displayRank < skill.maxRank;
-    const bundle = skill.passive ? null : resolveSkillForm(
-      skill, displayRank, player.level, player.skillEvolution?.[skill.id] ?? {},
-    );
-    const currentValues = bundle ? formatCombatSnapshot(bundle.combat).join(' · ') : '';
-    const evolution = skill.passive ? '' : this.#skillEvolution(skill, displayRank, bundle);
-    return `<article class="skill-card ${unlocked ? '' : 'locked'}">
-      <span class="skill-key">${skill.key ?? '◆'}</span>
-      <h4>${escapeHtml(skill.name)} <small>Lv.${displayRank}/${skill.maxRank}</small></h4>
-      <p>${escapeHtml(skill.description)} ${skill.passive ? '' : `MP ${bundle.mp} · CD ${bundle.cooldown}s`}</p>
-      <div class="rank-line"><span>${unlocked ? escapeHtml(skill.passive ? skill.rankText(Math.max(1, displayRank)) : currentValues) : `Unlocks at Lv.${skill.unlockLevel}`}</span><div class="rank-pips">${Array.from({ length: skill.maxRank }, (_, i) => `<i class="${i < displayRank ? 'active' : ''}"></i>`).join('')}</div></div>
-      ${evolution}
-      <button data-action="upgrade-skill" data-skill="${skill.id}" ${canUpgrade ? '' : 'disabled'}>${displayRank >= skill.maxRank ? 'Max Rank' : 'Spend 1 SP'}</button>
-    </article>`;
-  }
-
-  #skillEvolution(skill, rank, bundle) {
-    const player = this.game.player;
-    const choices = player.skillEvolution?.[skill.id] ?? {};
-    const formLevel = bundle.activeForms.at(-1) ?? 0;
-    const formOverlay = skill.evolution?.forms?.[formLevel];
-    const currentForm = formOverlay?.label ?? (formLevel >= 100 ? 'Apex Form' : formLevel >= 60 ? 'Form II' : formLevel >= 20 ? 'Form I' : 'Base Form');
-    const gates = [
-      ...Object.keys(skill.evolution?.forms ?? {}),
-      ...Object.keys(skill.evolution?.mutations ?? {}),
-    ].map(Number).filter(Number.isFinite).sort((a, b) => a - b);
-    const nextGate = gates.find(gate => gate > player.level);
-    const nextBundle = nextGate ? resolveSkillForm(skill, rank, nextGate, choices) : null;
-    const nextFormLevel = nextBundle?.activeForms?.at(-1) ?? 0;
-    const nextMutationId = nextBundle?.mutations?.[`tier${nextGate}`];
-    const nextOverlay = nextMutationId
-      ? skill.evolution?.mutations?.[nextGate]?.[nextMutationId]
-      : skill.evolution?.forms?.[nextFormLevel];
-    const nextLabel = nextOverlay?.label ?? (nextMutationId ? titleCaseId(nextMutationId) : nextGate ? `Lv.${nextGate} Form` : '');
-    const nextText = nextGate ? `Next · Lv.${nextGate} ${nextLabel}` : gates.length ? 'All configured milestones unlocked' : 'No evolution milestones configured';
-    const selectedOverlays = [40, 80].map(gate => {
-      const id = bundle.mutations[`tier${gate}`];
-      return id ? skill.evolution?.mutations?.[gate]?.[id] : null;
-    }).filter(Boolean);
-    const currentSummary = [formOverlay?.summary, ...selectedOverlays.map(option => option.summary)].filter(Boolean).join(' ');
-    const nextSummary = nextOverlay?.summary ?? '';
-    const nextDeltas = nextBundle ? formatCombatDeltas(bundle.combat, nextBundle.combat).join(' · ') : '';
-    const mutationRows = [40, 80].map(gate => {
-      const options = skillMutationOptions(skill, gate);
-      if (!options.length) return '';
-      const key = `tier${gate}`;
-      const selected = bundle.mutations[key] ?? null;
-      const selectedOption = selected ? skill.evolution.mutations[gate][selected] : null;
-      const unlocked = player.level >= gate;
-      const buttons = options.map(optionId => {
-        const option = skill.evolution.mutations[gate][optionId];
-        const label = option.label ?? titleCaseId(optionId);
-        const summary = option.summary ?? '';
-        const icon = mutationIconView(option.icon);
-        const accessible = mutationAccessibleText(label, summary);
-        return `<button type="button" data-action="select-mutation" data-skill="${escapeHtml(skill.id)}" data-milestone="${gate}" data-choice="${escapeHtml(optionId)}" data-icon="${icon.token}" class="${selected === optionId ? 'selected' : ''}" aria-label="${escapeHtml(accessible)}" title="${escapeHtml(accessible)}" aria-pressed="${selected === optionId ? 'true' : 'false'}" ${unlocked ? '' : 'disabled'}><span class="mutation-icon" aria-hidden="true"><i>${icon.glyph}</i><em>${icon.marker}</em></span><span class="mutation-copy"><b>${escapeHtml(label)}</b><small>${escapeHtml(summary)}</small></span></button>`;
-      }).join('');
-      return `<div class="mutation-row"><span>Lv.${gate} ${unlocked ? (selectedOption ? `· ${escapeHtml(selectedOption.label)}` : '· Choose one') : '· Locked'}</span><div class="mutation-options">${buttons}</div></div>`;
-    }).join('');
-    return `<div class="skill-evolution"><div class="form-status"><b>${escapeHtml(currentForm)}</b><span>${escapeHtml(nextText)}</span></div>${currentSummary ? `<p class="current-summary">${escapeHtml(currentSummary)}</p>` : ''}${nextSummary || nextDeltas ? `<p class="next-summary">${escapeHtml([nextSummary, nextDeltas].filter(Boolean).join(' · '))}</p>` : ''}${mutationRows}${mutationRows ? '<small>Select another option to respec this tier.</small>' : ''}</div>`;
-  }
-
-  #debugSkillControls() {
-    const player = this.game.player;
-    const classButtons = Object.entries(HERO_CLASSES).map(([id, hero]) => (
-      `<button type="button" data-action="debug-skill-state" data-debug-class="${id}" class="${id === player.classId ? 'active' : ''}">${escapeHtml(hero.name)}</button>`
-    )).join('');
-    const levelButtons = [20, 40, 60, 80, 100].map(level => (
-      `<button type="button" data-action="debug-skill-state" data-debug-level="${level}" class="${player.level === level ? 'active' : ''}">Lv.${level}</button>`
-    )).join('');
-    const rankButtons = [1, 5, 10].map(rank => (
-      `<button type="button" data-action="debug-skill-state" data-debug-rank="${rank}">Rank ${rank}</button>`
-    )).join('');
-    return `<aside class="skill-debug"><strong>DEBUG · Skill Evolution</strong><span>Class</span><div>${classButtons}</div><span>Level</span><div>${levelButtons}</div><span>All active ranks</span><div>${rankButtons}</div></aside>`;
+    return renderSkills(this);
   }
 
   #renderHunter() {
-    this.elements['panel-title'].textContent = 'Hunt Records';
-    const hunt = this.game.hunt;
-    const contract = hunt.contract;
-    const maxZoneKills = Math.max(1, ...Object.values(hunt.killsByZone));
-    const zoneRows = Object.values(ZONES).map(zone => {
-      const kills = hunt.killsByZone[zone.id] ?? 0;
-      return `<div class="zone-record"><span>${zone.name}</span><b>${kills.toLocaleString('en-US')}</b><div><i style="width:${kills / maxZoneKills * 100}%"></i></div></div>`;
-    }).join('');
-    const discovered = Object.keys(hunt.killsByType).length;
-    this.elements['panel-content'].innerHTML = `
-      <div class="records-layout">
-        <section>
-          <div class="record-card"><h3>${escapeHtml(hunt.hunterTitle)} · WORLD TIER ${hunt.worldTier}</h3>
-            <div class="big-record"><div><strong>${hunt.totalKills}</strong><small>Total Kills</small></div><div><strong>${hunt.elitesKilled}</strong><small>Elite</small></div><div><strong>${hunt.bossesKilled}</strong><small>Boss</small></div><div><strong>${hunt.bestStreak}</strong><small>Best Streak</small></div></div>
-          </div>
-          <div class="record-card"><h3>Kills by Zone</h3>${zoneRows}</div>
-        </section>
-        <section>
-          <div class="record-card"><h3>Current Contract</h3><div class="contract-detail"><small>REWARD TIER ${contract?.rewardTier ?? 1}</small><strong>${escapeHtml(contract?.label ?? 'Contract preparing')}</strong><p>${escapeHtml(contract?.description ?? '')}</p><p class="contract-reward-hint">${escapeHtml(contract?.rewardHint ?? '')}</p><div class="zone-record"><span>Progress</span><b>${Math.floor(contract?.progress ?? 0)} / ${contract?.target ?? 0}</b><div><i style="width:${contract ? contract.progress / contract.target * 100 : 0}%"></i></div></div></div></div>
-          <div class="record-card"><h3>Codex & Play</h3><div class="character-stats"><span>Monsters Found <b>${discovered} / 42</b></span><span>Contracts Done <b>${hunt.completedContracts}</b></span><span>Play Time <b>${formatTime(this.game.playTime)}</b></span><span>Next Boss <b>${Math.floor(hunt.bossCharge)}%</b></span></div></div>
-        </section>
-      </div>`;
+    return renderHunter(this);
   }
 
   #renderSystem() {
-    this.elements['panel-title'].textContent = 'System';
-    this.elements['panel-content'].innerHTML = `
-      <div class="system-layout">
-        <section class="system-card"><h3>Current Hunt</h3><p>Progress auto-saves every ${GAME_CONFIG.autoSaveSeconds}s; near the hub your HP and mana recover quickly.</p><div class="character-stats"><span>Level <b>${this.game.player.level}</b></span><span>Play Time <b>${formatTime(this.game.playTime)}</b></span><span>Kills <b>${this.game.hunt.totalKills}</b></span><span>World Tier <b>${this.game.hunt.worldTier}</b></span></div></section>
-        <section class="system-card"><h3>Graphics Quality</h3><p>Unified control of post-processing, shadows, vegetation density and dynamic render resolution. <kbd>F3</kbd> shows the dev HUD.</p><div class="quality-actions">${['low','medium','high'].map(id => `<button data-action="quality" data-quality="${id}" class="${this.game.quality === id ? 'active' : ''}">${{ low: 'Low', medium: 'Medium', high: 'High' }[id]}</button>`).join('')}</div></section>
-        <section class="system-card"><h3>Game Menu</h3><div class="system-actions"><button data-action="resume">Resume Hunt</button><button data-action="save">Save Now</button><button data-action="mute">Sound ${this.game.audio.muted ? 'On' : 'Off'}</button><button data-action="title">Return to Title</button><button class="danger-button" data-action="reset-save">Delete Save Data</button></div></section>
-      </div>`;
+    return renderSystem(this);
   }
 
   #handlePanelAction(event) {
-    const button = event.target.closest('button[data-action]');
-    if (!button || button.disabled) return;
-    const action = button.dataset.action;
-    if (action === 'filter') {
-      this.inventoryFilter = button.dataset.filter;
-      this.#renderInventory();
-    } else if (action === 'equip') {
-      const item = this.game.player.getItem(button.dataset.item);
-      if (item && !this.game.player.canEquipItem?.(item)) {
-        this.notify('This class cannot equip that weapon.', 'danger', 2.8);
-        return;
-      }
-      if (this.game.player.equip(button.dataset.item)) {
-        this.game.audio.click();
-        this.notify('Equipped new gear.', 'loot');
-        this.game.requestSave();
-        this.#renderInventory();
-      }
-    } else if (action === 'sell' || action === 'salvage') {
-      const value = this.game.player.sell(button.dataset.item);
-      if (value > 0) {
-        this.game.audio.click();
-        this.notify(`Sold · +${value}G`, 'loot');
-        this.game.requestSave();
-        this.#renderInventory();
-      }
-    } else if (action === 'sell-junk' || action === 'salvage-low') {
-      const result = this.game.player.sellAllUnequipped({ rarities: ['common', 'uncommon'] });
-      this.notify(
-        result.count ? `Sold ${result.count} junk · +${result.gold}G` : 'No Common/Uncommon gear to sell.',
-        result.count ? 'loot' : 'danger',
-      );
-      if (result.count) this.game.audio.click();
-      this.game.requestSave();
-      this.#renderInventory();
-    } else if (action === 'sell-all') {
-      const result = this.game.player.sellAllUnequipped();
-      this.notify(
-        result.count ? `Sold ${result.count} items · +${result.gold.toLocaleString('en-US')}G` : 'Nothing to sell (equipped gear is kept).',
-        result.count ? 'loot' : 'danger',
-      );
-      if (result.count) this.game.audio.click();
-      this.game.requestSave();
-      this.#renderInventory();
-    } else if (action === 'weapon-enhance') {
-      const result = this.game.player.enhanceWeapon();
-      if (!result.ok) {
-        this.notify(result.reason === 'gold' ? `Need ${result.cost.toLocaleString('en-US')}G to evolve the weapon.` : 'Weapon evolution is complete.', 'danger', 2.8);
-        return;
-      }
-      if (result.success === false) {
-        this.game.audio.click();
-        this.notify(`Weapon enhance failed · remains at +${result.level}`, 'danger', 3.2);
-        this.game.requestSave();
-        this.#renderInventory();
-        return;
-      }
-      this.game.audio.levelUp?.();
-      this.notify(`Weapon evolved · ${this.game.player.weapon.name} · +${result.level}`, 'level', 3.6);
-      this.game.requestSave();
-      this.#renderInventory();
-    } else if (action === 'weapon-option-enhance') {
-      const result = this.game.player.enhanceWeaponOptions();
-      if (!result.ok) {
-        this.notify(result.reason === 'gold' ? `Need ${result.cost.toLocaleString('en-US')}G to enhance weapon options.` : 'Weapon options are complete.', 'danger', 2.8);
-        return;
-      }
-      this.game.audio.click();
-      this.notify(`Weapon option improved · ${titleCaseId(result.stat)} · Lv.${result.level}`, 'loot', 3.2);
-      this.game.requestSave();
-      this.#renderInventory();
-    } else if (action === 'enhance') {
-      const item = this.game.player.getItem(button.dataset.item);
-      const name = item?.name ?? 'Gear';
-      const result = this.game.player.enhance(button.dataset.item);
-      if (!result.ok) {
-        if (result.reason === 'gold') this.notify(`Need ${result.cost}G to enhance.`, 'danger', 2.6);
-        else if (result.reason === 'max') this.notify('Already at max enhance (+10).', 'danger', 2.4);
-        else this.notify('Cannot enhance that item.', 'danger', 2.4);
-        return;
-      }
-      this.game.audio.click();
-      this.game.audio.levelUp?.();
-      this.notify(`Enhance complete · ${name} → +${result.level}`, 'level', 3.2);
-      this.game.requestSave();
-      this.#renderInventory();
-    } else if (action === 'upgrade-skill') {
-      if (this.game.player.upgradeSkill(button.dataset.skill)) {
-        this.game.audio.levelUp();
-        this.notify(`${SKILLS[button.dataset.skill].name} upgraded`, 'level');
-        this.game.requestSave();
-        this.#renderSkills();
-      }
-    } else if (action === 'select-mutation') {
-      const skill = SKILLS[button.dataset.skill];
-      const milestone = Number(button.dataset.milestone);
-      if (this.game.player.setSkillMutation(button.dataset.skill, milestone, button.dataset.choice)) {
-        const option = skill?.evolution?.mutations?.[milestone]?.[button.dataset.choice];
-        this.game.audio.click();
-        this.notify(`${skill.name} · Lv.${milestone} ${option?.label ?? titleCaseId(button.dataset.choice)}`, 'level');
-        this.game.requestSave();
-        this.#renderSkills();
-      }
-    } else if (action === 'debug-skill-state') {
-      if (!this.game.debugEnabled) return;
-      const changed = this.game.debugSetSkillState({
-        classId: button.dataset.debugClass,
-        level: button.dataset.debugLevel,
-        rank: button.dataset.debugRank,
-      });
-      if (changed) {
-        this.notify('Debug skill state updated.', 'level', 1.8);
-        this.#renderSkills();
-      }
-    } else if (action === 'quality') {
-      if (this.game.setQuality(button.dataset.quality)) this.#renderSystem();
-    } else if (action === 'resume') this.closePanel();
-    else if (action === 'save') {
-      if (this.game.saveGame(true)) this.notify('Progress saved to browser storage.', 'loot');
-    } else if (action === 'mute') {
-      this.game.audio.setMuted(!this.game.audio.muted);
-      this.#renderSystem();
-    } else if (action === 'title') {
-      this.closePanel();
-      this.game.returnToTitle();
-    } else if (action === 'reset-save') {
-      if (window.confirm('Delete save data and start a new hunt?')) {
-        this.game.save.clear();
-        this.closePanel();
-        this.game.newGame();
-      }
-    }
+    return handlePanelAction(this, event);
   }
 
   showDeath() {

@@ -254,7 +254,7 @@ function simulateLevelUnlockNotices(classId, levels) {
 
 const aerin3 = simulateLevelUnlockNotices('aerin', [3]);
 const wizard3 = simulateLevelUnlockNotices('wizard', [3]);
-ok(aerin3.some(n => n.name.includes('Whirlwind')), 'sim: knight (aerin) unlocks Whirlwind at 3');
+ok(aerin3.some(n => n.name.includes('Vortex Call') || n.name.includes('Whirlwind')), 'sim: knight (aerin) unlocks Vortex Call at 3');
 ok(wizard3.some(n => n.name.includes('Fireball')), 'sim: wizard unlocks Fireball at 3');
 ok(!aerin3.some(n => n.name.includes('Fireball')), 'sim: knight (aerin) does not unlock Fireball');
 ok(!wizard3.some(n => n.name.includes('Whirlwind')), 'sim: wizard does not unlock Whirlwind');

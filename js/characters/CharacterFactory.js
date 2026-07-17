@@ -16,6 +16,7 @@ const CLASS_LOOKS = Object.freeze({
       skin: 0xd4a07a,
       cloth: 0x8a9db0,
       clothDark: 0x3a4658,
+      cape: 0x8b1a28,
       leather: 0x1e2430,
       hair: 0x2a1f18,
       hairDark: 0x1a1410,
@@ -35,6 +36,7 @@ const CLASS_LOOKS = Object.freeze({
       skin: 0xf0c8b8,
       cloth: 0x3a4f9c,
       clothDark: 0x1e2a5c,
+      cape: 0x24306e,
       leather: 0x2a2440,
       hair: 0xe8e0f4,
       hairDark: 0xb0a0d0,
@@ -56,6 +58,7 @@ const CLASS_LOOKS = Object.freeze({
       skin: 0xdea482,
       cloth: 0x3c4e5a,
       clothDark: 0x222c38,
+      cape: 0x28323e,
       leather: 0x161c24,
       hair: 0x9ef0d8,
       hairDark: 0x3aa890,
@@ -76,6 +79,7 @@ const CLASS_LOOKS = Object.freeze({
       skin: 0xd8a882,
       cloth: 0x4a6a48,
       clothDark: 0x2a3a28,
+      cape: 0x3a4a30,
       leather: 0x3a2a1c,
       hair: 0x8a4028,
       hairDark: 0x5a2818,
@@ -103,7 +107,8 @@ const WEAPON_LENGTH = Object.freeze({
   leaf: 1.08,
   relic: 1.25,
   staff: 1.35,
-  dagger: .78,
+  /** ~85% of prior .78 for a shorter dual-dagger read. */
+  dagger: .663,
   bow: 1.05,
 });
 const WEAPON_GIRTH = Object.freeze({
@@ -114,7 +119,8 @@ const WEAPON_GIRTH = Object.freeze({
   leaf: 1.15,
   relic: 1.25,
   staff: .95,
-  dagger: 1,
+  /** Slimmer than prior 1.0 so the rebaked sharp tip stays readable. */
+  dagger: .88,
   bow: 1.15,
 });
 
@@ -258,13 +264,20 @@ function applyPalette(material, role, palette) {
   material.roughness = role === 'metal' ? .35 : role === 'skin' ? .62 : .88;
   if (role === 'skin') material.color.setHex(palette.skin);
   else if (role === 'cloth') material.color.setHex(palette.cloth);
-  else if (role === 'leather') material.color.setHex(palette.leather);
+  else if (role === 'cape') {
+    // Prefer dedicated cape accent when present; else clothDark for contrast vs armor.
+    material.color.setHex(palette.cape ?? palette.clothDark ?? palette.cloth);
+  } else if (role === 'leather') material.color.setHex(palette.leather);
   else if (role === 'hair') {
     material.color.setHex(palette.hair);
     material.emissive.setHex(palette.hairDark);
     material.emissiveIntensity = .12;
   } else if (role === 'metal') material.color.setHex(palette.metal);
-  else if (role === 'eye') {
+  else if (role === 'eye_white') {
+    material.color.setHex(0xfff4e8);
+    material.emissive.setHex(0x000000);
+    material.emissiveIntensity = 0;
+  } else if (role === 'eye') {
     material.color.setHex(palette.eye);
     material.emissive.setHex(palette.eye);
     material.emissiveIntensity = .35;
@@ -367,16 +380,22 @@ export class CharacterFactory {
     refs.weaponQuality = weapon.userData.assetQuality ?? quality;
     weapon.name = `Equipped_${kind}`;
     // Bow sits more upright on the hip/hand socket; blades keep the legacy tilt.
+    // Rogue dual daggers: compact mid-torso ready, tip forward (toward facing), pommel in hand.
+    const rogueDual = refs.classId === 'rogue' && (kind === 'dagger' || kind === 'saber');
     if (kind === 'bow') {
       weapon.position.set(.04, -.04, .02);
       weapon.rotation.set(0.15, Math.PI * 0.92, -0.55);
+    } else if (rogueDual) {
+      weapon.position.set(.01, -.04, .03);
+      weapon.rotation.set(-0.55, Math.PI, 0.05);
     } else {
       weapon.position.set(.02, -.02, .01);
       weapon.rotation.set(0, Math.PI, .14);
     }
     const length = (WEAPON_LENGTH[kind] ?? 1.25) * WEAPON_VISUAL_SCALE;
     const girth = (WEAPON_GIRTH[kind] ?? 1.2) * WEAPON_VISUAL_SCALE;
-    weapon.scale.set(girth, length, girth);
+    // Dagger mesh tip is +Y; after hand bind that maps tip backward — flip Y so tip faces forward.
+    weapon.scale.set(girth, rogueDual ? -length : length, girth);
     const rarityColor = new THREE.Color(item.rarityColor ?? item.color ?? 0xe8f4ff);
     const outlineColor = resolveLook(getHeroClass(refs.classId).lookId).palette.outline;
     const mainMaterials = new Set();
@@ -422,9 +441,10 @@ export class CharacterFactory {
       offhandRelease = offhandAsset.release;
       offhand = offhandAsset.scene;
       offhand.name = `Equipped_${kind}_offhand`;
-      offhand.position.set(-.02, -.02, .01);
-      offhand.rotation.set(0, 0, -.14);
-      offhand.scale.set(-girth, length, girth);
+      offhand.position.set(-.01, -.04, .03);
+      offhand.rotation.set(-0.55, 0, -.05);
+      // Mirror X for left hand; negative Y same as main so tip faces forward.
+      offhand.scale.set(-girth, -length, girth);
       offhand.traverse(object => {
         if (!object.isMesh) return;
         object.castShadow = true;

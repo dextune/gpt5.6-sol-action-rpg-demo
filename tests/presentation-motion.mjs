@@ -159,6 +159,33 @@ ok(holdSrc.includes("profileId === 'rogue'") && holdSrc.includes("profileId === 
   'P7: classWeaponHold branches for rogue/wizard/ranger/knight');
 ok(holdSrc.includes('buildClassCombatClipSpecs'),
   'P7: combat clip builder present for class kits');
+// Combat-motion sophistication Wave A: per-class timing profiles + phase helpers.
+ok(holdSrc.includes('COMBAT_MOTION_PROFILE') && holdSrc.includes('combatPhaseTimes')
+  && holdSrc.includes('combatClipDuration') && holdSrc.includes('strikePhases'),
+  'P7/U4: COMBAT_MOTION_PROFILE + combatPhaseTimes / combatClipDuration / strikePhases present');
+ok(holdSrc.includes('antiRatio') && holdSrc.includes('finisherAntiBoost')
+  && holdSrc.includes('finisherRecoveryBoost') && holdSrc.includes('contactSnap'),
+  'P7/U4: profile fields antiRatio / finisher boosts / contactSnap present');
+for (const classId of ['aerin', 'rogue', 'wizard', 'ranger']) {
+  ok(new RegExp(`${classId}\\s*:\\s*Object\\.freeze\\(\\{[\\s\\S]*?antiRatio`).test(holdSrc)
+    || holdSrc.includes(`${classId}: Object.freeze({`) && holdSrc.includes('COMBAT_MOTION_PROFILE'),
+    `P7/U4: COMBAT_MOTION_PROFILE has ${classId} entry`);
+}
+// Class-distinct combat builders (not a single shared attack table for all four).
+ok(holdSrc.includes("if (profileId === 'aerin')") && holdSrc.includes("if (profileId === 'wizard')")
+  && holdSrc.includes("if (profileId === 'ranger')") && holdSrc.includes("if (profileId === 'rogue')"),
+  'P7/B: per-class combat clip authoring branches (knight/rogue/wizard/ranger)');
+// Skill densify: multi-key peaks for representative actives (bake uses .246 not 0.246).
+ok((holdSrc.match(/animationClip\('skill_whirlwind'/g) || []).length >= 1
+  && holdSrc.includes('.246') && holdSrc.includes('.538') && holdSrc.includes('.829')
+  && holdSrc.includes('.112') && holdSrc.includes('.426'),
+  'P7/C: skill_whirlwind body peaks land on timeline hit fractions');
+ok(holdSrc.includes("animationClip('skill_twin_fang'") && holdSrc.includes('.163')
+  && holdSrc.includes('.385') && holdSrc.includes('.533')
+  && holdSrc.includes('.059') && holdSrc.includes('.281'),
+  'P7/C: skill_twin_fang multi-phase body peaks densified');
+ok(holdSrc.includes("animationClip('skill_pierce_shot'") && holdSrc.includes('.326'),
+  'P7/C: skill_pierce_shot draw→loose contact aligned');
 for (const classId of Object.keys(HERO_CLASSES)) {
   const skills = getClassActiveSkills(classId);
   ok(skills.length === 4, `P7: class ${classId} has 4 actives`);

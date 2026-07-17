@@ -302,7 +302,7 @@ Hero runMods (`player.runMods`) are Defense-run only and reset on title. Weapon 
 | `js/config.js` and/or `js/data/content.js` | `DEFENSE_CONFIG` |
 | `js/core/SaveManager.js` / save payload | optional `defenseMeta` + defaults |
 | `tests/integrity.mjs` | button + config smoke |
-| `docs/plan/defense-mode.md` | this plan |
+| `docs/history/defense-mode.md` | this plan |
 | `docs/README.md` | link to plan (optional) |
 
 **Out of scope:** `vendor/`, camera shake/hit-stop re-enable, Hunt contract redesign, new monster shapes for V1.

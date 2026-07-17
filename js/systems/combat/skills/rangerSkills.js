@@ -14,11 +14,67 @@ const TMP_C = new THREE.Vector3();
 
 export function attachRangerSkillMethods(proto) {
   Object.assign(proto, {
+/** Snap non-boss prey near the flight corridor onto the arrow line (Harpoon Shot). */
+_harpoonLineSnap(player, direction, combat, theme, castId) {
+  const game = this.ctx ?? this.game;
+  const width = combat.harpoonWidth ?? 3.4;
+  const cap = Math.max(1, Math.round(combat.harpoonCap ?? 8));
+  const spacing = combat.harpoonSpacing ?? 1.35;
+  const maxAlong = (combat.speed ?? 18) * (combat.life ?? 5.75) * 0.55;
+  const origin = player.position.clone();
+  const dir = direction.clone().setY(0);
+  if (dir.lengthSq() < 1e-6) dir.set(0, 0, 1);
+  dir.normalize();
+  const side = new THREE.Vector3(-dir.z, 0, dir.x);
+  const candidates = [];
+  for (const enemy of game.enemies?.enemies ?? []) {
+    if (!enemy.alive) continue;
+    if (enemy.controlCategory === 'boss' || enemy.boss) continue;
+    const offset = enemy.position.clone().sub(origin).setY(0);
+    const along = offset.dot(dir);
+    if (along < 1.0 || along > maxAlong) continue;
+    const lateral = offset.dot(side);
+    if (Math.abs(lateral) > width + (enemy.radius ?? 0.5)) continue;
+    candidates.push({ enemy, along, lateral: Math.abs(lateral) });
+  }
+  candidates.sort((a, b) => a.along - b.along || a.lateral - b.lateral);
+  const taken = candidates.slice(0, cap);
+  if (!taken.length) return;
+  // Distinct harpoon silhouette — do not reuse Backward Release corridor recipe (test + identity).
+  for (let i = 0; i < taken.length; i += 1) {
+    const sample = origin.clone().addScaledVector(dir, 2 + i * spacing);
+    game.effects?.slash?.(sample, dir, i % 2 ? theme.secondary : theme.primary, 2.4, {
+      height: 0.2, life: 0.26, thickness: 0.04, opacity: 0.55,
+    });
+  }
+  for (let i = 0; i < taken.length; i += 1) {
+    const enemy = taken[i].enemy;
+    const from = enemy.position.clone();
+    const along = 2.2 + i * spacing + (enemy.radius ?? 0.55);
+    const dest = origin.clone().addScaledVector(dir, along);
+    dest.y = from.y;
+    game.world?.resolvePosition?.(dest, enemy.radius ?? 0.55);
+    game.effects?.trail?.(from.clone().add(new THREE.Vector3(0, 1, 0)), theme.secondary ?? theme.primary, 0.4, 0.16);
+    game.effects?.afterimage?.(from, theme.accent ?? theme.primary, { life: 0.22, opacity: 0.4, scale: 0.9 });
+    enemy.position.copy(dest);
+    enemy.velocity?.set?.(0, 0, 0);
+    enemy.knockback?.set?.(0, 0, 0);
+    game.effects?.trail?.(dest.clone().add(new THREE.Vector3(0, 1, 0)), theme.core ?? theme.primary, 0.45, 0.18);
+  }
+  game.effects?.slash?.(origin.clone().addScaledVector(dir, 3), dir, theme.primary, 4.5, {
+    height: 0.35, life: 0.28, thickness: 0.05, opacity: 0.7,
+  });
+  void castId;
+},
+
 _piercingShot(player, bundle, phase = null, apexAudio = null) {
   const fire = () => {
     if (!player.alive) return;
     const { combat, theme } = this._skillBundle(bundle);
-    const direction = this._facingDir(player);
+    const lockedTarget = this._autoTargetEnemy(player, combat.targetRange ?? 24);
+    const direction = lockedTarget
+      ? this._faceAutoTarget(player, lockedTarget)
+      : this._facingDir(player);
     const side = new THREE.Vector3(-direction.z, 0, direction.x);
     const points = [];
     let splinters = 0;
@@ -27,15 +83,18 @@ _piercingShot(player, bundle, phase = null, apexAudio = null) {
     const generations=this.rangerGeneration.get(player)??{};const generation=(generations.pierce??0)+1;generations.pierce=generation;this.rangerGeneration.set(player,generations);
     const current=()=>player.alive&&player.classId==='ranger'&&this.rangerGeneration.get(player)?.pierce===generation;
     const castId = `ranger-q-${++this.rangerSerial}`;
+    // Harpoon identity: yank corridor prey onto the flight line, then fire.
+    this._harpoonLineSnap(player, direction, combat, theme, castId);
     (this.ctx ?? this.game).effects.recipeArrowStreak?.(player.position, direction, theme, Boolean(combat.railArrow));
-    const start = player.position.clone().add(new THREE.Vector3(0, 1.2, 0)).addScaledVector(direction, 1.0);
+    // Keep the narrow Rail Arrow collision lane centered on ground-rooted enemy capsules.
+    const start = player.position.clone().add(new THREE.Vector3(0, .8, 0)).addScaledVector(direction, 1.0);
     this._spawnFriendlyOrb(start, direction, {
       style: 'heavy_arrow',
       color: theme.primary,
       damage: skillDamage(player.attackPower, combat) * (combat.damageMult ?? 1),
       speed: (combat.speed ?? 18) * (combat.speedMult ?? 1),
       radius: (combat.radius ?? 0.95) * (combat.radiusMult ?? 1),
-      life: combat.life ?? 1.15,
+      life: combat.life ?? 5.75,
       pierce: Math.max(1, Math.round((combat.pierce ?? 3) + (combat.crowdPierce ?? 0))),
       knockback: combat.knockback ?? 3.2,
       skill: true,
@@ -43,6 +102,7 @@ _piercingShot(player, bundle, phase = null, apexAudio = null) {
       armorPierce: combat.armorPierce ?? 0.18,
       statusOnHit: combat.status ?? null,
       castId,
+      homingTarget: lockedTarget,
       ownerGuard:current,
       onHit: enemy => {
         this._apexAudioPhase(player,apexAudio,'impact');
@@ -53,7 +113,7 @@ _piercingShot(player, bundle, phase = null, apexAudio = null) {
             const splinterDir = side.clone().multiplyScalar(sign);
             this._spawnFriendlyOrb(enemy.position.clone().add(new THREE.Vector3(0, .8, 0)).addScaledVector(splinterDir, enemy.radius + .7), splinterDir, {
               style: 'arrow', color: theme.secondary, damage: skillDamage(player.attackPower, combat) * combat.splinterMult,
-              speed: 13, radius: .45, life: .34, pierce: 1, skill: true, reactionDepth: 1, castId,
+              speed: 13, radius: .45, life: 1.7, pierce: 1, skill: true, reactionDepth: 1, castId,
             });
             splinters += 1;
           }
@@ -64,7 +124,7 @@ _piercingShot(player, bundle, phase = null, apexAudio = null) {
             const dir = direction.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), angle);
             this._spawnFriendlyOrb(enemy.position.clone().add(new THREE.Vector3(0, .8, 0)).addScaledVector(dir, enemy.radius + .7), dir, {
               style: 'arrow', color: theme.accent, damage: skillDamage(player.attackPower, combat) * combat.splitMult,
-              speed: 16, radius: .5, life: .55, pierce: 1, skill: true, reactionDepth: 1, castId,
+              speed: 16, radius: .5, life: 2.75, pierce: 1, skill: true, reactionDepth: 1, castId,
             });
           }
         }
@@ -113,13 +173,21 @@ _piercingShot(player, bundle, phase = null, apexAudio = null) {
 
 _caltropTrap(player, bundle, apexAudio = null) {
   const { combat, theme } = this._skillBundle(bundle);
-  if (!combat.seedLanded) {
-    const direction = this._facingDir(player);
-    const distance = combat.aim ?? 7.5;
+  const lockedTarget = combat.impactCenter ? null : this._autoTargetEnemy(player, combat.targetRange ?? 22, {
+    clusterRadius: combat.clusterRadius ?? 5.5,
+  });
+  // Thorn Pit: instant plant by default. Optional seedFlight restores lob for special forms.
+  if (!combat.seedLanded && combat.seedFlight) {
+    const direction = lockedTarget
+      ? this._faceAutoTarget(player, lockedTarget)
+      : this._facingDir(player);
+    const distance = combat.aim ?? 9.5;
     const start = player.position.clone().add(new THREE.Vector3(0, 1, 0));
+    const seedSpeed = Math.max(15, distance / 0.5);
     this._spawnFriendlyOrb(start, direction, {
       style: 'arrow', color: theme.primary, damage: skillDamage(player.attackPower, combat) * .35,
-      speed: 15, radius: .4, life: distance / 15, pierce: 1, skill: true,
+      speed: seedSpeed, radius: .4, life: distance / seedSpeed, pierce: 1, skill: true,
+      homingTarget: lockedTarget,
       onRetire: projectile => {
         if (projectile.suppressRetireAuthority || this._clearing || !player.alive || player.classId !== 'ranger') return;
         const impactCenter = projectile.mesh.position.clone(); impactCenter.y = (this.ctx ?? this.game).world.heightAt(impactCenter.x, impactCenter.z);
@@ -128,21 +196,70 @@ _caltropTrap(player, bundle, apexAudio = null) {
     });
     return;
   }
-  const center = combat.impactCenter.clone();
-  const castFacing = combat.seedFacing.clone();
-  const radius = (combat.radius ?? 3.2) * (combat.radiusMult ?? 1);
-  const ticks = Math.max(1, Math.round(combat.ticks ?? 5));
-  const interval = combat.tickInterval ?? 0.55;
+  const direction = lockedTarget
+    ? this._faceAutoTarget(player, lockedTarget)
+    : this._facingDir(player);
+  const center = combat.impactCenter
+    ? combat.impactCenter.clone()
+    : lockedTarget?.position.clone() ?? player.position.clone().addScaledVector(direction, combat.aim ?? 9.5);
+  center.y = (this.ctx ?? this.game).world?.heightAt?.(center.x, center.z) ?? 0;
+  (this.ctx ?? this.game).world?.resolvePosition?.(center, 0.6);
+  const castFacing = combat.seedFacing?.clone?.() ?? direction.clone();
+  const radius = (combat.radius ?? 3.6) * (combat.radiusMult ?? 1);
+  const ticks = Math.max(1, Math.round(combat.ticks ?? 3));
+  const interval = combat.tickInterval ?? 0.5;
   const generation = (this.rangerGeneration.get(player)?.thorn ?? 0) + 1;
   const apexBudget={targets:new Map(),casts:new Set()};
   const generations = this.rangerGeneration.get(player) ?? {};
   generations.thorn = generation; this.rangerGeneration.set(player, generations);
   player.thornField = { generation, remaining: .08 + ticks * interval + .2, contacts: 0, planted: 0 };
   const current = () => player.alive && player.classId === 'ranger' && player.thornField?.generation === generation;
-  (this.ctx ?? this.game).effects.recipeTrapField?.(center, theme, radius);
+  const game = this.ctx ?? this.game;
+  // Snap non-boss prey into the pit ring before the opening burst.
+  const pitCap = Math.max(1, Math.round(combat.pitCap ?? 8));
+  const pitRing = combat.pitRing ?? 1.4;
+  const candidates = [];
+  for (const enemy of game.enemies?.enemies ?? []) {
+    if (!enemy.alive) continue;
+    if (enemy.position.distanceTo(center) > radius + (enemy.radius ?? 0.5)) continue;
+    if (enemy.controlCategory === 'boss' || enemy.boss) {
+      game.effects?.recipeBossPullResist?.(enemy.position, center, theme);
+      continue;
+    }
+    candidates.push(enemy);
+  }
+  candidates.sort((a, b) => a.position.distanceToSquared(center) - b.position.distanceToSquared(center));
+  const taken = candidates.slice(0, pitCap);
+  for (let i = 0; i < taken.length; i += 1) {
+    const enemy = taken[i];
+    const from = enemy.position.clone();
+    const angle = (i / Math.max(1, taken.length)) * Math.PI * 2;
+    const dest = center.clone().add(new THREE.Vector3(
+      Math.cos(angle) * (pitRing + (enemy.radius ?? 0.55)),
+      0,
+      Math.sin(angle) * (pitRing + (enemy.radius ?? 0.55)),
+    ));
+    dest.y = from.y;
+    game.world?.resolvePosition?.(dest, enemy.radius ?? 0.55);
+    game.effects?.trail?.(from.clone().add(new THREE.Vector3(0, 1, 0)), theme.primary, 0.4, 0.16);
+    game.effects?.afterimage?.(from, theme.secondary ?? theme.primary, { life: 0.22, opacity: 0.42, scale: 0.9 });
+    enemy.position.copy(dest);
+    enemy.velocity?.set?.(0, 0, 0);
+    enemy.knockback?.set?.(0, 0, 0);
+    enemy.applyStun?.(combat.holdDuration ?? 1.0);
+  }
+  game.effects?.recipeTrapField?.(center, theme, radius);
+  game.effects?.recipeThornPit?.(center, theme, radius);
   this._apexAudioPhase(player,apexAudio,'impact');
-  this._hitEnemiesInRadius(center, 1.1, skillDamage(player.attackPower, combat) * (combat.seedMult ?? 1), {
-    multiHit: true, skill: true, sameCastHit: { key: `thorn-${generation}:seed-impact`, maxHits: 1 },
+  // Opening pit burst — primary damage identity.
+  const openRaw = skillDamage(player.attackPower, combat, 'openMult') * (combat.seedMult ?? 1);
+  this._hitEnemiesInRadius(center, radius, openRaw, {
+    multiHit: true, skill: true, knockback: combat.knockback ?? 0.4,
+    status: combat.status ?? null,
+    sameCastHit: { key: `thorn-${generation}:seed-impact`, maxHits: 1 },
+    onHit: enemy => {
+      if (enemy.controlCategory !== 'boss' && !enemy.boss) enemy.applyStun?.(combat.holdDuration ?? 1.0);
+    },
   });
   if (combat.openClose) this._delay(.05, () => current() && this._hitEnemiesInRadius(center, radius,
     skillDamage(player.attackPower, combat) * combat.burstMult, { multiHit: true, skill: true,
@@ -154,7 +271,7 @@ _caltropTrap(player, bundle, apexAudio = null) {
         life: 0.32, startScale: 0.3, height: 0.06, opacity: 0.55,
       });
       this._hitEnemiesInRadius(center, radius, skillDamage(player.attackPower, combat), {
-        knockback: combat.knockback ?? 1.1,
+        knockback: combat.knockback ?? 0.4,
         multiHit: true,
         skill: true,
         status: combat.status ?? null,
@@ -179,10 +296,14 @@ _caltropTrap(player, bundle, apexAudio = null) {
           if (combat.plantedEvery && player.thornField.contacts % combat.plantedEvery === 0
             && player.thornField.planted < Math.min(4, combat.plantedCap ?? 4)) {
             player.thornField.planted += 1;
-            const dir = castFacing;
+            const plantedTarget = this._autoTargetEnemy(player, combat.targetRange ?? 22, { origin: center });
+            const dir = plantedTarget
+              ? plantedTarget.position.clone().sub(center).setY(0).normalize()
+              : castFacing;
             this._spawnFriendlyOrb(center.clone().add(new THREE.Vector3(0, .6, 0)), dir, {
               style: 'arrow', color: theme.secondary, damage: skillDamage(player.attackPower, combat) * combat.plantedMult,
-              speed: 15, radius: .45, life: .5, pierce: 2, skill: true, reactionDepth: 1,
+              speed: 15, radius: .45, life: 2.5, pierce: 2, skill: true, reactionDepth: 1,
+              homingTarget: plantedTarget,
             });
           }
         },
@@ -236,92 +357,78 @@ _caltropTrap(player, bundle, apexAudio = null) {
 
 _vaultShot(player, bundle, apexAudio = null) {
   const { combat, theme } = this._skillBundle(bundle);
-  const forward = this._facingDir(player);
-  const back = forward.clone().multiplyScalar(-1);
   const from = player.position.clone();
-  if (bundle.playerLevel < 20) {
-    player.position.addScaledVector(back, combat.dash ?? 3.6);
-    (this.ctx ?? this.game).world.resolvePosition(player.position, .48);
-    player.invulnerable = Math.max(player.invulnerable, combat.invuln ?? .4);
-    (this.ctx ?? this.game).effects.recipeVaultVolley?.(from, player.position, forward, theme);
-    const count = Math.min(12, Math.max(1, Math.round(combat.arrows ?? 4)));
-    const yaw0 = Math.atan2(forward.x, forward.z);
-    for (let i = 0; i < count; i += 1) {
-      const yaw = yaw0 + (i - (count - 1) / 2) * (combat.spread ?? .14);
-      const dir = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
-      this._spawnFriendlyOrb(player.position.clone().add(new THREE.Vector3(0, 1.15, 0)), dir, {
-        style: 'arrow', color: theme.primary, damage: skillDamage(player.attackPower, combat), speed: combat.speed,
-        radius: combat.radius, life: combat.life, pierce: 1, skill: true, criticalBonus: combat.criticalBonus,
-      });
-    }
-    return;
-  }
   const generations = this.rangerGeneration.get(player) ?? {};
   const generation = (generations.vault ?? 0) + 1;
   generations.vault = generation; this.rangerGeneration.set(player, generations);
   const current = () => player.alive && player.classId === 'ranger' && this.rangerGeneration.get(player)?.vault === generation;
-  const dash = (combat.dash ?? 3.6) * (combat.dashMult ?? 1);
-  const landing = from.clone().addScaledVector(back, dash);
-  (this.ctx ?? this.game).world.resolvePosition(landing, 0.48);
-  player.invulnerable = Math.max(player.invulnerable, combat.invuln ?? 0.4);
-  (this.ctx ?? this.game).effects.recipeVaultVolley?.(from, landing, forward, theme);
-  (this.ctx ?? this.game).effects.recipeSkyHunterArc?.(from, landing, forward, theme, combat.volleyLayers ?? 1);
-  const arrows = Math.min(12, Math.max(1, Math.round(combat.arrows ?? 4)));
+  const range = combat.targetRange ?? 21;
+  const targetCap = Math.max(1, Math.round(combat.targetCap ?? 4));
+  const acquireTargets = () => this._autoTargetEnemies(player, range, targetCap);
+  const initialTargets = acquireTargets();
+  const primary = initialTargets[0] ?? null;
+  const forward = primary ? this._faceAutoTarget(player, primary) : this._facingDir(player);
+  const targetPoint = primary?.position.clone() ?? from.clone().addScaledVector(forward, Math.min(10, range));
+  (this.ctx ?? this.game).effects.recipeVaultVolley?.(from, targetPoint, forward, theme);
+  (this.ctx ?? this.game).effects.recipeSkyHunterArc?.(from, targetPoint, forward, theme, combat.volleyLayers ?? 1);
+  const arrows = Math.min(combat.arrowCap ?? 12, Math.max(1, Math.round(combat.arrows ?? 4)));
   const baseYaw = Math.atan2(forward.x, forward.z);
   const spread = (combat.spread ?? 0.14) * (combat.spreadMult ?? 1);
-  const usedRedirects = new Set();
   const apexBudget={targets:new Map(),casts:new Set()};
-  const shootLayer = (origin, count, layer = 0, landingLayer = false) => { for (let i = 0; i < count; i += 1) {
-    const yaw = baseYaw + (i - (count - 1) / 2) * spread;
-    let dir = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
-    if (combat.redirect && usedRedirects.size < Math.min(combat.redirectCap ?? 6, 6)) {
-      const target = (this.ctx ?? this.game).enemies.enemies.filter(enemy => enemy.alive && !usedRedirects.has(enemy.id))
-        .map(enemy => ({ enemy, offset: enemy.position.clone().sub(origin).setY(0) }))
-        .filter(entry => entry.offset.length() <= 12 && entry.offset.normalize().dot(dir) >= Math.cos(35 * Math.PI / 180))
-        .sort((a, b) => a.enemy.position.distanceToSquared(origin) - b.enemy.position.distanceToSquared(origin))[0]?.enemy;
-      if (target) { usedRedirects.add(target.id); dir = target.position.clone().sub(origin).setY(0).normalize(); }
+  const castId = `vault-${generation}`;
+  const layers = Math.max(1, Math.min(3, Math.round(combat.volleyLayers ?? (combat.airVolley ? 2 : 1))));
+  const shootLayer = (layer, count) => {
+    const targets = combat.redirect || layer > 0 ? acquireTargets() : initialTargets;
+    for (let i = 0; i < count; i += 1) {
+      const target = targets.length ? targets[(i + layer) % targets.length] : null;
+      const yaw = baseYaw + (i - (count - 1) / 2) * spread;
+      const direction = target
+        ? target.position.clone().sub(player.position).setY(0).normalize()
+        : new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
+      const side = new THREE.Vector3(-forward.z, 0, forward.x);
+      const start = player.position.clone().add(new THREE.Vector3(0, 1.15 + layer * .24, 0))
+        .addScaledVector(side, (i - (count - 1) / 2) * .08).addScaledVector(direction, .55);
+      this._spawnFriendlyOrb(start, direction, {
+        style: 'arrow',
+        color: i % 2 ? theme.secondary : theme.primary,
+        damage: skillDamage(player.attackPower, combat) * (combat.damageMult ?? 1),
+        speed: combat.speed ?? 16.5,
+        radius: combat.radius ?? 0.88,
+        life: combat.life ?? 4.25,
+        pierce: 1,
+        knockback: combat.knockback ?? 2.6,
+        skill: true,
+        scale: 0.95,
+        criticalBonus: combat.criticalBonus ?? 0.06,
+        homingTarget: target,
+        castId,
+        onHit: enemy => {
+          if (combat.durableMult && (enemy.elite || enemy.boss) && enemy.alive) this._damageEnemy(enemy,
+            skillDamage(player.attackPower, combat) * (combat.damageMult ?? 1) * (combat.durableMult - 1), {
+              multiHit: true, skill: true, liteImpact: true,
+              sameCastHit: { key: `${castId}:durable:${layer}:${i}:${enemy.id}`, maxHits: 1 },
+            });
+          if (combat.skyHunter) this._applyApexKeystone(player, enemy, {
+            bundle, theme, rawDamage: skillDamage(player.attackPower, combat) * (combat.damageMult ?? 1),
+            castKey: castId, budget: apexBudget,
+          });
+        },
+      });
     }
-    const start = origin.clone().add(new THREE.Vector3(0, 1.15 + layer * .3, 0)).addScaledVector(dir, 0.55);
-    this._spawnFriendlyOrb(start, dir, {
-      style: 'arrow',
-      color: i % 2 ? theme.secondary : theme.primary,
-      damage: skillDamage(player.attackPower, combat) * (combat.damageMult ?? 1),
-      speed: combat.speed ?? 16.5,
-      radius: combat.radius ?? 0.88,
-      life: combat.life ?? 0.85,
-      pierce: 1,
-      knockback: combat.knockback ?? 2.6,
-      skill: true,
-      scale: 0.95,
-      criticalBonus: combat.criticalBonus ?? 0.06,
-      onHit: landingLayer ? enemy => {
-        const distance = enemy.position.distanceTo(landing);
-        if (combat.idealMin&&(enemy.elite || enemy.boss) && distance >= combat.idealMin && distance <= combat.idealMax) this._damageEnemy(enemy,
-          skillDamage(player.attackPower, combat) * (combat.idealMult - 1), { multiHit: true, skill: true,
-            sameCastHit: { key: `vault-${generation}:ideal:${enemy.id}`, maxHits: 1 } });
-        if(combat.skyHunter)this._applyApexKeystone(player,enemy,{bundle,theme,rawDamage:skillDamage(player.attackPower,combat)*(combat.damageMult??1),castKey:`vault-${generation}`,budget:apexBudget});
-      } : null,
+  };
+  for (let layer = 0; layer < layers; layer += 1) {
+    const count = Math.floor(arrows / layers) + (layer < arrows % layers ? 1 : 0);
+    this._delay(.05 + layer * .13, () => {
+      if (!current()) return;
+      if (layer === 0) {
+        this._apexAudioPhase(player, apexAudio, 'impact');
+        if (combat.launchBlast) this._hitEnemiesInRadius(targetPoint, 2.1,
+          skillDamage(player.attackPower, combat) * .7, { multiHit: true, skill: true });
+      }
+      shootLayer(layer, count);
+      if (layer === layers - 1) this._apexAudioPhase(player, apexAudio, 'finisher');
     });
-  }};
-  const landingCount = combat.landingShot ? (combat.skyHunter ? Math.min(4, arrows) : 1) : 0;
-  const airCount = combat.airVolley ? Math.min(4, Math.max(0, arrows - landingCount - 1)) : 0;
-  const launchCount = Math.max(1, arrows - airCount - landingCount);
-  this._delay(.05, () => {
-    if (!current()) return;
-    this._apexAudioPhase(player,apexAudio,'impact');
-    if (combat.launchBlast) this._hitEnemiesInRadius(from, 2.1, skillDamage(player.attackPower, combat) * .7, { multiHit: true, skill: true });
-    shootLayer(from, launchCount, 0);
-  });
-  this._delay(.14, () => {
-    if (!current()) return;
-    player.position.copy(landing); // one authoritative movement
-    if (airCount) shootLayer(from.clone().add(landing).multiplyScalar(.5), airCount, 1);
-  });
-  this._delay(.3, () => {
-    if (!current()) return;
-    if (landingCount) shootLayer(landing, landingCount, 2, true);
-    this._apexAudioPhase(player,apexAudio,'finisher');
-  });
+  }
 },
 
 _detonateVerdict(player, verdict) {
@@ -377,64 +484,82 @@ _detonateVerdict(player, verdict) {
 
 _hunterMark(player, bundle, apexAudio = null) {
   const { combat, theme } = this._skillBundle(bundle);
-  const rank = bundle.rank;
-  const direction = this._facingDir(player);
-  const range = combat.range ?? 14;
-  const cosThreshold = Math.cos((combat.arc ?? 1.4) * 0.5);
-  let best = null;
-  let bestDist = Infinity;
-  for (const enemy of (this.ctx ?? this.game).enemies.enemies) {
-    if (!enemy.alive) continue;
-    const offset = TMP_A.copy(enemy.position).sub(player.position).setY(0);
-    const dist = offset.length();
-    if (dist > range + enemy.radius || dist < 0.001) continue;
-    const dir = offset.clone().normalize();
-    if (dir.dot(direction) < cosThreshold) continue;
-    if (dist < bestDist) {
-      bestDist = dist;
-      best = enemy;
-    }
-  }
-  if (!best) {
-    // Fallback: nearest living enemy in world radius of aim
-    for (const enemy of (this.ctx ?? this.game).enemies.enemies) {
-      if (!enemy.alive) continue;
-      const dist = enemy.position.distanceTo(player.position);
-      if (dist < bestDist && dist < range + 4) {
-        bestDist = dist;
-        best = enemy;
-      }
-    }
-  }
-  if (!best) {
+  player.predatorVerdict = null;
+  const generations = this.rangerGeneration.get(player) ?? {};
+  const generation = (generations.predator ?? 0) + 1;
+  generations.predator = generation; this.rangerGeneration.set(player, generations);
+  const current = () => player.alive && player.classId === 'ranger'
+    && this.rangerGeneration.get(player)?.predator === generation;
+  const range = combat.targetRange ?? 24;
+  const targetCap = Math.max(1, Math.round(combat.targetCap ?? 2));
+  const acquireTargets = () => this._autoTargetEnemies(player, range, targetCap, {
+    durableFirst: Boolean(combat.durableMult),
+  });
+  const openingTargets = acquireTargets();
+  const primary = openingTargets[0] ?? null;
+  const direction = primary ? this._faceAutoTarget(player, primary) : this._facingDir(player);
+  if (!primary) {
     (this.ctx ?? this.game).effects.recipeMarkGlyph?.(player.position.clone().addScaledVector(direction, 4), theme, 2.2);
     return;
   }
-  if (player.predatorVerdict) {
-    this._apexAudioPhase(player,apexAudio,'impact');
-    this._detonateVerdict(player, player.predatorVerdict);
-    this._apexAudioPhase(player,apexAudio,'finisher');
-    return;
+  for (const target of openingTargets) {
+    (this.ctx ?? this.game).effects.recipeMarkGlyph?.(target.position, theme, 2.35);
   }
-  (this.ctx ?? this.game).effects.recipeMarkGlyph?.(best.position, theme, 2.8);
-  const landed = this._damageEnemy(best, skillDamage(player.attackPower, combat), {
-    direction: TMP_B.copy(best.position).sub(player.position).setY(0).normalize(),
-    knockback: combat.knockback ?? 2,
-    criticalBonus: combat.criticalBonus ?? 0.08,
-    skill: true,
+  const baseHits = Math.max(1, Math.round(combat.hits ?? 6)) + Math.max(0, Math.round(combat.bonusHits ?? 0));
+  const echoHits = Math.max(0, Math.round(combat.echoHits ?? 0));
+  const totalHits = Math.min(14, baseHits + echoHits);
+  const apexBudget = { targets: new Map(), casts: new Set() };
+  const exposed = new Set();
+  const castId = `predator-${generation}`;
+  for (let index = 0; index < totalHits; index += 1) this._delay(.04 + index * .075, () => {
+    if (!current()) return;
+    const targets = acquireTargets();
+    const finale = index === totalHits - 1;
+    const target = finale && primary.alive ? primary : targets[index % Math.max(1, targets.length)];
+    if (!target?.alive) return;
+    if (!exposed.has(target.id)) {
+      exposed.add(target.id);
+      target.applyStatus?.('expose', {
+        duration: combat.markDuration ?? 2.8,
+        power: (combat.exposePower ?? .22) * (combat.exposeMult ?? 1),
+        damageAmp: (combat.damageAmp ?? .16) * (combat.exposeMult ?? 1),
+      }, this.game);
+    }
+    let raw = skillDamage(player.attackPower, combat) * (combat.damageMult ?? 1);
+    if (target !== primary) raw *= combat.secondaryMult ?? 1;
+    if (index >= baseHits) raw *= combat.echoMult ?? .55;
+    if ((target.elite || target.boss) && combat.durableMult) raw *= combat.durableMult;
+    if (index === 0) this._apexAudioPhase(player, apexAudio, 'impact');
+    if (finale) {
+      (this.ctx ?? this.game).effects.recipePredatorConvergence?.(target.position, direction, theme, Boolean(combat.apexVerdict));
+      this._applyApexKeystone(player, target, {
+        bundle, theme, rawDamage: raw, castKey: castId, budget: apexBudget,
+        capturedMarkedTarget: target,
+      });
+    }
+    const hitDirection = TMP_B.copy(target.position).sub(player.position).setY(0);
+    if (hitDirection.lengthSq() < .0001) hitDirection.copy(direction);
+    else hitDirection.normalize();
+    this._damageEnemy(target, raw, {
+      direction: hitDirection,
+      knockback: finale ? combat.knockback ?? .65 : .15,
+      criticalBonus: combat.criticalBonus ?? .08,
+      armorPierce: combat.verdictPierce ? .5 : .18,
+      multiHit: true,
+      skill: true,
+      liteImpact: !finale,
+      sameCastHit: { key: `${castId}:hit-${index}:${target.id}`, maxHits: 1 },
+    });
+    if (finale) {
+      if (combat.bossStagger && target.boss) target.addStagger?.(combat.bossStagger);
+      if (combat.apexVerdict && target.alive) this._hitEnemiesInRadius(target.position, 2.4,
+        raw * combat.convergenceMult, {
+          multiHit: true, skill: true, liteImpact: true,
+          sameCastHit: { key: `${castId}:convergence`, maxHits: 1 },
+        });
+      this._apexAudioPhase(player, apexAudio, 'finisher');
+    }
   });
-  if (landed.amount <= 0) return;
-  this._apexAudioPhase(player,apexAudio,'impact');
-  best.applyStatus?.('expose', {
-    duration: combat.markDuration ?? 5.2,
-    power: (combat.exposePower ?? 0.22) * (combat.exposeMult ?? 1),
-    damageAmp: (combat.damageAmp ?? 0.16) * (combat.exposeMult ?? 1),
-  }, this.game);
-  const generation = ++this.rangerSerial;
-  const storeMult = (combat.verdictStore ?? 0) * (combat.storeMult ?? 1);
-  const cap = skillDamage(player.attackPower, combat) * (combat.verdictCap ?? 0) * (combat.capMult ?? 1);
-  player.predatorVerdict = { generation, target: best, bundle, remaining: combat.markDuration ?? 5.2, stored: 0, storeMult, cap };
-  this._apexAudioPhase(player,apexAudio,'finisher');
 },
 
   });

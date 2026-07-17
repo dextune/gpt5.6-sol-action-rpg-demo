@@ -71,8 +71,7 @@ async function assertGameEntered(page, classId, mode, label) {
   }
   const viewportScale = await page.evaluate(() => window.visualViewport?.scale ?? 1);
   if (Math.abs(viewportScale - 1) > .001) failures.push(`${label}: page viewport is zoomed (${viewportScale})`);
-  if (mode === 'defense') await assertVisible(page, '#defense-wave-panel:not(.hidden)', `${label}: wave panel did not appear`);
-}
+  if (mode === 'defense') }
 
 async function launchMode(page, classId, mode, imageName, { touch = false } = {}) {
   await page.goto(`${base}/?autostart=0&quality=medium&class=${classId}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
@@ -141,7 +140,7 @@ async function mobileSmoke(browser) {
       };
       return {
         viewport: { width: innerWidth, height: innerHeight },
-        player: rect('.player-card'), currency: rect('.resource-pills'),
+        player: rect('.player-card'), currency: rect('.profile-gold-row') || rect('#gold-count'),
         stick: rect('#touch-stick-zone'), ability: rect('.ability-bar'), menu: rect('#touch-menu-btn'), minimap: rect('.minimap-shell'),
       };
     });

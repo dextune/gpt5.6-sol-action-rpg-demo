@@ -114,8 +114,7 @@ async function stageStress(page) {
     game.player.thornField = { generation: 991, remaining: 5, planted: 4 };
     game.player.predatorVerdict = { generation: 992, remaining: 5, stored: 75, cap: 100, target: { alive: true } };
     game.mode = 'defense';
-    document.getElementById('defense-wave-panel')?.classList.remove('hidden');
-    const fakeBoss = {
+        const fakeBoss = {
       boss: true, elite: false, alive: true,
       data: { name: 'HUD Stress Warden' }, level: 100, healthRatio: .63,
       position: { x: game.player.position.x + 8, z: game.player.position.z + 8 },
@@ -137,8 +136,7 @@ async function stageStress(page) {
       game.player.classId = priorClass;
       game.player.thornField = priorThorns;
       game.player.predatorVerdict = priorVerdict;
-      document.getElementById('defense-wave-panel')?.classList.add('hidden');
-      notifications.replaceChildren();
+            notifications.replaceChildren();
       originalUpdate.call(game.ui, 1);
     };
   });
@@ -167,8 +165,8 @@ async function snapshot(page, expectedMinimumTarget) {
     return {
       viewport: { width: innerWidth, height: innerHeight },
       player: pick('.player-card'), minimap: pick('.minimap-shell'), menu: pick('#touch-menu-btn'),
-      resources: pick('.resource-pills'),
-      boss: pick('.boss-hud'), defense: pick('.defense-wave-panel'), notifications: pick('#notifications'),
+      resources: pick('.profile-gold-row') || pick('#gold-count'),
+      boss: pick('.boss-hud'), defense: pick('.zone-ribbon'), notifications: pick('#notifications'),
       state: pick('.class-state-row'), ability: pick('.ability-bar'), stick: pick('.touch-stick-zone'),
       health: pick('.combat-vitals-health'), power: pick('.combat-vitals-power'),
       mobileVitals: pick('.mobile-profile-vitals'),
@@ -176,7 +174,7 @@ async function snapshot(page, expectedMinimumTarget) {
       levelBadgeVisible: visible('#player-level-text'),
       menuLabel: document.getElementById('touch-menu-btn')?.getAttribute('aria-label') ?? '',
       zoneConfiguredWidth: Number.parseFloat(getComputedStyle(document.querySelector('.zone-ribbon')).width),
-      zoneHidden: !visible('.zone-ribbon'), currencyVisible: visible('.resource-pills'),
+      zoneHidden: !visible('.zone-ribbon'), currencyVisible: visible('.profile-gold-row') || visible('#gold-count'),
       vitalBarCount, minimumSkillTarget: Math.min(...targets), expectedMinimumTarget: minimum,
       bossClass: hud.classList.contains('boss-active'), defenseClass: hud.classList.contains('defense-active'),
       stateClass: hud.classList.contains('class-state-active'),

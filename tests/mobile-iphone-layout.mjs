@@ -170,11 +170,11 @@ async function main() {
       { level: 100, label: 'Sovereign Tempest' },
     ],
     tier40: [
-      { id: 'cyclone', label: 'Cyclone', summary: 'Widens the storm and drags non-boss prey inward.' },
+      { id: 'cyclone', label: 'Cyclone', summary: 'Widens gather reach and packs more prey around you.' },
       { id: 'blood_wheel', label: 'Blood Wheel', summary: 'Tightens six fast cuts with bleed cadence.' },
     ],
     tier80: [
-      { id: 'storm_cage', label: 'Storm Cage', summary: 'Caps stronger pack grouping.' },
+      { id: 'storm_cage', label: 'Storm Cage', summary: 'Hard-caps how many foes snap into the ring.' },
       { id: 'giant_slayer', label: 'Giant Slayer', summary: 'Finale pressures and staggers durable prey.' },
     ],
   };
@@ -239,7 +239,45 @@ async function main() {
   if (!rects.ranger) failures.push('simultaneous THORNS + VERDICT row missing');
   if (!rects.menu) failures.push('menu button missing');
   if (!rects.minimap) failures.push('minimap missing');
+  if (!rects.zone) failures.push('zone ribbon missing');
   if (rects.hunt) failures.push('Hunt record should be collapsed by default');
+
+  // Desktop parity: zone band + threat subtitle must stay visible on touch-ui.
+  const zoneSubtitle = await page.evaluate(() => {
+    const el = document.getElementById('zone-subtitle');
+    if (!el) return { missing: true };
+    const style = getComputedStyle(el);
+    const rect = el.getBoundingClientRect();
+    return {
+      text: (el.textContent || '').trim(),
+      display: style.display,
+      visibility: style.visibility,
+      width: rect.width,
+      height: rect.height,
+    };
+  });
+  if (zoneSubtitle.missing) failures.push('zone-subtitle element missing');
+  else if (zoneSubtitle.display === 'none' || zoneSubtitle.visibility === 'hidden' || zoneSubtitle.height < 2) {
+    failures.push(`zone-subtitle not visible on mobile (${JSON.stringify(zoneSubtitle)})`);
+  } else if (!/Lv\.|On-level|Safe|Danger|Lethal|Challenging|WAVE/i.test(zoneSubtitle.text)) {
+    failures.push(`zone-subtitle missing band/threat text: "${zoneSubtitle.text}"`);
+  }
+
+  const goldRow = await page.evaluate(() => {
+    const el = document.querySelector('.profile-gold-row');
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    const style = getComputedStyle(el);
+    return {
+      display: style.display,
+      width: r.width,
+      height: r.height,
+      text: (document.getElementById('gold-count')?.textContent || '').trim(),
+    };
+  });
+  if (!goldRow || goldRow.display === 'none' || goldRow.height < 2) {
+    failures.push('profile gold row not visible on mobile');
+  }
 
   await page.click('#profile-toggle');
   await sleep(80);
@@ -250,16 +288,28 @@ async function main() {
       const rect = node.getBoundingClientRect();
       return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
     };
+    const visible = selector => {
+      const node = document.querySelector(selector);
+      if (!node) return false;
+      const style = getComputedStyle(node);
+      if (style.display === 'none' || style.visibility === 'hidden') return false;
+      const rect = node.getBoundingClientRect();
+      return rect.width > 1 && rect.height > 1;
+    };
     return {
       expanded: document.getElementById('profile-toggle')?.getAttribute('aria-expanded'),
       player: pick('.player-card'),
       hunt: pick('.hunt-card'),
       weapon: pick('#combat-weapon-enhance'),
       option: pick('#combat-option-enhance'),
+      contract: visible('#contract-title'),
+      bossCharge: visible('#boss-charge-text') || visible('.boss-charge-row'),
     };
   });
   if (huntToggle.expanded !== 'true' || !huntToggle.hunt) failures.push('profile click did not expand Hunt record');
   if (!huntToggle.weapon || !huntToggle.option) failures.push('WPN/OPT buttons disappeared while Hunt record was expanded');
+  if (!huntToggle.contract) failures.push('contract not visible when Hunt record expanded (desktop parity)');
+  if (!huntToggle.bossCharge) failures.push('boss presence not visible when Hunt record expanded');
   if (huntToggle.hunt && huntToggle.player
     && (huntToggle.hunt.x < huntToggle.player.x - 1 || huntToggle.hunt.y < huntToggle.player.y - 1
       || huntToggle.hunt.x + huntToggle.hunt.width > huntToggle.player.x + huntToggle.player.width + 1
@@ -389,7 +439,10 @@ async function main() {
       currentSummary: document.querySelector('.skill-card .current-summary')?.textContent?.trim() ?? '',
       nextSummary: document.querySelector('.skill-card .next-summary')?.textContent?.trim() ?? '',
       whirlwindCard: [...document.querySelectorAll('.skill-card')]
-        .find(card => card.querySelector('h4')?.textContent?.includes('Whirlwind Slash'))?.textContent?.trim() ?? '',
+        .find(card => {
+          const title = card.querySelector('h4')?.textContent ?? '';
+          return title.includes('Vortex Call') || title.includes('Whirlwind');
+        })?.textContent?.trim() ?? '',
       judgmentCard: [...document.querySelectorAll('.skill-card')]
         .find(card => card.querySelector('h4')?.textContent?.includes('Iron Judgment'))?.textContent?.trim() ?? '',
     };

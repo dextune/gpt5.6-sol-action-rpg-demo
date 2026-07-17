@@ -139,9 +139,10 @@ export function getFxTheme(themeId) {
 
 /** Particle / count multiplier by render quality (prevents pool thrash on low). */
 export function qualityParticleMul(quality = 'medium') {
-  if (quality === 'low') return 0.45;
+  if (quality === 'low') return 0.55;
   if (quality === 'high') return 1;
-  return 0.75;
+  // Default session quality — keep skill spectacle readable without high-mode cost.
+  return 0.9;
 }
 
 export function scaleCount(base, quality = 'medium', min = 1) {

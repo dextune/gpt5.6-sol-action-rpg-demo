@@ -1,6 +1,8 @@
 # Short-Form Rift Rush — Implementation Task List
 
-This list is the authoritative progress record for [Short-Form Rift Rush](./shortform-rift-rush.md). Update checkboxes only after the implementation or evidence exists in the current worktree.
+> **Removed from product** — Rift Rush / Daily Rift runtime, UI, and tests were deleted. This checklist is history only; do not treat as open work.
+
+This list was the progress record for [Short-Form Rift Rush](./shortform-rift-rush.md).
 
 ## Phase 0 — Discovery and specification
 

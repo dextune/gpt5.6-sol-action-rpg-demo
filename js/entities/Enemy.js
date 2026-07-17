@@ -4,6 +4,7 @@ import { ENEMY_TYPES } from '../data/content.js';
 import { clamp, rand, uid } from '../core/Utils.js';
 import { applyStatus, statusMoveMul, tickStatuses } from '../data/skillCombat.js';
 import { setMaterialHitPulse } from '../graphics/StylizedMaterial.js';
+import { unitThreat } from '../systems/huntThreat.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 const TMP_A = new THREE.Vector3();
@@ -138,6 +139,7 @@ export class Enemy {
     this.statuses = {};
     this.spellPrime = null;
 
+    this.#createLevelLabel();
     this.#setHealthBar(1);
   }
 
@@ -201,7 +203,7 @@ export class Enemy {
     this.position.addScaledVector(this.knockback, delta);
     this.#keepOutOfCamp();
     game.world.resolvePosition(this.position, this.radius);
-    this.#animate(delta, game.elapsed, distance);
+    this.#animate(delta, game.elapsed, distance, game.player?.level ?? 1);
     this.#updateBillboard(game.camera);
   }
 
@@ -682,7 +684,7 @@ export class Enemy {
     this.animation.playOneShot(name, { fade: .09, fadeOut: .12, timeScale, fallback: 'idle' });
   }
 
-  #animate(delta, elapsed, playerDistance) {
+  #animate(delta, elapsed, playerDistance, playerLevel = 1) {
     const speed = this.velocity.length();
     this.animation.setLocomotion(speed, { sprint: speed > this.speed * 1.12 });
     // Far fodder: update animation at half rate to cut skinning cost.
@@ -739,6 +741,7 @@ export class Enemy {
       this.refs.healthGroup.visible = this.boss || this.elite || this.healthRatio < .995 || playerDistance < 8;
     }
     this.#setHealthBar(this.healthRatio);
+    this.#refreshLevelLabel(playerLevel);
   }
 
   #updateBillboard(camera) {
@@ -746,6 +749,56 @@ export class Enemy {
     camera.getWorldQuaternion(this.refs.healthGroup.quaternion);
     const parentWorld = this.mesh.getWorldQuaternion(new THREE.Quaternion());
     this.refs.healthGroup.quaternion.premultiply(parentWorld.invert());
+  }
+
+  #createLevelLabel() {
+    if (typeof document === 'undefined' || !this.refs?.healthGroup) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = 96;
+    canvas.height = 48;
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.needsUpdate = true;
+    const material = new THREE.SpriteMaterial({
+      map: texture,
+      transparent: true,
+      depthTest: false,
+      depthWrite: false,
+    });
+    const sprite = new THREE.Sprite(material);
+    const width = this.refs.healthWidth ?? 1.35;
+    sprite.scale.set(0.95, 0.48, 1);
+    sprite.position.set(-(width * 0.5) - 0.55, 0.02, 0.02);
+    sprite.renderOrder = 32;
+    this.refs.healthGroup.add(sprite);
+    this.refs.levelLabel = {
+      canvas,
+      texture,
+      sprite,
+      ctx: canvas.getContext('2d'),
+      lastKey: '',
+    };
+  }
+
+  #refreshLevelLabel(playerLevel) {
+    const label = this.refs?.levelLabel;
+    if (!label?.ctx) return;
+    const gap = this.level - (Number(playerLevel) || 1);
+    const threat = unitThreat(playerLevel, this.level);
+    const bang = gap >= 12 ? '!' : '';
+    const key = `${this.level}:${threat.id}:${bang}`;
+    if (key === label.lastKey) return;
+    label.lastKey = key;
+    const { canvas, ctx, texture } = label;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const hex = `#${threat.color.toString(16).padStart(6, '0')}`;
+    ctx.fillStyle = 'rgba(12, 18, 22, 0.72)';
+    ctx.fillRect(8, 6, canvas.width - 16, canvas.height - 12);
+    ctx.font = 'bold 28px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = hex;
+    ctx.fillText(`${bang}${this.level}`, canvas.width / 2, canvas.height / 2 + 1);
+    texture.needsUpdate = true;
   }
 
   #setHealthBar(ratio) {
@@ -1002,6 +1055,11 @@ export class Enemy {
     this.removable = true;
     this.monsterFactory?.outlines?.unregister(this.mesh);
     this.animation?.dispose();
+    const label = this.refs?.levelLabel;
+    if (label?.texture) {
+      label.texture.dispose();
+      label.sprite?.material?.dispose?.();
+    }
     this.scene.remove(this.mesh);
   }
 }

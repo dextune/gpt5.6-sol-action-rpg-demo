@@ -1,11 +1,12 @@
 import * as THREE from 'three';
-import { GAME_CONFIG, HORDE_CONFIG } from '../config.js';
+import { GAME_CONFIG, HORDE_CONFIG, HUNT_THREAT_CONFIG } from '../config.js';
 import {
   ELITE_AFFIXES, ENEMY_TYPES, ZONES, ZONE_BOSSES, ZONE_SPAWNS, enemiesByZoneRole,
 } from '../data/content.js';
 import { chance, clamp, rand, randInt, weightedPick } from '../core/Utils.js';
 import { createGameContext } from '../core/GameContext.js';
 import { Enemy } from '../entities/Enemy.js';
+import { clampHuntSpawnLevel, zoneThreat } from './huntThreat.js';
 
 const TMP = new THREE.Vector3();
 
@@ -51,7 +52,7 @@ export class EnemySystem {
       const distance = enemy.position.distanceTo(this.game.player.position);
       const stale = this.game.elapsed - enemy.lastHitAt > 8;
       // Never stale-despawn wave-tagged enemies (or anything in Defense) — soft-lock guard.
-      const skipDespawn = defenseMode || this.game.mode === 'rush' || enemy.defenseWave || enemy.rushRunId;
+      const skipDespawn = defenseMode || enemy.defenseWave;
       if (!enemy.boss && enemy.alive && distance > GAME_CONFIG.despawnRadius && stale && !skipDespawn) {
         enemy.forceRemove();
       }
@@ -63,7 +64,7 @@ export class EnemySystem {
       this.#separateCrowds();
     }
 
-    // Continuous field spawn is Hunt-only. Defense and Rush author their own encounters.
+    // Continuous field spawn is Hunt-only. Defense authors its own wave encounters.
     if (huntMode && this.spawnTimer <= 0 && this.game.state === 'playing' && this.game.player.alive) {
       this.spawnTimer = this.livingCount < 18 ? .06 : .22;
       const target = clamp(
@@ -73,14 +74,29 @@ export class EnemySystem {
       );
       if (this.livingCount < target) {
         // Prefer packs for horde density; fall back to singles near cap.
+        // On-level pack pressure: denser packs when the field is sparse.
         const room = GAME_CONFIG.maxEnemies + 4 - this.enemies.length;
-        if (room >= HORDE_CONFIG.packMin && chance(HORDE_CONFIG.packChance)) {
+        const zone = this.game.world.currentZone;
+        const threat = zoneThreat(this.game.player.level, zone);
+        const pressure = this.livingCount < HUNT_THREAT_CONFIG.packPressureLiving
+          && (threat.id === 'onlevel' || threat.id === 'challenging');
+        const packRoll = pressure
+          ? HUNT_THREAT_CONFIG.packPressureChance
+          : HORDE_CONFIG.packChance;
+        if (room >= HORDE_CONFIG.packMin && chance(packRoll)) {
           this.spawnPack();
         } else {
           this.#spawnOne();
         }
       }
     }
+  }
+
+  #huntSpawnLevel(data, zone, player) {
+    const levelFloor = Math.max(data.level, zone.minLevel ?? 1);
+    const adaptive = player.level + randInt(-3, 2) + Math.max(0, this.game.hunt.worldTier - 1) * 2;
+    const raw = Math.max(levelFloor, adaptive);
+    return clampHuntSpawnLevel(raw, zone);
   }
 
   #spawnOne() {
@@ -93,9 +109,7 @@ export class EnemySystem {
     const data = ENEMY_TYPES[typeId];
     if (!data) return null;
 
-    const levelFloor = Math.max(data.level, zone.minLevel);
-    const adaptive = player.level + randInt(-3, 2) + Math.max(0, this.game.hunt.worldTier - 1) * 2;
-    const level = Math.max(levelFloor, adaptive);
+    const level = this.#huntSpawnLevel(data, zone, player);
     const eliteChance = clamp(.045 + player.luck * .65 + this.game.hunt.worldTier * .006, .045, .26);
     const elite = chance(eliteChance) && this.enemies.filter(enemy => enemy.elite && enemy.alive).length < 7;
     const eliteAffix = elite ? this.rollEliteAffix(zone.id) : null;
@@ -173,9 +187,7 @@ export class EnemySystem {
       opacity: 0.55,
     });
 
-    const levelFloor = Math.max(alpha.level, zone.minLevel ?? 1);
-    const adaptive = player.level + randInt(-3, 2) + Math.max(0, this.game.hunt.worldTier - 1) * 2;
-    const level = Math.max(levelFloor, adaptive);
+    const level = this.#huntSpawnLevel(alpha, zone, player);
     const includeRanged = size >= 4 && chance(0.45);
     const rangedData = includeRanged
       ? this.#pickByRoles(zone.id, PACK_RANGED_ROLES, entries)
@@ -291,7 +303,12 @@ export class EnemySystem {
       position.set(zone.center[0] + 12, 0, zone.center[1] + 12);
     }
     this.game.world.resolvePosition(position, 1.6);
-    const level = Math.max(data.level, this.game.player.level + 2 + (this.game.hunt.worldTier - 1) * 2);
+    const rawBossLevel = Math.max(
+      data.level,
+      this.game.player.level + 2 + (this.game.hunt.worldTier - 1) * 2,
+    );
+    // Keep zone ladder; softcap on player receive still blunts underlevel boss spikes.
+    const level = Math.max(data.level, clampHuntSpawnLevel(rawBossLevel, zone));
     const boss = this.spawn(data, position, { level, elite: false, fodder: false });
     if (boss) {
       this.game.audio.boss();

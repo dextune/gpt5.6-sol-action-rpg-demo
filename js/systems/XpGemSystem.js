@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { clamp } from '../core/Utils.js';
 import { createGameContext } from '../core/GameContext.js';
+import { huntRewardMul } from './huntThreat.js';
 
 const MAX_GEMS = 200;
 const MERGE_RADIUS = 1.2;
@@ -16,8 +17,8 @@ const TIER_SCALE = Object.freeze({
   large: 0.44,
 });
 /**
- * Floor XP gems with magnet vacuum pickup.
- * Kill XP is deferred until collection so the horde loop has tactile feedback.
+ * XP reward service. Kill XP is granted immediately; the pooled gem helpers are
+ * retained only for non-kill spectacle callers that may still use spawnBurst().
  */
 export class XpGemSystem {
   /**
@@ -47,32 +48,38 @@ export class XpGemSystem {
     game.scene.add(this.root);
   }
 
-  /**
-   * Convert enemy.xpValue into floor gems. Does not grant XP.
-   * @param {import('../entities/Enemy.js').Enemy} enemy
-   */
+  /** Grant a kill's full XP reward immediately — no pickup can be left behind. */
   spawnFromKill(enemy) {
-    if (!enemy) return;
-    const totalXp = Math.max(1, Math.round(enemy.xpValue || 1));
-    const origin = enemy.position.clone().add(new THREE.Vector3(0, 0.35, 0));
-
-    if (enemy.boss) {
-      this.spawnBurst(origin, totalXp, clamp(Math.round(14 + totalXp / 40), 12, 28));
-      return;
+    const player = this.game.player;
+    if (!enemy || !player) return null;
+    let totalXp = Math.max(1, Math.round(enemy.xpValue || 1));
+    // Hunt on-level / grey / danger reward bias.
+    if (this.game.mode === 'hunt' && this.game.player) {
+      totalXp = Math.max(1, Math.round(
+        totalXp * huntRewardMul((enemy.level ?? 1) - this.game.player.level),
+      ));
     }
-    if (enemy.elite) {
-      const large = totalXp >= 80;
-      const count = large ? 3 : 2;
-      this.spawnBurst(origin, totalXp, count, large ? 'large' : 'medium');
-      return;
+    const result = player.addXp(totalXp);
+    const origin = enemy.position.clone().add(new THREE.Vector3(
+      0,
+      Math.max(0.8, (enemy.refs?.modelHeight ?? 1.6) * 0.45),
+      0,
+    ));
+    const tier = this.#tierForXp(result.amount, enemy.boss || enemy.elite);
+    if (result.amount > 0) {
+      this.game.ui?.floatText?.(origin, `+${result.amount} XP`, 'heal');
+      this.#playPickup();
+      this.game.effects?.burst?.(origin, TIER_COLOR[tier], enemy.boss ? 12 : enemy.elite ? 8 : 5, {
+        speed: enemy.boss ? 4.2 : 2.8,
+        size: enemy.boss ? 0.2 : 0.14,
+        life: enemy.boss ? 0.48 : 0.32,
+        upward: 0.4,
+        opacity: 0.9,
+      });
     }
-    if (enemy.fodder) {
-      this.#spawnOne(origin, totalXp, 'small', this.#scatterVel(2.2));
-      return;
-    }
-    // Normal: 1–2 small/medium
-    const count = totalXp >= 40 ? 2 : 1;
-    this.spawnBurst(origin, totalXp, count, totalXp >= 55 ? 'medium' : 'small');
+    if (result.levelUps?.length) this.game.onXpLevelUps?.(result.levelUps);
+    this.game.requestSave?.();
+    return result;
   }
 
   /**

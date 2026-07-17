@@ -435,7 +435,7 @@ Wire through small handlers next to boss specials; **hard caps** on summons per 
 
 ### Phase 0 — Plan (this document)
 
-- [x] Write plan under `docs/plan/`.  
+- [x] Write plan under `docs/history/`.  
 - [x] Link from `docs/README.md` plan table.  
 
 ### Phase 1 — Data diversity (primary ship)
@@ -568,4 +568,4 @@ dune_shield: enemy('dune_shield', 'Dune Shieldbearer', 'canyon', 'knight', 21, 5
 - ARPG **champion affixes** as threat multipliers without infinite base types (Diablo-family design).  
 - Role-oriented encounter building (frontline / glass / controller) from tactical RPG bestiary practice.  
 - Stylized readability: strong silhouettes + limited material complexity for mobile-friendly WebGL.  
-- Project-local: [content-data.md](../content-data.md), [monster-visual.md](../monster-visual.md), [plan/defense-mode.md](./defense-mode.md), [plan/horde-clear-roadmap/README.md](./horde-clear-roadmap/README.md).
+- Project-local: [content-data.md](../content-data.md), [monster-visual.md](../monster-visual.md), [history/defense-mode.md](./defense-mode.md), [history/horde-clear-roadmap/README.md](./horde-clear-roadmap/README.md).

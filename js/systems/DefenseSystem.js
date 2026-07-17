@@ -3,10 +3,12 @@ import { DEFENSE_CONFIG } from '../config.js';
 import {
   ENEMY_TYPES, ZONE_BOSSES, ZONE_MINI_BOSSES, ZONE_SPAWNS, defenseRecipeForWave, enemiesByZoneRole,
 } from '../data/content.js';
+import { pickDefenseEncounter, pickDefenseMutator } from '../data/defenseContent.js';
 import { chance, clamp, weightedPick } from '../core/Utils.js';
 import { createGameContext } from '../core/GameContext.js';
 
 const TMP_UP = new THREE.Vector3(0, 1, 0);
+const TMP_HAZARD = new THREE.Vector3();
 
 /** Zone pools rotate by wave band (read-only shared content). */
 const DEFENSE_ZONE_ORDER = Object.freeze([
@@ -34,8 +36,15 @@ export class DefenseSystem {
     this.lastSpawned = 0;
     this.mutator = null;
     this.mutatorsSeen = [];
+    this.encounter = null;
     this.powerShards = 0;
     this.victory = false;
+    this.hazardTimer = 0;
+    this.bloodTempo = 0;
+    this.champions = [];
+    this.breakValue = 0;
+    this.breakWindow = 0;
+    this.breakTarget = null;
   }
 
   /** Begin an endless Defense run at wave 1. */
@@ -70,6 +79,7 @@ export class DefenseSystem {
     }
 
     if (this.phase === 'combat') {
+      this.#tickCombatDrama(delta);
       if (this.#countLivingWaveEnemies() <= 0) {
         this.#onWaveClear();
       }
@@ -94,7 +104,50 @@ export class DefenseSystem {
     if (this.phase === 'idle' || this.phase === 'failed' || this.phase === 'victory') return;
     if (!enemy?.defenseWave) return;
     this.killsThisRun += 1;
-    // Clear detection is polled in update; onKill is bookkeeping only.
+    if (this.mutator?.id === 'blood_tempo') {
+      this.bloodTempo = Math.min(2.4, this.bloodTempo + 0.55);
+      const player = this.game.player;
+      if (player?.runMods) {
+        player.runMods.haste = Math.min(0.55, (player.runMods.haste ?? 0) + 0.04);
+        player.invalidateStats?.();
+      }
+    }
+    if (enemy === this.breakTarget) {
+      this.breakTarget = null;
+      this.breakWindow = 0;
+      this.breakValue = 0;
+    }
+    this.champions = this.champions.filter(entry => entry?.alive && entry !== enemy);
+  }
+
+  /** Called from CombatSystem on Defense hits against wave champions. */
+  onChampionHit(enemy, result, options = {}) {
+    if (this.game.mode !== 'defense' || this.phase !== 'combat') return;
+    if (!enemy?.alive || !enemy.defenseWave) return;
+    if (!(enemy.boss || enemy.elite || enemy.data?.miniBoss)) return;
+    const cfg = DEFENSE_CONFIG;
+    if (this.breakWindow > 0 && this.breakTarget === enemy) return;
+    let gain = options.skill ? cfg.champBreakSkill : cfg.champBreakBasic;
+    if (options.critical || options.finisher) gain += cfg.champBreakCritBonus;
+    this.breakTarget = enemy;
+    this.breakValue = Math.min(cfg.champBreakMax, this.breakValue + gain);
+    if (this.breakValue >= cfg.champBreakMax) {
+      this.breakValue = cfg.champBreakMax;
+      this.breakWindow = cfg.champBreakWindow;
+      enemy.applyStun?.(Math.min(1.2, cfg.champBreakWindow * 0.45));
+      this.game.effects?.recipeJudgmentApex?.(enemy.position, {
+        primary: 0xffe38a, secondary: 0xffc45c, core: 0xfff6d0, accent: 0xffd26b, dust: 0xc8a858,
+      }, 3.2);
+      this.game.ui?.notify?.('BREAK · Champion exposed!', 'critical', 2.4);
+      this.game.audio?.boss?.();
+    }
+  }
+
+  damageMultiplierFor(enemy) {
+    if (this.breakWindow > 0 && this.breakTarget === enemy) {
+      return DEFENSE_CONFIG.champBreakDamageMul ?? 1.2;
+    }
+    return 1;
   }
 
   spawnWave() {
@@ -103,22 +156,56 @@ export class DefenseSystem {
     const zoneId = this.#zoneForWave(wave);
     const entries = ZONE_SPAWNS[zoneId] ?? ZONE_SPAWNS.verdant;
     const player = this.game.player;
-    // Mutators every 3 waves from wave 3 (B6). Soften early scarce.
-    this.mutator = wave >= 3 && wave % 3 === 0 ? this.#pickMutator(wave) : this.mutator;
-    if (this.mutator && !this.mutatorsSeen.includes(this.mutator.id)) {
-      this.mutatorsSeen.push(this.mutator.id);
-      this.game.ui?.notify?.(`Mutator · ${this.mutator.label}`, 'contract', 3.2);
+    this.champions = [];
+    this.breakValue = 0;
+    this.breakWindow = 0;
+    this.breakTarget = null;
+    this.hazardTimer = 0;
+    // Mutators every 3 waves from wave 3 — decision pool from defenseContent.
+    if (wave >= 3 && wave % 3 === 0) {
+      this.mutator = pickDefenseMutator(wave) ?? this.mutator;
+      if (this.mutator && !this.mutatorsSeen.includes(this.mutator.id)) {
+        this.mutatorsSeen.push(this.mutator.id);
+      }
+      if (this.mutator) {
+        this.game.ui?.notify?.(
+          `Mutator · ${this.mutator.label}${this.mutator.summary ? ` — ${this.mutator.summary}` : ''}`,
+          'contract',
+          3.4,
+        );
+      }
+    }
+    this.encounter = pickDefenseEncounter(wave);
+    if (this.encounter) {
+      this.game.ui?.notify?.(
+        `${this.encounter.kicker} · ${this.encounter.name}`,
+        'legendary',
+        2.8,
+      );
     }
     const mut = this.mutator;
+    const enc = this.encounter;
     let count = Math.min(
       cfg.maxCount,
       cfg.baseCount + Math.floor((wave - 1) / 3) * cfg.countPerThreeWaves,
     );
     if (mut?.id === 'frenzy') count = Math.min(cfg.maxCount, count + 2);
+    if (enc?.countBonus) count = Math.min(cfg.maxCount, count + enc.countBonus);
+    if (enc?.countMul) count = Math.max(6, Math.round(count * enc.countMul));
 
     // Hybrid composition: role fractions from recipe, fill remainder by zone weights.
-    const recipe = defenseRecipeForWave(wave);
+    let recipe = defenseRecipeForWave(wave);
+    if (enc?.fodderBoost) {
+      recipe = recipe.map(row => (
+        row.role === 'fodder_swarm'
+          ? { ...row, frac: Math.min(0.75, (row.frac ?? 0.35) + enc.fodderBoost) }
+          : row
+      ));
+    }
     const roleQueue = this.#buildRoleQueue(recipe, count);
+    const spawnInner = enc?.spawnInner ?? cfg.spawnInner;
+    const spawnOuter = enc?.spawnOuter ?? cfg.spawnOuter;
+    let elitesForced = 0;
     let spawned = 0;
     for (let i = 0; i < count; i += 1) {
       const wantRole = roleQueue[i] ?? null;
@@ -127,9 +214,14 @@ export class DefenseSystem {
 
       let eliteChance = cfg.eliteChanceBase + (wave - cfg.eliteStartWave) * cfg.eliteChancePerWave;
       if (mut?.id === 'frenzy') eliteChance += 0.1;
+      if (enc?.eliteChanceBonus) eliteChance += enc.eliteChanceBonus;
       if (wave >= 10) eliteChance += 0.04;
-      const elite = wave >= cfg.eliteStartWave
+      let elite = wave >= cfg.eliteStartWave
         && chance(clamp(eliteChance, 0, cfg.eliteChanceCap ?? 0.48));
+      if (enc?.guaranteedElites && elitesForced < enc.guaranteedElites) {
+        elite = true;
+        elitesForced += 1;
+      }
       const eliteAffix = elite ? this.game.enemies.rollEliteAffix(zoneId) : null;
       // Fodder for bulk roles; tanks/artillery keep full stats more often.
       const bulkRole = data.role === 'fodder_swarm' || data.role === 'skirmisher';
@@ -138,11 +230,7 @@ export class DefenseSystem {
       const levelPressure = Math.max(0, Math.floor((wave - 1) * cfg.levelBonusPerWave * 0.85));
       const adjustedLevel = Math.max(data.level, player.level + levelPressure);
 
-      const position = this.game.world.randomSpawnAround(
-        player.position,
-        cfg.spawnInner,
-        cfg.spawnOuter,
-      );
+      const position = this.#spawnPosition(player.position, spawnInner, spawnOuter, enc);
       const enemy = this.game.enemies.spawn(data, position, {
         level: adjustedLevel,
         elite,
@@ -152,35 +240,44 @@ export class DefenseSystem {
         defenseWave: true,
       });
       if (enemy) {
-        if (mut?.id === 'swift') {
-          enemy.speed *= 1.1;
+        if (mut?.id === 'swift' || enc?.speedBonus) {
+          enemy.speed *= 1.1 + (enc?.speedBonus ?? 0);
           enemy.attackCooldown *= 0.9;
-        } else if (mut?.id === 'armored') {
+        }
+        if (mut?.id === 'armored') {
           enemy.defense *= 1.16;
           enemy.maxHp = Math.round(enemy.maxHp * 1.06);
           enemy.hp = enemy.maxHp;
         }
+        if (mut?.id === 'glass_cannon') {
+          enemy.damage *= 1.18;
+          enemy.maxHp = Math.max(1, Math.round(enemy.maxHp * 0.78));
+          enemy.hp = enemy.maxHp;
+        }
+        if (elite && enc?.exposeElites) {
+          enemy.applyStatus?.('expose', { duration: 8, power: 0.22, damageAmp: 0.12 }, this.game);
+        }
+        if (elite || enemy.boss) this.champions.push(enemy);
         spawned += 1;
       }
     }
 
     // Mini-boss cadence: prefer zone mini-champion; every 2nd cadence escalates to apex boss.
-    if (wave > 0 && wave % cfg.miniBossEvery === 0) {
-      const useApex = Math.floor(wave / cfg.miniBossEvery) % 2 === 0;
-      const champId = ZONE_MINI_BOSSES[zoneId];
-      const apexId = ZONE_BOSSES[zoneId] ?? ZONE_BOSSES.verdant;
-      const champData = ENEMY_TYPES[useApex ? apexId : (champId ?? apexId)]
-        ?? ENEMY_TYPES[apexId];
-      if (champData) {
+    const champWaves = wave > 0 && (wave % cfg.miniBossEvery === 0 || enc?.forceChampion);
+    if (champWaves) {
+      const champCount = mut?.id === 'double_champ' && wave % cfg.miniBossEvery === 0 ? 2 : 1;
+      for (let c = 0; c < champCount; c += 1) {
+        const useApex = Math.floor(wave / cfg.miniBossEvery) % 2 === 0 && c === 0;
+        const champId = ZONE_MINI_BOSSES[zoneId];
+        const apexId = ZONE_BOSSES[zoneId] ?? ZONE_BOSSES.verdant;
+        const champData = ENEMY_TYPES[useApex ? apexId : (champId ?? apexId)]
+          ?? ENEMY_TYPES[apexId];
+        if (!champData) continue;
         const bossLevel = Math.max(
           champData.level,
           player.level + (champData.miniBoss ? 1 : 2) + Math.floor((wave - 1) * cfg.levelBonusPerWave),
         );
-        const position = this.game.world.randomSpawnAround(
-          player.position,
-          cfg.spawnInner + 2,
-          cfg.spawnOuter + 4,
-        );
+        const position = this.#spawnPosition(player.position, spawnInner + 2, spawnOuter + 4, enc);
         const boss = this.game.enemies.spawn(champData, position, {
           level: bossLevel,
           elite: Boolean(champData.miniBoss),
@@ -190,9 +287,11 @@ export class DefenseSystem {
         });
         if (boss) {
           spawned += 1;
+          this.champions.push(boss);
           this.game.audio?.boss?.();
-          this.game.effects?.pillar?.(position, champData.accent, champData.miniBoss ? 7.5 : 10, { life: 1.1, bottom: 1.4 });
-          this.game.effects?.ring?.(position, champData.accent, champData.miniBoss ? 4.5 : 6, { life: .9, startScale: .06 });
+          this.game.effects?.pillar?.(position, champData.accent, champData.miniBoss ? 8.5 : 11, { life: 1.25, bottom: 1.5 });
+          this.game.effects?.ring?.(position, champData.accent, champData.miniBoss ? 5 : 6.5, { life: 1.0, startScale: .05 });
+          this.game.effects?.ring?.(position, 0xffe38a, champData.miniBoss ? 3.2 : 4.2, { life: 0.55, startScale: .15, height: 0.12, opacity: 0.8 });
           const tag = champData.miniBoss ? 'Champion' : 'Boss';
           this.game.ui?.notify?.(`Wave ${wave} ${tag} · ${champData.name}`, 'boss', 3.6);
         }
@@ -217,22 +316,103 @@ export class DefenseSystem {
       totalKills: this.killsThisRun,
       mutator: this.mutator?.label ?? null,
       mutatorId: this.mutator?.id ?? null,
+      mutatorSummary: this.mutator?.summary ?? null,
       mutatorsSeen: [...this.mutatorsSeen],
+      encounter: this.encounter?.name ?? null,
+      encounterKicker: this.encounter?.kicker ?? null,
       bestWave: this.bestWaveThisRun,
       powerShards: this.powerShards,
       victory: this.victory,
+      breakValue: this.breakValue,
+      breakMax: DEFENSE_CONFIG.champBreakMax,
+      breakWindow: this.breakWindow,
+      breakTargetAlive: Boolean(this.breakTarget?.alive),
     };
   }
 
-  #pickMutator(wave) {
-    const pool = [
-      { id: 'swift', label: 'Swift Tide' },
-      { id: 'armored', label: 'Iron Tide' },
-      { id: 'frenzy', label: 'Frenzy Tide' },
-      // Scarce starts later so early waves stay drinkable.
-      ...(wave >= 12 ? [{ id: 'scarce', label: 'Scarce Tide' }] : []),
-    ];
-    return pool[Math.floor(wave / 3) % pool.length];
+  #spawnPosition(origin, inner, outer, enc) {
+    if (enc?.spawnArc) {
+      const angle = (Math.floor(this.wave * 1.7) % 8) * (Math.PI / 4);
+      const dist = inner + Math.random() * Math.max(0.5, outer - inner);
+      const pos = origin.clone().add(new THREE.Vector3(Math.cos(angle) * dist, 0, Math.sin(angle) * dist));
+      this.game.world?.resolvePosition?.(pos, 0.55);
+      return pos;
+    }
+    return this.game.world.randomSpawnAround(origin, inner, outer);
+  }
+
+  #tickCombatDrama(delta) {
+    const cfg = DEFENSE_CONFIG;
+    const player = this.game.player;
+    if (!player?.alive) return;
+
+    if (this.breakWindow > 0) {
+      this.breakWindow = Math.max(0, this.breakWindow - delta);
+      if (this.breakWindow <= 0) {
+        this.breakValue = 0;
+        this.breakTarget = null;
+      }
+    }
+
+    if (this.bloodTempo > 0) {
+      this.bloodTempo = Math.max(0, this.bloodTempo - delta);
+      if (this.bloodTempo <= 0 && player.runMods) {
+        // Soft decay of temporary blood-tempo haste bump.
+        player.runMods.haste = Math.max(
+          Math.min(0.45, this.wave * cfg.runHastePerWave),
+          (player.runMods.haste ?? 0) - 0.08,
+        );
+        player.invalidateStats?.();
+      }
+    }
+
+    if (this.mutator?.id === 'dark_ring') {
+      const dist = Math.hypot(player.position.x, player.position.z);
+      if (dist > (cfg.darkRingRadius ?? 18)) {
+        const chip = Math.max(1, Math.round(player.maxHp * (cfg.darkRingDpsRatio ?? 0.04) * delta));
+        player.takeDamage?.(chip, new THREE.Vector3(-player.position.x, 0, -player.position.z).normalize());
+      }
+    }
+
+    if (this.mutator?.id === 'no_potion') {
+      player.potionLock = true;
+    } else if (player.potionLock) {
+      player.potionLock = false;
+    }
+
+    if (this.encounter?.hazard) {
+      this.hazardTimer -= delta;
+      if (this.hazardTimer <= 0) {
+        this.hazardTimer = this.encounter.hazardCadence ?? 4.2;
+        this.#pulseHazard();
+      }
+    }
+  }
+
+  #pulseHazard() {
+    const player = this.game.player;
+    if (!player?.alive) return;
+    const radius = this.encounter?.hazardRadius ?? 3.4;
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 4 + Math.random() * 10;
+    TMP_HAZARD.set(
+      player.position.x + Math.cos(angle) * dist,
+      0,
+      player.position.z + Math.sin(angle) * dist,
+    );
+    this.game.world?.resolvePosition?.(TMP_HAZARD, 0.5);
+    this.game.effects?.ring?.(TMP_HAZARD, 0xff6a4a, radius, { life: 0.85, startScale: 0.08, opacity: 0.7 });
+    this.game.effects?.groundDecal?.(TMP_HAZARD, 0xff9040, radius * 0.9, { life: 1.1, opacity: 0.4, startScale: 0.15 });
+    this.game.defer?.(0.55, () => {
+      if (this.game.mode !== 'defense' || this.phase !== 'combat' || !player.alive) return;
+      this.game.effects?.burst?.(TMP_HAZARD.clone().add(new THREE.Vector3(0, 0.8, 0)), 0xff7040, 22, {
+        speed: 5.5, size: 0.3, life: 0.45, upward: 0.5,
+      });
+      const dmg = Math.max(2, Math.round(player.maxHp * (this.encounter?.hazardDamageRatio ?? 0.055)));
+      if (player.position.distanceTo(TMP_HAZARD) <= radius + 0.6) {
+        player.takeDamage?.(dmg, player.position.clone().sub(TMP_HAZARD).setY(0).normalize());
+      }
+    });
   }
 
   /** Expand role fractions into a shuffled queue of length `count`. */
@@ -298,7 +478,11 @@ export class DefenseSystem {
     this.phase = 'prep';
     this.prepTimer = DEFENSE_CONFIG.prepSeconds;
     this.clearTimer = 0;
-    this.game.ui?.notify?.(`Wave ${this.wave} prep…`, 'contract', 2.2);
+    // Preview next wave identity during prep so the climb feels authored.
+    this.encounter = pickDefenseEncounter(this.wave);
+    const encName = this.encounter?.name ? ` · ${this.encounter.name}` : '';
+    const mutName = this.mutator?.label ? ` · ${this.mutator.label}` : '';
+    this.game.ui?.notify?.(`Wave ${this.wave} prep${encName}${mutName}`, 'contract', 2.4);
   }
 
   #onWaveClear() {
@@ -325,10 +509,17 @@ export class DefenseSystem {
       this.#grantPowerShard(cleared);
     }
     // Occasional potion drip so scarce mutators don't brick long runs.
-    if (cleared % 4 === 0 && this.game.player.potions < this.game.player.maxPotions) {
-      this.game.player.potions = Math.min(this.game.player.maxPotions, this.game.player.potions + 1);
-      this.game.ui?.notify?.('Defense supply · potion +1', 'heal', 2.4);
+    if (this.mutator?.id === 'no_potion' || (cleared % 4 === 0 && this.game.player.potions < this.game.player.maxPotions)) {
+      if (this.game.player.potions < this.game.player.maxPotions) {
+        this.game.player.potions = Math.min(this.game.player.maxPotions, this.game.player.potions + 1);
+        this.game.ui?.notify?.(
+          this.mutator?.id === 'no_potion' ? 'Dry Canteen ends · potion +1' : 'Defense supply · potion +1',
+          'heal',
+          2.4,
+        );
+      }
     }
+    if (this.game.player.potionLock) this.game.player.potionLock = false;
 
     const leveled = Array.isArray(xpResult?.levelUps) && xpResult.levelUps.length > 0;
     const levelNote = leveled ? ` · Level up!` : '';
@@ -439,12 +630,15 @@ export class DefenseSystem {
   #waveClearSpectacle(cleared) {
     const pos = this.game.player.position;
     const color = cleared % 5 === 0 ? 0xffc45c : 0x67dcff;
-    this.game.effects?.ring?.(pos, color, 4.8 + Math.min(4, cleared * 0.04), { life: .75, startScale: .06 });
-    this.game.effects?.burst?.(pos.clone().addScaledVector(TMP_UP, .9), color, 16 + Math.min(20, cleared), {
-      speed: 4.2, size: .28, life: .55, upward: .35,
+    this.game.effects?.ring?.(pos, color, 5.2 + Math.min(5, cleared * 0.05), { life: .85, startScale: .05 });
+    this.game.effects?.ring?.(pos, 0xffe38a, 3.2, { life: .45, startScale: .12, height: 0.1, opacity: 0.75 });
+    this.game.effects?.burst?.(pos.clone().addScaledVector(TMP_UP, .9), color, 22 + Math.min(24, cleared), {
+      speed: 5.0, size: .3, life: .6, upward: .4,
     });
+    this.game.effects?.starburst?.(pos.clone().addScaledVector(TMP_UP, 1.1), color, 2.6, { life: 0.28 });
     if (cleared % 5 === 0) {
-      this.game.effects?.pillar?.(pos, 0xffe38a, 11, { life: 1.15, bottom: 1.6, opacity: .48 });
+      this.game.effects?.pillar?.(pos, 0xffe38a, 12, { life: 1.25, bottom: 1.7, opacity: .52 });
+      this.game.effects?.verticalBeam?.(pos, 0xffc45c, 9, { life: 0.5, bottom: 0.55, opacity: 0.42 });
     }
   }
 

@@ -30,11 +30,21 @@ export const GAME_CONFIG = Object.freeze({
  */
 export const DEFENSE_CONFIG = Object.freeze({
   maxWave: 200,
-  prepSeconds: 2.6,
+  prepSeconds: 2.2,
   // Roster density (gentler early, denser late). Higher body count — per-mob HP curve softens below.
-  baseCount: 10,
+  baseCount: 12,
   countPerThreeWaves: 2,
   maxCount: 80,
+  // Champion break (Defense-only spectacle).
+  champBreakMax: 100,
+  champBreakSkill: 9,
+  champBreakBasic: 2.8,
+  champBreakCritBonus: 2.2,
+  champBreakWindow: 3.8,
+  champBreakDamageMul: 1.2,
+  // Dark Ring mutator: chip outside camp radius.
+  darkRingRadius: 18,
+  darkRingDpsRatio: 0.04,
   // Linear soft terms (Enemy multiplies with #defenseWaveHp / #defenseWaveDmg).
   // Slightly lower per-wave HP because fodder + higher roster counts keep total TTK similar.
   hpPerWave: 0.045,
@@ -99,6 +109,55 @@ export const HORDE_CONFIG = Object.freeze({
   packChance: 0.55,
   /** Beyond this distance, fodder animation updates at half rate. */
   animSkipDistance: 35,
+});
+
+/**
+ * Hunt on-level loop — zone/unit threat bands, receive softcap, reward bias, field marks.
+ * Pure helpers live in `js/systems/huntThreat.js`.
+ */
+export const HUNT_THREAT_CONFIG = Object.freeze({
+  /** Zone/unit gap thresholds: gap = minLevel|enemy.level − player.level */
+  safeMaxGap: -4,
+  onLevelMaxGap: 3,
+  challengeMaxGap: 7,
+  dangerMaxGap: 11,
+  /** Spawn level upper slack above zone.maxLevel */
+  spawnMaxSlack: 3,
+  /** Incoming damage mul by unit level gap (interpolate; floor at last step). */
+  receiveGapMul: Object.freeze([
+    Object.freeze({ gap: 0, mul: 1 }),
+    Object.freeze({ gap: 4, mul: 0.9 }),
+    Object.freeze({ gap: 8, mul: 0.7 }),
+    Object.freeze({ gap: 12, mul: 0.5 }),
+    Object.freeze({ gap: 18, mul: 0.35 }),
+  ]),
+  receiveMulFloor: 0.3,
+  onLevelRewardMul: 1.15,
+  underLevelRewardMul: 0.8,
+  challengeRewardMul: 1.05,
+  dangerRewardMul: 1.2,
+  /** Field mark elite ping interval (seconds). */
+  fieldMarkMinSec: 45,
+  fieldMarkMaxSec: 75,
+  /** Pack pressure: force packs when living below this in on-level zones. */
+  packPressureLiving: 14,
+  packPressureChance: 0.85,
+  /** Player-facing threat labels (English). */
+  labels: Object.freeze({
+    safe: 'Safe',
+    onlevel: 'On-level',
+    challenging: 'Challenging',
+    danger: 'Danger',
+    lethal: 'Lethal',
+  }),
+  /** Hex colors for HUD / minimap / nameplates. */
+  colors: Object.freeze({
+    safe: 0x7ab89a,
+    onlevel: 0x6dff9a,
+    challenging: 0xffd56f,
+    danger: 0xff9a4a,
+    lethal: 0xff4d62,
+  }),
 });
 
 /**
@@ -286,7 +345,7 @@ export const BASIC_ATTACK_FEEL = Object.freeze({
   /** Cross-fades into attack / skill / dodge. */
   attackFade: 0.09,
   attackFadeOut: 0.12,
-  attackFadeOutFinisher: 0.16,
+  attackFadeOutFinisher: 0.18,
   skillFade: 0.12,
   skillFadeOut: 0.16,
   skillTimeScaleSlow: 0.92,

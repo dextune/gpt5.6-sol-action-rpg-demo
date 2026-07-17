@@ -27,19 +27,21 @@ Loop / states: `js/core/Game.js` (`title` | `playing` | `paused` | `dead` | `loa
 
 | Path | Role |
 |------|------|
-| `js/core/` | Game loop, input, audio, save, utils |
+| `js/core/` | Game loop, input, audio, save, utils; **mode helpers** (`gameModes.js`), **kill feedback** (`killFeedback.js`), `GameContext` |
 | `js/data/` | **Pure content tables** (balance, catalog) |
-| `js/config.js` | **Global tuning constants** (world size, camera, player defaults) |
+| `js/config.js` | **Global tuning constants** (world size, camera, player defaults, growth) |
 | `js/entities/` | Player / Enemy runtime state |
-| `js/systems/` | Per-frame gameplay systems |
+| `js/systems/` | Per-frame gameplay systems; combat kits under `systems/combat/` |
 | `js/characters/` | GLB cloning, material styling, animation controllers |
 | `js/graphics/` | Render, lighting, post-processing, VFX pool |
 | `js/world/` | Terrain height/zone, vegetation, water, decoration |
-| `js/ui/` | DOM HUD, panels |
+| `js/ui/` | DOM HUD facade (`UI.js`) + **panel modules** (`ui/panels/*`) |
 | `js/assets/` | Manifest, texture cache, GLTF loading |
 | `assets/` | GLB / webp / png binaries |
 | `vendor/` | Three.js + jsm addons (avoid editing) |
-| `tests/integrity.mjs` | Integrity check |
+| `docs/history/` | Shipped plans & reviews (not active todos) |
+| `docs/plan/` | In-flight plans only (empty when none) |
+| `tests/integrity.mjs` | Integrity check (nested skill-combat, boot-smoke, …) |
 
 ## Dependency direction (preserve)
 

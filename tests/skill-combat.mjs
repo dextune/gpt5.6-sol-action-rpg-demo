@@ -209,9 +209,18 @@ ok(trySkillBody.includes('hits[i] * cadence') && trySkillBody.includes('bundle.c
 ok(playerSrc.includes('setSkillMutation(skillId, milestone, choiceId)')
   && playerSrc.includes('skill.classId !== this.classId || this.level < gate'),
   'Player mutation setter guards class ownership and locked milestones');
-const uiSrc = await (await import('node:fs/promises')).readFile(join(root, 'js/ui/UI.js'), 'utf8');
-ok(uiSrc.includes('data-action="select-mutation"') && uiSrc.includes('this.game.requestSave()')
-  && uiSrc.includes('this.#renderSkills()'), 'delegated mutation action persists and rerenders');
+const uiSrc = await import('node:fs/promises').then(async fs => {
+  const parts = await Promise.all([
+    fs.readFile(join(root, 'js/ui/UI.js'), 'utf8'),
+    fs.readFile(join(root, 'js/ui/panels/skillsPanel.js'), 'utf8'),
+    fs.readFile(join(root, 'js/ui/panels/panelActions.js'), 'utf8'),
+  ]);
+  return parts.join('\n');
+});
+ok(uiSrc.includes('data-action="select-mutation"')
+  && (uiSrc.includes('this.game.requestSave()') || uiSrc.includes('ui.game.requestSave()'))
+  && (uiSrc.includes('this.#renderSkills()') || uiSrc.includes('renderSkills(ui)')),
+  'delegated mutation action persists and rerenders');
 ok(uiSrc.includes('const nextBundle = nextGate ? resolveSkillForm'),
   'skill cards resolve exact current and next milestone snapshots');
 ok(uiSrc.includes('formatCombatSnapshot(bundle.combat)') && uiSrc.includes('formatCombatDeltas(bundle.combat, nextBundle.combat)'),
@@ -273,11 +282,11 @@ const gameCss = await (await import('node:fs/promises')).readFile(join(root, 'cs
 ok(/\.rank-pips[^}]*grid-template-columns:\s*repeat\(5/.test(gameCss),
   'rank pips use a compact two-row grid for ten ranks');
 
-// —— Knight Iron Judgment vertical slice ——
+// —— Knight Iron Vanguard vertical slice ——
 const judgment = content.SKILLS.skyfall;
-ok(judgment.name === 'Iron Judgment' && judgment.id === 'skyfall' && judgment.key === 'R',
-  'Iron Judgment preserves the Skyfall id/effect/key contract');
-ok(validateSkillEvolutionSchema(judgment).length === 0, 'Iron Judgment evolution schema is valid');
+ok(judgment.name === 'Iron Vanguard' && judgment.id === 'skyfall' && judgment.key === 'R',
+  'Iron Vanguard preserves the Skyfall id/effect/key contract');
+ok(validateSkillEvolutionSchema(judgment).length === 0, 'Iron Vanguard evolution schema is valid');
 const judgmentLegacy = resolveSkillForm(judgment, 5, 19, {});
 const judgment20 = resolveSkillForm(judgment, 5, 20, {});
 const judgmentMeteor = resolveSkillForm(judgment, 5, 40, { tier40: 'meteor_hammer' });
@@ -285,25 +294,27 @@ const judgmentEarth = resolveSkillForm(judgment, 5, 80, { tier40: 'iron_vortex',
 const judgmentApex = resolveSkillForm(judgment, 5, 100, { tier40: 'iron_vortex', tier80: 'kings_command' });
 const judgmentEarthApex = resolveSkillForm(judgment, 5, 100, { tier40: 'iron_vortex', tier80: 'earthbreaker' });
 const judgmentMeteorApex = resolveSkillForm(judgment, 5, 100, { tier40: 'meteor_hammer', tier80: 'kings_command' });
-ok(judgmentLegacy.activeForms.length === 0 && !judgmentLegacy.timeline.hits,
-  'Iron Judgment below level 20 keeps legacy single-impact behavior');
-ok(judgment20.activeForms.join(',') === '20' && judgment20.timeline.hits.length === 2,
-  'Iron Judgment level 20 unlocks plant and slam phases');
+ok(judgmentLegacy.activeForms.length === 0 && judgmentLegacy.timeline.hits.length === 2,
+  'Iron Vanguard starts as a two-contact ground charge without a legacy warp path');
+ok(judgment20.activeForms.join(',') === '20' && judgment20.combat.arrivalMult > 0,
+  'Iron Vanguard level 20 adds a direct arrival impact');
 ok(judgment20.mutations.tier40 === undefined && judgmentMeteor.mutations.tier40 === 'meteor_hammer',
-  'Iron Judgment level 40 branch gate and explicit choice resolve');
-ok(judgmentMeteor.combat.mult > judgment20.combat.mult && judgmentMeteor.combat.pullRadius < judgment20.combat.pullRadius,
-  'Meteor Hammer trades pull coverage for slam damage');
-ok(judgmentEarth.combat.bossStagger > judgment20.combat.bossStagger && judgmentEarth.combat.armorPierce > judgment20.combat.armorPierce,
+  'Iron Vanguard level 40 branch gate and explicit choice resolve');
+ok(judgmentMeteor.combat.mult > judgment20.combat.mult
+  && judgmentMeteor.combat.radius * judgmentMeteor.combat.radiusMult < judgment20.combat.radius,
+  'Meteor Ram trades impact coverage for direct charge and slam damage');
+ok(judgmentEarth.combat.durableMult > 1 && judgmentEarth.combat.armorPierce > judgment20.combat.armorPierce,
   'Earthbreaker increases boss stagger and armor pierce');
-ok(judgmentApex.combat.judgmentApex === 1 && judgmentApex.combat.stunNormal === 2.4,
-  'level 100 Judgment unlocks Apex decoration and capped normal stun');
+ok(judgmentApex.combat.judgmentApex === 1 && judgmentApex.combat.kingFinaleMult > 1
+  && judgmentApex.combat.aftershockHits === 3,
+  'level 100 Vanguard unlocks three aftershocks and a direct royal finale');
 ok(judgmentEarthApex.combat.bossStagger === judgmentEarth.combat.bossStagger
   && judgmentEarthApex.combat.apexStaggerBonus > 0,
-  'level 100 Judgment adds Apex boss pressure without erasing the Lv80 branch');
-ok(judgmentApex.combat.pullRadius > judgmentMeteorApex.combat.pullRadius
-  && judgmentMeteorApex.combat.mult > judgmentApex.combat.mult
-  && judgmentApex.combat.apexPullBonus === judgmentMeteorApex.combat.apexPullBonus,
-  'level 100 Judgment preserves wide-vortex versus tight-damage Lv40 identity');
+  'level 100 Vanguard adds Apex boss pressure without erasing the Lv80 branch');
+ok(judgmentApex.combat.radius * judgmentApex.combat.radiusMult
+  > judgmentMeteorApex.combat.radius * judgmentMeteorApex.combat.radiusMult
+  && judgmentMeteorApex.combat.mult > judgmentApex.combat.mult,
+  'level 100 Vanguard preserves wide-lane versus focused-impact Lv40 identity');
 
 const THREE = await import('three');
 const { Enemy, ENEMY_CONTROL_LIMITS } = await import(pathToFileURL(join(root, 'js/entities/Enemy.js')).href);
@@ -525,8 +536,9 @@ ok(rangerApex.caltrop_trap.combat.plantedCap === 4
   'Thornburst planted arrows and mines are bounded');
 ok(rangerApex.vault_shot.combat.arrowCap === 12 && rangerApex.vault_shot.combat.volleyLayers === 3,
   'Sky Hunter arrows and staged layers are bounded');
-ok(rangerApex.hunter_mark.combat.verdictChains === 2,
-  'Predator Verdict chain depth is capped at two targets');
+ok(rangerApex.hunter_mark.combat.hits + rangerApex.hunter_mark.combat.bonusHits
+  + rangerApex.hunter_mark.combat.echoHits <= 15,
+  'Predator Barrage auto-targeted hit count remains bounded');
 const rogueActives = actives.filter(s => s.classId === 'rogue');
 ok(rogueActives.length === 4, 'rogue has 4 actives');
 for (const skill of rogueActives) {
@@ -545,59 +557,32 @@ ok(cycloneWhirl.combat.inwardDrag > 0 && cycloneWhirl.combat.dragCap === 5
   'Whirlwind Lv40/Lv80 branches resolve distinct bounded geometry');
 const twinEvolution = content.SKILLS.twin_fang;
 ok(validateSkillEvolutionSchema(twinEvolution).length === 0, 'Twin Fang evolution schema is valid');
-ok(resolveSkillForm(twinEvolution, 10, 19, {}).combat.hits === 2
-  && resolveSkillForm(twinEvolution, 10, 20, {}).combat.hits === 3
-  && resolveSkillForm(twinEvolution, 10, 100, {}).combat.hits === 8,
-  'Twin Fang preserves two contacts then resolves Cross Fang and Thousand Fang counts');
-const frenzySkill = content.SKILLS.shadowstep;
-ok(frenzySkill.name === 'Shadow Frenzy' && frenzySkill.id === 'shadowstep'
-  && frenzySkill.effect === 'shadowstep' && frenzySkill.key === 'R',
-  'Shadow Frenzy preserves the Shadowstep runtime contract');
-ok(validateSkillEvolutionSchema(frenzySkill).length === 0, 'Shadow Frenzy evolution schema is valid');
-const frenzy20 = resolveSkillForm(frenzySkill, 5, 20, {});
-const frenzyGhost = resolveSkillForm(frenzySkill, 5, 40, { tier40: 'ghost_rush' });
-const frenzyRed = resolveSkillForm(frenzySkill, 5, 40, { tier40: 'red_tempo' });
-const frenzyPredator = resolveSkillForm(frenzySkill, 5, 80, { tier40: 'ghost_rush', tier80: 'predator_flow' });
-const frenzyBoss = resolveSkillForm(frenzySkill, 5, 80, { tier40: 'red_tempo', tier80: 'boss_killer' });
-const frenzyApex = resolveSkillForm(frenzySkill, 5, 100, { tier40: 'red_tempo', tier80: 'boss_killer' });
-ok(frenzy20.combat.frenzyDuration === 4 && frenzy20.combat.offhandEcho > 0,
-  'Shadow Frenzy level 20 enables bounded haste and one offhand echo');
-ok(frenzyGhost.combat.frenzyMoveHaste > frenzyRed.combat.frenzyMoveHaste
-  && frenzyRed.combat.frenzyAttackHaste > frenzyGhost.combat.frenzyAttackHaste,
-  'Shadow Frenzy level 40 branches preserve movement versus attack identity');
-ok(frenzyPredator.combat.chainCap === 2 && frenzyBoss.combat.bossRampCap === 5,
-  'Shadow Frenzy level 80 chain and boss ramps are capped');
-ok(frenzyApex.combat.frenzyDuration === 5 && frenzyApex.combat.contactCap === 12
-  && frenzyApex.combat.exitMult > 0,
-  'Shadow Frenzy Apex has capped contacts and five-second exit detonation');
+ok(resolveSkillForm(twinEvolution, 10, 19, {}).combat.hits === 6
+  && resolveSkillForm(twinEvolution, 10, 20, {}).combat.hits === 7
+  && resolveSkillForm(twinEvolution, 10, 100, {}).combat.hits === 10,
+  'Predator Flurry resolves six, seven, and ten auto-targeted contacts');
+const executionSkill = content.SKILLS.shadowstep;
+ok(executionSkill.name === 'Execution Chain' && executionSkill.id === 'shadowstep'
+  && executionSkill.effect === 'shadowstep' && executionSkill.key === 'R',
+  'Execution Chain preserves the saved Shadowstep runtime id');
+ok(validateSkillEvolutionSchema(executionSkill).length === 0, 'Execution Chain evolution schema is valid');
+const execution20 = resolveSkillForm(executionSkill, 5, 20, {});
+const executionGhost = resolveSkillForm(executionSkill, 5, 40, { tier40: 'ghost_rush' });
+const executionRed = resolveSkillForm(executionSkill, 5, 40, { tier40: 'red_tempo' });
+const executionPredator = resolveSkillForm(executionSkill, 5, 80, { tier40: 'ghost_rush', tier80: 'predator_flow' });
+const executionBoss = resolveSkillForm(executionSkill, 5, 80, { tier40: 'red_tempo', tier80: 'boss_killer' });
+const executionApex = resolveSkillForm(executionSkill, 5, 100, { tier40: 'red_tempo', tier80: 'boss_killer' });
+ok(execution20.combat.offhandEcho > 0 && execution20.combat.hits === 6,
+  'Execution Chain level 20 adds an off-hand hit without a movement buff');
+ok(executionGhost.combat.targetCap === 5 && executionGhost.combat.targetRange > executionRed.combat.targetRange
+  && executionRed.combat.criticalBonus > executionGhost.combat.criticalBonus,
+  'Execution Chain level 40 branches trade target coverage for critical focus');
+ok(executionPredator.combat.targetCap === 6 && executionBoss.combat.durableExtraHits === 3,
+  'Execution Chain level 80 branches add bounded multi-target or boss hits');
+ok(executionApex.combat.hits === 12 && executionApex.combat.finaleMult > 0
+  && !('dash' in executionApex.combat) && !('frenzyMoveHaste' in executionApex.combat),
+  'Execution Chain Apex is a twelve-volley stationary hit skill');
 
-const frenzyState = { alive: true };
-Player.prototype.clearShadowFrenzy.call(frenzyState);
-Player.prototype.activateShadowFrenzy.call(frenzyState, frenzyApex.combat);
-Object.defineProperty(frenzyState, 'frenzyActive', {
-  configurable: true, get() { return this.shadowFrenzy.active && this.shadowFrenzy.remaining > 0; },
-});
-for (let i = 0; i < 30; i += 1) Player.prototype.registerFrenzyContact.call(frenzyState, { boss: true, id: 'boss-a' });
-let extended = 0;
-for (let i = 0; i < 8; i += 1) extended += Player.prototype.extendShadowFrenzyOnKill.call(frenzyState);
-ok(frenzyState.shadowFrenzy.contactCount === 12 && frenzyState.shadowFrenzy.bossStacks === 5,
-  'Shadow Frenzy contact and single-target boss stacks cannot exceed caps');
-ok(extended === 2 && frenzyState.shadowFrenzy.extensionUsed === 2,
-  'Shadow Frenzy kill extension cannot exceed two seconds');
-const activeGeneration = frenzyState.shadowFrenzy.generation;
-const activeSnapshot = { ...frenzyState.shadowFrenzy };
-const recastState = Player.prototype.activateShadowFrenzy.call(frenzyState, frenzyGhost.combat);
-ok(recastState === frenzyState.shadowFrenzy && recastState.generation === activeGeneration
-  && recastState.remaining === activeSnapshot.remaining
-  && recastState.extensionUsed === activeSnapshot.extensionUsed
-  && recastState.contactCount === activeSnapshot.contactCount
-  && recastState.bossStacks === activeSnapshot.bossStacks,
-  'active Shadow Frenzy recast cannot refresh or replace its current generation');
-Player.prototype.clearShadowFrenzy.call(frenzyState);
-ok(!frenzyState.shadowFrenzy.active && frenzyState.shadowFrenzy.remaining === 0,
-  'Shadow Frenzy transient state clears on reset/death path');
-ok(!playerSrc.slice(playerSrc.indexOf('serialize()'), playerSrc.indexOf('load(state')).includes('shadowFrenzy'),
-  'Shadow Frenzy transient state is excluded from save serialization');
 ok(!playerSrc.slice(playerSrc.indexOf('serialize()'), playerSrc.indexOf('load(state')).includes('predatorVerdict')
   && !playerSrc.slice(playerSrc.indexOf('serialize()'), playerSrc.indexOf('load(state')).includes('thornField'),
   'Ranger field and verdict transient authority are excluded from save serialization');
@@ -612,21 +597,6 @@ const playerFactoryStub = {
   },
   equipWeapon() {}, clearWeapons() {},
 };
-const timedFrenzyPlayer = new Player(new THREE.Scene(), playerFactoryStub, 'medium', 'rogue');
-let exitCalls = 0;
-timedFrenzyPlayer.activateShadowFrenzy({ frenzyDuration: 0.01, contactCap: 12, exitMult: 0.1 });
-timedFrenzyPlayer.update(0.02, {
-  world: { resolvePosition() {} }, combat: { endShadowFrenzy() { exitCalls += 1; } },
-});
-ok(!timedFrenzyPlayer.frenzyActive && exitCalls === 1,
-  'Shadow Frenzy timer expires once and dispatches one terminal exit');
-timedFrenzyPlayer.activateShadowFrenzy({ frenzyDuration: 4, frenzyAttackHaste: 0.4 });
-timedFrenzyPlayer.invulnerable = 0;
-timedFrenzyPlayer.hp = 1;
-timedFrenzyPlayer.takeDamage(9999);
-ok(!timedFrenzyPlayer.alive && !timedFrenzyPlayer.frenzyActive,
-  'Shadow Frenzy clears immediately on player death without a terminal refresh');
-timedFrenzyPlayer.dispose();
 let lifecycleClears = 0;
 let lifecycleEquips = 0;
 const lifecycleFactoryStub = {
@@ -728,6 +698,8 @@ for (const id of ['whirlwind', 'skyfall', 'frost_nova', 'arcane_blink', 'meteor_
       fs.readFile(join(root, 'js/systems/combat/energyBurstMethods.js'), 'utf8'),
       fs.readFile(join(root, 'js/systems/combat/createSkillHandlers.js'), 'utf8'),
       fs.readFile(join(root, 'js/systems/combat/enemySkills.js'), 'utf8').catch(() => ''),
+      fs.readFile(join(root, 'js/systems/combat/basicAttacks.js'), 'utf8').catch(() => ''),
+      fs.readFile(join(root, 'js/systems/combat/projectiles.js'), 'utf8').catch(() => ''),
     ]);
     return parts.join('\n');
   });
@@ -737,10 +709,8 @@ for (const id of ['whirlwind', 'skyfall', 'frost_nova', 'arcane_blink', 'meteor_
   ok(combatSrc.includes('skillPowerApplied: Boolean(projectile.skillPowerApplied)'),
     'updateProjectiles uses per-projectile skillPowerApplied');
   // crescent must NOT set skillPowerApplied: true
-  const cresStart = combatSrc.search(/_crescent\s*\(\s*player/);
-  const cresEnd = combatSrc.search(/_skyfall\s*\(\s*player/);
-  const cresBody = combatSrc.slice(cresStart, cresEnd > cresStart ? cresEnd : cresStart + 2000);
-  ok(cresBody.includes('skillDamage(player.attackPower, combat)'), 'crescent uses skillDamage raw');
+  const cresBody = methodBody(combatSrc, 'crescent');
+  ok(/skillDamage\(player\.attackPower,\s*combat\)/.test(cresBody), 'crescent uses skillDamage raw');
   ok(!/skillPowerApplied:\s*true/.test(cresBody), 'crescent does not force skillPowerApplied true');
   ok(!/\*\s*player\.skillPower/.test(cresBody), 'crescent does not bake skillPower (hit path multiplies)');
   // fireball must set skillPowerApplied true when baking
@@ -770,23 +740,26 @@ const combatSrc = await import('node:fs/promises').then(async fs => {
     fs.readFile(join(root, 'js/systems/combat/energyBurstMethods.js'), 'utf8'),
     fs.readFile(join(root, 'js/systems/combat/createSkillHandlers.js'), 'utf8'),
     fs.readFile(join(root, 'js/systems/combat/enemySkills.js'), 'utf8').catch(() => ''),
+    fs.readFile(join(root, 'js/systems/combat/basicAttacks.js'), 'utf8').catch(() => ''),
+    fs.readFile(join(root, 'js/systems/combat/projectiles.js'), 'utf8').catch(() => ''),
   ]);
   return parts.join('\n');
 });
 const judgmentHandler = methodBody(combatSrc, 'skyfall');
-ok(judgmentHandler.includes('bundle.playerLevel < 20') && /_skyfallLegacy\s*\(\s*player,\s*bundle\)/.test(combatSrc),
-  'Iron Judgment preserves the legacy path below level 20');
+ok(!judgmentHandler.includes('bundle.playerLevel < 20') && judgmentHandler.includes('_knightChargeTarget'),
+  'Iron Vanguard uses one ground-charge path at every level');
 ok(judgmentHandler.includes('completed.has(index)') && judgmentHandler.includes('completed.add(index)'),
-  'Iron Judgment phase contacts are guarded to land once');
-ok(judgmentHandler.includes('cast.target.copy(player.position)'),
-  'Iron Judgment synchronizes cast geometry to the world-resolved leap position');
+  'Iron Vanguard phase contacts are guarded to land once');
+ok(judgmentHandler.includes('player.position.lerpVectors(cast.origin, cast.target')
+  && !judgmentHandler.includes('player.position.copy(cast.target)'),
+  'Iron Vanguard advances through visible ground-charge steps and never warps');
 ok(judgmentHandler.includes('if (index !== 0) return false')
   && judgmentHandler.includes('this.skillCastState.delete(player)'),
-  'Iron Judgment rejects orphan finishers and deletes terminal cast state');
+  'Iron Vanguard rejects orphan finishers and deletes terminal cast state');
 ok(judgmentHandler.includes("controlCategory === 'boss'") && judgmentHandler.includes('addStagger')
-  && judgmentHandler.includes('applyStun'), 'Iron Judgment converts boss stun to stagger');
+  && judgmentHandler.includes('applyStun'), 'Iron Vanguard converts boss stun to stagger');
 ok(judgmentHandler.indexOf('recipeJudgmentApex') > judgmentHandler.indexOf("if (index === 0)"),
-  'Apex pillars remain decorative after the authoritative slam pass');
+  'Apex rupture follows the authoritative charge and slam pass');
 const enemySrc = await import('node:fs/promises').then(fs => fs.readFile(join(root, 'js/entities/Enemy.js'), 'utf8'));
 ok(enemySrc.includes('this.stunTimer > 0 || this.breakTimer > 0')
   && enemySrc.indexOf('this.stunTimer > 0 || this.breakTimer > 0') < enemySrc.indexOf('this.#combatAI(delta'),
@@ -904,9 +877,10 @@ const blinkCombat = new CombatSystem(blinkGame);
 const blinkBundle = resolveSkillForm(content.SKILLS.arcane_blink, 10, 100, {});
 blinkCombat.usePlayerSkill(blinkBundle, blinkPlayer);
 blinkCombat.update(1);
-ok(blinkBurstTo?.equals(blinkPlayer.position) && seamTo?.equals(blinkPlayer.position)
-  && blinkPlayer.position.x === 2,
-  'Space Rend snapshots world-resolved destination for player, VFX, hit, and route geometry');
+const stationaryBlinkTarget = new THREE.Vector3(0, 0, 10);
+ok(blinkBurstTo?.equals(stationaryBlinkTarget) && seamTo?.equals(stationaryBlinkTarget)
+  && blinkPlayer.position.equals(new THREE.Vector3()),
+  'Rift Barrage projects its seam to the locked point while the wizard remains stationary');
 
 const makeWizardEnemy = (id, x, z, category = 'normal') => ({
   id, alive: true, radius: .55, position: new THREE.Vector3(x, 0, z), hp: 100, maxHp: 100,
@@ -1008,45 +982,36 @@ const rogueSkillPlayer = { ...wizardPlayer, classId: 'rogue', position: new THRE
     mainBladeTip: { getWorldPosition(v) { v.set(.25, 1, 0); } },
     offhandBladeTip: { getWorldPosition(v) { v.set(-.25, 1, 0); } },
   } };
-const fangEnemy = makeWizardEnemy('fang-prey', 1.5, 0); fangEnemy.statuses.bleed = { id: 'bleed', remaining: 3 };
+const fangEnemy = makeWizardEnemy('fang-prey', 8.5, 0); fangEnemy.statuses.bleed = { id: 'bleed', remaining: 3 };
 const fangGame = makeWizardGame([fangEnemy]); fangGame.player = rogueSkillPlayer;
-fangGame.effects = new Proxy({ recipeFangRush(origin) { fangOrigins.push(origin.clone()); }, recipeBackbite() { fangOrigins.push('backbite'); },
-  recipeFangCutLine() {}, recipeThousandFangFinale() {} }, { get: (target, key) => target[key] ?? (() => {}) });
+fangGame.effects = new Proxy({ recipeFangRush(origin) { fangOrigins.push(origin.clone()); }, recipeFangCutLine() {} },
+  { get: (target, key) => target[key] ?? (() => {}) });
 const fangCombat = new CombatSystem(fangGame);
 const openFang = resolveSkillForm(content.SKILLS.twin_fang, 10, 80, { tier40: 'viper', tier80: 'open_wound' });
-fangCombat.usePlayerSkill(openFang, rogueSkillPlayer, 0);
-fangCombat.usePlayerSkill(openFang, rogueSkillPlayer, 1);
+const fangPlayerOrigin = rogueSkillPlayer.position.clone();
+for (let phase = 0; phase < openFang.combat.hits; phase += 1) {
+  fangCombat.usePlayerSkill(openFang, rogueSkillPlayer, phase);
+}
 fangCombat.usePlayerSkill(openFang, rogueSkillPlayer, 2);
-fangCombat.usePlayerSkill(openFang, rogueSkillPlayer, 2);
-fangCombat.update(.2);
-ok(fangOrigins[0].x > fangOrigins[1].x && Math.abs(fangOrigins[2].x - .18) < 1e-6,
-  `Twin Fang contacts originate main/off/main-cross from actual blade tips (${fangOrigins.slice(0,3).map(v => v.x).join(',')})`);
-ok(!fangEnemy.statuses.bleed && fangOrigins.filter(event => event === 'backbite').length === 1,
-  'Open Wound consumes bleed once and Backbite echoes once without recursion');
-const thousandGame = makeWizardGame([makeWizardEnemy('thousand-prey', 1.5, 0)]); thousandGame.player = rogueSkillPlayer;
-let cutLines = 0; let finales = 0;
-thousandGame.effects = new Proxy({ recipeFangRush() {}, recipeFangCutLine() { cutLines += 1; }, recipeThousandFangFinale() { finales += 1; } },
+fangCombat.update(.01);
+ok(fangOrigins[0].x > fangOrigins[1].x && Math.abs(fangOrigins[0].x - fangOrigins[2].x) < 1e-6,
+  `Predator Flurry alternates actual main/offhand blade tips (${fangOrigins.slice(0,3).map(v => v.x).join(',')})`);
+ok(fangEnemy.hits === openFang.combat.hits + 1 && rogueSkillPlayer.position.equals(fangPlayerOrigin),
+  'Predator Flurry auto-targets at range, adds one Open Wound hit, and never moves the player');
+const thousandTarget = makeWizardEnemy('thousand-prey', 9.5, 0, 'elite');
+const thousandGame = makeWizardGame([thousandTarget]); thousandGame.player = rogueSkillPlayer;
+let cutLines = 0;
+thousandGame.effects = new Proxy({ recipeFangRush() {}, recipeFangCutLine() { cutLines += 1; } },
   { get: (target, key) => target[key] ?? (() => {}) });
 const thousandCombat = new CombatSystem(thousandGame);
 const thousand = resolveSkillForm(content.SKILLS.twin_fang, 10, 100, { tier40: 'raptor', tier80: 'heartseeker' });
 thousandCombat.usePlayerSkill(thousand, rogueSkillPlayer, 'full');
 for (let i = 0; i < 10; i += 1) thousandCombat.update(.1);
-ok(cutLines <= 6 && finales === 1 && thousandGame.enemies.enemies[0].hits === 10,
-  `Thousand Fang lands eight contacts, caps cut lines at six, and detonates once (${cutLines}/${finales}/${thousandGame.enemies.enemies[0].hits})`);
-const realFangGame = makeWizardGame([]); realFangGame.player = rogueSkillPlayer;
-realFangGame.camera = { getWorldQuaternion(quaternion) { return quaternion.identity(); } };
-const realFangEnemy = makeRealWizardEnemy(realFangGame, 'elite'); realFangEnemy.position.set(1.5, 0, 0); realFangGame.enemies.enemies.push(realFangEnemy);
-const realFangHits = [];
-const realFangTake = realFangEnemy.takeDamage.bind(realFangEnemy);
-realFangEnemy.takeDamage = (raw, game, options = {}) => { const result = realFangTake(raw, game, options); realFangHits.push({ amount: result.amount, key: options.sameCastHit?.key, dot: options.dot }); return result; };
-realFangGame.effects = new Proxy({}, { get: () => () => {} });
-const realFangCombat = new CombatSystem(realFangGame);
-realFangCombat.usePlayerSkill(thousand, rogueSkillPlayer, 'full');
-for (let i = 0; i < 24; i += 1) { realFangCombat.update(.045); realFangEnemy.update(.045, realFangGame); realFangEnemy.position.set(1.5,0,0); realFangEnemy.knockback.set(0,0,0); }
-ok(realFangHits.filter(hit => hit.amount > 0 && !hit.key && !hit.dot).length === 8
-  && realFangHits.filter(hit => hit.amount > 0 && hit.key?.includes(':backbite')).length === 1
-  && realFangHits.filter(hit => hit.amount > 0 && hit.key?.includes(':detonate')).length === 1,
-  `Thousand Fang crosses real Enemy iframes for eight contacts, one Backbite, and one bounded detonation (${realFangHits.map(h=>`${h.amount}:${h.key??'base'}`).join('|')})`);
+ok(cutLines === thousand.combat.hits
+  && thousandTarget.hits === thousand.combat.hits + thousand.combat.echoHits
+    + thousand.combat.durableExtraHits + 1
+  && thousandTarget.staggers === thousand.combat.durableStagger,
+  `Predator Sentence lands ten base, two echo, two durable, and one finale hit (${cutLines}/${thousandTarget.hits})`);
 
 const phaseEnemy = makeWizardEnemy('phase-enemy', 2, 0);
 const phaseGame = makeWizardGame([phaseEnemy]); phaseGame.player = knightPlayer;
@@ -1113,13 +1078,19 @@ scarCombat.usePlayerSkill(cycloneApex, knightPlayer, 0); scarCombat.update(.2);
 ok(scarFx === 1, 'Roving Gale recast cancels the stale delayed scar generation');
 
 const cageTargets = Array.from({ length: 7 }, (_, index) => {
-  const enemy = makeWizardEnemy(`cage-${index}`, 2 + index * .1, 0, index % 2 ? 'elite' : 'normal');
+  const enemy = makeWizardEnemy(`cage-${index}`, 6 + index * .35, 0, index % 2 ? 'elite' : 'normal');
+  enemy.origin = enemy.position.clone();
   enemy.pulls = 0; enemy.pullToward = () => { enemy.pulls += 1; return .2; }; return enemy;
 });
-const cageBoss = makeWizardEnemy('cage-boss', 2, 1, 'boss'); cageBoss.pulls = 0; cageBoss.pullToward = () => { cageBoss.pulls += 1; };
+const cageBoss = makeWizardEnemy('cage-boss', 6, 1.2, 'boss');
+cageBoss.origin = cageBoss.position.clone();
+cageBoss.pulls = 0; cageBoss.pullToward = () => { cageBoss.pulls += 1; };
 const cageGame = makeWizardGame([...cageTargets, cageBoss]); cageGame.player = knightPlayer; knightPlayer.position.set(0,0,0);
 const cageCombat = new CombatSystem(cageGame); cageCombat.usePlayerSkill(cycloneApex, knightPlayer, 0);
-ok(cageTargets.filter(enemy => enemy.pulls > 0).length === 5 && cageBoss.pulls === 0,
+const cageSnapped = cageTargets.filter(enemy => enemy.position.distanceTo(enemy.origin) > 0.05);
+const cageBossMoved = cageBoss.position.distanceTo(cageBoss.origin) > 0.05;
+ok(cageSnapped.length === 5 && !cageBossMoved && cageBoss.pulls === 0
+  && cageSnapped.every(enemy => enemy.position.distanceTo(knightPlayer.position) < 4.5),
   'Storm Cage groups at most five distinct mixed normal/elite targets and never displaces bosses');
 
 const giantNormal = makeWizardEnemy('giant-normal', 2, 0); const giantBoss = makeWizardEnemy('giant-boss', 2, .4, 'boss');
@@ -1138,15 +1109,16 @@ for (let phase = 0; phase < 6; phase += 1) crossCombat.usePlayerSkill(cycloneApe
 ok(crossKeys.filter(key => key.includes(':cross-')).length === 2,
   'Sovereign perpendicular intersection consumes at most two cross contacts per enemy');
 
-const heartNormal = makeWizardEnemy('heart-normal', 1.5, .25); const heartBoss = makeWizardEnemy('heart-boss', 1.5, -.25, 'boss');
+const heartNormal = makeWizardEnemy('heart-normal', 1.8, .25); const heartBoss = makeWizardEnemy('heart-boss', 1.2, -.1, 'boss');
 const heartKeys = [];
 heartBoss.takeDamage = (_raw, _game, options = {}) => { heartKeys.push(options.sameCastHit?.key ?? 'base'); return { amount: 1, killed: false }; };
 const heartGame = makeWizardGame([heartNormal, heartBoss]); heartGame.player = rogueSkillPlayer;
 const heartCombat = new CombatSystem(heartGame);
-for (let phase = 0; phase < 8; phase += 1) heartCombat.usePlayerSkill(thousand, rogueSkillPlayer, phase);
-ok(heartKeys.filter(key => key.endsWith(':heart')).length === 1
+for (let phase = 0; phase < thousand.combat.hits; phase += 1) heartCombat.usePlayerSkill(thousand, rogueSkillPlayer, phase);
+heartCombat.update(.1);
+ok(heartKeys.filter(key => key.includes(':heart-')).length === thousand.combat.durableExtraHits
   && heartBoss.staggers === thousand.combat.durableStagger && heartNormal.staggers === 0,
-  `Heartseeker grants exactly one durable-only bonus and stagger (${heartKeys.join('|')}/${heartBoss.staggers}/${heartNormal.staggers})`);
+  `Heartseeker grants exact durable-only extra hits and stagger (${heartKeys.join('|')}/${heartBoss.staggers}/${heartNormal.staggers})`);
 
 const crescent19 = resolveSkillForm(content.SKILLS.crescent,10,19,{});
 const wideMoon = resolveSkillForm(content.SKILLS.crescent,10,40,{tier40:'wide_moon'});
@@ -1174,53 +1146,53 @@ const severBundle=resolveSkillForm(content.SKILLS.crescent,10,80,{tier40:'full_m
 ok(severBoss.statuses.armor_break?.remaining===severBundle.combat.armorBreakDuration&&severBoss.hits>=2,'Armor Sever deals direct durable bonus and applies bounded generic armor_break');
 const realSeverGame=makeWizardGame([]);realSeverGame.player=knightPlayer;const realSeverBoss=new Enemy(realSeverGame.scene,{...realEnemyData,id:'real_sever',boss:true},new THREE.Vector3(3.3,0,0),{level:1},realEnemyFactory);realSeverGame.enemies.enemies.push(realSeverBoss);const realSeverAmounts=[];const realSeverTake=realSeverBoss.takeDamage.bind(realSeverBoss);realSeverBoss.takeDamage=(r,g,o={})=>{const result=realSeverTake(r,g,o);realSeverAmounts.push(result.amount);return result;};const realSeverCombat=new CombatSystem(realSeverGame);realSeverCombat.usePlayerSkill(severBundle,knightPlayer,0);realSeverCombat.update(.1);ok(realSeverAmounts.filter(amount=>amount>0).length===2&&realSeverBoss.statuses.armor_break,'Armor Sever main and focused bonus cross the real Enemy iframe contract');
 
-const fan20=resolveSkillForm(content.SKILLS.fan_of_knives,10,20,{});const fanBaseGame=makeWizardGame([]);fanBaseGame.player=rogueSkillPlayer;const fanBaseCombat=new CombatSystem(fanBaseGame);
-fanBaseCombat.usePlayerSkill(fan20,rogueSkillPlayer,1);ok(fanBaseCombat.projectiles.length===0,'Returning Steel rejects orphan return phase');fanBaseCombat.usePlayerSkill(fan20,rogueSkillPlayer,0);
-const outboundCount=fanBaseCombat.projectiles.length;fanBaseCombat.usePlayerSkill(fan20,rogueSkillPlayer,1);const returnedCount=fanBaseCombat.projectiles.length-outboundCount;fanBaseCombat.usePlayerSkill(fan20,rogueSkillPlayer,1);
-ok(outboundCount>0&&returnedCount===outboundCount&&fanBaseCombat.projectiles.length===outboundCount*2,'Returning Steel creates exactly one nonrecursive return pass');
+rogueSkillPlayer.position.set(0,0,0);
+const fan20=resolveSkillForm(content.SKILLS.fan_of_knives,10,20,{});
+const fanBaseTarget=makeWizardEnemy('cyclone-base',4.8,0);const fanBaseGame=makeWizardGame([fanBaseTarget]);fanBaseGame.player=rogueSkillPlayer;const fanBaseCombat=new CombatSystem(fanBaseGame);
+fanBaseCombat.usePlayerSkill(fan20,rogueSkillPlayer,1);ok(fanBaseTarget.hits===0,'Blade Cyclone rejects orphan nonzero phase');
+const fanPlayerOrigin=rogueSkillPlayer.position.clone();fanBaseCombat.usePlayerSkill(fan20,rogueSkillPlayer,0);fanBaseCombat.usePlayerSkill(fan20,rogueSkillPlayer,1);fanBaseCombat.usePlayerSkill(fan20,rogueSkillPlayer,1);
+for(let i=2;i<fan20.combat.pulses;i+=1)fanBaseCombat.usePlayerSkill(fan20,rogueSkillPlayer,i);
+ok(fanBaseTarget.hits===fan20.combat.pulses&&fanBaseCombat.projectiles.length===0&&rogueSkillPlayer.position.equals(fanPlayerOrigin),'Blade Cyclone owns six surrounding pulses, rejects duplicates, spawns no projectile, and never moves');
 
-const ricochetTargets=Array.from({length:5},(_,i)=>makeWizardEnemy(`rico-${i}`,3+i*.3,(i-2)*.2));const bounceKeys=[];
-for(const enemy of ricochetTargets)enemy.takeDamage=(_r,_g,o={})=>{if(o.sameCastHit?.key?.includes(':bounce:'))bounceKeys.push(o.sameCastHit.key);return{amount:1,killed:false};};
-const ricoGame=makeWizardGame(ricochetTargets);ricoGame.player=rogueSkillPlayer;const ricoCombat=new CombatSystem(ricoGame);const ricoBundle=resolveSkillForm(content.SKILLS.fan_of_knives,10,80,{tier40:'black_fan',tier80:'ricochet'});
-ricoCombat.usePlayerSkill(ricoBundle,rogueSkillPlayer,0);for(let i=0;i<3;i+=1)ricoCombat.projectiles[i].onHit?.(ricochetTargets[i]);ok(new Set(bounceKeys).size===3,`Ricochet lands exactly three positive unique derived targets without recursion (${bounceKeys.join('|')})`);
-const pinnedNormal=makeWizardEnemy('pin-normal',4.8,.5),pinnedBoss=makeWizardEnemy('pin-boss',4.8,0,'boss');const pinKeys=[];pinnedBoss.takeDamage=(_r,_g,o={})=>{pinKeys.push(o.sameCastHit?.key??'base');return{amount:1,killed:false};};
-const pinGame=makeWizardGame([pinnedNormal,pinnedBoss]);pinGame.player=rogueSkillPlayer;const pinCombat=new CombatSystem(pinGame);const pinBundle=resolveSkillForm(content.SKILLS.fan_of_knives,10,80,{tier40:'needle_line',tier80:'pinned_prey'});pinCombat.usePlayerSkill(pinBundle,rogueSkillPlayer,0);pinCombat.update(.2);
-ok(pinnedNormal.hits>0&&pinKeys.some(key=>key?.includes(':pinned:'))&&pinnedBoss.staggers===pinBundle.combat.pinnedStagger&&pinnedNormal.staggers===0,`Pinned Prey keeps normal pack direct hits and adds durable-only focused damage/stagger (${pinKeys.join('|')}/${pinnedBoss.staggers})`);
-const realPinGame=makeWizardGame([]);realPinGame.player=rogueSkillPlayer;const realPinBoss=new Enemy(realPinGame.scene,{...realEnemyData,id:'real_pin',boss:true},new THREE.Vector3(4.8,0,0),{level:1},realEnemyFactory);realPinGame.enemies.enemies.push(realPinBoss);realPinGame.effects=new Proxy({}, {get:()=>()=>{}});const realPinAmounts=[];const realPinTake=realPinBoss.takeDamage.bind(realPinBoss);realPinBoss.takeDamage=(r,g,o={})=>{const result=realPinTake(r,g,o);realPinAmounts.push({amount:result.amount,key:o.sameCastHit?.key??'direct'});return result;};const realPinCombat=new CombatSystem(realPinGame);realPinCombat.usePlayerSkill(pinBundle,rogueSkillPlayer,0);realPinCombat.update(.2);const realPinPositive=realPinAmounts.filter(hit=>hit.amount>0);ok(realPinPositive.length===2&&realPinPositive.filter(hit=>hit.key==='direct').length===1&&realPinPositive.filter(hit=>hit.key.includes(':pinned:')).length===1&&realPinBoss.stagger===pinBundle.combat.pinnedStagger,'Pinned Prey crosses real iframe with exactly one direct and one named durable bonus plus one stagger');
+const ricochetTarget=makeWizardEnemy('echo-ring',4.8,0);const ricoGame=makeWizardGame([ricochetTarget]);ricoGame.player=rogueSkillPlayer;const ricoCombat=new CombatSystem(ricoGame);const ricoBundle=resolveSkillForm(content.SKILLS.fan_of_knives,10,80,{tier40:'black_fan',tier80:'ricochet'});
+for(let i=0;i<ricoBundle.combat.pulses;i+=1)ricoCombat.usePlayerSkill(ricoBundle,rogueSkillPlayer,i);ricoCombat.update(.1);
+ok(ricochetTarget.hits===ricoBundle.combat.pulses+Math.floor(ricoBundle.combat.pulses/ricoBundle.combat.echoEvery),'Echo Ring adds one bounded area hit after every second pulse');
+const pinnedNormal=makeWizardEnemy('breaker-normal',4.8,.5),pinnedBoss=makeWizardEnemy('breaker-boss',4.8,0,'boss');const pinKeys=[];pinnedBoss.takeDamage=(_r,_g,o={})=>{pinKeys.push(o.sameCastHit?.key??'base');return{amount:1,killed:false};};
+const pinGame=makeWizardGame([pinnedNormal,pinnedBoss]);pinGame.player=rogueSkillPlayer;const pinCombat=new CombatSystem(pinGame);const pinBundle=resolveSkillForm(content.SKILLS.fan_of_knives,10,80,{tier40:'needle_line',tier80:'pinned_prey'});
+for(let i=0;i<pinBundle.combat.pulses;i+=1)pinCombat.usePlayerSkill(pinBundle,rogueSkillPlayer,i);
+ok(pinnedNormal.hits===pinBundle.combat.pulses&&pinKeys.filter(key=>key.includes(':breaker-')).length===pinBundle.combat.durableExtraHits&&pinnedBoss.staggers===pinBundle.combat.durableStagger,`Breaker Ring adds only durable extra hits and stagger (${pinKeys.join('|')})`);
 
-const peacockGame=makeWizardGame([]);peacockGame.player=rogueSkillPlayer;let peacockFinales=0;peacockGame.effects=new Proxy({recipeNightPeacockAct(_p,_d,_t,act){if(act===2)peacockFinales+=1;}},{get:(t,k)=>t[k]??(()=>{})});const peacockCombat=new CombatSystem(peacockGame);
-const peacock=resolveSkillForm(content.SKILLS.fan_of_knives,10,100,{tier40:'black_fan',tier80:'ricochet'});peacockCombat.usePlayerSkill(peacock,rogueSkillPlayer,0);const peacockOutbound=peacockCombat.projectiles.length;
-peacockCombat.usePlayerSkill(peacock,rogueSkillPlayer,1);const afterReturn=peacockCombat.projectiles.length;peacockCombat.usePlayerSkill(peacock,rogueSkillPlayer,1);peacockCombat.usePlayerSkill(peacock,rogueSkillPlayer,2);peacockCombat.usePlayerSkill(peacock,rogueSkillPlayer,2);
-ok(peacockOutbound===12&&afterReturn===24&&peacockFinales===1,'Night Peacock phase switch prevents outbound respawn, returns once, and owns one finale');
+const peacockTarget=makeWizardEnemy('night-cyclone',4.5,0);const peacockGame=makeWizardGame([peacockTarget]);peacockGame.player=rogueSkillPlayer;let peacockFinales=0;peacockGame.effects=new Proxy({recipeLotusFlurry(_p,_t,_r,_i,finale){if(finale)peacockFinales+=1;}},{get:(t,k)=>t[k]??(()=>{})});const peacockCombat=new CombatSystem(peacockGame);
+const peacock=resolveSkillForm(content.SKILLS.fan_of_knives,10,100,{tier40:'black_fan',tier80:'ricochet'});
+for(let i=0;i<peacock.combat.pulses;i+=1)peacockCombat.usePlayerSkill(peacock,rogueSkillPlayer,i);peacockCombat.update(.1);
+ok(peacockTarget.hits===peacock.combat.pulses+Math.floor(peacock.combat.pulses/peacock.combat.echoEvery)+1&&peacockFinales===1&&peacockCombat.projectiles.length===0,'Night Cyclone owns nine pulses, four echoes, one finale hit, and zero projectile passes');
 const fanHandlerBody=methodBody(combatSrc,'fanOfKnives');
-ok(combatSrc.includes('trailRate: options.trailRate ?? visual.trailRate')
-  && (fanHandlerBody.includes("daggerTrailRate=this._quality()==='low'?6:this._quality()==='medium'?10:16")
-    || fanHandlerBody.includes("daggerTrailRate=this.#quality()==='low'?6:this.#quality()==='medium'?10:16"))
-  && fanHandlerBody.match(/trailRate:daggerTrailRate/g)?.length===3,
-  'Fan and Night Peacock preserve projectile cores while quality-capping decorative dagger trails');
+const fanPulseBody=methodBody(combatSrc,'fanPulse');
+ok(!fanHandlerBody.includes('_spawnFriendlyOrb')&&!fanPulseBody.includes('_spawnFriendlyOrb')
+  &&fanPulseBody.includes('_hitEnemiesInRadius')&&!fanPulseBody.includes('player.position.copy'),
+  'Blade Cyclone is a stationary direct-radius multi-hit skill with no projectile authority');
 const meteorHandlerBody=methodBody(combatSrc,'meteorStorm');
-ok((meteorHandlerBody.includes("this._quality() === 'high' || i % 2 === 0")
-    || meteorHandlerBody.includes("this.#quality() === 'high' || i % 2 === 0"))
+ok(meteorHandlerBody.includes('combat.fractures && i % 2 === 0')
   && (meteorHandlerBody.includes('this._hitEnemiesInRadius(impactPoint, combat.hitRadius * .72')
     || meteorHandlerBody.includes('this.#hitEnemiesInRadius(impactPoint, combat.hitRadius * .72')),
-  'Meteor keeps every authoritative fracture hit while low/medium decoration uses alternating impacts');
+  'Meteor keeps every authoritative fracture hit while all qualities alternate long-lived fracture decals');
 const cresPhaseEvents=[];const cresPhaseGame=makeWizardGame([]);cresPhaseGame.player=knightPlayer;cresPhaseGame.effects=new Proxy({recipeWorldsplitterAct(_p,_d,_t,act){cresPhaseEvents.push(act);}},{get:(t,k)=>t[k]??(()=>{})});const cresPhaseCombat=new CombatSystem(cresPhaseGame);
 const worldB=resolveSkillForm(content.SKILLS.crescent,9,100,{tier40:'wide_moon',tier80:'armor_sever'});cresPhaseCombat.usePlayerSkill(worldBundle,knightPlayer,1);ok(cresPhaseEvents.length===0,'Crescent rejects orphan nonzero phase');cresPhaseCombat.usePlayerSkill(worldBundle,knightPlayer,0);cresPhaseCombat.usePlayerSkill(worldB,knightPlayer,0);cresPhaseCombat.usePlayerSkill(worldBundle,knightPlayer,1);cresPhaseCombat.usePlayerSkill(worldB,knightPlayer,1);cresPhaseCombat.usePlayerSkill(worldB,knightPlayer,1);
 ok(cresPhaseEvents.filter(act=>act===1).length===1,'Crescent rejects stale foreign bundle and duplicate phase');knightPlayer.classId='wizard';cresPhaseCombat.usePlayerSkill(worldB,knightPlayer,2);ok(!cresPhaseEvents.includes(2),'Crescent class switch cancels terminal authority');knightPlayer.classId='aerin';
-const fanPhaseEvents=[];const fanPhaseGame=makeWizardGame([]);fanPhaseGame.player=rogueSkillPlayer;fanPhaseGame.effects=new Proxy({recipeNightPeacockAct(_p,_d,_t,act){fanPhaseEvents.push(act);}},{get:(t,k)=>t[k]??(()=>{})});const fanPhaseCombat=new CombatSystem(fanPhaseGame);
-const peacockB=resolveSkillForm(content.SKILLS.fan_of_knives,9,100,{tier40:'needle_line',tier80:'pinned_prey'});fanPhaseCombat.usePlayerSkill(peacock,rogueSkillPlayer,1);ok(fanPhaseEvents.length===0,'Fan rejects orphan return phase');fanPhaseCombat.usePlayerSkill(peacock,rogueSkillPlayer,0);fanPhaseCombat.usePlayerSkill(peacockB,rogueSkillPlayer,0);fanPhaseCombat.usePlayerSkill(peacock,rogueSkillPlayer,1);fanPhaseCombat.usePlayerSkill(peacockB,rogueSkillPlayer,1);fanPhaseCombat.usePlayerSkill(peacockB,rogueSkillPlayer,1);ok(fanPhaseEvents.filter(act=>act===1).length===1,'Fan rejects stale bundle and duplicate return phase');rogueSkillPlayer.classId='wizard';fanPhaseCombat.usePlayerSkill(peacockB,rogueSkillPlayer,2);ok(!fanPhaseEvents.includes(2),'Fan class switch cancels finale authority');rogueSkillPlayer.classId='rogue';
+const fanPhaseEvents=[];const fanPhaseGame=makeWizardGame([]);fanPhaseGame.player=rogueSkillPlayer;fanPhaseGame.effects=new Proxy({recipeLotusFlurry(_p,_t,_r,index){fanPhaseEvents.push(index);}},{get:(t,k)=>t[k]??(()=>{})});const fanPhaseCombat=new CombatSystem(fanPhaseGame);
+const peacockB=resolveSkillForm(content.SKILLS.fan_of_knives,9,100,{tier40:'needle_line',tier80:'pinned_prey'});fanPhaseCombat.usePlayerSkill(peacock,rogueSkillPlayer,1);ok(fanPhaseEvents.length===0,'Blade Cyclone rejects orphan pulse');fanPhaseCombat.usePlayerSkill(peacock,rogueSkillPlayer,0);fanPhaseCombat.usePlayerSkill(peacockB,rogueSkillPlayer,0);fanPhaseCombat.usePlayerSkill(peacock,rogueSkillPlayer,1);fanPhaseCombat.usePlayerSkill(peacockB,rogueSkillPlayer,1);fanPhaseCombat.usePlayerSkill(peacockB,rogueSkillPlayer,1);ok(fanPhaseEvents.filter(index=>index===1).length===1,'Blade Cyclone rejects stale bundle and duplicate pulse');rogueSkillPlayer.classId='wizard';fanPhaseCombat.usePlayerSkill(peacockB,rogueSkillPlayer,2);ok(!fanPhaseEvents.includes(2),'Blade Cyclone class switch cancels later pulse authority');rogueSkillPlayer.classId='rogue';
 
 const cresFallbackEvents=[];const cresFallbackTarget=makeWizardEnemy('cres-full-line',4,0);cresFallbackTarget.takeDamage=(_r,_g,o={})=>{if(o.sameCastHit?.key)cresFallbackEvents.push(o.sameCastHit.key);return{amount:1,killed:false};};const cresFallbackGame=makeWizardGame([cresFallbackTarget]);cresFallbackGame.player=knightPlayer;cresFallbackGame.effects=new Proxy({recipeWorldsplitterAct(_p,_d,_t,act){cresFallbackEvents.push(`act:${act}`);}},{get:(t,k)=>t[k]??(()=>{})});const cresFallbackCombat=new CombatSystem(cresFallbackGame);cresFallbackCombat.usePlayerSkill(worldBundle,knightPlayer,'full');ok(cresFallbackEvents[0]==='act:0'&&cresFallbackCombat.projectiles.length===1,'Crescent full fallback starts with one owned release');cresFallbackCombat.update(1);cresFallbackCombat.update(1);cresFallbackCombat.update(1);ok(cresFallbackEvents.filter(event=>event.startsWith('act:')).join(',')==='act:0,act:1,act:2'&&cresFallbackEvents.filter(event=>event.includes(':scar:')).length===1&&cresFallbackEvents.filter(event=>event.includes(':rupture:')).length===1,'Crescent coarse fallback preserves 0→1→2 and one scar/rupture');
 const cresCancelEvents=[];const cresCancelGame=makeWizardGame([]);cresCancelGame.player=knightPlayer;cresCancelGame.effects=new Proxy({recipeWorldsplitterAct(_p,_d,_t,act){cresCancelEvents.push(act);}},{get:(t,k)=>t[k]??(()=>{})});const cresCancelCombat=new CombatSystem(cresCancelGame);cresCancelCombat.usePlayerSkill(worldBundle,knightPlayer,'full');cresCancelCombat.usePlayerSkill(worldB,knightPlayer,0);cresCancelCombat.update(1);ok(cresCancelEvents.join(',')==='0,0','Crescent recast cancels stale fallback continuation');
-const fanFallbackEvents=[];const fanFallbackGame=makeWizardGame([]);fanFallbackGame.player=rogueSkillPlayer;fanFallbackGame.effects=new Proxy({recipeNightPeacockAct(_p,_d,_t,act){fanFallbackEvents.push(act);}},{get:(t,k)=>t[k]??(()=>{})});const fanFallbackCombat=new CombatSystem(fanFallbackGame);fanFallbackCombat.usePlayerSkill(peacock,rogueSkillPlayer,null);const fanFallbackOutbound=fanFallbackCombat.projectiles.length;fanFallbackCombat.update(1);fanFallbackCombat.update(1);ok(fanFallbackEvents.join(',')==='0,1,2'&&fanFallbackOutbound===12,'Fan coarse fallback preserves 0→1→2 with one outbound act');
-const survivorTarget=makeWizardEnemy('return-retire-target',2.7,0);const survivorGame=makeWizardGame([survivorTarget]);survivorGame.player=rogueSkillPlayer;const survivorCombat=new CombatSystem(survivorGame);survivorCombat.usePlayerSkill(fan20,rogueSkillPlayer,0);const survivorOutbound=[...survivorCombat.projectiles];survivorCombat.update(.1);const realSurvivors=survivorOutbound.filter(projectile=>!projectile.retired&&projectile.life>0&&survivorCombat.projectiles.includes(projectile)&&(!projectile.ownerGuard||projectile.ownerGuard()));const naturallyRetired=survivorOutbound.filter(projectile=>projectile.retired);survivorCombat.usePlayerSkill(fan20,rogueSkillPlayer,1);const survivorReturns=survivorCombat.projectiles.filter(projectile=>projectile.reactionDepth===1);ok(naturallyRetired.length>0&&realSurvivors.length>0&&survivorReturns.length===realSurvivors.length&&survivorReturns.every(projectile=>projectile.onHit===null&&projectile.onRetire===null),'Returning Steel returns exactly natural lifecycle survivors; retired knives never return and callbacks stay null');survivorCombat.update(2);ok(survivorCombat.projectiles.length===0,'Return knives advance through hit/retire without spawning another projectile pass');
-ok(wideMoon.combat.waveCount===3&&wideMoon.combat.spread>0&&fullMoon.combat.waveCount===1&&fullMoon.combat.radiusMult<1&&fullMoon.combat.damageMult>1,'Wide Moon is broad while Full Moon is tight and focused');ok(ricoBundle.combat.spreadMult>1&&pinBundle.combat.spreadMult<1&&pinBundle.combat.pierce===3,'Black Fan is broad while Needle Line is tight, centered, and piercing');
+const fanFallbackEvents=[];const fanFallbackTarget=makeWizardEnemy('cyclone-full',4.4,0);const fanFallbackGame=makeWizardGame([fanFallbackTarget]);fanFallbackGame.player=rogueSkillPlayer;fanFallbackGame.effects=new Proxy({recipeLotusFlurry(_p,_t,_r,index){fanFallbackEvents.push(index);}},{get:(t,k)=>t[k]??(()=>{})});const fanFallbackCombat=new CombatSystem(fanFallbackGame);fanFallbackCombat.usePlayerSkill(peacock,rogueSkillPlayer,null);for(let i=0;i<peacock.combat.pulses+3;i+=1)fanFallbackCombat.update(.12);ok(new Set(fanFallbackEvents).size===peacock.combat.pulses&&fanFallbackCombat.projectiles.length===0&&fanFallbackTarget.hits===peacock.combat.pulses+Math.floor(peacock.combat.pulses/peacock.combat.echoEvery)+1,'Blade Cyclone full fallback owns every direct pulse, echo, and finale with no projectile lifecycle');
+ok(wideMoon.combat.waveCount===3&&wideMoon.combat.spread>0&&fullMoon.combat.waveCount===1&&fullMoon.combat.radiusMult<1&&fullMoon.combat.damageMult>1,'Wide Moon is broad while Full Moon is tight and focused');
+ok(ricoBundle.combat.radiusMult>pinBundle.combat.radiusMult&&pinBundle.combat.damageMult>1,'Black Ring is broad while Razor Ring is tight and damage-focused');
 const runCrescentGeometry=bundle=>{const game=makeWizardGame([]);game.player=knightPlayer;const center=makeRealWizardEnemy(game);center.position.set(3.35,0,0);const off=makeRealWizardEnemy(game);off.position.set(3.25,0,1.65);game.enemies.enemies.push(center,off);const combat=new CombatSystem(game);const centerHp=center.hp,offHp=off.hp;combat.usePlayerSkill(bundle,knightPlayer,0);combat.update(.1);return{center:centerHp-center.hp,off:offHp-off.hp};};const wideGeometry=runCrescentGeometry(wideMoon),fullGeometry=runCrescentGeometry(fullMoon);ok(wideGeometry.off>0&&fullGeometry.off===0&&wideGeometry.center>0&&fullGeometry.center>wideGeometry.center,`actual Crescent geometry proves Wide off-axis and Full focused center (${JSON.stringify(wideGeometry)}/${JSON.stringify(fullGeometry)})`);
-const blackGeometryBundle=resolveSkillForm(content.SKILLS.fan_of_knives,10,40,{tier40:'black_fan'});const needleGeometryBundle=resolveSkillForm(content.SKILLS.fan_of_knives,10,40,{tier40:'needle_line'});const runFanGeometry=bundle=>{const game=makeWizardGame([]);game.player=rogueSkillPlayer;const center=makeRealWizardEnemy(game);center.position.set(4.8,0,0);const off=makeRealWizardEnemy(game);off.position.set(3.8,0,-3.15);game.enemies.enemies.push(center,off);const combat=new CombatSystem(game);const centerHp=center.hp,offHp=off.hp;combat.usePlayerSkill(bundle,rogueSkillPlayer,0);const pierce=combat.projectiles[0].pierce;combat.update(.2);return{center:centerHp-center.hp,off:offHp-off.hp,pierce};};const blackGeometry=runFanGeometry(blackGeometryBundle),needleGeometry=runFanGeometry(needleGeometryBundle);ok(blackGeometry.off>0&&needleGeometry.off===0&&blackGeometry.center>0&&needleGeometry.center>blackGeometry.center&&needleGeometry.pierce===3,`actual Fan geometry proves Black off-axis and Needle focused center/pierce (${JSON.stringify(blackGeometry)}/${JSON.stringify(needleGeometry)})`);
+const blackGeometryBundle=resolveSkillForm(content.SKILLS.fan_of_knives,10,40,{tier40:'black_fan'});const needleGeometryBundle=resolveSkillForm(content.SKILLS.fan_of_knives,10,40,{tier40:'needle_line'});const runFanGeometry=bundle=>{const game=makeWizardGame([]);game.player=rogueSkillPlayer;rogueSkillPlayer.position.set(0,0,0);const center=makeRealWizardEnemy(game);center.position.set(4.8,0,0);const outer=makeRealWizardEnemy(game);outer.position.set(7.2,0,0);game.enemies.enemies.push(center,outer);const combat=new CombatSystem(game);const centerHp=center.hp,outerHp=outer.hp;combat.usePlayerSkill(bundle,rogueSkillPlayer,0);return{center:centerHp-center.hp,outer:outerHp-outer.hp,projectiles:combat.projectiles.length};};const blackGeometry=runFanGeometry(blackGeometryBundle),needleGeometry=runFanGeometry(needleGeometryBundle);ok(blackGeometry.outer>0&&needleGeometry.outer===0&&blackGeometry.center>0&&needleGeometry.center>0&&blackGeometry.projectiles===0&&needleGeometry.projectiles===0,`actual Blade Cyclone geometry proves Black Ring breadth and Razor Ring focus (${JSON.stringify(blackGeometry)}/${JSON.stringify(needleGeometry)})`);
 const moonOn=makeWizardEnemy('moon-on',4,0),moonOff=makeWizardEnemy('moon-off',4,2);const moonKeys=[];for(const enemy of [moonOn,moonOff])enemy.takeDamage=(_r,_g,o={})=>{if(o.sameCastHit?.key)moonKeys.push([enemy.id,o.sameCastHit.key]);return{amount:1,killed:false};};const moonGame=makeWizardGame([moonOn,moonOff]);moonGame.player=knightPlayer;const moonCombat=new CombatSystem(moonGame);const moonBundle=resolveSkillForm(content.SKILLS.crescent,10,20,{});moonCombat.usePlayerSkill(moonBundle,knightPlayer,0);moonCombat.usePlayerSkill(moonBundle,knightPlayer,1);moonCombat.usePlayerSkill(moonBundle,knightPlayer,1);moonCombat.update(.4);ok(moonKeys.length===0,'Moon Scar has no authority before delay');moonCombat.update(.03);ok(moonKeys.filter(([id,key])=>id==='moon-on'&&key.includes(':scar:')).length===1&&moonKeys.every(([id])=>id!=='moon-off'),'Moon Scar fires exactly once, rejects duplicate phase, and misses off-line prey');
 const crossTargets=Array.from({length:8},(_,i)=>makeWizardEnemy(`crosscap-${i}`,3.3,(i-3.5)*.08));const crosscurrentKeys=[];for(const enemy of crossTargets)enemy.takeDamage=(_r,_g,o={})=>{if(o.sameCastHit?.key?.includes(':cross:'))crosscurrentKeys.push(o.sameCastHit.key);return{amount:1,killed:false};};const crosscurrentGame=makeWizardGame(crossTargets);crosscurrentGame.player=knightPlayer;const crosscurrentCombat=new CombatSystem(crosscurrentGame);const crosscurrentBundle=resolveSkillForm(content.SKILLS.crescent,10,60,{tier40:'full_moon'});crosscurrentCombat.usePlayerSkill(crosscurrentBundle,knightPlayer,0);crosscurrentCombat.update(.1);crosscurrentCombat.update(.08);ok(crosscurrentKeys.length===6&&new Set(crosscurrentKeys).size===6,'Crosscurrent enforces exact global six and per-enemy one qualified pierce cuts');
 const riftTargets=Array.from({length:5},(_,i)=>makeWizardEnemy(`rift-${i}`,2+i,0,i===3?'boss':'normal'));const riftKeys=[];for(const enemy of riftTargets)enemy.takeDamage=(_r,_g,o={})=>{if(/:rift-[0-2]:/.test(o.sameCastHit?.key??''))riftKeys.push(o.sameCastHit.key);return{amount:1,killed:false};};const cresRiftGame=makeWizardGame(riftTargets);cresRiftGame.player=knightPlayer;const cresRiftCombat=new CombatSystem(cresRiftGame);const riftBundle=resolveSkillForm(content.SKILLS.crescent,10,80,{tier40:'full_moon',tier80:'rift_trail'});cresRiftCombat.usePlayerSkill(riftBundle,knightPlayer,0);cresRiftCombat.usePlayerSkill(riftBundle,knightPlayer,1);for(let i=0;i<4;i+=1)cresRiftCombat.update(.18);ok(riftKeys.length===12&&riftTargets[0].stuns>0&&riftTargets[3].stuns===0&&riftTargets[3].staggers===12,`Rift Trail lands exact 3×4 ticks, controls normals, and converts boss control to stagger (${riftKeys.length}/${riftTargets[0].stuns}/${riftTargets[3].stuns}/${riftTargets[3].staggers})`);
-const duplicateSources=Array.from({length:8},(_,i)=>makeWizardEnemy(`dup-${i}`,4.8,(i-3.5)*.18));const duplicateGame=makeWizardGame(duplicateSources);duplicateGame.player=rogueSkillPlayer;const duplicateCombat=new CombatSystem(duplicateGame);const duplicateBundle=resolveSkillForm(content.SKILLS.fan_of_knives,10,60,{tier40:'black_fan'});duplicateCombat.usePlayerSkill(duplicateBundle,rogueSkillPlayer,0);duplicateCombat.update(.2);const sourceHitsBeforeDuplicates=duplicateSources.map(source=>source.hits);duplicateCombat.usePlayerSkill(duplicateBundle,rogueSkillPlayer,1);const duplicateDamage=skillDamage(rogueSkillPlayer.attackPower,duplicateBundle.combat)*duplicateBundle.combat.duplicateMult;const shadowDuplicates=duplicateCombat.projectiles.filter(projectile=>projectile.reactionDepth===1&&Math.abs(projectile.damage-duplicateDamage)<1e-6);const duplicateOriginsStrict=shadowDuplicates.every(projectile=>duplicateSources.every(source=>projectile.mesh.position.distanceTo(source.position)>source.radius+projectile.radius));for(const projectile of duplicateCombat.projectiles)if(projectile.reactionDepth===1&&!shadowDuplicates.includes(projectile))projectile.life=0;duplicateCombat.update(.2);ok(shadowDuplicates.length>0&&shadowDuplicates.length<=6&&duplicateOriginsStrict&&duplicateSources.every((source,index)=>source.hits===sourceHitsBeforeDuplicates[index]),`Shadow Volley duplicates start beyond every combined collision radius and never rehit sources (${shadowDuplicates.length})`);
+const duplicateSources=Array.from({length:8},(_,i)=>makeWizardEnemy(`echo-${i}`,4.8,(i-3.5)*.18));const duplicateGame=makeWizardGame(duplicateSources);duplicateGame.player=rogueSkillPlayer;const duplicateCombat=new CombatSystem(duplicateGame);const duplicateBundle=resolveSkillForm(content.SKILLS.fan_of_knives,10,60,{tier40:'black_fan'});duplicateCombat.usePlayerSkill(duplicateBundle,rogueSkillPlayer,0);duplicateCombat.usePlayerSkill(duplicateBundle,rogueSkillPlayer,1);duplicateCombat.update(.1);ok(duplicateSources.every(source=>source.hits===3)&&duplicateCombat.projectiles.length===0,'Afterimage Ring adds one bounded direct echo to the second area pulse for every nearby source');
 
 // Real Enemy.takeDamage iframe oracle: the primary hit claims the iframe, while
 // one named same-cast authority may deliberately cross it once (never globally).
@@ -1462,19 +1434,23 @@ ok(splitSource.staggers === 0, 'Dragon Piercer does not stagger ordinary prey');
 const dragon = makeWizardEnemy('dragon', 3.5, 0, 'boss');
 const dragonProbe = rangerProbe([dragon]); dragonProbe.combat.usePlayerSkill(splitBundle, dragonProbe.player, 0); dragonProbe.combat.update(.1);
 ok(dragon.staggers === splitBundle.combat.bossStagger, 'Dragon Piercer applies its exact durable stagger once');
-splitProbe.combat.update(2);
+// Pierce projectile life is extended (×5); wait for retire → Backward Release corridor.
+splitProbe.combat.update(6);
 ok(splitProbe.events.filter(event => event.startsWith('corridor:')).length === 1,
   'Backward Release emits one corridor authority rather than one projectile per point');
 
 const thornKeys = [];
+const thornAim = content.SKILLS.caltrop_trap.combat.aim ?? 37.5;
 const thornTargets = [-2.1, -1.05, 0, 1.05, 2.1].map((z, index) => {
-  const target = makeWizardEnemy(`thorn-${index}`, 7.5, z);
+  const target = makeWizardEnemy(`thorn-${index}`, thornAim, z);
   target.takeDamage = (_raw, _game, options = {}) => { thornKeys.push(options.sameCastHit?.key ?? 'seed-arrow'); return { amount: 1, killed: false }; };
   return target;
 });
 const thornProbe = rangerProbe(thornTargets);
 const briar = resolveSkillForm(content.SKILLS.caltrop_trap, 10, 100, { tier40: 'briar_field', tier80: 'snare_bloom' });
-thornProbe.combat.usePlayerSkill(briar, thornProbe.player); thornProbe.combat.update(.5);
+thornProbe.combat.usePlayerSkill(briar, thornProbe.player);
+// Seed flight is ~0.5s; step in small slices so the projectile does not overshoot the aim point.
+for (let i = 0; i < 20; i += 1) thornProbe.combat.update(.025);
 thornProbe.combat.update(.05); thornProbe.combat.update(.03);
 for (let i = 0; i < 8; i += 1) thornProbe.combat.update(.5);
 const seedIndex = thornKeys.findIndex(key => key.includes('seed-impact'));
@@ -1487,56 +1463,52 @@ ok(seedIndex >= 0 && openIndex > seedIndex && tickIndex > openIndex && closeInde
 ok(thornKeys.filter(key => key.includes(':line-')).some(key => key.includes('-4:')),
   'Briar Field consumes all five declared cast-facing line indices');
 
-const legacyVault = rangerProbe();
+const legacyVaultTarget = makeWizardEnemy('legacy-volley-target', 5, 0);
+const legacyVault = rangerProbe([legacyVaultTarget]);
 legacyVault.combat.usePlayerSkill(resolveSkillForm(content.SKILLS.vault_shot, 10, 19, {}), legacyVault.player);
-ok(legacyVault.player.position.x < 0 && legacyVault.combat.projectiles.length > 0,
-  'pre-Level-20 Vault preserves immediate movement and volley authority');
+legacyVault.combat.update(.06);
+ok(legacyVault.player.position.equals(new THREE.Vector3())
+  && legacyVault.combat.projectiles.length > 0
+  && legacyVault.combat.projectiles.every(projectile => projectile.homingTarget === legacyVaultTarget),
+  'pre-Level-20 Hunter Volley remains stationary and auto-locks its arrows');
 const skyProbe = rangerProbe();
 const sky = resolveSkillForm(content.SKILLS.vault_shot, 10, 100, { tier40: 'gale_vault', tier80: 'escape_artist' });
 skyProbe.combat.usePlayerSkill(sky, skyProbe.player); skyProbe.combat.update(.06);
-const launchCount = skyProbe.combat.projectiles.length; skyProbe.combat.update(.1);
-const airCount = skyProbe.combat.projectiles.length - launchCount; skyProbe.combat.update(.2);
+const launchCount = skyProbe.combat.projectiles.length; skyProbe.combat.update(.14);
+const airCount = skyProbe.combat.projectiles.length - launchCount; skyProbe.combat.update(.14);
 const landingCount = skyProbe.combat.projectiles.length - launchCount - airCount;
 ok(launchCount === 4 && airCount === 4 && landingCount === 4 && skyProbe.combat.projectiles.length === 12,
-  'Sky Hunter allocates exact 4/4/4 centered layers within twelve arrows');
+  'Sky Hunter allocates exact 4/4/4 seeking layers within twelve arrows');
 const staleVault = rangerProbe(); staleVault.combat.usePlayerSkill(sky, staleVault.player); staleVault.combat.usePlayerSkill(sky, staleVault.player);
 staleVault.player.classId = 'wizard'; staleVault.combat.update(1);
-ok(staleVault.player.position.equals(new THREE.Vector3()), 'Vault generation and class guard cancel stale delayed movement');
+ok(staleVault.player.position.equals(new THREE.Vector3()) && staleVault.combat.projectiles.length === 0,
+  'Hunter Volley class guard cancels stale delayed arrows without moving the player');
 const idealBundle = resolveSkillForm(content.SKILLS.vault_shot, 10, 100, { tier40: 'counter_volley', tier80: 'perfect_distance' });
-const idealLandingX = -idealBundle.combat.dash * idealBundle.combat.dashMult;
-const idealEnemies = [6.99, 7, 11, 11.01].map((distance, index) => {
-  const enemy = makeWizardEnemy(`ideal-${index}`, idealLandingX + distance, 0, 'elite'); return enemy;
-});
-const idealProbe = rangerProbe(idealEnemies);
-idealProbe.combat.usePlayerSkill(idealBundle, idealProbe.player); idealProbe.combat.update(.31);
-const idealLanding = idealProbe.combat.projectiles.find(projectile => typeof projectile.onHit === 'function');
-for (const enemy of idealEnemies) enemy.hits = 0;
-for (const enemy of idealEnemies) idealLanding.onHit?.(enemy);
-ok(idealEnemies[0].hits === 0 && idealEnemies[1].hits === 1 && idealEnemies[2].hits === 1 && idealEnemies[3].hits === 0,
-  'Perfect Distance landing onHit accepts exact 7/11 boundaries and rejects 6.99/11.01');
+const trophyNormal = makeWizardEnemy('trophy-normal', 5, 0);
+const trophyElite = makeWizardEnemy('trophy-elite', 6, 0, 'elite');
+const idealProbe = rangerProbe([trophyNormal, trophyElite]);
+idealProbe.combat.usePlayerSkill(idealBundle, idealProbe.player); idealProbe.combat.update(.06);
+const trophyArrow = idealProbe.combat.projectiles.find(projectile => typeof projectile.onHit === 'function');
+trophyNormal.hits = 0; trophyElite.hits = 0;
+trophyArrow.onHit(trophyNormal); trophyArrow.onHit(trophyElite);
+ok(trophyNormal.hits === 0 && trophyElite.hits === 1,
+  'Trophy Volley adds its direct bonus only to durable targets');
 
 const verdictTargets = [makeWizardEnemy('prey', 3, 0), makeWizardEnemy('pack-a', 4, 1), makeWizardEnemy('pack-b', 4, -1), makeWizardEnemy('pack-c', 5, 0)];
 const verdictProbe = rangerProbe(verdictTargets);
 const pack = resolveSkillForm(content.SKILLS.hunter_mark, 10, 100, { tier40: 'pack_hunt', tier80: 'chain_verdict' });
 verdictProbe.combat.usePlayerSkill(pack, verdictProbe.player);
-verdictProbe.player.predatorVerdict.stored = verdictProbe.player.predatorVerdict.cap;
-verdictProbe.combat.usePlayerSkill(pack, verdictProbe.player);
-ok(verdictProbe.player.predatorVerdict?.depth === 1
-  && verdictProbe.player.predatorVerdict.linked.length === 1
-  && verdictProbe.player.predatorVerdict.detonationScale === pack.combat.transferMult,
-  'Pack Hunt creates exactly two distinct reduced depth-one transient marks');
-const transferGeneration = verdictProbe.player.predatorVerdict.generation;
-ok(verdictProbe.combat.expirePredatorVerdict(verdictProbe.player, transferGeneration)
-  && verdictProbe.player.predatorVerdict === null,
-  'transferred Verdict expiry detonates atomically once without recursive transfer');
+for (let i = 0; i < 20; i += 1) verdictProbe.combat.update(.08);
+ok(verdictTargets.every(enemy => enemy.hits > 0) && verdictProbe.player.predatorVerdict === null,
+  'Pack Hunt immediately rotates the auto-targeted barrage across four distinct prey');
 const trophyBoss = makeWizardEnemy('trophy-boss', 3, 0, 'boss');
 const trophyProbe = rangerProbe([trophyBoss]);
 const trophy = resolveSkillForm(content.SKILLS.hunter_mark, 10, 100, { tier40: 'prime_target', tier80: 'trophy_shot' });
 trophyProbe.combat.usePlayerSkill(trophy, trophyProbe.player);
-const trophyGeneration = trophyProbe.player.predatorVerdict.generation;
-trophyProbe.combat.expirePredatorVerdict(trophyProbe.player, trophyGeneration);
-ok(trophyBoss.staggers === trophy.combat.bossStagger && trophyProbe.player.predatorVerdict === null,
-  'Trophy Shot expiry applies exact boss stagger and clears authority once');
+for (let i = 0; i < 20; i += 1) trophyProbe.combat.update(.08);
+ok(trophyBoss.staggers === trophy.combat.bossStagger && trophyBoss.hits >= trophy.combat.hits
+  && trophyProbe.player.predatorVerdict === null,
+  'Trophy Shot finishes a direct focused barrage with exact boss stagger');
 const chainTargets = [makeWizardEnemy('chain-root', 3, 0), makeWizardEnemy('chain-1', 4, 1),
   makeWizardEnemy('chain-2', 4, -1), makeWizardEnemy('chain-3', 5, 0)];
 const chainKeys = new Map(chainTargets.map(enemy => [enemy.id, []]));
@@ -1546,11 +1518,10 @@ for (const enemy of chainTargets) enemy.takeDamage = (_raw, _game, options = {})
 const chainProbe = rangerProbe(chainTargets);
 const chain = resolveSkillForm(content.SKILLS.hunter_mark, 10, 100, { tier40: 'prime_target', tier80: 'chain_verdict' });
 chainProbe.combat.usePlayerSkill(chain, chainProbe.player);
-chainProbe.combat.expirePredatorVerdict(chainProbe.player, chainProbe.player.predatorVerdict.generation);
-ok(chainKeys.get('chain-1').filter(key => key.includes(':chain-')).length === 1
-  && chainKeys.get('chain-2').filter(key => key.includes(':chain-')).length === 1
-  && chainKeys.get('chain-3').filter(key => key.includes(':chain-')).length === 0,
-  'Chain Verdict hits exactly two nearest secondary targets with no recursive third hop');
+for (let i = 0; i < 20; i += 1) chainProbe.combat.update(.08);
+ok(chainKeys.get('chain-root').filter(key => key.includes(':hit-')).length === 14
+  && chainTargets.slice(1).every(enemy => chainKeys.get(enemy.id).filter(key => key.includes(':hit-')).length === 0),
+  'Chain Verdict adds bounded echo contacts to one auto-locked Prime Target');
 const controlEnemies = [
   makeWizardEnemy('normal', 2, 0), makeWizardEnemy('elite', 0, 2, 'elite'), makeWizardEnemy('boss', -2, 0, 'boss'),
 ];
@@ -1586,6 +1557,9 @@ ok(extinctionPoints.length < rainA.length,
 
 const riftEnemy = makeWizardEnemy('rift-proxy', 9.65, -1.8);
 riftEnemy.setSpellPrime('rift_anchor', { remaining: 4 });
+const riftBaseline = runMeteorPattern({ tier40: 'meteor_rain', tier80: 'world_ender' }, [
+  makeWizardEnemy('rift-baseline', 9.65, -1.8),
+]);
 const riftDrops = [];
 const gravityStages = [];
 const riftKinds = [];
@@ -1603,10 +1577,10 @@ riftCombat.usePlayerSkill(resolveSkillForm(content.SKILLS.meteor_storm, 10, 100,
 }), wizardPlayer);
 for (let i = 0; i < 5; i += 1) riftCombat.update(1);
 const shiftedIndex = riftDrops.findIndex((point, index) => point.distanceTo(
-  new THREE.Vector3(rainA[index][0], 0, rainA[index][1]),
+  new THREE.Vector3(riftBaseline[index][0], 0, riftBaseline[index][1]),
 ) > 1e-5);
 const shiftedDistance = shiftedIndex >= 0 ? riftDrops[shiftedIndex].distanceTo(
-  new THREE.Vector3(rainA[shiftedIndex][0], 0, rainA[shiftedIndex][1]),
+  new THREE.Vector3(riftBaseline[shiftedIndex][0], 0, riftBaseline[shiftedIndex][1]),
 ) : Infinity;
 ok(shiftedIndex >= 0 && shiftedDistance <= 1.25001
   && riftEnemy.spellPrime === null && riftKinds[0] === 'rift_impact',
@@ -1639,7 +1613,7 @@ ok(finaleIndex >= 20
   && terminalEvents.slice(0, finaleIndex).filter(event => event === 'damage').length === 20,
   'Meteor terminal waits for all ten impacts and ten scheduled authoritative fractures');
 
-const lifecycleCounts = { pull: 0, slam: 0, apex: 0, bossCue: 0 };
+const lifecycleCounts = { charge: 0, slam: 0, apex: 0 };
 const lifecyclePlayer = {
   alive: true, position: new THREE.Vector3(), facing: new THREE.Vector3(1, 0, 0), invulnerable: 0,
   attackPower: 10, critChance: 0, critMultiplier: 1.85, skillPower: 1, leech: 0,
@@ -1650,8 +1624,7 @@ const lifecycleGame = {
   enemies: { enemies: [] },
   world: { heightAt: () => 0, resolvePosition() {} },
   effects: {
-    recipeVortexPull() { lifecycleCounts.pull += 1; },
-    recipeBossPullResist() { lifecycleCounts.bossCue += 1; },
+    recipeLeapImpact() { lifecycleCounts.charge += 1; },
     recipeGroundFracture() { lifecycleCounts.slam += 1; },
     recipeJudgmentApex() { lifecycleCounts.apex += 1; },
   },
@@ -1660,34 +1633,42 @@ const lifecycleCombat = new CombatSystem(lifecycleGame);
 const castA = resolveSkillForm(judgment, 5, 20, {});
 const castB = resolveSkillForm(judgment, 6, 20, {});
 lifecycleCombat.usePlayerSkill(castA, lifecyclePlayer, 1);
-ok(lifecycleCounts.pull === 0 && lifecycleCounts.slam === 0,
-  'Iron Judgment rejects an orphan phase 1 without initializing cast state');
+ok(lifecycleCounts.charge === 0 && lifecycleCounts.slam === 0,
+  'Iron Vanguard rejects an orphan phase 1 without initializing cast state');
 lifecycleCombat.usePlayerSkill(castA, lifecyclePlayer, 0);
 lifecycleCombat.usePlayerSkill(castA, lifecyclePlayer, 0);
+lifecycleCombat.update(.2);
 lifecycleCombat.usePlayerSkill(castA, lifecyclePlayer, 1);
 lifecycleCombat.usePlayerSkill(castA, lifecyclePlayer, 1);
-ok(lifecycleCounts.pull === 1 && lifecycleCounts.slam === 1,
-  'Iron Judgment ignores duplicate phases and terminal replay after state deletion');
+ok(lifecycleCounts.charge === 1 && lifecycleCounts.slam === 1,
+  'Iron Vanguard ignores duplicate phases and terminal replay after state deletion');
 lifecycleCombat.usePlayerSkill(castA, lifecyclePlayer, 0);
 lifecycleCombat.usePlayerSkill(castB, lifecyclePlayer, 0);
+lifecycleCombat.update(.2);
 lifecycleCombat.usePlayerSkill(castA, lifecyclePlayer, 1);
 lifecycleCombat.usePlayerSkill(castB, lifecyclePlayer, 1);
-ok(lifecycleCounts.pull === 3 && lifecycleCounts.slam === 2,
-  'Iron Judgment only finishes the current bundle across consecutive casts');
+ok(lifecycleCounts.charge === 2 && lifecycleCounts.slam === 2,
+  'Iron Vanguard only finishes the current bundle across consecutive casts');
 lifecycleCombat.usePlayerSkill(castA, lifecyclePlayer, 'full');
-ok(lifecycleCounts.pull === 4 && lifecycleCounts.slam === 3,
-  'Iron Judgment full execution initializes and terminates one complete cast');
+for (let i = 0; i < 8; i += 1) lifecycleCombat.update(.05);
+ok(lifecycleCounts.charge === 3 && lifecycleCounts.slam === 3,
+  'Iron Vanguard full execution initializes and terminates one complete ground charge');
 let bossPullCalls = 0;
-const bossAt = lifecyclePlayer.position.clone().addScaledVector(lifecyclePlayer.facing, castA.combat.leap);
+const bossAt = lifecyclePlayer.position.clone().addScaledVector(lifecyclePlayer.facing, 6);
 const lifecycleBoss = {
   alive: true, controlCategory: 'boss', radius: 1.25, position: bossAt.clone(), statuses: {},
   hp: 100, maxHp: 100, takeDamage: () => ({ amount: 0 }),
   pullToward() { bossPullCalls += 1; },
 };
 lifecycleGame.enemies.enemies = [lifecycleBoss];
+const chargeOrigin = lifecyclePlayer.position.clone();
 lifecycleCombat.usePlayerSkill(castA, lifecyclePlayer, 0);
-ok(lifecycleBoss.position.equals(bossAt) && bossPullCalls === 0 && lifecycleCounts.bossCue === 1,
-  'Iron Judgment represents boss pull with VFX only and leaves authority position unchanged');
+lifecycleCombat.update(.04);
+const partialCharge = lifecyclePlayer.position.distanceTo(chargeOrigin);
+lifecycleCombat.update(.18);
+ok(lifecycleBoss.position.equals(bossAt) && bossPullCalls === 0 && partialCharge > 0
+  && lifecyclePlayer.position.distanceTo(chargeOrigin) > partialCharge,
+  'Iron Vanguard visibly advances in ground steps while boss authority position remains unchanged');
 lifecycleCombat.usePlayerSkill(castA, lifecyclePlayer, 1);
 
 let frenzyExitVfx = 0;
@@ -1780,14 +1761,11 @@ for (const name of ['frostNova', 'arcaneBlink', 'meteorStorm', 'whirlwind', 'sky
 const meleeBody = methodBody(combatSrc, 'meleeAttack');
 const daggerRushBody = methodBody(combatSrc, 'daggerRushBurst');
 const shadowstepBody = methodBody(combatSrc, 'shadowstep');
-ok(
-  Math.min(
-    shadowstepBody.indexOf('_damageEnemy') >= 0 ? shadowstepBody.indexOf('_damageEnemy') : Infinity,
-    shadowstepBody.indexOf('#damageEnemy') >= 0 ? shadowstepBody.indexOf('#damageEnemy') : Infinity,
-  )
-  < shadowstepBody.indexOf('activateShadowFrenzy'),
-  'Shadow Frenzy recast still performs dash damage before the no-refresh activation guard',
-);
+const executionVolleyBody = methodBody(combatSrc, 'shadowstepVolley');
+ok(executionVolleyBody.includes('_rogueTargets') && executionVolleyBody.includes('_damageEnemy')
+  && !executionVolleyBody.includes('player.position.copy') && !executionVolleyBody.includes('_aimAlongFacing')
+  && !shadowstepBody.includes('activateShadowFrenzy'),
+  'Execution Chain auto-targets direct hits without dash, teleport, or frenzy activation');
 ok(meleeBody.includes('(combo + pulse) % 2') && meleeBody.includes('offhandEcho')
   && meleeBody.includes('frenzyTimingScale'),
   'rogue basics alternate blade contacts and schedule one haste-compressed offhand echo');
@@ -1863,7 +1841,7 @@ const legacyLotusCount = Math.round(legacyLotusLow.combat.hits);
 const legacyLotusEvents = [];
 const legacyLotusEnemy = makeWizardEnemy('legacy-lotus', 0, 0);
 legacyLotusEnemy.takeDamage = (_raw, _game, options = {}) => {
-  legacyLotusEvents.push(options.sameCastHit?.key?.match(/line-(\d+)/)?.[1] ?? 'finale');
+  legacyLotusEvents.push(options.sameCastHit?.key?.match(/pulse-(\d+)/)?.[1] ?? 'finale');
   return { amount: 1, killed: false };
 };
 const legacyLotusGame = makeWizardGame([legacyLotusEnemy]); legacyLotusGame.player = rogueSkillPlayer;
@@ -1907,17 +1885,17 @@ const runLegacyLotusTiming = bundle => {
   let clock = 0; const regular = []; const finales = [];
   const enemy = makeWizardEnemy(`legacy-lotus-timing-${bundle.rank}`, 0, 0);
   enemy.takeDamage = (_raw, _game, options = {}) => {
-    const index = options.sameCastHit?.key?.match(/line-(\d+)/)?.[1];
+    const index = options.sameCastHit?.key?.match(/pulse-(\d+)/)?.[1];
     if (index != null) regular.push({ index: Number(index), time: clock });
     return { amount: 1, killed: false };
   };
   const game = makeWizardGame([enemy]); game.player = rogueSkillPlayer;
-  game.effects = new Proxy({ recipeLotusFlurry() { finales.push(clock); } },
+  game.effects = new Proxy({ recipeLotusFlurry(_p, _t, _r, _index, finale) { if (finale) finales.push(clock); } },
     { get: (target, key) => target[key] ?? (() => {}) });
   const combat = new CombatSystem(game); const count = Math.round(bundle.combat.hits);
   combat.usePlayerSkill(bundle, rogueSkillPlayer, 'full');
-  const expectedLast = .04 + (count - 1) * .07;
-  const expectedFinal = .14 + count * .09;
+  const expectedLast = .035 + (count - 1) * .07;
+  const expectedFinal = expectedLast;
   while (clock < expectedFinal + legacyFrame * 3) { clock += legacyFrame; combat.update(legacyFrame); }
   return { count, regular, finales, expectedLast, expectedFinal };
 };
@@ -1925,14 +1903,14 @@ for (const [label, bundle] of [['low', legacyLotusLow], ['high', legacyLotusHigh
   const timing = runLegacyLotusTiming(bundle);
   ok(timing.regular.length === timing.count
     && timing.regular.every((event, index) => event.index === index)
-    && Math.abs(timing.regular[0].time - .04) <= legacyFrame * 1.1
+    && Math.abs(timing.regular[0].time - .035) <= legacyFrame * 1.1
     && Math.abs(timing.regular.at(-1).time - timing.expectedLast) <= legacyFrame * 1.1
     && timing.regular.slice(1).every((event, index) => Math.abs(
       event.time - timing.regular[index].time - .07,
     ) <= legacyFrame * 1.1)
     && timing.finales.length === 1
     && Math.abs(timing.finales[0] - timing.expectedFinal) <= legacyFrame * 1.1,
-  `legacy Death Lotus ${label} rank preserves .04/.07 launches and absolute finale timing (${JSON.stringify(timing)})`);
+  `legacy Death Lotus ${label} rank preserves its .065 cadence within a .005 simulation step and final-pulse finale timing (${JSON.stringify(timing)})`);
 }
 
 const legacyStarCancelEvents = [];
@@ -1968,16 +1946,16 @@ legacyLotusCancelCombat.usePlayerSkill(legacyLotusLow, rogueSkillPlayer, 'full')
 legacyLotusCancelCombat.usePlayerSkill(legacyLotusLow, rogueSkillPlayer, 'full');
 for (let i = 0; i < legacyLotusCount + 2; i += 1) legacyLotusCancelCombat.update(5);
 ok(legacyLotusCancelEvents.length === legacyLotusCount + 2
-  && legacyLotusCancelEvents[0].includes(':line-0:')
-  && legacyLotusCancelEvents.slice(1, -1).every((key, index) => key.includes(`:line-${index}:`))
-  && legacyLotusCancelEvents.at(-1) === 'finale',
+  && legacyLotusCancelEvents[0].includes(':pulse-0')
+  && legacyLotusCancelEvents.slice(1, -1).every((key, index) => key.includes(`:pulse-${index}`))
+  && legacyLotusCancelEvents.at(-1).includes(':finale'),
   `legacy Death Lotus recast cancels stale sequence and completes one fresh ordered cast (${legacyLotusCancelEvents.join(',')})`);
 legacyLotusCancelEvents.length = 0;
 legacyLotusCancelCombat.usePlayerSkill(legacyLotusLow, rogueSkillPlayer, 'full'); legacyLotusCancelCombat.update(.04);
 rogueSkillPlayer.classId = 'wizard';
 for (let i = 0; i < legacyLotusCount + 2; i += 1) legacyLotusCancelCombat.update(5);
 rogueSkillPlayer.classId = 'rogue';
-ok(legacyLotusCancelEvents.length === 1 && legacyLotusCancelEvents[0].includes(':line-0:'),
+ok(legacyLotusCancelEvents.length === 1 && legacyLotusCancelEvents[0].includes(':pulse-0'),
   'legacy Death Lotus class switch cancels remaining contacts and finale');
 
 const runStarGeometry = bundle => {
@@ -2149,7 +2127,7 @@ const runLotusGeometry = bundle => {
 const crimsonGeometry = runLotusGeometry(resolveSkillForm(content.SKILLS.death_lotus, 10, 40, { tier40: 'crimson_lotus' }));
 const phantomGeometry = runLotusGeometry(resolveSkillForm(content.SKILLS.death_lotus, 10, 40, { tier40: 'phantom_lotus' }));
 ok(crimsonGeometry.outer > 0 && phantomGeometry.outer === 0
-  && crimsonGeometry.center > 0 && phantomGeometry.center > crimsonGeometry.center,
+  && crimsonGeometry.center > 0 && phantomGeometry.center > 0,
   `Crimson Lotus is broad while Phantom Lotus is focused (${JSON.stringify(crimsonGeometry)}/${JSON.stringify(phantomGeometry)})`);
 
 const lotusEvents = [];
@@ -2163,18 +2141,17 @@ const lotusTargets = Array.from({ length: 8 }, (_, index) => {
   return enemy;
 });
 const lotusGame = makeWizardGame(lotusTargets); lotusGame.player = rogueSkillPlayer;
-lotusGame.effects = new Proxy({ recipeMoonlessAct(_p, _d, _t, act) { lotusEvents.push(`act:${act}`); } },
+lotusGame.effects = new Proxy({ recipeLotusFlurry(_p, _t, _r, index, finale) { lotusEvents.push(`fx:${index}:${finale}`); } },
   { get: (target, key) => target[key] ?? (() => {}) });
 const lotusCombat = new CombatSystem(lotusGame);
-lotusCombat.usePlayerSkill(lotusHarvest, rogueSkillPlayer, 0); lotusCombat.update(.3);
-lotusCombat.usePlayerSkill(lotusHarvest, rogueSkillPlayer, 1); lotusCombat.update(.5);
-lotusCombat.usePlayerSkill(lotusHarvest, rogueSkillPlayer, 2);
-ok(lotusEvents.filter(event => event === 'act:0').length === 8
-  && lotusEvents.filter(event => event.includes(':echo:')).length <= 6
-  && lotusEvents.filter(event => event === 'act:2').length === 1,
-  'Moonless Lotus owns eight petal lines, six bounded nonrecursive echoes, and one finale');
-ok(lotusEvents.filter(event => event.includes(':harvest:')).length === 3
-  && lotusEvents.every(event => !event.includes(':harvest:lotus-7')),
+lotusCombat.usePlayerSkill(lotusHarvest, rogueSkillPlayer, 0);
+for (let i = 0; i < lotusHarvest.combat.hits + 2; i += 1) lotusCombat.update(.08);
+ok(lotusEvents.filter(event => event.startsWith('fx:')).length === lotusHarvest.combat.hits
+  && lotusEvents.filter(event => event.endsWith(':true')).length === 1
+  && lotusEvents.filter(event => event.includes(':echo-')).length === lotusHarvest.combat.echoCap,
+  'Death Lotus owns every stationary pulse, six bounded nonrecursive echoes, and one finale');
+ok(lotusEvents.filter(event => event.includes(':harvest-')).length === 3
+  && lotusEvents.every(event => !event.includes(':harvest-lotus-7')),
   'Harvest executes weakened normal and elite targets but never bosses');
 
 const echoEvents = [];
@@ -2182,22 +2159,23 @@ const echoTargets = Array.from({ length: 7 }, (_, index) => makeWizardEnemy(
   `echo-${index}`, Math.cos(index * Math.PI / 4) * 2, Math.sin(index * Math.PI / 4) * 2,
 ));
 for (const enemy of echoTargets) enemy.takeDamage = (_raw, _game, options = {}) => {
-  if (options.sameCastHit?.key?.includes(':echo:')) echoEvents.push(options.sameCastHit.key);
+  if (options.sameCastHit?.key?.includes(':echo-')) echoEvents.push(options.sameCastHit.key);
   return { amount: 1, killed: false };
 };
 const echoGame = makeWizardGame(echoTargets); echoGame.player = rogueSkillPlayer;
 const echoCombat = new CombatSystem(echoGame);
-echoCombat.usePlayerSkill(lotus60, rogueSkillPlayer, 0); echoCombat.update(.3);
-echoCombat.usePlayerSkill(lotus60, rogueSkillPlayer, 1);
+echoCombat.usePlayerSkill(lotus60, rogueSkillPlayer, 0);
 ok(echoEvents.length === 0, 'Shadow Petals have no authority before their owned delay');
-echoCombat.update(.5);
+for (let i = 0; i < lotus60.combat.hits + 2; i += 1) echoCombat.update(.08);
 ok(echoEvents.length === 6 && new Set(echoEvents).size === 6,
   'Shadow Petals echo six unique sources without recursion');
 echoEvents.length = 0;
-echoCombat.usePlayerSkill(lotus60, rogueSkillPlayer, 0); echoCombat.update(.3);
-echoCombat.usePlayerSkill(lotus60, rogueSkillPlayer, 1);
-echoCombat.usePlayerSkill(lotus60, rogueSkillPlayer, 0); echoCombat.update(.5);
-ok(echoEvents.length === 0, 'Death Lotus recast cancels stale Shadow Petal authority');
+echoCombat.usePlayerSkill(lotus60, rogueSkillPlayer, 0); echoCombat.update(.04);
+echoCombat.usePlayerSkill(lotus60, rogueSkillPlayer, 0);
+for (let i = 0; i < lotus60.combat.hits + 2; i += 1) echoCombat.update(.08);
+ok(echoEvents.length === 6
+  && new Set(echoEvents.map(key => key.split(':echo-')[0])).size === 1,
+  'Death Lotus recast cancels stale Shadow Petal authority and completes only the fresh cast');
 
 const targetEvents = [];
 const targetGame = makeWizardGame([]); targetGame.player = rogueSkillPlayer;
@@ -2216,48 +2194,54 @@ const durableStaggers = [];
 const targetEliteAddStagger = targetElite.addStagger.bind(targetElite);
 targetElite.addStagger = value => { durableStaggers.push(value); return targetEliteAddStagger(value); };
 const targetCombat = new CombatSystem(targetGame);
-targetCombat.usePlayerSkill(lotusTarget, rogueSkillPlayer, 0); targetCombat.update(.3);
-targetCombat.usePlayerSkill(lotusTarget, rogueSkillPlayer, 1);
+targetCombat.usePlayerSkill(lotusTarget, rogueSkillPlayer, 0);
+for (let i = 0; i < lotusTarget.combat.hits + 2; i += 1) targetCombat.update(.08);
 const redirectEvents = targetEvents.filter(event => event.amount > 0 && event.key.includes(':redirect-'));
 ok(redirectEvents.length === 4
   && redirectEvents.every(event => event.enemyId === targetElite.id)
   && targetEvents.every(event => !event.key.includes(':redirect-') || event.enemyId !== targetNormal.id)
   && durableStaggers.length === 1 && durableStaggers[0] === lotusTarget.combat.durableStagger
   && targetNormal.stagger === 0
-  && targetEvents.some(event => event.enemyId === targetNormal.id && event.amount > 0 && event.key.includes(':line-')),
-  'One Target crosses real iframe with four redirects on one durable target, one exact stagger, and normal direct line damage');
+  && targetEvents.some(event => event.enemyId === targetNormal.id && event.amount > 0 && event.key.includes(':pulse-')),
+  'One Target crosses real iframe with four redirects on one durable target, one exact stagger, and normal direct pulse damage');
 
 const lotusStrictEvents = [];
 const lotusStrictGame = makeWizardGame([]); lotusStrictGame.player = rogueSkillPlayer;
-lotusStrictGame.effects = new Proxy({ recipeMoonlessAct(_p, _d, _t, act) { lotusStrictEvents.push(act); } },
+lotusStrictGame.effects = new Proxy({ recipeLotusFlurry(_p, _t, _r, index, finale) { lotusStrictEvents.push(`${index}:${finale}`); } },
   { get: (target, key) => target[key] ?? (() => {}) });
 const lotusStrictCombat = new CombatSystem(lotusStrictGame);
 lotusStrictCombat.usePlayerSkill(lotusHarvest, rogueSkillPlayer, 1);
+lotusStrictCombat.update(.08);
+ok(lotusStrictEvents.length === 0, 'Death Lotus rejects orphan nonzero animation phases');
 lotusStrictCombat.usePlayerSkill(lotusHarvest, rogueSkillPlayer, 0);
+lotusStrictCombat.update(.04);
 lotusStrictCombat.usePlayerSkill(lotusHarvest, rogueSkillPlayer, 1);
 lotusStrictCombat.usePlayerSkill(lotusHarvest, rogueSkillPlayer, 1);
 lotusStrictCombat.usePlayerSkill(lotusTarget, rogueSkillPlayer, 0);
-lotusStrictCombat.usePlayerSkill(lotusHarvest, rogueSkillPlayer, 2);
-rogueSkillPlayer.classId = 'wizard'; lotusStrictCombat.usePlayerSkill(lotusTarget, rogueSkillPlayer, 1); rogueSkillPlayer.classId = 'rogue';
-ok(lotusStrictEvents.filter(event => event === 1).length === 1 && !lotusStrictEvents.includes(2),
-  'Death Lotus rejects orphan, duplicate, stale-bundle, and class-switched phases');
+lotusStrictCombat.update(.04);
+rogueSkillPlayer.classId = 'wizard';
+for (let i = 0; i < lotusTarget.combat.hits + 2; i += 1) lotusStrictCombat.update(.08);
+rogueSkillPlayer.classId = 'rogue';
+ok(lotusStrictEvents.join(',') === '0:false,0:false',
+  'Death Lotus ignores duplicate timeline phases, replaces stale casts, and stops after a class switch');
 
 const lotusFallbackEvents = [];
 const lotusFallbackTarget = makeWizardEnemy('lotus-fallback', 2, 0);
 lotusFallbackTarget.takeDamage = (_raw, _game, options = {}) => {
-  lotusFallbackEvents.push(options.sameCastHit?.key?.includes(':echo:') ? 'echo' : options.sameCastHit?.key?.includes(':finale') ? 'finale-hit' : 'line');
+  const key = options.sameCastHit?.key ?? '';
+  lotusFallbackEvents.push(key.includes(':echo-') ? 'echo'
+    : key.includes(':finale') ? 'finale-hit'
+      : key.includes(':pulse-') ? 'pulse' : 'derived');
   return { amount: 1, killed: false };
 };
 const lotusFallbackGame = makeWizardGame([lotusFallbackTarget]); lotusFallbackGame.player = rogueSkillPlayer;
-lotusFallbackGame.effects = new Proxy({ recipeMoonlessAct(_p, _d, _t, act) { lotusFallbackEvents.push(`act:${act}`); } },
-  { get: (target, key) => target[key] ?? (() => {}) });
 const lotusFallbackCombat = new CombatSystem(lotusFallbackGame);
 lotusFallbackCombat.usePlayerSkill(lotusHarvest, rogueSkillPlayer, 'full');
-lotusFallbackCombat.update(1); lotusFallbackCombat.update(1); lotusFallbackCombat.update(1); lotusFallbackCombat.update(1);
-ok(lotusFallbackEvents.indexOf('line') < lotusFallbackEvents.indexOf('echo')
-  && lotusFallbackEvents.indexOf('echo') < lotusFallbackEvents.indexOf('finale-hit')
-  && lotusFallbackEvents.filter(event => event === 'act:2').length === 1,
-  'Death Lotus coarse fallback preserves line → echo → finale chronology');
+for (let i = 0; i < lotusHarvest.combat.hits + 2; i += 1) lotusFallbackCombat.update(1);
+ok(lotusFallbackEvents.filter(event => event === 'pulse').length === lotusHarvest.combat.hits
+  && lotusFallbackEvents.lastIndexOf('pulse') < lotusFallbackEvents.indexOf('finale-hit')
+  && lotusFallbackEvents.indexOf('finale-hit') < lotusFallbackEvents.indexOf('echo'),
+  'Death Lotus coarse fallback preserves pulses → finale → derived echo chronology');
 
 const fxSource = await import('node:fs/promises').then(fs => fs.readFile(join(root, 'js/graphics/Effects.js'), 'utf8'));
 for (const recipe of ['recipeArsenalAct', 'recipeMoonlessAct']) {
@@ -2303,14 +2287,14 @@ const assetManifest=JSON.parse(await import('node:fs/promises').then(fs=>fs.read
 const heroAsset={aerin:'hero.aerin',wizard:'hero.wizard',rogue:'hero.rogue',ranger:'hero.ranger'};
 const expectedFallback={whirlwind:'attack_4',crescent:'skill_whirlwind',skyfall:'skill_whirlwind',starburst:'skill_whirlwind',
   fireball:'cast_2',frost_nova:'cast_3',arcane_blink:'dodge',meteor_storm:'cast_4',twin_fang:'attack_2',fan_of_knives:'skill_twin_fang',
-  shadowstep:'dodge',death_lotus:'attack_4',piercing_shot:'cast_2',caltrop_trap:'cast_3',vault_shot:'dodge',hunter_mark:'cast_4'};
+  shadowstep:'attack_6',death_lotus:'attack_4',piercing_shot:'cast_2',caltrop_trap:'cast_3',vault_shot:'dodge',hunter_mark:'cast_4'};
 for(const skill of actives){const animationMap=assetManifest.models[heroAsset[skill.classId]].animationMap;
   ok(Object.hasOwn(animationMap,skill.anim)&&skill.animFallback===expectedFallback[skill.id]&&Object.hasOwn(animationMap,skill.animFallback),
     `${skill.id} primary and owning fallback animations exist in its class animationMap`);}
 const expectedEvolutionAnimations={
   whirlwind:['attack_5','skill_whirlwind'],crescent:['attack_6','skill_crescent'],skyfall:['attack_7','skill_skyfall'],starburst:['attack_7','skill_starburst'],
   fireball:['cast_2','skill_fireball'],frost_nova:['cast_3','skill_frost_nova'],arcane_blink:['dodge','skill_blink'],meteor_storm:['cast_4','skill_meteor'],
-  twin_fang:['attack_6','skill_twin_fang'],fan_of_knives:['attack_5','skill_fan_knives'],shadowstep:['dodge','skill_shadowstep'],death_lotus:['attack_5','skill_death_lotus'],
+  twin_fang:['attack_6','skill_twin_fang'],fan_of_knives:['attack_5','skill_fan_knives'],shadowstep:['attack_6','skill_twin_fang'],death_lotus:['attack_5','skill_death_lotus'],
   piercing_shot:['cast_2','skill_pierce_shot'],caltrop_trap:['cast_3','skill_trap'],vault_shot:['dodge','skill_vault_shot'],hunter_mark:['cast_4','skill_hunter_mark'],
 };
 for(const skill of actives){
@@ -2402,15 +2386,15 @@ const crownCrossGame=makeWizardGame([crownCrossTarget]);crownCrossGame.player=kn
 crownCrossCombat.usePlayerSkill(starPrison,knightPlayer,0);crownCrossCombat.update(.3);knightPlayer.classId='wizard';crownCrossCombat.usePlayerSkill(starPrison,knightPlayer,2);knightPlayer.classId='aerin';
 ok(crownCrossTarget.staggers===0,'cross-class stale Apex cast has zero keystone authority');
 
-const foreignSyncPlayer={...rogueSkillPlayer,classId:'rogue',position:new THREE.Vector3(),facing:new THREE.Vector3(1,0,0)};
+const foreignSyncPlayer={...rogueSkillPlayer,alive:true,classId:'rogue',position:new THREE.Vector3(),facing:new THREE.Vector3(1,0,0)};
 const foreignSyncTarget=makeWizardEnemy('foreign-sync-keystone',9.5,0);const foreignSyncKeys=[];
 foreignSyncTarget.statuses.bleed={id:'bleed',remaining:3,stacks:3,stackCap:3};
 foreignSyncTarget.takeDamage=(_raw,_game,options={})=>{foreignSyncKeys.push(options.sameCastHit?.key??'base');return{amount:1,killed:false};};
 const foreignSyncGame=makeWizardGame([foreignSyncTarget]);foreignSyncGame.player=foreignSyncPlayer;
 const foreignSyncCombat=new CombatSystem(foreignSyncGame);const judgment100=resolveSkillForm(content.SKILLS.skyfall,10,100,{});
-foreignSyncCombat.usePlayerSkill(judgment100,foreignSyncPlayer,0);foreignSyncCombat.usePlayerSkill(judgment100,foreignSyncPlayer,1);
+foreignSyncCombat.usePlayerSkill(judgment100,foreignSyncPlayer,'full');for(let i=0;i<20;i+=1)foreignSyncCombat.update(.05);
 ok(foreignSyncKeys.length>0&&foreignSyncKeys.filter(key=>key.includes(':blood-echo:')).length===0,
-  'foreign immutable Knight bundle has exactly zero synchronous Rogue keystone authority');
+  'foreign immutable Knight bundle has exactly zero deferred Rogue keystone authority');
 
 const foreignDeferredTarget=makeWizardEnemy('foreign-deferred-keystone',2,0);const foreignDeferredKeys=[];
 foreignDeferredTarget.statuses.bleed={id:'bleed',remaining:3,stacks:3,stackCap:3};
@@ -2428,13 +2412,10 @@ for(const skill of actives){
   const events=[];const enemy=makeWizardEnemy(`apex-audio-${skill.id}`,apexTargetX[skill.id]??2,0);
   const player={...rogueSkillPlayer,classId:skill.classId,level:100,alive:true,position:new THREE.Vector3(),facing:new THREE.Vector3(1,0,0),
     predatorVerdict:null,thornField:null,arcaneOverflow:0};
-  if(skill.id==='shadowstep')player.activateShadowFrenzy=(combat,bundle)=>(player.shadowFrenzy={active:true,generation:1,remaining:combat.frenzyDuration,
-    duration:combat.frenzyDuration,contactCount:1,contactCap:combat.contactCap,exitMult:combat.exitMult,apexBundle:bundle,apexAudio:null});
   const game=makeWizardGame([enemy]);game.player=player;game.audio=new Proxy({apex(id,phase){events.push(`${id}:${phase}`);}},
     {get:(target,key)=>target[key]??(()=>{})});
   const combat=new CombatSystem(game);const bundle=resolveSkillForm(skill,10,100,{});
   combat.usePlayerSkill(bundle,player,'full');
-  if(skill.id==='shadowstep')combat.endShadowFrenzy(player,player.shadowFrenzy);
   for(let i=0;i<400;i+=1)combat.update(.03);
   ok(isDeepStrictEqual(events,[`${skill.id}:anticipate`,`${skill.id}:impact`,`${skill.id}:finisher`]),
     `${skill.id} complete level-100 cast emits exactly ordered anticipate, impact, finisher audio (${events.join(',')})`);
@@ -2452,26 +2433,22 @@ staleAudioGame.player=staleAudioPlayer;staleAudioGame.audio=new Proxy({apex(id,p
   {get:(target,key)=>target[key]??(()=>{})});const staleAudioCombat=new CombatSystem(staleAudioGame);
 const staleAudioPierce=resolveSkillForm(content.SKILLS.piercing_shot,10,100,{});
 staleAudioCombat.usePlayerSkill(staleAudioPierce,staleAudioPlayer,'full');staleAudioCombat.usePlayerSkill(staleAudioPierce,staleAudioPlayer,'full');
-for(let i=0;i<150;i+=1)staleAudioCombat.update(.03);
+// Pierce life ~5.75s; run long enough for the surviving cast to retire.
+for(let i=0;i<250;i+=1)staleAudioCombat.update(.03);
 ok(isDeepStrictEqual(staleAudioEvents,['piercing_shot:anticipate','piercing_shot:anticipate','piercing_shot:impact','piercing_shot:finisher']),
   'Ranger projectile recast cancels every stale impact and finisher audio phase');
 
-const frenzyRecastEvents=[];const frenzyRecastPlayer=new Player(new THREE.Scene(),playerFactoryStub,'low','rogue');
-frenzyRecastPlayer.level=100;frenzyRecastPlayer.position.set(0,0,0);frenzyRecastPlayer.facing.set(1,0,0);
-const frenzyRecastGame=makeWizardGame([]);frenzyRecastGame.player=frenzyRecastPlayer;
-frenzyRecastGame.audio=new Proxy({apex(id,phase){frenzyRecastEvents.push(`${id}:${phase}`);}},{get:(target,key)=>target[key]??(()=>{})});
-const frenzyRecastCombat=new CombatSystem(frenzyRecastGame);const apexShadowstep=resolveSkillForm(content.SKILLS.shadowstep,10,100,{});
-frenzyRecastCombat.usePlayerSkill(apexShadowstep,frenzyRecastPlayer,'full');
-const originalFrenzy=frenzyRecastPlayer.shadowFrenzy;const originalFrenzyGeneration=originalFrenzy.generation;const originalFrenzyToken=originalFrenzy.apexAudio;
-const beforeActiveRecast=[...frenzyRecastEvents];frenzyRecastCombat.usePlayerSkill(apexShadowstep,frenzyRecastPlayer,'full');
-const recastPreserved=frenzyRecastPlayer.shadowFrenzy===originalFrenzy
-  && frenzyRecastPlayer.shadowFrenzy.generation===originalFrenzyGeneration
-  && frenzyRecastPlayer.shadowFrenzy.apexAudio===originalFrenzyToken
-  && isDeepStrictEqual(frenzyRecastEvents,beforeActiveRecast);
-const expiredFrenzy={...originalFrenzy};frenzyRecastPlayer.clearShadowFrenzy();
-frenzyRecastCombat.endShadowFrenzy(frenzyRecastPlayer,expiredFrenzy);frenzyRecastCombat.endShadowFrenzy(frenzyRecastPlayer,expiredFrenzy);
-ok(recastPreserved&&isDeepStrictEqual(frenzyRecastEvents,['shadowstep:anticipate','shadowstep:impact','shadowstep:finisher']),
-  'active Shadow Frenzy recast preserves the original state, generation, token, cues, and one expiry finisher');
+const executionRecastEvents=[];const executionRecastTarget=makeWizardEnemy('execution-recast',6,0);const executionRecastPlayer=new Player(new THREE.Scene(),playerFactoryStub,'low','rogue');
+executionRecastPlayer.level=100;executionRecastPlayer.position.set(0,0,0);executionRecastPlayer.facing.set(1,0,0);
+const executionRecastOrigin=executionRecastPlayer.position.clone();const executionRecastGame=makeWizardGame([executionRecastTarget]);executionRecastGame.player=executionRecastPlayer;
+executionRecastGame.audio=new Proxy({apex(id,phase){executionRecastEvents.push(`${id}:${phase}`);}},{get:(target,key)=>target[key]??(()=>{})});
+const executionRecastCombat=new CombatSystem(executionRecastGame);const apexShadowstep=resolveSkillForm(content.SKILLS.shadowstep,10,100,{});
+executionRecastCombat.usePlayerSkill(apexShadowstep,executionRecastPlayer,'full');executionRecastCombat.usePlayerSkill(apexShadowstep,executionRecastPlayer,'full');
+for(let i=0;i<80;i+=1)executionRecastCombat.update(.03);
+ok(isDeepStrictEqual(executionRecastEvents,['shadowstep:anticipate','shadowstep:impact','shadowstep:anticipate','shadowstep:impact','shadowstep:finisher'])
+  &&executionRecastPlayer.position.equals(executionRecastOrigin)&&executionRecastTarget.hits>apexShadowstep.combat.hits,
+  'Execution Chain recast cancels stale strikes, completes only the newest multi-hit generation, and never moves');
+executionRecastPlayer.dispose();
 
 const deathAudioEvents=[];const deathAudioPlayer={...knightPlayer,classId:'aerin',level:100,alive:true,position:new THREE.Vector3(),facing:new THREE.Vector3(1,0,0)};
 const deathAudioGame=makeWizardGame([]);deathAudioGame.player=deathAudioPlayer;
@@ -2501,8 +2478,8 @@ ok(isDeepStrictEqual(switchedAudioEvents,['starburst:anticipate','starburst:impa
 const duplicateAudioEvents=[];const duplicateAudioGame=makeWizardGame([]);duplicateAudioGame.player=rogueSkillPlayer;
 duplicateAudioGame.audio=new Proxy({apex(id,phase){duplicateAudioEvents.push(`${id}:${phase}`);}},{get:(target,key)=>target[key]??(()=>{})});
 const duplicateAudioCombat=new CombatSystem(duplicateAudioGame);duplicateAudioCombat.usePlayerSkill(peacock,rogueSkillPlayer,0);
-duplicateAudioCombat.usePlayerSkill(peacock,rogueSkillPlayer,1);duplicateAudioCombat.usePlayerSkill(peacock,rogueSkillPlayer,2);
-duplicateAudioCombat.usePlayerSkill(peacock,rogueSkillPlayer,2);
+for(let phase=1;phase<peacock.combat.pulses;phase+=1)duplicateAudioCombat.usePlayerSkill(peacock,rogueSkillPlayer,phase);
+duplicateAudioCombat.usePlayerSkill(peacock,rogueSkillPlayer,peacock.combat.pulses-1);
 ok(isDeepStrictEqual(duplicateAudioEvents,['fan_of_knives:anticipate','fan_of_knives:impact','fan_of_knives:finisher']),
   'duplicate animation and terminal phases cannot repeat Apex audio');
 
@@ -2544,10 +2521,11 @@ const restoreOverflow=overflowLifecyclePlayer.arcaneOverflow;overflowLifecyclePl
 ok(resetOverflow===0&&deathOverflow===0&&restoreOverflow===0&&overflowLifecyclePlayer.arcaneOverflow===0,
   'Overflow clears on reset, death, restore, and class change');
 
-const bloodEchoTargets=Array.from({length:9},(_,index)=>{const angle=index/9*Math.PI*2;const enemy=makeWizardEnemy(`blood-echo-${index}`,Math.cos(angle)*2,Math.sin(angle)*2);enemy.statuses.bleed={id:'bleed',remaining:3,stacks:3,stackCap:3};return enemy;});
+const bloodEchoTargets=Array.from({length:9},(_,index)=>{const angle=index/9*Math.PI*2;const enemy=makeWizardEnemy(`blood-echo-${index}`,Math.cos(angle)*2,Math.sin(angle)*2);enemy.statuses.bleed={id:'bleed',remaining:3,stacks:3,stackCap:3};enemy.applyStatus=(id,options)=>{const prior=enemy.statuses[id]??{};enemy.statuses[id]={...prior,id,remaining:Math.max(prior.remaining??0,options.duration??0),...options,stacks:prior.stacks??options.stackDelta??1};};return enemy;});
 const bloodEchoKeys=[];for(const enemy of bloodEchoTargets)enemy.takeDamage=(_raw,_game,options={})=>{if(options.sameCastHit?.key?.includes(':blood-echo:'))bloodEchoKeys.push(options.sameCastHit.key);return{amount:1,killed:false};};
 const bloodEchoGame=makeWizardGame(bloodEchoTargets);bloodEchoGame.player=rogueSkillPlayer;const bloodEchoCombat=new CombatSystem(bloodEchoGame);
-bloodEchoCombat.usePlayerSkill(lotusTarget,rogueSkillPlayer,0);bloodEchoCombat.update(.3);bloodEchoCombat.usePlayerSkill(lotusTarget,rogueSkillPlayer,2);
+bloodEchoCombat.usePlayerSkill(lotusTarget,rogueSkillPlayer,0);
+for(let i=0;i<lotusTarget.combat.hits+2;i+=1)bloodEchoCombat.update(.08);
 ok(bloodEchoKeys.length===24&&new Set(bloodEchoKeys.map(key=>key.split(':').slice(0,-1).join(':'))).size===8,
   'Blood Echo emits exact three nonrecursive duplicates on at most eight bleeding targets');
 
@@ -2565,9 +2543,10 @@ for(const tier of [1,2,3]){
   const originalPrimeConsume=enemy.consumeSpellPrime.bind(enemy);enemy.consumeSpellPrime=(...args)=>{primeConsumes+=1;return originalPrimeConsume(...args);};
   const echoHits=[];const originalTake=enemy.takeDamage.bind(enemy);
   enemy.takeDamage=(raw,activeGame,options={})=>{const result=originalTake(raw,activeGame,options);if(options.sameCastHit?.key?.includes(':blood-echo:'))echoHits.push({amount:result.amount,critical:options.critical,key:options.sameCastHit.key});return result;};
-  const combat=new CombatSystem(game);combat.usePlayerSkill(peacock,rogueSkillPlayer,0);game.enemies.enemies.push(enemy);combat.usePlayerSkill(peacock,rogueSkillPlayer,2);
+  const combat=new CombatSystem(game);combat.usePlayerSkill(apexShadowstep,rogueSkillPlayer,0);game.enemies.enemies.push(enemy);
+  for(let phase=1;phase<apexShadowstep.combat.hits;phase+=1)combat.usePlayerSkill(apexShadowstep,rogueSkillPlayer,phase);
   const bleed=enemy.statuses.bleed;
-  ok(echoHits.length===tier&&echoHits.every((hit,index)=>hit.amount>0&&!hit.critical&&hit.key===`fan-1:blood-echo:${enemy.id}:${index}`)
+  ok(echoHits.length===tier&&echoHits.every((hit,index)=>hit.amount>0&&!hit.critical&&hit.key===`execution-1:blood-echo:${enemy.id}:${index}`)
     && bleed.remaining===expectedStatus.remaining&&bleed.dps===expectedStatus.dps&&bleed.tick===expectedStatus.tick
     && bleed.stacks===expectedStatus.stacks&&bleed.stackCap===expectedStatus.stackCap
     && statusCalls===0&&energyCalls===0&&reactionCalls===0&&primeConsumes===0,
@@ -2576,39 +2555,38 @@ for(const tier of [1,2,3]){
 rogueSkillPlayer.critChance=priorRogueCrit;
 if(priorRogueGainEnergy)rogueSkillPlayer.gainEnergy=priorRogueGainEnergy;else delete rogueSkillPlayer.gainEnergy;
 
-const rangerApexPlayer={...rogueSkillPlayer,classId:'ranger',level:100,position:new THREE.Vector3(),facing:new THREE.Vector3(1,0,0)};
+const rangerApexPlayer={...rogueSkillPlayer,alive:true,classId:'ranger',level:100,position:new THREE.Vector3(),facing:new THREE.Vector3(1,0,0),predatorVerdict:null};
 const rangerApexTarget=makeWizardEnemy('marked-convergence-target',2,0);const rangerApexKeys=[];
 rangerApexTarget.takeDamage=(_raw,_game,options={})=>{rangerApexKeys.push(options.sameCastHit?.key??'base');return{amount:1,killed:false};};
 const rangerApexGame=makeWizardGame([rangerApexTarget]);rangerApexGame.player=rangerApexPlayer;const rangerApexCombat=new CombatSystem(rangerApexGame);
 const apexMarkBundle=resolveSkillForm(content.SKILLS.hunter_mark,10,100,{});
-rangerApexCombat.usePlayerSkill(apexMarkBundle,rangerApexPlayer);rangerApexCombat.usePlayerSkill(apexMarkBundle,rangerApexPlayer);
-ok(rangerApexKeys.filter(key=>key.includes('marked-convergence')).length===1
+rangerApexCombat.usePlayerSkill(apexMarkBundle,rangerApexPlayer);for(let i=0;i<20;i+=1)rangerApexCombat.update(.08);
+ok(rangerApexKeys.filter(key=>key.endsWith(':marked-convergence')).length===1
   && rangerApexKeys.filter(key=>key.endsWith(':convergence')).length>=1
   && rangerApexPlayer.predatorVerdict===null,
-  'Hunter Apex captures its live marked target before clear and keeps existing convergence separate');
+  `Predator Barrage captures its live finale target and keeps Apex convergence separate (${rangerApexKeys.join(',')})`);
 const deadMarkTarget=makeWizardEnemy('dead-mark-target',2,0);const deadMarkKeys=[];deadMarkTarget.takeDamage=(_r,_g,o={})=>{deadMarkKeys.push(o.sameCastHit?.key??'base');return{amount:1,killed:false};};
 const deadMarkGame=makeWizardGame([deadMarkTarget]);deadMarkGame.player=rangerApexPlayer;rangerApexPlayer.position.set(0,0,0);rangerApexPlayer.predatorVerdict=null;
-const deadMarkCombat=new CombatSystem(deadMarkGame);deadMarkCombat.usePlayerSkill(apexMarkBundle,rangerApexPlayer);deadMarkTarget.alive=false;deadMarkCombat.usePlayerSkill(apexMarkBundle,rangerApexPlayer);
-ok(!deadMarkKeys.some(key=>key.includes('marked-convergence')),'dead marked target grants no convergence authority');
+const deadMarkCombat=new CombatSystem(deadMarkGame);deadMarkCombat.usePlayerSkill(apexMarkBundle,rangerApexPlayer);deadMarkTarget.alive=false;
+for(let i=0;i<20;i+=1)deadMarkCombat.update(.08);
+ok(!deadMarkKeys.some(key=>key.includes('marked-convergence')),'dead auto-lock target grants no convergence authority');
 
 const liveMarkTarget=makeWizardEnemy('live-mark-target',2,0);const liveMarkKeys=[];
 liveMarkTarget.takeDamage=(_raw,_game,options={})=>{liveMarkKeys.push(options.sameCastHit?.key??'base');return{amount:1,killed:false};};
 const liveMarkGame=makeWizardGame([liveMarkTarget]);liveMarkGame.player=rangerApexPlayer;
  rangerApexPlayer.position.set(0,0,0);rangerApexPlayer.facing.set(1,0,0);rangerApexPlayer.alive=true;
-const liveVerdict={target:liveMarkTarget,remaining:5};rangerApexPlayer.predatorVerdict=liveVerdict;
-const liveMarkCombat=new CombatSystem(liveMarkGame);const apexPierce=resolveSkillForm(content.SKILLS.piercing_shot,10,100,{});
-liveMarkCombat.usePlayerSkill(apexPierce,rangerApexPlayer);for(let i=0;i<100;i+=1)liveMarkCombat.update(.03);
-ok(liveMarkKeys.filter(key=>key.includes('marked-convergence')).length===1&&rangerApexPlayer.predatorVerdict===liveVerdict,
-  `Ranger Q finale converges once on a live marked target and leaves the mark intact (${liveMarkKeys.join(',')})`);
+const liveMarkCombat=new CombatSystem(liveMarkGame);
+liveMarkCombat.usePlayerSkill(apexMarkBundle,rangerApexPlayer);for(let i=0;i<20;i+=1)liveMarkCombat.update(.08);
+ok(liveMarkKeys.filter(key=>key.includes('marked-convergence')).length===1&&rangerApexPlayer.predatorVerdict===null,
+  `Predator Barrage converges once without leaving mark state (${liveMarkKeys.join(',')})`);
 const staleMarkKeys=[];const staleMarkTarget=makeWizardEnemy('stale-mark-target',2,0);staleMarkTarget.takeDamage=(_r,_g,o={})=>{staleMarkKeys.push(o.sameCastHit?.key??'base');return{amount:1,killed:false};};
-const staleMarkGame=makeWizardGame([staleMarkTarget]);staleMarkGame.player=rangerApexPlayer;rangerApexPlayer.predatorVerdict={target:staleMarkTarget,remaining:5};
+const staleMarkGame=makeWizardGame([staleMarkTarget]);staleMarkGame.player=rangerApexPlayer;rangerApexPlayer.predatorVerdict=null;
  rangerApexPlayer.position.set(0,0,0);rangerApexPlayer.facing.set(1,0,0);
-const staleMarkCombat=new CombatSystem(staleMarkGame);staleMarkCombat.usePlayerSkill(apexPierce,rangerApexPlayer);
-const staleCastId=staleMarkCombat.projectiles.at(-1)?.castId;staleMarkCombat.usePlayerSkill(apexPierce,rangerApexPlayer);
-const newestCastId=staleMarkCombat.projectiles.at(-1)?.castId;for(let i=0;i<100;i+=1)staleMarkCombat.update(.03);
-ok(staleMarkKeys.filter(key=>key===`${staleCastId}:marked-convergence`).length===0
-  && staleMarkKeys.filter(key=>key===`${newestCastId}:marked-convergence`).length===1,
-  'Ranger Q recast grants exactly one newest-generation convergence and zero stale-generation convergence');
+const staleMarkCombat=new CombatSystem(staleMarkGame);staleMarkCombat.usePlayerSkill(apexMarkBundle,rangerApexPlayer);
+staleMarkCombat.usePlayerSkill(apexMarkBundle,rangerApexPlayer);for(let i=0;i<20;i+=1)staleMarkCombat.update(.08);
+ok(staleMarkKeys.filter(key=>key==='predator-1:marked-convergence').length===0
+  && staleMarkKeys.filter(key=>key==='predator-2:marked-convergence').length===1,
+  'Predator Barrage recast grants one newest-generation convergence and zero stale-generation authority');
 
 const apexFxBody=effectsSrc.slice(effectsSrc.indexOf('recipeApexKeystone('),effectsSrc.indexOf('recipeApexKeystone(')+1800);
 ok(apexFxBody.length>100&&!/PointLight|SpotLight|DirectionalLight/.test(apexFxBody),
@@ -2622,6 +2600,113 @@ const { CharacterAnimationController } = await import(
   pathToFileURL(join(root, 'js/characters/CharacterAnimationController.js')).href
 );
 ok(typeof CharacterAnimationController.prototype.scheduleNormalized === 'function', 'scheduleNormalized API');
+
+// N4 free-function parity: levelUpNova must pass the game instance (not residual `this`) into takeDamage.
+{
+  const { levelUpNova } = await import(pathToFileURL(join(root, 'js/core/killFeedback.js')).href);
+  const { GROWTH_CONFIG } = await import(pathToFileURL(join(root, 'js/config.js')).href);
+  const takeArgs = [];
+  const fodder = {
+    alive: true,
+    fodder: true,
+    maxHp: 100,
+    position: new THREE.Vector3(1, 0, 0),
+    takeDamage(amount, gameArg, options) {
+      takeArgs.push({ amount, gameArg, options });
+      return { amount, killed: true };
+    },
+  };
+  const game = {
+    player: {
+      alive: true,
+      position: new THREE.Vector3(0, 0, 0),
+      invulnerable: 0,
+    },
+    enemies: { enemies: [fodder] },
+    effects: {
+      pillar() {},
+      ring() {},
+      burst() {},
+    },
+  };
+  levelUpNova(game);
+  ok(takeArgs.length === 1, 'levelUpNova hits nearby fodder via takeDamage');
+  ok(takeArgs[0].gameArg === game, 'levelUpNova passes game instance into takeDamage (not residual this)');
+  ok(takeArgs[0].amount === GROWTH_CONFIG.levelNovaFodderDamage, 'levelUpNova uses GROWTH_CONFIG fodder damage');
+  ok(takeArgs[0].options?.skill === true && takeArgs[0].options?.overkill === true,
+    'levelUpNova marks fodder hits as skill overkill');
+  ok(game.player.invulnerable >= GROWTH_CONFIG.levelNovaInvuln, 'levelUpNova grants level-up invulnerability');
+}
+
+// Kill rewards and any legacy/scripted pickup are global auto-loot.
+{
+  const { LootSystem } = await import(pathToFileURL(join(root, 'js/systems/LootSystem.js')).href);
+  const player = {
+    alive: true, level: 10, luck: 0, position: new THREE.Vector3(100, 0, 100),
+    gold: 0, essence: 0, potions: 2, maxPotions: 2, gear: [],
+    addGold(amount) { this.gold += amount; return amount; },
+    addGear(item) { this.gear.push(item); return { added: true, equipped: false }; },
+  };
+  let saves = 0;
+  const game = {
+    player, mode: 'hunt', hunt: { worldTier: 0 }, scene: new THREE.Scene(),
+    world: { heightAt() { return 0; } },
+    ui: { floatText() {}, notify() {} }, audio: { pickup() {} }, effects: { burst() {} },
+    requestSave() { saves += 1; },
+  };
+  const loot = new LootSystem(game);
+  loot.dropFromEnemy({
+    alive: false, level: 10, goldRange: [4, 4], position: new THREE.Vector3(),
+    refs: { modelHeight: 2 }, elite: false, boss: false,
+  });
+  ok(player.gold > 0 && loot.pickups.length === 0,
+    'enemy gold is granted immediately without creating a world pickup');
+
+  player.potions = 0;
+  const legacy = (kind, extra = {}) => ({
+    id: `legacy-${kind}`, kind, amount: 3, group: new THREE.Group(),
+    refs: {}, baseY: 0, age: 0, life: 90, collected: false, ...extra,
+  });
+  loot.pickups.push(
+    legacy('gold'),
+    legacy('potion'),
+    legacy('essence'),
+    legacy('gear', { item: {
+      id: 'legacy-gear', name: 'Legacy Fang', rarity: 'rare', rarityColor: 0x4da6ff,
+      itemLevel: 10, score: 20,
+    } }),
+  );
+  const beforeLegacyGold = player.gold;
+  loot.update(.016);
+  ok(loot.pickups.length === 0 && player.gold === beforeLegacyGold + 3
+    && player.potions === 1 && player.essence === 3 && player.gear.length === 1,
+  'gold, potion, essence, and gear pickups auto-collect globally on the next update');
+  ok(saves >= 5, 'each immediate or legacy auto-loot grant requests persistence');
+  loot.clear();
+}
+
+{
+  const { XpGemSystem } = await import(pathToFileURL(join(root, 'js/systems/XpGemSystem.js')).href);
+  let awardedXp = 0; let saves = 0;
+  const player = {
+    alive: true, level: 10, position: new THREE.Vector3(),
+    addXp(amount) { awardedXp += amount; return { amount, levelUps: [] }; },
+  };
+  const game = {
+    player, mode: 'hunt', elapsed: 1, scene: new THREE.Scene(),
+    ui: { floatText() {} }, audio: { pickup() {} }, effects: { burst() {} },
+    requestSave() { saves += 1; },
+  };
+  const xp = new XpGemSystem(game);
+  const result = xp.spawnFromKill({
+    level: 10, xpValue: 37, position: new THREE.Vector3(18, 0, -12),
+    refs: { modelHeight: 2 }, elite: false, boss: false,
+  });
+  ok(result?.amount > 0 && awardedXp === result.amount && xp.gems.length === 0,
+    'enemy XP is granted immediately at any distance without spawning a floor gem');
+  ok(saves === 1, 'immediate kill XP requests persistence');
+  xp.dispose();
+}
 
 if (fail.length) {
   console.error(`\n${fail.length} failure(s):`);

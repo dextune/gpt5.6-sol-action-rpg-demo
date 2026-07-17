@@ -381,7 +381,7 @@ js/data/content.js                 # timeline / anim names only if aligning hits
 tests/presentation-motion.mjs      # assert walk / shared clips
 tests/integrity.mjs                # nest checks
 docs/characters-visual.md          # catalog
-docs/plan/static-resource-character-motion.md  # this file
+docs/history/static-resource-character-motion.md  # this file
 ```
 
 **Do not touch for this plan:** `Effects.js` recipes (already shipped), terrain, camera shake, vendor Three, dual-mixer experiments, cloth systems.

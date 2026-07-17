@@ -71,7 +71,7 @@ New AI pattern: one **line** of branch in `Enemy.#combatAI` + a `CombatSystem` m
 
 ## 3) New active skill full set (spectacle-grade)
 
-New skills must ship as **identity kits**, not recolors. Follow [plan/skill-motion-spectacle.md](./plan/skill-motion-spectacle.md).
+New skills must ship as **identity kits**, not recolors. Follow [history/skill-motion-spectacle.md](./history/skill-motion-spectacle.md).
 
 ### Checklist
 

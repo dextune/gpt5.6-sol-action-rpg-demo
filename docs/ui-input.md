@@ -54,8 +54,9 @@ CSS: `css/game.css` under `body.touch-ui` (safe-area, sizes, landscape).
 
 Key element ids:
 
-- Loading / title: `loading-screen`, `title-screen`, `new-game-btn`, `continue-btn`
-- HUD: hp/mp/xp, zone, hunt stats, abilities, minimap, boss-hud
+- Loading / title: `loading-screen`, `title-screen`, `new-game-btn`, `defense-btn`, `continue-btn`
+- HUD: hp/mp/xp, zone ribbon (`Lv.min–max · Threat` + `data-threat` colors), hunt stats, abilities, minimap (threat-tinted zones + guided contract mark), boss-hud
+- Zone toast: recommended band + your level + threat; Lethal zones also notify once per visit
 - Touch: `touch-controls`, `touch-stick-zone`, `touch-menu-btn`
 - Panels: `panel-layer`, `panel-content`
 - Feedback: `notifications`, `float-layer`, `damage-flash`, `zone-toast`
@@ -89,7 +90,7 @@ System panel `data-action="quality"` → `Game.setQuality`.
 4. Test portrait + landscape; keep the tactical map in the top-right and collapse only low-priority detail rows when space is tight.
 5. `touch-action: none` on stick/slots/canvas to avoid browser scroll/zoom.  
 6. Desktop keyboard path must remain unchanged when `body.touch-ui` is off.  
-7. **iPhone mini (≤390px):** compact profile in the top-left with a click/tap Hunt-record toggle, an inset settings gear replacing the mobile level pill, full-card-width text-free HP/MP gauges directly below EXP, and persistent WPN/OPT actions; use a wider, shared-width minimap and resource/status lane in the top-right; no combat orbs; icon-only ability pad.
+7. **iPhone mini (≤390px):** compact profile in the top-left with a click/tap Hunt-record toggle, an inset settings gear replacing the mobile level pill, full-card-width text-free HP/MP gauges directly below EXP, profile gold row, and persistent WPN/OPT actions; top-right stack is zone ribbon (`Lv.band · Threat`) above a matching-width minimap; expanded Hunt record shows boss presence + contract (compact); no combat orbs; icon-only ability pad.
 
 ### Layout QA (Playwright)
 

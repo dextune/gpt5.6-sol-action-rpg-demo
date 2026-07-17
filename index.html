@@ -50,51 +50,45 @@
     <section id="title-screen" class="screen title-screen" aria-label="Title screen">
       <div class="title-sun" aria-hidden="true"></div>
       <div class="title-content">
-        <p class="eyebrow">ACTION RPG DEMO</p>
-        <h1><span>GPT-5.6:</span> SOL</h1>
-        <p class="title-copy">Track wild monsters in a warm miniature diorama hunting ground<br>and combine skills and gear to forge your own hunter.</p>
-        <div class="class-select" id="class-select" role="group" aria-label="Hero class">
-          <button type="button" class="class-card is-selected" data-class-id="aerin" aria-pressed="true">
-            <strong>Knight</strong>
-            <small class="class-card-meta">Gareth · Iron blade</small>
-            <span class="class-card-tags" data-class-tags></span>
-            <span class="class-card-skills" data-class-skills></span>
-          </button>
-          <button type="button" class="class-card" data-class-id="wizard" aria-pressed="false">
-            <strong>Wizard</strong>
-            <small class="class-card-meta">Lyra · Arcane focus</small>
-            <span class="class-card-tags" data-class-tags></span>
-            <span class="class-card-skills" data-class-skills></span>
-          </button>
-          <button type="button" class="class-card" data-class-id="rogue" aria-pressed="false">
-            <strong>Rogue</strong>
-            <small class="class-card-meta">Vex · Twin daggers</small>
-            <span class="class-card-tags" data-class-tags></span>
-            <span class="class-card-skills" data-class-skills></span>
-          </button>
-          <button type="button" class="class-card" data-class-id="ranger" aria-pressed="false">
-            <strong>Ranger</strong>
-            <small class="class-card-meta">Sable · Wildshot</small>
-            <span class="class-card-tags" data-class-tags></span>
-            <span class="class-card-skills" data-class-skills></span>
-          </button>
-        </div>
-        <div class="title-actions">
-          <button id="new-game-btn" class="primary-button"><span>New Hunt</span><kbd>ENTER</kbd></button>
-          <button id="rush-btn" class="rush-button" type="button"><span>Rift Rush</span><small>90-second apex run</small></button>
-          <button id="daily-rush-btn" class="secondary-button daily-rush-button" type="button"><span>Daily Rift</span><small id="daily-rush-meta">Same challenge today</small></button>
-          <button id="defense-btn" class="secondary-button" type="button"><span>Defense</span><small>Wave survival</small></button>
-          <button id="continue-btn" class="secondary-button"><span>Continue</span><small id="continue-meta">No save data</small></button>
-        </div>
-        <details class="controls-card">
-          <summary>Controls</summary>
-          <div class="controls-desktop">
-            <span><kbd>WASD</kbd> Move</span><span><kbd>J</kbd> Attack</span><span><kbd>SPACE</kbd> Dodge</span><span><kbd>Q E R C</kbd> Skills</span><span><kbd>1</kbd> Potion</span><span><kbd>I / K / TAB</kbd> Menu</span><span><kbd>Z X / Scroll</kbd> Camera</span><span><kbd>Mouse</kbd> UI only</span>
+        <header class="title-brand">
+          <p class="eyebrow">ACTION RPG DEMO</p>
+          <h1><span>GPT-5.6:</span> SOL</h1>
+          <p class="title-copy">Track wild monsters, master your class, and forge a hunter worthy of the wilds.</p>
+        </header>
+        <div class="title-menu">
+          <div class="class-select" id="class-select" role="group" aria-label="Hero class">
+            <button type="button" class="class-card is-selected" data-class-id="aerin" aria-pressed="true" aria-label="Gareth, Knight">
+              <strong class="class-card-name">Gareth</strong>
+              <span class="class-card-job">Knight</span>
+            </button>
+            <button type="button" class="class-card" data-class-id="wizard" aria-pressed="false" aria-label="Lyra, Wizard">
+              <strong class="class-card-name">Lyra</strong>
+              <span class="class-card-job">Wizard</span>
+            </button>
+            <button type="button" class="class-card" data-class-id="rogue" aria-pressed="false" aria-label="Vex, Rogue">
+              <strong class="class-card-name">Vex</strong>
+              <span class="class-card-job">Rogue</span>
+            </button>
+            <button type="button" class="class-card" data-class-id="ranger" aria-pressed="false" aria-label="Sable, Ranger">
+              <strong class="class-card-name">Sable</strong>
+              <span class="class-card-job">Ranger</span>
+            </button>
           </div>
-          <div class="controls-mobile">
-            <span>Left stick · Move</span><span>Right buttons · Attack / Dodge / Skills / Potion</span><span>Drag on world · Camera</span><span>Pinch · Zoom</span><span>Menu button · System</span>
+          <div class="title-actions">
+            <button id="new-game-btn" class="primary-button"><span>New Hunt</span><kbd>ENTER</kbd></button>
+            <button id="defense-btn" class="secondary-button" type="button"><span>Defense</span><small>Wave climb · 200</small></button>
+            <button id="continue-btn" class="secondary-button"><span>Continue</span><small id="continue-meta">No save data</small></button>
           </div>
-        </details>
+          <details class="controls-card">
+            <summary>Controls</summary>
+            <div class="controls-desktop">
+              <span><kbd>WASD</kbd> Move</span><span><kbd>J</kbd> Attack</span><span><kbd>SPACE</kbd> Dodge</span><span><kbd>Q E R C</kbd> Skills</span><span><kbd>1</kbd> Potion</span><span><kbd>I / K / TAB</kbd> Menu</span><span><kbd>Z X / Scroll</kbd> Camera</span><span><kbd>Mouse</kbd> UI only</span>
+            </div>
+            <div class="controls-mobile">
+              <span>Left stick · Move</span><span>Right buttons · Attack / Dodge / Skills / Potion</span><span>Drag on world · Camera</span><span>Pinch · Zoom</span><span>Menu button · System</span>
+            </div>
+          </details>
+        </div>
       </div>
       <footer>Rigged GLB · Stylized PBR · Local offline</footer>
     </section>
@@ -115,6 +109,11 @@
               <span>EXP</span>
               <div class="xp-track"><i id="xp-fill"></i></div>
               <b id="xp-text">0 / 172</b>
+            </div>
+            <div class="profile-gold-row" aria-label="Gold">
+              <i class="gold-icon" aria-hidden="true"></i>
+              <span>GOLD</span>
+              <b id="gold-count">0</b>
             </div>
           </div>
         </button>
@@ -164,37 +163,11 @@
         <small id="zone-subtitle">Hunting Grounds Where the Wind Stays</small>
       </div>
 
-      <div id="defense-wave-panel" class="defense-wave-panel hidden" aria-live="polite">
-        <small>DEFENSE</small>
-        <strong id="defense-wave-label">WAVE 1</strong>
-        <span id="defense-wave-remaining">0 left</span>
-      </div>
-
-      <section id="rush-hud" class="rush-hud hidden" aria-live="polite" aria-label="Rift Rush objective">
-        <header>
-          <span id="rush-act">RIFT OPENING</span>
-          <strong id="rush-time">90.0</strong>
-          <b><i id="rush-score">0</i> PTS</b>
-        </header>
-        <div class="rush-objective-row">
-          <div><small id="rush-kicker">ENTER THE STORM</small><strong id="rush-encounter">Rift Opening</strong></div>
-          <em id="rush-objective-progress">0 / 0</em>
-        </div>
-        <div class="rush-progress"><i id="rush-progress-fill"></i></div>
-        <p id="rush-description">Prepare for immediate contact.</p>
-        <footer><span id="rush-hazard">Hazard dormant</span><b id="rush-chain">CHAIN 0</b></footer>
-      </section>
-
       <div id="boss-hud" class="boss-hud hidden">
         <div class="boss-name-row"><span>REGION ALPHA</span><strong id="boss-name">Area Boss</strong><em id="boss-level">LV.1</em></div>
         <div class="boss-health"><i id="boss-health-fill"></i></div>
         <div id="boss-break-row" class="boss-break-row hidden"><span>BREAK</span><div><i id="boss-break-fill"></i></div><b id="boss-break-text">0%</b></div>
       </div>
-
-      <aside class="resource-pills">
-        <span><i class="gold-icon"></i><small>GOLD</small><b id="gold-count">0</b></span>
-        <span class="item-count-pill"><i class="bag-icon"></i><small>ITEMS</small><b id="item-count">1</b></span>
-      </aside>
 
       <aside class="combat-vitals combat-vitals-health" aria-label="Health">
         <div class="vital-orb hp-orb">
@@ -263,33 +236,6 @@
           <button id="panel-close" class="icon-button" aria-label="Close">×</button>
         </header>
         <div id="panel-content" class="panel-content"></div>
-      </div>
-    </section>
-
-    <section id="rush-draft" class="rush-overlay rush-draft hidden" aria-modal="true" role="dialog" aria-labelledby="rush-draft-title">
-      <div class="rush-overlay-shell">
-        <p class="eyebrow">RIFT MUTATION</p>
-        <h2 id="rush-draft-title">Choose a mutation</h2>
-        <p id="rush-draft-copy">Combat is suspended while the rift rewrites one skill.</p>
-        <div id="rush-draft-options" class="rush-draft-options"></div>
-        <small>Press <kbd>1</kbd> or <kbd>2</kbd></small>
-      </div>
-    </section>
-
-    <section id="rush-result" class="rush-overlay rush-result hidden" aria-modal="true" role="dialog" aria-labelledby="rush-result-title">
-      <div class="rush-overlay-shell rush-result-shell">
-        <div class="rush-result-heading">
-          <div><p class="eyebrow" id="rush-result-eyebrow">RIFT CONQUERED</p><h2 id="rush-result-title">Apex cleared</h2><p id="rush-result-copy"></p></div>
-          <strong id="rush-result-grade">S</strong>
-        </div>
-        <div id="rush-result-metrics" class="rush-result-metrics"></div>
-        <div class="rush-trophy-heading"><span>CHOOSE ONE TROPHY</span><small id="rush-trophy-status">One reward per completed run</small></div>
-        <div id="rush-trophy-options" class="rush-trophy-options"></div>
-        <div class="rush-result-actions">
-          <button type="button" id="rush-retry-btn" class="primary-button">Retry Rift</button>
-          <button type="button" id="rush-next-btn" class="secondary-button">Next Rift</button>
-          <button type="button" id="rush-title-btn" class="secondary-button">Return to Title</button>
-        </div>
       </div>
     </section>
 

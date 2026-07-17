@@ -1,73 +1,84 @@
 # GPT-5.6 Agent Docs
 
-Guides for small and large agents to safely modify the **GPT-5.6: Sol / Action RPG DEMO** project's design, combat, and content data.
+Guides for agents modifying the **GPT-5.6: Sol / Action RPG DEMO** (Three.js browser ARPG).
 
-## Recommended reading order
+## Reading order
 
-1. [Architecture](./architecture.md) — folders, runtime flow
-2. [Quick edit recipes](./quick-edit-recipes.md) — constants, single-file edits
-3. [Extension playbooks](./extension-playbooks.md) — features across multiple files
-4. Topic-category docs
+1. [Architecture](./architecture.md) — folders, runtime flow, layering  
+2. [Architecture · template boundary](./architecture-template-boundary.md) — **LOCKED** template-3d vs sol-arpg  
+3. [Quick edit recipes](./quick-edit-recipes.md) — constants / single-file edits  
+4. [Extension playbooks](./extension-playbooks.md) — multi-file features  
+5. Topic guides below  
 
-## Category list
+**Hero classes:** [agent/README.md](./agent/README.md)
+
+## Living guides (current contracts)
 
 | Doc | Covers |
 |-----|--------|
-| [architecture.md](./architecture.md) | module structure, boot order, dependency direction, layering |
-| [architecture-template-boundary.md](./architecture-template-boundary.md) | **LOCKED: template-3d vs sol-arpg ownership, GameContext, asset refs, skill registry, packages/template-3d** |
-| [plan/code-quality-roi-execution.md](./plan/code-quality-roi-execution.md) | **plan: P1 code-quality ROI execution (UI split, skill files, growth config, boot smoke)** |
-| [plan/code-quality-review-2026-07-16.md](./plan/code-quality-review-2026-07-16.md) | **record: cold code-quality review (scores, P1–P3, backlog)** |
-| [plan/code-quality-review-2026-07-16-after-roi.md](./plan/code-quality-review-2026-07-16-after-roi.md) | **record: after ROI W1–W6 review (before/after scores, next backlog)** |
-| [config-and-tuning.md](./config-and-tuning.md) | `GAME_CONFIG` / `PLAYER_CONFIG` / quality presets |
-| [content-data.md](./content-data.md) | zones · monsters · equipment · **skills combat/theme schema** |
+| [architecture.md](./architecture.md) | module structure, boot, dependency direction |
+| [architecture-template-boundary.md](./architecture-template-boundary.md) | **LOCKED:** GameContext, asset refs, skill registry, `packages/template-3d` |
+| [config-and-tuning.md](./config-and-tuning.md) | `GAME_CONFIG` / `PLAYER_CONFIG` / quality / growth tables |
+| [content-data.md](./content-data.md) | zones · monsters · equipment · skills schema |
 | [combat.md](./combat.md) | basic attack · skills · statuses · skillPower · recipes |
-| [audio.md](./audio.md) | Web Audio SFX, **themed skill banks**, mixing |
-| [characters-visual.md](./characters-visual.md) | hero/weapon visuals, class clip catalogs |
-| [agent/README.md](./agent/README.md) | **agent pack: multi-class heroes, add-class playbook, wizard reference** |
-| [monster-visual.md](./monster-visual.md) | monster color/form/elite detail, fallback builders |
-| [graphics-vfx.md](./graphics-vfx.md) | render pipeline, effect API, **skill recipes**, quality LOD |
-| [world.md](./world.md) | terrain, zone detection, vegetation, decoration |
-| [systems.md](./systems.md) | spawn · hunt · loot · event pipeline |
-| [assets.md](./assets.md) | GLB/texture manifest, loading |
-| [ui-input.md](./ui-input.md) | input, HUD, **mobile touch pad**, panels, camera |
-| [save-and-run.md](./save-and-run.md) | run, save, validate |
+| [audio.md](./audio.md) | Web Audio SFX, themed banks |
+| [characters-visual.md](./characters-visual.md) | hero/weapon visuals, clip catalogs |
+| [monster-visual.md](./monster-visual.md) | monster styling / elite presentation |
+| [graphics-vfx.md](./graphics-vfx.md) | render pipeline, Effects API, quality LOD |
+| [world.md](./world.md) | terrain, zones, vegetation |
+| [systems.md](./systems.md) | spawn · hunt · loot · modes pipeline |
+| [assets.md](./assets.md) | GLB/texture manifest |
+| [ui-input.md](./ui-input.md) | input, HUD, touch, panels, camera |
+| [save-and-run.md](./save-and-run.md) | server, save, validation |
 | [quick-edit-recipes.md](./quick-edit-recipes.md) | short request → file mapping |
-| [extension-playbooks.md](./extension-playbooks.md) | **applied: zone/skill/theme/performance E2E** |
-| [plan/defense-mode.md](./plan/defense-mode.md) | **plan: Defense mode (waves) — must not regress Hunt** |
-| [plan/multi-class-wizard.md](./plan/multi-class-wizard.md) | **plan: multi-class heroes + wizard GLB** |
-| [plan/ranger-class.md](./plan/ranger-class.md) | **plan: Ranger (archer / huntress) 4th hero class** |
-| [plan/short-session-polish.md](./plan/short-session-polish.md) | **plan: short-session content/visual polish (Tier A–B, no long-term sprawl)** |
-| [plan/shortform-rift-rush.md](./plan/shortform-rift-rush.md) | **implemented: 75–90 second Rift Rush, mutation drafts, hazards, Break/execution, daily seed, and trophies** |
-| [plan/shortform-rift-rush-tasks.md](./plan/shortform-rift-rush-tasks.md) | **Rift Rush implementation and validation progress record** |
-| [plan/skill-motion-spectacle.md](./plan/skill-motion-spectacle.md) | **implemented standard: skill content, motion & spectacle** |
-| [plan/level-100-skill-evolution/README.md](./plan/level-100-skill-evolution/README.md) | **implemented active-skill evolution and completed Phase 9 acceptance; deferred scope remains explicit** |
-| [plan/weapon-enhancement-gold-progression.md](./plan/weapon-enhancement-gold-progression.md) | **implemented gold-primary loot with survival potions, one signature weapon, and two enhancement tracks** |
-| [plan/weapon-visual-scale-detail.md](./plan/weapon-visual-scale-detail.md) | **plan: global 1.5× weapon visual scale + optional mesh detail (hit range independent)** |
-| [plan/monster-variety-hunt-defense.md](./plan/monster-variety-hunt-defense.md) | **plan: Hunt/Defense monster variety — roles, bestiary growth, affixes, wave recipes, visuals** |
-| [plan/presentation-and-motion-backlog.md](./plan/presentation-and-motion-backlog.md) | **backlog: VFX recipes, hit-feel, status juice, remaining motion (post pose-bake pass)** |
-| [plan/static-resource-character-motion.md](./plan/static-resource-character-motion.md) | **plan: Diablo-lite motion via baked clips only (walk, key density, settle; no blend trees/masks)** |
+| [extension-playbooks.md](./extension-playbooks.md) | zone/skill/theme/performance E2E |
+| [agent/README.md](./agent/README.md) | multi-class pack, add-class playbook, facing, validation |
+
+## Active plans
+
+| Plan | Status |
+|------|--------|
+| [plan/combat-motion-sophistication.md](./plan/combat-motion-sophistication.md) | **ready** — **full** combat action motion upgrade (research, baseline, out-of-scope, class cards, waves, validation) |
+
+See also [plan/README.md](./plan/README.md).
+
+## History (shipped plans & reviews)
+
+Index: **[history/README.md](./history/README.md)**
+
+Includes code-quality P1 + N1–N5, Defense, multi-class/wizard/ranger, skill spectacle, L100 evolution, motion bake, horde-clear V1, weapon progression, etc. (Rift Rush history only — removed from product.) Use for archaeology and “how did we ship X?”, not as open todo lists.
 
 ## Agent working rules (summary)
 
-1. **For data, look at `js/data/content.js` and `js/config.js` first.** Skill balance lives in `SKILLS.combat` (+ `skillCombat.js` / `fxThemes.js`).
-2. **Separate combat numbers from presentation**: numbers in content; hits in `CombatSystem`; spectacle via **Effects recipes** + themes — not palette-only twins.
-3. **Camera shake / hit-stop are disabled.** Do not re-enable `Game.shake` / `Game.hitStop` (stable screen kept at user request).
-4. **No external CDN.** Three.js uses `vendor/` local only.
-5. After content/skill/path edits, run `node tests/integrity.mjs` (includes `tests/skill-combat.mjs`).
-6. No unnecessary refactor or full reformat. Edit only the requested scope.
+1. **Data first** — `js/data/content.js`, `js/config.js`, `js/data/skillCombat.js`, `js/data/fxThemes.js`.  
+2. **Numbers ≠ hits ≠ FX** — content for numbers; `CombatSystem` (+ `js/systems/combat/*`) for hits; `Effects` recipes for spectacle.  
+3. **Camera** — `Game.shake` / `Game.hitStop` stay no-ops.  
+4. **No CDN** — Three.js from `vendor/` only.  
+5. After content/path/skill edits: `node tests/integrity.mjs`.  
+6. Edit only the requested scope. Docs under `docs/` are English; player UI is English.
 
-## Core file map (ultra-compact)
+## Core file map
 
 ```
-js/main.js                 entry
-js/core/Game.js            loop, camera, state machine
-js/config.js               world/player tuning constants
-js/data/content.js         zone·enemy·equipment·skill tables (combat/theme/sfx)
-js/data/skillCombat.js     pure skill damage + status helpers
-js/data/fxThemes.js        skill color themes + particle quality mul
-js/systems/CombatSystem.js attack/skill/hit detection + skillHandlers
-js/graphics/Effects.js     primitives + skill recipes + quality LOD
-js/characters/*            hero/monster visuals
-js/world/*                 terrain·zone·environment
-assets/manifests/assets.json  asset key → path
+js/main.js                      entry
+js/core/Game.js                 loop, camera, input, thin mode/kill facades
+js/core/gameModes.js            Hunt / Defense lifecycle helpers
+js/core/killFeedback.js         multikill, chain, level-up nova, kill refund
+js/core/GameContext.js          GAME_CONTEXT_KEYS (LOCKED)
+js/config.js                    Sol tuning (growth, combat feel, …)
+js/core/runtimeConstants.js     template-safe locomotion / feel scales
+js/data/content.js              zone · enemy · equipment · skill tables
+js/data/skillCombat.js          pure skill damage + status helpers
+js/data/fxThemes.js             skill color themes + particle quality mul
+js/data/defenseContent.js       Defense encounters + decision mutators
+js/systems/CombatSystem.js      hit hub + orchestration
+js/systems/combat/              skill kits, basicAttacks, projectiles, registry
+js/systems/DefenseSystem.js     Defense wave climb FSM
+js/ui/UI.js                     facade + bindEvents + thin panel delegates
+js/ui/panels/                   inventory, skills, HUD, minimap, title, …
+js/graphics/Effects.js          primitives + skill recipes + quality LOD
+js/characters/*                 hero/monster visuals
+js/world/*                      terrain · zone · environment
+assets/manifests/assets.json    asset key → path
+tests/integrity.mjs             merge gate (skill-combat, boot-smoke, …)
 ```

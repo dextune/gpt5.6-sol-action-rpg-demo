@@ -62,7 +62,7 @@ The `WEAPON_LENGTH` block comment notes blades were reduced to ~70% of a previou
 
 ## Phase 0 — Persist plan as repo doc (done when this file lands)
 
-1. Create this document under `docs/plan/`.
+1. Create this document under `docs/history/`.
 2. Link from `docs/README.md` plan table.
 3. Do not implement code until Phase 1 is requested.
 
@@ -162,7 +162,7 @@ Do **not** rebake only to achieve 1.5× — runtime scale already multiplies the
 
 ### Phase 0 (docs)
 
-1. Write `docs/plan/weapon-visual-scale-detail.md`.
+1. Write `docs/history/weapon-visual-scale-detail.md`.
 2. Add row in `docs/README.md` plan table.
 
 ### Phase 1 (code — later)
@@ -186,7 +186,7 @@ Do **not** rebake only to achieve 1.5× — runtime scale already multiplies the
 
 ## Success criteria
 
-- Plan is discoverable under `docs/plan/` and linked from `docs/README.md`.
+- Plan is discoverable under `docs/history/` and linked from `docs/README.md`.
 - (After Phase 1) Every class’s equipped weapon is clearly visible at default play camera distance.
 - Relative kind proportions preserved (dagger &lt; sword &lt; greatsword).
 - Rogue dual daggers readable without cartoon oversize vs body (optional dagger bias if needed).

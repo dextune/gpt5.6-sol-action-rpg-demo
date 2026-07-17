@@ -5,6 +5,8 @@
 **Captured:** 2026-07-16  
 **Basis:** cold code-quality review (post template-boundary + runtimeConstants) — full write-up: [code-quality-review-2026-07-16.md](./code-quality-review-2026-07-16.md)  
 **After re-review:** [code-quality-review-2026-07-16-after-roi.md](./code-quality-review-2026-07-16-after-roi.md)  
+**Next plan:** [code-quality-next-roi.md](./code-quality-next-roi.md)  
+
 
 **Constraint:** no full rewrite, no DI container, no TypeScript migration, no shake/hitStop/CDN changes.
 

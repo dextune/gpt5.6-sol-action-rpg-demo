@@ -65,7 +65,7 @@ Profiles: `HERO_BAKE_PROFILES` in `generate_assets.mjs`. Shared: skeleton, body 
 Hunter starter: **Swift Field Blade** (`katana`).  
 Wizard starter: **Apprentice Focus** (`relic`).
 
-Applied scale is `(WEAPON_GIRTH * WEAPON_VISUAL_SCALE, WEAPON_LENGTH * WEAPON_VISUAL_SCALE, …)`; rogue offhand uses the same magnitudes with mirrored X. Hit detection `range` / `rangeMult` are independent of mesh length (see `docs/plan/weapon-visual-scale-detail.md`).
+Applied scale is `(WEAPON_GIRTH * WEAPON_VISUAL_SCALE, WEAPON_LENGTH * WEAPON_VISUAL_SCALE, …)`; rogue offhand uses the same magnitudes with mirrored X. Hit detection `range` / `rangeMult` are independent of mesh length (see `docs/history/weapon-visual-scale-detail.md`).
 
 ## Animation clip names
 
@@ -107,18 +107,19 @@ node tools/assets/generate_assets.mjs --heroes-only
 node tests/integrity.mjs
 ```
 
-Hold/attack tuning: `classWeaponHold(profileId)`, `buildClassCombatClipSpecs`, and skill poses in `heroAnimations()`. Prefer **anticipation → contact → follow-through → settle** keys with legs/spine/head — sparse arm-only keys look wooden. `animationClip` hold-forwards omitted bones (does not snap missing keys to identity).
+Hold/attack tuning: `classWeaponHold(profileId)`, `buildClassCombatClipSpecs`, and skill poses in `heroAnimations()`. Per-class **`COMBAT_MOTION_PROFILE`** (antiRatio / contactRatio / finisher boosts / contactSnap / durationScale / mass) drives phase times via `combatPhaseTimes` + `strikePhases`. Prefer **anticipation → contact → follow-through → settle** keys with legs/spine/head — sparse arm-only keys look wooden. `animationClip` hold-forwards omitted bones (does not snap missing keys to identity).
 Each GLB only ships shared locomotion/reaction clips plus its own class combat clips — register new clips in `HERO_CLASS_CLIPS` so they survive the per-class filter.
 Runtime: `Player.trySkill` has limited anim fallbacks if a clip is missing — still bake unique names for shipping quality.
 
 ### Motion + combat sync
 
 - Skills with `timeline.hits` fire combat phases via `CharacterAnimationController.scheduleNormalized`.  
-- See [combat.md](./combat.md) cast flow and [plan/skill-motion-spectacle.md](./plan/skill-motion-spectacle.md).
+- See [combat.md](./combat.md) cast flow and [history/skill-motion-spectacle.md](./history/skill-motion-spectacle.md).
 
 ### Future motion (static resources only)
 
-Planned next motion upgrades that stay inside the bake/manifest pipeline (new clips such as `walk`, denser combat keys, settle continuity)—**not** runtime blend trees, bone masks, or procedural secondary motion—are specified in [plan/static-resource-character-motion.md](./plan/static-resource-character-motion.md).
+Bake-only Diablo-lite locomotion (walk / denser holds / hit tiers) is shipped history: [history/static-resource-character-motion.md](./history/static-resource-character-motion.md).  
+**Next combat strike/skill body upgrade** (full spec): [plan/combat-motion-sophistication.md](./plan/combat-motion-sophistication.md).
 
 ## Outlines
 

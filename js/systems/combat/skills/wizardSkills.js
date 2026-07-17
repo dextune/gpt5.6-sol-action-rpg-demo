@@ -18,7 +18,10 @@ _fireball(player, bundle, phase = null, apexAudio = null) {
   const fire = () => {
     if (!player.alive) return;
     const { combat, theme } = this._skillBundle(bundle);
-    const direction = this._facingDir(player);
+    const lockedTarget = this._autoTargetEnemy(player, combat.targetRange ?? 22);
+    const direction = lockedTarget
+      ? this._faceAutoTarget(player, lockedTarget)
+      : this._facingDir(player);
     const start = player.position.clone().add(new THREE.Vector3(0, 1.2, 0)).addScaledVector(direction, 1.05);
     const castState = this._beginWizardCast(player, bundle.id, bundle);
     castState.apexAudio = apexAudio;
@@ -64,6 +67,7 @@ _fireball(player, bundle, phase = null, apexAudio = null) {
       scale: combat.scale ?? 1.35,
       statusOnHit: combat.status ?? null,
       castId,
+      homingTarget: lockedTarget,
       castMeta: { skillId: bundle.id, playerLevel: bundle.playerLevel },
       onHit: handleFireLanded,
       onRetire: projectile => {
@@ -109,6 +113,11 @@ _fireball(player, bundle, phase = null, apexAudio = null) {
         skillPowerApplied: true,
         onHit: handleFireLanded,
         sameCastHit: { key: `${castId}:blast`, maxHits: 1 },
+        // Gravity Fireball identity — yank prey into the core before the blast lands.
+        implosionRadius: combat.implosionRadius ?? 0,
+        implosionRing: combat.implosionRing ?? 1.35,
+        implosionCap: combat.implosionCap ?? 10,
+        knockback: combat.knockback ?? 2.2,
       },
     });
   };
@@ -124,10 +133,16 @@ _frostNova(player, bundle, phase = null, apexAudio = null) {
     const { combat, theme } = this._skillBundle(bundle);
     const rank = bundle.rank;
     const radius = combat.radius;
-    const center = player.position.clone();
-    const castFacing = this._facingDir(player);
+    const lockedTarget = this._autoTargetEnemy(player, combat.targetRange ?? 20, {
+      clusterRadius: combat.clusterRadius ?? radius,
+    });
+    const center = lockedTarget?.position.clone() ?? player.position.clone();
+    const castFacing = lockedTarget
+      ? this._faceAutoTarget(player, lockedTarget)
+      : this._facingDir(player);
     player.invulnerable = Math.max(player.invulnerable, combat.invuln ?? 0.28);
     (this.ctx ?? this.game).effects.recipeIceNova(center, theme, radius);
+    (this.ctx ?? this.game).effects.recipeGlacialPrison?.(center, theme, radius);
     this._apexAudioPhase(player, castState.apexAudio, 'impact');
     // Rank 3+: deepen chill on already-slowed targets (B5).
     for (const enemy of (this.ctx ?? this.game).enemies.enemies) {
@@ -135,8 +150,8 @@ _frostNova(player, bundle, phase = null, apexAudio = null) {
       if (enemy.position.distanceTo(center) > radius + enemy.radius) continue;
       if (rank >= 3 && enemy.statuses?.slow?.remaining > 0) {
         enemy.applyStatus?.('slow', {
-          duration: combat.deepChillDuration ?? 1.55,
-          power: combat.deepChillPower ?? 0.58,
+          duration: combat.deepChillDuration ?? 1.8,
+          power: combat.deepChillPower ?? 0.72,
         }, this.game);
       }
     }
@@ -147,17 +162,26 @@ _frostNova(player, bundle, phase = null, apexAudio = null) {
         && enemy.spellPrime?.id === 'crystal')
       : []);
     if (combat.lances) (this.ctx ?? this.game).effects.recipeCrystalDominion?.(center, theme, radius, Math.min(6, combat.lances), Boolean(combat.dominion));
+    // Opening prison tick — light damage, no scatter, hard hold on non-bosses.
     this._hitEnemiesInRadius(
       center,
       radius,
       skillDamage(player.attackPower, combat),
       {
-        knockback: combat.knockback ?? 5.4,
+        knockback: combat.knockback ?? 0,
         multiHit: true,
-        criticalBonus: combat.criticalBonus ?? 0.04,
+        criticalBonus: combat.criticalBonus ?? 0.05,
         skill: true,
         status: combat.status ?? null,
         onHit: enemy => {
+          if (enemy.controlCategory === 'boss' || enemy.boss) {
+            (this.ctx ?? this.game).effects.recipeBossPullResist?.(enemy.position, center, theme);
+            enemy.addStagger?.(8);
+          } else {
+            enemy.applyStun?.(combat.holdDuration ?? 1.2);
+            enemy.velocity?.set?.(0, 0, 0);
+            enemy.knockback?.set?.(0, 0, 0);
+          }
           const reacted = this._reactSpellPrime(enemy, 'frost', player, skillDamage(player.attackPower, combat), { castId: frostCastId });
           const executes = !reacted && executionCrystals.has(enemy)
             && enemy.consumeSpellPrime?.('crystal');
@@ -176,23 +200,49 @@ _frostNova(player, bundle, phase = null, apexAudio = null) {
         },
       },
     );
-    if (combat.lances) this._delay(.18, () => {
-      if (!this._isWizardGenerationCurrent(player, castState)) return;
-      const lanceHits = new Map();
-      for (let lance = 0; lance < Math.min(6, combat.lances); lance += 1) {
-        const angle = lance / 6 * Math.PI * 2;
-        const lanceDir = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
-        for (const enemy of (this.ctx ?? this.game).enemies.enemies) {
-          if (!enemy.alive || (lanceHits.get(enemy.id) ?? 0) >= Math.min(2, combat.lancePerEnemyCap ?? 2)) continue;
-          const offset = enemy.position.clone().sub(center).setY(0);
-          const along = offset.dot(lanceDir);
-          const lateral = offset.addScaledVector(lanceDir, -along).length();
-          if (along < 0 || along > radius + 2.4 || lateral > .62 + enemy.radius) continue;
-          lanceHits.set(enemy.id, (lanceHits.get(enemy.id) ?? 0) + 1);
-          this._damageEnemy(enemy, skillDamage(player.attackPower, combat) * (combat.lanceMult ?? 0), {
-            direction: lanceDir, knockback: 1, multiHit: true, skill: true,
+    // Shatter pulse — main damage identity of Glacial Prison.
+    const shatterDelay = combat.shatterDelay ?? 0.55;
+    this._delay(shatterDelay, () => {
+      if (!player.alive || !this._isWizardGenerationCurrent(player, castState)) {
+        if (!combat.dominion) this._endWizardCast(player, castState);
+        return;
+      }
+      (this.ctx ?? this.game).effects.recipeGlacialShatter?.(center, theme, radius);
+      const shatterRaw = skillDamage(player.attackPower, combat, 'shatterMult');
+      this._hitEnemiesInRadius(center, radius * 1.05, shatterRaw, {
+        knockback: combat.shatterKnockback ?? 2.4,
+        multiHit: true,
+        skill: true,
+        sameCastHit: { key: `${frostCastId}:shatter`, maxHits: 1 },
+        onHit: enemy => {
+          if (combat.dominion) return;
+          this._applyApexKeystone(player, enemy, {
+            bundle, theme, rawDamage: shatterRaw, castKey: frostCastId,
+            budget: castState.apexBudget, overcast: castState.overcast,
           });
+        },
+      });
+      if (combat.lances) {
+        const lanceHits = new Map();
+        for (let lance = 0; lance < Math.min(6, combat.lances); lance += 1) {
+          const angle = lance / 6 * Math.PI * 2;
+          const lanceDir = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
+          for (const enemy of (this.ctx ?? this.game).enemies.enemies) {
+            if (!enemy.alive || (lanceHits.get(enemy.id) ?? 0) >= Math.min(2, combat.lancePerEnemyCap ?? 2)) continue;
+            const offset = enemy.position.clone().sub(center).setY(0);
+            const along = offset.dot(lanceDir);
+            const lateral = offset.addScaledVector(lanceDir, -along).length();
+            if (along < 0 || along > radius + 2.4 || lateral > .62 + enemy.radius) continue;
+            lanceHits.set(enemy.id, (lanceHits.get(enemy.id) ?? 0) + 1);
+            this._damageEnemy(enemy, skillDamage(player.attackPower, combat) * (combat.lanceMult ?? 0), {
+              direction: lanceDir, knockback: 1, multiHit: true, skill: true,
+            });
+          }
         }
+      }
+      if (!combat.dominion) {
+        this._apexAudioPhase(player, castState.apexAudio, 'finisher');
+        this._endWizardCast(player, castState);
       }
     });
     if (combat.freezeChainCap) {
@@ -203,7 +253,7 @@ _frostNova(player, bundle, phase = null, apexAudio = null) {
         else enemy.addStagger?.(enemy.controlCategory === 'boss' ? 22 : 16);
       }
     }
-    if (combat.dominion) this._delay(.42, () => {
+    if (combat.dominion) this._delay(.42 + shatterDelay, () => {
       if (!player.alive || !this._isWizardCastCurrent(player, castState)) {
         this._endWizardCast(player, castState);
         return;
@@ -231,7 +281,6 @@ _frostNova(player, bundle, phase = null, apexAudio = null) {
         });
       });
     }
-    if (!combat.dominion) this._endWizardCast(player, castState);
   };
   if (phase != null && phase !== 'full') fire();
   else fire();
@@ -242,7 +291,11 @@ _arcaneBlink(player, bundle, apexAudio = null) {
   castState.apexAudio = apexAudio;
   const blinkCastId = `blink-${castState.generation}-${++this.spellCastSerial}`;
   const { combat, theme } = this._skillBundle(bundle);
-  const target = this._aimAlongFacing(player, combat.leap ?? 11);
+  const lockedTarget = this._autoTargetEnemy(player, combat.targetRange ?? 19, {
+    clusterRadius: combat.clusterRadius ?? 5.2,
+  });
+  if (lockedTarget) this._faceAutoTarget(player, lockedTarget);
+  const target = lockedTarget?.position.clone() ?? this._aimAlongFacing(player, 10);
   const from = player.position.clone();
   const radius = combat.radius;
   this._telegraphCircle(target, radius, combat.telegraph ?? 0.42, theme.primary, () => {
@@ -250,10 +303,8 @@ _arcaneBlink(player, bundle, apexAudio = null) {
       this._endWizardCast(player, castState);
       return;
     }
-    player.position.copy(target);
-    (this.ctx ?? this.game).world.resolvePosition(player.position, 0.48);
-    const to = player.position.clone();
-    player.invulnerable = Math.max(player.invulnerable, combat.invuln ?? 0.55);
+    const to = target.clone();
+    to.y = (this.ctx ?? this.game).world.heightAt(to.x, to.z);
     (this.ctx ?? this.game).effects.recipeBlinkBurst(from, to, theme, radius);
     this._apexAudioPhase(player, castState.apexAudio, 'impact');
     if (combat.routeMult) {
@@ -346,13 +397,18 @@ _meteorStorm(player, bundle, apexAudio = null) {
   const castState = this._beginWizardCast(player, bundle.id, bundle);
   castState.apexAudio = apexAudio;
   const { combat, theme } = this._skillBundle(bundle);
-  const facing = this._facingDir(player);
-  const center = this._aimAlongFacing(player, combat.aim ?? 10);
+  const lockedTarget = this._autoTargetEnemy(player, combat.targetRange ?? 24, {
+    clusterRadius: combat.clusterRadius ?? 6.2,
+  });
+  const center = lockedTarget?.position.clone() ?? this._aimAlongFacing(player, combat.aim ?? 10);
   if (combat.worldEnder) {
-    const durable = (this.ctx ?? this.game).enemies.enemies.filter(enemy => enemy.alive && (enemy.elite || enemy.boss))
-      .sort((a, b) => a.position.distanceToSquared(center) - b.position.distanceToSquared(center))[0];
+    const durable = this._autoTargetEnemy(player, combat.targetRange ?? 24, { durableFirst: true });
     if (durable) center.copy(durable.position);
   }
+  const facing = center.clone().sub(player.position).setY(0);
+  if (facing.lengthSq() < .0001) facing.copy(this._facingDir(player));
+  else facing.normalize();
+  player.facing.copy(facing);
   const hits = Math.min(10, Math.max(1, Math.round(combat.hits ?? 6), Math.round(combat.impactsCap ?? 0)));
   const fallHeight = combat.fallHeight ?? 8.5;
   let gravityReactions = 0;
@@ -405,7 +461,9 @@ _meteorStorm(player, bundle, apexAudio = null) {
         if (!this._isWizardGenerationCurrent(player, castState)) return;
         this._apexAudioPhase(player, castState.apexAudio, 'impact');
         (this.ctx ?? this.game).effects.recipeMeteorDrop(impactPoint, theme, fallHeight);
-        if (combat.fractures && (this._quality() === 'high' || i % 2 === 0)) {
+        // Authoritative fracture damage still lands on every impact; alternate only
+        // the long-lived decorative decal so ten-meteor Apex casts do not fill the pool.
+        if (combat.fractures && i % 2 === 0) {
           (this.ctx ?? this.game).effects.recipeGroundFracture?.(impactPoint, facing, theme, combat.hitRadius * 1.15);
         }
         this._hitEnemiesInRadius(
