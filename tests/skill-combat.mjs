@@ -1410,6 +1410,40 @@ const rangerProbe = (enemies = []) => {
   return { player, game, events, combat: new CombatSystem(game) };
 };
 
+const strafeFront = makeWizardEnemy('strafe-front', 5, 0);
+const strafeNext = makeWizardEnemy('strafe-next', 7, .4);
+const strafeBehind = makeWizardEnemy('strafe-behind', -1.5, 0);
+const strafeProbe = rangerProbe([strafeBehind, strafeNext, strafeFront]);
+strafeProbe.player.level = content.SKILLS.strafe.unlockLevel;
+strafeProbe.combat._rangerStrafeAttack(strafeProbe.player, 0);
+const firstVolley = strafeProbe.combat.delayed.splice(0)
+  .sort((a, b) => a.time - b.time);
+for (let i = 0; i < 3; i += 1) firstVolley[i].callback();
+const openingTargets = strafeProbe.combat.projectiles.map(projectile => projectile.homingTarget);
+strafeFront.alive = false;
+for (let i = 3; i < firstVolley.length; i += 1) firstVolley[i].callback();
+const inheritedTargets = strafeProbe.combat.projectiles.slice(3).map(projectile => projectile.homingTarget);
+ok(openingTargets.length === 3 && openingTargets.every(target => target === strafeFront)
+  && inheritedTargets.length > 0 && inheritedTargets.every(target => target === strafeNext),
+  'Ranger L5 Strafe focuses the nearest forward prey, then inherits the next target only after death');
+
+const strafeCloser = makeWizardEnemy('strafe-closer', 2, 0);
+strafeProbe.game.enemies.enemies.push(strafeCloser);
+strafeProbe.combat._rangerStrafeAttack(strafeProbe.player, 0);
+const secondVolley = strafeProbe.combat.delayed.splice(0).sort((a, b) => a.time - b.time);
+secondVolley[0].callback();
+ok(strafeProbe.combat.projectiles.at(-1)?.homingTarget === strafeNext,
+  'Ranger basic target lock persists across volleys instead of switching to a newly closer enemy');
+strafeNext.position.set(400, 0, 0);
+strafeProbe.combat._rangerStrafeAttack(strafeProbe.player, 0);
+const rangeExitVolley = strafeProbe.combat.delayed.splice(0).sort((a, b) => a.time - b.time);
+rangeExitVolley[0].callback();
+ok(strafeProbe.combat.projectiles.at(-1)?.homingTarget === strafeCloser,
+  'Ranger basic target lock advances when the focused enemy leaves Strafe range');
+strafeProbe.combat.clear();
+ok(!strafeProbe.combat.rangerBasicTargets.has(strafeProbe.player),
+  'combat clear releases the persistent Ranger basic target lock');
+
 const railProbe = rangerProbe();
 const railBundle = resolveSkillForm(content.SKILLS.piercing_shot, 10, 100, { tier40: 'rail_arrow', tier80: 'crowd_skewer' });
 railProbe.combat.usePlayerSkill(railBundle, railProbe.player, 0);

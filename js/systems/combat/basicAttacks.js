@@ -7,6 +7,40 @@ import { getClassBasicAttack, getHeroClass, SKILLS } from '../../data/content.js
 import { getFxTheme } from '../../data/fxThemes.js';
 import { clamp } from '../../core/Utils.js';
 
+const RANGER_BASIC_TARGETING = Object.freeze({
+  frontDot: 0,
+});
+
+function selectRangerBasicTarget(enemies, origin, facing, range, currentTarget = null) {
+  if (currentTarget?.alive && enemies.includes(currentTarget)) {
+    const dx = currentTarget.position.x - origin.x;
+    const dz = currentTarget.position.z - origin.z;
+    const reach = range + (currentTarget.radius ?? .6);
+    if (dx * dx + dz * dz <= reach * reach) return currentTarget;
+  }
+
+  const facingLengthSq = facing.x * facing.x + facing.z * facing.z;
+  const candidates = [];
+  for (let index = 0; index < enemies.length; index += 1) {
+    const enemy = enemies[index];
+    if (!enemy?.alive) continue;
+    const dx = enemy.position.x - origin.x;
+    const dz = enemy.position.z - origin.z;
+    const distanceSq = dx * dx + dz * dz;
+    const reach = range + (enemy.radius ?? .6);
+    if (distanceSq > reach * reach) continue;
+    const frontDot = distanceSq > 1e-6 && facingLengthSq > 1e-6
+      ? (dx * facing.x + dz * facing.z) / Math.sqrt(distanceSq * facingLengthSq)
+      : 1;
+    candidates.push({ enemy, distanceSq, front: frontDot >= RANGER_BASIC_TARGETING.frontDot, index });
+  }
+
+  candidates.sort((a, b) => Number(b.front) - Number(a.front)
+    || a.distanceSq - b.distanceSq
+    || a.index - b.index);
+  return candidates[0]?.enemy ?? null;
+}
+
 export function attachBasicAttackMethods(proto) {
   Object.assign(proto, {
 _meleeAttack(player, combo, comboLength = 4) {
@@ -258,27 +292,28 @@ _rangerStrafeAttack(player, combo, comboLength = 4) {
       );
     }
 
-    const pickTargets = () => (this.ctx ?? this.game).enemies.enemies
-      .filter(enemy => enemy.alive
-        && enemy.position.distanceTo(player.position) <= range + (enemy.radius ?? 0.6))
-      .sort((a, b) => a.position.distanceToSquared(player.position) - b.position.distanceToSquared(player.position));
+    const acquireTarget = () => {
+      const current = this.rangerBasicTargets.get(player) ?? null;
+      const target = selectRangerBasicTarget(
+        (this.ctx ?? this.game).enemies.enemies,
+        player.position,
+        this._facingDir(player),
+        range,
+        current,
+      );
+      if (target) this.rangerBasicTargets.set(player, target);
+      else this.rangerBasicTargets.delete(player);
+      return target;
+    };
 
-    const initial = pickTargets();
-    // Round-robin assignment across the pack (Strafe sprays many foes when available).
-    const sequence = [];
-    for (let i = 0; i < shots; i += 1) {
-      sequence.push(initial.length ? initial[i % initial.length] : null);
-    }
+    // Keep the same prey across volleys; only death or leaving range releases the lock.
+    acquireTarget();
 
     const castId = `strafe-${++this.rangerSerial}`;
     for (let i = 0; i < shots; i += 1) {
       this._delay(i * interval, () => {
         if (!player.alive) return;
-        let target = sequence[i];
-        if (!target?.alive) {
-          const living = pickTargets();
-          target = living.length ? living[i % living.length] : null;
-        }
+        const target = acquireTarget();
         let dir = this._facingDir(player);
         if (target?.alive) {
           dir = target.position.clone().sub(player.position).setY(0);

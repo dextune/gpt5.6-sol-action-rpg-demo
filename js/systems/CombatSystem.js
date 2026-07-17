@@ -32,6 +32,7 @@ export class CombatSystem {
     this.wizardCastState = new WeakMap();
     this.wizardCastGeneration = new WeakMap();
     this.rangerGeneration = new WeakMap();
+    this.rangerBasicTargets = new WeakMap();
     this.rangerSerial = 0;
     this.apexAudioStates = new WeakMap();
     this.apexAudioSerial = 0;
@@ -853,6 +854,7 @@ export class CombatSystem {
       this.game.player.predatorVerdict = null;
       this.game.player.clearArcaneOverflow?.();
       this.rangerGeneration.delete(this.game.player);
+      this.rangerBasicTargets.delete(this.game.player);
       this.ownedCastGenerations.delete(this.game.player);
       this.whirlwindStates.delete(this.game.player);
       this.twinFangStates.delete(this.game.player);

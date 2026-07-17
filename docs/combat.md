@@ -30,6 +30,8 @@ Keyboard J only (not mouse)
   → delayed hit frame(s)
       melee: swingArc + cone hits
       magic: mana orbs / finisher fan
+      ranger L5+: lock the nearest enemy in the forward half-plane, focus every Strafe arrow,
+                  then acquire the next target only after death or range exit
       #damageEnemy → enemy.takeDamage
       effects.impact (juice)
 ```
