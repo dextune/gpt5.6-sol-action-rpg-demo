@@ -1,5 +1,7 @@
 import * as THREE from 'three';
-import { GAME_CONFIG, HORDE_CONFIG, HUNT_THREAT_CONFIG } from '../config.js';
+import {
+  GAME_CONFIG, HORDE_CONFIG, HUNT_SPAWN_CONFIG, HUNT_THREAT_CONFIG,
+} from '../config.js';
 import {
   ELITE_AFFIXES, ENEMY_TYPES, ZONES, ZONE_BOSSES, ZONE_SPAWNS, enemiesByZoneRole,
 } from '../data/content.js';
@@ -66,16 +68,19 @@ export class EnemySystem {
 
     // Continuous field spawn is Hunt-only. Defense authors its own wave encounters.
     if (huntMode && this.spawnTimer <= 0 && this.game.state === 'playing' && this.game.player.alive) {
-      this.spawnTimer = this.livingCount < 18 ? .06 : .22;
+      this.spawnTimer = this.livingCount < HUNT_SPAWN_CONFIG.sparseLiving
+        ? HUNT_SPAWN_CONFIG.sparseInterval
+        : HUNT_SPAWN_CONFIG.steadyInterval;
       const target = clamp(
-        GAME_CONFIG.targetEnemies + Math.floor(this.game.player.level / 8),
-        Math.min(48, GAME_CONFIG.targetEnemies),
+        GAME_CONFIG.targetEnemies
+          + Math.floor(Math.max(0, this.game.player.level - 1) / HUNT_SPAWN_CONFIG.levelTargetDivisor),
+        Math.min(HUNT_SPAWN_CONFIG.initialEnemies, GAME_CONFIG.targetEnemies),
         GAME_CONFIG.maxEnemies,
       );
       if (this.livingCount < target) {
         // Prefer packs for horde density; fall back to singles near cap.
         // On-level pack pressure: denser packs when the field is sparse.
-        const room = GAME_CONFIG.maxEnemies + 4 - this.enemies.length;
+        const room = GAME_CONFIG.maxEnemies + HUNT_SPAWN_CONFIG.capBuffer - this.enemies.length;
         const zone = this.game.world.currentZone;
         const threat = zoneThreat(this.game.player.level, zone);
         const pressure = this.livingCount < HUNT_THREAT_CONFIG.packPressureLiving
@@ -153,7 +158,7 @@ export class EnemySystem {
   spawnPack(typeOrData = null, count = null, origin = null) {
     const player = this.game.player;
     const world = this.game.world;
-    const packCap = GAME_CONFIG.maxEnemies + 4 - this.enemies.length;
+    const packCap = GAME_CONFIG.maxEnemies + HUNT_SPAWN_CONFIG.capBuffer - this.enemies.length;
     if (packCap <= 0) return [];
 
     const size = Math.min(
@@ -195,7 +200,7 @@ export class EnemySystem {
 
     const spawned = [];
     for (let i = 0; i < size; i += 1) {
-      if (this.enemies.length >= GAME_CONFIG.maxEnemies + 4) break;
+      if (this.enemies.length >= GAME_CONFIG.maxEnemies + HUNT_SPAWN_CONFIG.capBuffer) break;
       const angle = (i / size) * Math.PI * 2 + rand(-0.25, 0.25);
       const dist = rand(0.4, 2.5);
       const pos = new THREE.Vector3(
@@ -232,12 +237,12 @@ export class EnemySystem {
       ?? (affixId ? affixId[0].toUpperCase() + affixId.slice(1) : '');
   }
 
-  populate(count = 48) {
+  populate(count = HUNT_SPAWN_CONFIG.initialEnemies) {
     const target = Math.min(count, GAME_CONFIG.maxEnemies);
     // Fill denser with packs first, then singles to top off.
     while (this.livingCount < target) {
       const room = target - this.livingCount;
-      if (room >= HORDE_CONFIG.packMin && chance(0.65)) {
+      if (room >= HORDE_CONFIG.packMin && chance(HUNT_SPAWN_CONFIG.populatePackChance)) {
         const want = Math.min(room, randInt(HORDE_CONFIG.packMin, HORDE_CONFIG.packMax));
         const before = this.livingCount;
         this.spawnPack(null, want);
@@ -248,12 +253,12 @@ export class EnemySystem {
         if (this.livingCount <= before) break;
       }
     }
-    this.spawnTimer = .35;
+    this.spawnTimer = HUNT_SPAWN_CONFIG.steadyInterval;
   }
 
   spawn(dataOrId, position, options = {}) {
     const data = typeof dataOrId === 'string' ? ENEMY_TYPES[dataOrId] : dataOrId;
-    if (!data || this.enemies.length >= GAME_CONFIG.maxEnemies + 4) return null;
+    if (!data || this.enemies.length >= GAME_CONFIG.maxEnemies + HUNT_SPAWN_CONFIG.capBuffer) return null;
     const spawnPosition = position.clone();
     this.game.world.resolvePosition(spawnPosition, .7);
     const enemy = new Enemy(this.game.scene, data, spawnPosition, {

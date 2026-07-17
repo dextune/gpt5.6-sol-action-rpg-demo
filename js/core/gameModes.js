@@ -3,7 +3,7 @@
  * Frame loop, camera, and input stay on Game.js.
  */
 import * as THREE from 'three';
-import { DEFENSE_CONFIG, GAME_CONFIG } from '../config.js';
+import { DEFENSE_CONFIG, GAME_CONFIG, HUNT_SPAWN_CONFIG } from '../config.js';
 import { clamp } from '../../packages/template-3d/index.js';
 import { applyKillChainMods } from './killFeedback.js';
 
@@ -113,7 +113,7 @@ export function respawnPlayer(game) {
     game.state = 'playing';
     (game.ctx?.ui ?? game.ui).hideDeath();
     game.snapCamera();
-    (game.ctx?.enemies ?? game.enemies).populate(40);
+    (game.ctx?.enemies ?? game.enemies).populate(HUNT_SPAWN_CONFIG.respawnEnemies);
     (game.ctx?.ui ?? game.ui).notify(penalty > 0 ? `Revived at hub · Repair cost ${penalty}G` : 'Revived at hub.', 'danger', 3.8);
     game.requestSave();
   }
@@ -134,7 +134,7 @@ export function startNewGame(game, options = {}) {
     game.state = 'playing';
     (game.ctx?.ui ?? game.ui).showHUD();
     game.snapCamera();
-    (game.ctx?.enemies ?? game.enemies).populate(52);
+    (game.ctx?.enemies ?? game.enemies).populate(HUNT_SPAWN_CONFIG.initialEnemies);
     const heroName = (game.ctx?.player ?? game.player).name;
     const ui = game.ctx?.ui ?? game.ui;
     ui.notify(`Hunt started · ${heroName} enters the field.`, 'contract', 4.5);
@@ -226,7 +226,7 @@ export function continueSavedGame(game) {
       if ((game.ctx?.ui ?? game.ui)) (game.ctx?.ui ?? game.ui).selectedClassId = (game.ctx?.player ?? game.player).classId;
       (game.ctx?.ui ?? game.ui).showHUD();
       game.snapCamera();
-      (game.ctx?.enemies ?? game.enemies).populate(52);
+      (game.ctx?.enemies ?? game.enemies).populate(HUNT_SPAWN_CONFIG.initialEnemies);
       // Re-write current schema so Continue stays durable after version upgrades.
       game.saveGame(false);
       (game.ctx?.ui ?? game.ui).notify(

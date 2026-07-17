@@ -7,8 +7,8 @@ export const GAME_CONFIG = Object.freeze({
   terrainSegments: 144,
   autoSaveSeconds: 24,
   maxDelta: 0.05,
-  targetEnemies: 60,
-  maxEnemies: 90,
+  targetEnemies: 72,
+  maxEnemies: 108,
   spawnInnerRadius: 18,
   spawnOuterRadius: 46,
   despawnRadius: 78,
@@ -102,14 +102,62 @@ export const HORDE_CONFIG = Object.freeze({
   fodderDmgMul: 0.7,
   /** Fraction of Hunt field spawns marked fodder (elites/bosses never fodder). */
   fodderRatio: 0.7,
-  packMin: 4,
-  packMax: 8,
+  packMin: 5,
+  packMax: 9,
   packTelegraphSec: 0.55,
   /** When field spawn fires, chance to spawn a pack instead of a single. */
-  packChance: 0.55,
+  packChance: 0.68,
   /** Beyond this distance, fodder animation updates at half rate. */
   animSkipDistance: 35,
 });
+
+/** New Hunt field density and refill cadence. Defense owns a separate wave scheduler. */
+export const HUNT_SPAWN_CONFIG = Object.freeze({
+  initialEnemies: 64,
+  respawnEnemies: 52,
+  sparseLiving: 28,
+  sparseInterval: 0.035,
+  steadyInterval: 0.14,
+  levelTargetDivisor: 6,
+  capBuffer: 6,
+  populatePackChance: 0.76,
+});
+
+/** New Hunt-only stat growth. Defense keeps its authored level + wave curves. */
+export const HUNT_ENEMY_GROWTH_CONFIG = Object.freeze({
+  hpPerLevel: 0.108,
+  damagePerLevel: 0.068,
+  defensePerLevel: 0.055,
+  underLevelHpPerLevel: 0.092,
+  underLevelDamagePerLevel: 0.055,
+  underLevelDefensePerLevel: 0.045,
+  worldTierHpPerTier: 0.09,
+  hpFloor: 0.72,
+});
+
+export function huntEnemyStatMultipliers(extraLevels = 0, worldTier = 1) {
+  const levels = Math.max(-4, Number(extraLevels) || 0);
+  const hpPerLevel = levels >= 0
+    ? HUNT_ENEMY_GROWTH_CONFIG.hpPerLevel
+    : HUNT_ENEMY_GROWTH_CONFIG.underLevelHpPerLevel;
+  const damagePerLevel = levels >= 0
+    ? HUNT_ENEMY_GROWTH_CONFIG.damagePerLevel
+    : HUNT_ENEMY_GROWTH_CONFIG.underLevelDamagePerLevel;
+  const defensePerLevel = levels >= 0
+    ? HUNT_ENEMY_GROWTH_CONFIG.defensePerLevel
+    : HUNT_ENEMY_GROWTH_CONFIG.underLevelDefensePerLevel;
+  const tierHp = 1 + Math.max(0, (Number(worldTier) || 1) - 1)
+    * HUNT_ENEMY_GROWTH_CONFIG.worldTierHpPerTier;
+  return {
+    hp: Math.max(
+      HUNT_ENEMY_GROWTH_CONFIG.hpFloor,
+      1 + levels * hpPerLevel,
+    ) * tierHp,
+    damage: Math.max(0.65, 1 + levels * damagePerLevel)
+      * Math.sqrt(tierHp),
+    defense: Math.max(0.7, 1 + levels * defensePerLevel),
+  };
+}
 
 /**
  * Hunt on-level loop — zone/unit threat bands, receive softcap, reward bias, field marks.
@@ -140,8 +188,8 @@ export const HUNT_THREAT_CONFIG = Object.freeze({
   fieldMarkMinSec: 45,
   fieldMarkMaxSec: 75,
   /** Pack pressure: force packs when living below this in on-level zones. */
-  packPressureLiving: 14,
-  packPressureChance: 0.85,
+  packPressureLiving: 22,
+  packPressureChance: 0.9,
   /** Player-facing threat labels (English). */
   labels: Object.freeze({
     safe: 'Safe',
@@ -376,6 +424,8 @@ export const BASIC_ATTACK_FEEL = Object.freeze({
 
 /** Consumable drops are the one survival exception to gold-only enemy rewards. */
 export const LOOT_CONFIG = Object.freeze({
+  /** Linear gold growth shared by Hunt and Defense: Lv.1 = 1x, Lv.100 = 6.94x. */
+  goldPerEnemyLevel: 0.06,
   potionDropChance: Object.freeze({
     normal: 0.12,
     elite: 0.30,
@@ -383,6 +433,11 @@ export const LOOT_CONFIG = Object.freeze({
   }),
   potionDropAmount: 1,
 });
+
+export function enemyGoldLevelMul(level = 1) {
+  const normalized = Math.max(1, Math.round(Number(level) || 1));
+  return 1 + (normalized - 1) * LOOT_CONFIG.goldPerEnemyLevel;
+}
 
 /** Signature weapon growth. Every class uses the same progression rules. */
 export const WEAPON_ENHANCE = Object.freeze({

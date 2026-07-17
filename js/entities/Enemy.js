@@ -1,5 +1,7 @@
 import * as THREE from 'three';
-import { GAME_CONFIG, HORDE_CONFIG, defenseWaveDmgMul, defenseWaveHpMul } from '../config.js';
+import {
+  GAME_CONFIG, HORDE_CONFIG, defenseWaveDmgMul, defenseWaveHpMul, huntEnemyStatMultipliers,
+} from '../config.js';
 import { ENEMY_TYPES } from '../data/content.js';
 import { clamp, rand, uid } from '../core/Utils.js';
 import { applyStatus, statusMoveMul, tickStatuses } from '../data/skillCombat.js';
@@ -40,7 +42,7 @@ export class Enemy {
     this.normalScale = this.mesh.scale.clone();
 
     const extraLevels = Math.max(-4, this.level - data.level);
-    const levelScale = Math.max(.72, 1 + extraLevels * .092);
+    const baselineLevelScale = Math.max(.72, 1 + extraLevels * .092);
     const tierScale = 1 + Math.max(0, (options.worldTier ?? 1) - 1) * .075;
     const eliteHp = this.elite ? 2.45 : 1;
     const eliteDamage = this.elite ? 1.32 : 1;
@@ -48,14 +50,23 @@ export class Enemy {
     // Wave mult only when Defense (or other callers) pass a positive options.wave.
     // Hunt spawns omit wave → multipliers stay 1 (byte-for-byte with prior Hunt math).
     const wave = Math.max(0, Number(options.wave) || 0);
+    const huntGrowth = wave <= 0 && !options.defenseWave
+      ? huntEnemyStatMultipliers(extraLevels, options.worldTier)
+      : null;
     const waveHp = wave > 0 ? defenseWaveHpMul(wave) : 1;
     const waveDmg = wave > 0 ? defenseWaveDmgMul(wave) : 1;
     this.defenseWave = wave > 0 || Boolean(options.defenseWave);
     this.wave = wave > 0 ? wave : 0;
-    this.maxHp = Math.round(data.hp * levelScale * tierScale * eliteHp * waveHp);
+    this.maxHp = Math.round(
+      data.hp * (huntGrowth?.hp ?? baselineLevelScale * tierScale) * eliteHp * waveHp,
+    );
     this.hp = this.maxHp;
-    this.damage = data.damage * (1 + extraLevels * .055) * Math.sqrt(tierScale) * eliteDamage * waveDmg;
-    this.defense = data.defense * (1 + extraLevels * .045) * eliteDefense;
+    this.damage = data.damage
+      * (huntGrowth?.damage ?? (1 + extraLevels * .055) * Math.sqrt(tierScale))
+      * eliteDamage * waveDmg;
+    this.defense = data.defense
+      * (huntGrowth?.defense ?? 1 + extraLevels * .045)
+      * eliteDefense;
     this.speed = data.speed * (this.elite ? 1.08 : 1);
     // Elite affix lite (B3 + variety expansion)
     this.shieldHitsLeft = 0;
@@ -88,7 +99,7 @@ export class Enemy {
     this.attackRange = data.range;
     this.radius = (this.boss ? 1.25 : this.elite ? .78 : .58) * (data.scale ?? 1);
     this.aggroRadius = this.boss ? 42 : data.ranged ? 29 : 25;
-    this.xpValue = Math.round(data.xp * levelScale * (this.elite ? 2.65 : 1));
+    this.xpValue = Math.round(data.xp * baselineLevelScale * (this.elite ? 2.65 : 1));
     this.goldRange = data.gold;
 
     if (this.fodder) {

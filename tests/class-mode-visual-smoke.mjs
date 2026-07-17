@@ -135,6 +135,19 @@ async function assertGameEntered(page, classId, mode, label) {
   if (overlays.title || overlays.loading || overlays.panel) {
     failures.push(`${label}: stale overlay remains (${JSON.stringify(overlays)})`);
   }
+  if (mode === 'hunt') {
+    const density = await page.evaluate(async () => {
+      const { HUNT_SPAWN_CONFIG } = await import('./js/config.js');
+      const game = window.__SOL_ARPG_DEMO__;
+      return {
+        living: game?.enemies?.livingCount ?? 0,
+        expected: HUNT_SPAWN_CONFIG.initialEnemies,
+      };
+    });
+    if (density.living < density.expected) {
+      failures.push(`${label}: Hunt opened with ${density.living}/${density.expected} living enemies`);
+    }
+  }
   const viewportScale = await page.evaluate(() => window.visualViewport?.scale ?? 1);
   if (Math.abs(viewportScale - 1) > .001) failures.push(`${label}: page viewport is zoomed (${viewportScale})`);
 }

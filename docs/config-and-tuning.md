@@ -21,6 +21,14 @@ All values are `Object.freeze`d. After you **add or modify** a field, keep the f
 | `saveKey` / `saveVersion` | save slot / version | **do not bump carelessly** |
 | `maxDelta` | frame delta clamp | spike guard |
 
+## `HUNT_SPAWN_CONFIG` · `HUNT_ENEMY_GROWTH_CONFIG`
+
+New Hunt owns a separate field-density and stat-growth curve so Defense wave pacing stays authored by `DEFENSE_CONFIG`.
+
+- `HUNT_SPAWN_CONFIG` controls initial/respawn population, sparse/steady refill intervals, level-based target growth, and pack headroom.
+- `HUNT_ENEMY_GROWTH_CONFIG` controls Hunt-only HP, damage, defense, and world-tier HP growth.
+- `huntEnemyStatMultipliers` is the shared pure calculator used by `Enemy`; Defense continues to use its existing level and wave multipliers.
+
 
 
 ## `PLAYER_GROWTH_CONFIG`
@@ -56,10 +64,11 @@ Level-up scaling lives in the getters of `js/entities/Player.js` (`maxHp`, `atta
 
 | Key | Meaning |
 |-----|---------|
+| `goldPerEnemyLevel` | linear gold multiplier per enemy level, shared by Hunt and Defense |
 | `potionDropChance.normal` / `elite` / `boss` | chance for an enemy to drop one recovery potion when the player is below capacity |
 | `potionDropAmount` | potions created by one eligible drop |
 
-Enemy gear and essence remain converted to gold. Recovery potions are the intentional survival exception.
+`enemyGoldLevelMul` applies the level curve before elite, boss, Hunt threat, world-tier, or Defense wave bonuses. Enemy gear and essence remain converted to gold. Recovery potions are the intentional survival exception.
 
 ## `COLORS`
 

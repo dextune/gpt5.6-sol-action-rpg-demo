@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import {
-  GEAR_ENHANCE, LOOT_CONFIG, PLAYER_CONFIG, WEAPON_ENHANCE, WEAPON_OPTION_ENHANCE, defenseRarityFloor,
+  GEAR_ENHANCE, LOOT_CONFIG, PLAYER_CONFIG, WEAPON_ENHANCE, WEAPON_OPTION_ENHANCE,
+  defenseRarityFloor, enemyGoldLevelMul,
 } from '../config.js';
 import {
   AFFIXES, ARMOR_BASES, CHARM_BASES, RARITIES, WEAPON_BASES, getHeroClass, getWeaponEvolution,
@@ -299,12 +300,17 @@ export class LootSystem {
     const wave = defense ? Math.max(1, Number(enemy.wave ?? this.game.defense?.wave) || 1) : 0;
     const [minGold, maxGold] = enemy.goldRange ?? [1, 3];
     const waveBonus = defense ? 1 + wave * .035 : 1 + this.game.hunt.worldTier * .04;
+    const levelBonus = enemyGoldLevelMul(enemy.level);
     let threatMul = 1;
     if (!defense && this.game.player) {
       // Hunt on-level / danger reward bias (see huntThreat.huntRewardMul).
       threatMul = huntRewardMul((enemy.level ?? 1) - this.game.player.level);
     }
-    const multiplier = (enemy.elite ? 2.2 : 1) * (enemy.boss ? 5 : 1) * waveBonus * threatMul;
+    const multiplier = (enemy.elite ? 2.2 : 1)
+      * (enemy.boss ? 5 : 1)
+      * levelBonus
+      * waveBonus
+      * threatMul;
     const amount = Math.max(1, Math.round(randInt(minGold, maxGold) * multiplier));
     const player = this.game.player;
     const at = enemy.position.clone().add(new THREE.Vector3(0, Math.max(0.8, (enemy.refs?.modelHeight ?? 1.6) * 0.45), 0));
