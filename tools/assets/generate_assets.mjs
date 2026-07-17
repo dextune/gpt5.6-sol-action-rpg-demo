@@ -2072,7 +2072,7 @@ const HERO_BAKE_PROFILES = Object.freeze({
     belt: 0x1c1814,
     buckle: 0xe0c878,
     outline: 0x0e1218,
-    hairStyle: 'knight',
+    hairStyle: 'rogue',
     headGear: 'helm',
     bodyStyle: 'knight',
   }),
@@ -2111,7 +2111,7 @@ const HERO_BAKE_PROFILES = Object.freeze({
     belt: 0x14181e,
     buckle: 0xb8e8d8,
     outline: 0x0a0e14,
-    hairStyle: 'knight',
+    hairStyle: 'ranger',
     headGear: 'none',
     bodyStyle: 'default',
   }),
@@ -2158,6 +2158,28 @@ function heroHairParts(style) {
       p => sdfEllipsoid(p, V3(.16, .08, .08), V3(.18, .14, .2)),
       p => sdfEllipsoid(p, V3(-.16, .08, .08), V3(.18, .14, .2)),
       p => sdfCapsule(p, V3(0, .02, -.28), V3(0, -.12, -.32), .14, .08),
+    ];
+  }
+  if (style === 'rogue') {
+    // Angular undercut with a visible mint fringe beneath the runtime hood.
+    return [
+      p => sdfEllipsoid(p, V3(0, .10, -.10), V3(.46, .25, .36)),
+      p => sdfEllipsoid(p, V3(.14, .14, .36), V3(.30, .14, .15)),
+      p => sdfCapsule(p, V3(.28, .10, .30), V3(.34, -.22, .16), .13, .07),
+      p => sdfCapsule(p, V3(-.18, .08, .28), V3(-.25, -.10, .18), .09, .05),
+      p => sdfCapsule(p, V3(.04, .18, .38), V3(-.12, -.05, .43), .12, .045),
+    ];
+  }
+  if (style === 'ranger') {
+    // Asymmetric auburn sweep and low ponytail make the archer readable at the
+    // same camera distance as the hooded rogue.
+    return [
+      p => sdfEllipsoid(p, V3(0, .10, -.04), V3(.52, .36, .42)),
+      p => sdfEllipsoid(p, V3(-.18, .18, .36), V3(.34, .16, .15)),
+      p => sdfCapsule(p, V3(-.32, .10, .28), V3(-.38, -.34, .08), .17, .08),
+      p => sdfCapsule(p, V3(.30, .08, .22), V3(.22, -.28, .06), .14, .07),
+      p => sdfCapsule(p, V3(.04, .02, -.30), V3(.10, -.62, -.42), .18, .08),
+      p => sdfEllipsoid(p, V3(.08, -.56, -.42), V3(.20, .18, .16)),
     ];
   }
   return [
@@ -2803,13 +2825,16 @@ function createWeapon(kind) {
   pommelGem.name = 'weapon_rune_pommel';
   pommelGem.position.set(0, -.48, .085);
   group.add(pommelGem);
+  const gripAnchor = new THREE.Object3D();
+  gripAnchor.name = 'grip_anchor';
+  gripAnchor.position.set(0, -.15, 0);
   const base = new THREE.Object3D();
   base.name = 'blade_base';
   base.position.set(0, .24, 0);
   const tip = new THREE.Object3D();
   tip.name = 'blade_tip';
   tip.position.set(0, specs.length + .23, 0);
-  group.add(base, tip);
+  group.add(gripAnchor, base, tip);
   group.rotation.set(0, 0, -.08);
   return group;
 }
@@ -2871,13 +2896,16 @@ function createBow() {
   tipLower.name = 'bow_tip_lower';
   tipLower.position.set(0.05, .15, 0);
   group.add(tipLower);
+  const gripAnchor = new THREE.Object3D();
+  gripAnchor.name = 'grip_anchor';
+  gripAnchor.position.set(0, .85, 0);
   const base = new THREE.Object3D();
   base.name = 'blade_base';
   base.position.set(0, 0.35, 0);
   const tip = new THREE.Object3D();
   tip.name = 'blade_tip';
   tip.position.set(0, 1.55, 0);
-  group.add(base, tip);
+  group.add(gripAnchor, base, tip);
   group.rotation.set(0, 0, -0.12);
   return group;
 }
@@ -2938,13 +2966,16 @@ function createStaff() {
   halo.position.y = 1.95;
   halo.rotation.x = Math.PI / 2;
   group.add(halo);
+  const gripAnchor = new THREE.Object3D();
+  gripAnchor.name = 'grip_anchor';
+  gripAnchor.position.set(0, .22, 0);
   const base = new THREE.Object3D();
   base.name = 'blade_base';
   base.position.set(0, .2, 0);
   const tip = new THREE.Object3D();
   tip.name = 'blade_tip';
   tip.position.set(0, 2.15, 0);
-  group.add(base, tip);
+  group.add(gripAnchor, base, tip);
   group.rotation.set(0, 0, -.06);
   return group;
 }
@@ -3613,6 +3644,7 @@ async function main() {
   const rogueOnly = args.has('--rogue-only');
   const rangerOnly = args.has('--ranger-only');
   const heroesOnly = args.has('--heroes-only') || wizardOnly || aerinOnly || rogueOnly || rangerOnly;
+  const weaponsOnly = args.has('--weapons-only');
   const staffOnly = args.has('--staff-only');
   const daggerOnly = args.has('--dagger-only');
   const bowOnly = args.has('--bow-only');
@@ -3638,7 +3670,7 @@ async function main() {
     return;
   }
 
-  if (!heroesOnly) {
+  if (!heroesOnly && !weaponsOnly) {
     await mkdir(resolve(ASSETS, 'models/monsters'), { recursive: true });
     await mkdir(resolve(ASSETS, 'models/environment'), { recursive: true });
   }
@@ -3651,7 +3683,7 @@ async function main() {
     await exportHeroClass('rogue', 'rogue');
   } else if (rangerOnly) {
     await exportHeroClass('ranger', 'ranger');
-  } else if (!args.has('--no-heroes')) {
+  } else if (!args.has('--no-heroes') && !weaponsOnly) {
     await exportHeroClass('aerin', 'aerin');
     await exportHeroClass('wizard', 'wizard');
     await exportHeroClass('rogue', 'rogue');
@@ -3665,6 +3697,11 @@ async function main() {
 
   for (const kind of ['sword', 'saber', 'greatsword', 'leaf', 'katana', 'relic', 'staff', 'dagger', 'bow']) {
     await exportGLB(createWeapon(kind), resolve(ASSETS, `models/props/weapon_${kind}.glb`));
+  }
+
+  if (weaponsOnly) {
+    console.log('Weapon asset generation complete.');
+    return;
   }
 
   const monsterSpecs = [

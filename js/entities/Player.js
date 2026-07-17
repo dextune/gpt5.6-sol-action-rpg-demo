@@ -77,6 +77,9 @@ export class Player {
     const facing = this.facing?.clone() ?? new THREE.Vector3(0, 0, 1);
     this.#dismountCharacter();
     this.#mountCharacter(next);
+    // Title previews are a complete class swap: keep the displayed identity in
+    // sync with the newly mounted model instead of leaking the previous hero.
+    this.name = getHeroClass(this.classId).name;
     if (keepTransform) {
       this.mesh.position.copy(position);
       this.mesh.rotation.y = rotationY;

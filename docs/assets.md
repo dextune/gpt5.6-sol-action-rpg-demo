@@ -46,7 +46,9 @@ Fallbacks:
 
 ## Tools
 
-`tools/assets/` — generation / bake scripts (only when needed).
+`tools/assets/` — generation / bake scripts (only when needed). Use
+`node tools/assets/generate_assets.mjs --weapons-only` to rebake weapon GLBs
+without rewriting monster or environment assets.
 Runtime does not require `tools`.
 
 ## Validation

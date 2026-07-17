@@ -91,38 +91,60 @@ const CLASS_LOOKS = Object.freeze({
       rimHair: 0xf0c090,
       rimSkin: 0xffd0b0,
     }),
-    headKit: 'none',
+    headKit: 'ranger',
     scale: .93,
   }),
 });
 
-// ~70% of previous overlong blades, with thicker girth for a solid blade read.
-// Global visual multiplier only — combat range stays on meleeProfile / skills.
-const WEAPON_VISUAL_SCALE = 1.5;
+// Authored GLBs already use hero-space units. These values are final visual
+// multipliers only; combat range remains on meleeProfile / skills.
 const WEAPON_LENGTH = Object.freeze({
-  sword: 1.27,
+  sword: 1.08,
   saber: 1.13,
   greatsword: 1.44,
   katana: 1.48,
   leaf: 1.08,
   relic: 1.25,
-  staff: 1.35,
+  staff: 1.08,
   /** ~85% of prior .78 for a shorter dual-dagger read. */
   dagger: .663,
   bow: 1.05,
 });
 const WEAPON_GIRTH = Object.freeze({
-  sword: 1.22,
+  sword: .92,
   saber: 1.1,
   greatsword: 1.38,
   katana: 1.28,
   leaf: 1.15,
   relic: 1.25,
-  staff: .95,
+  staff: .8,
   /** Slimmer than prior 1.0 so the rebaked sharp tip stays readable. */
-  dagger: .88,
-  bow: 1.15,
+  dagger: .78,
+  bow: .9,
 });
+
+const WEAPON_MOUNT_PROFILES = Object.freeze({
+  default: Object.freeze({ offset: [0, 0, 0], rotation: [0, Math.PI, .14] }),
+  sword: Object.freeze({ offset: [.01, -.01, .01], rotation: [-1.05, 0, 0], reverseBladeAxis: true }),
+  staff: Object.freeze({ offset: [.01, -.02, .01], rotation: [-Math.PI / 2, -Math.PI / 2, 0], reverseBladeAxis: true }),
+  dagger: Object.freeze({ offset: [0, 0, .01], rotation: [-.55, Math.PI, .05] }),
+  bow: Object.freeze({ offset: [0, 0, .01], rotation: [-Math.PI / 2, Math.PI, 0] }),
+});
+
+function attachWeaponAtGrip(socket, weapon, offset = [0, 0, 0]) {
+  socket.add(weapon);
+  const grip = weapon.getObjectByName('grip_anchor');
+  if (!grip) {
+    weapon.position.fromArray(offset);
+    return;
+  }
+  weapon.position.set(0, 0, 0);
+  socket.updateWorldMatrix(true, false);
+  weapon.updateWorldMatrix(true, true);
+  const gripInSocket = socket.worldToLocal(grip.getWorldPosition(new THREE.Vector3()));
+  weapon.position.set(offset[0], offset[1], offset[2]).sub(gripInSocket);
+  weapon.updateWorldMatrix(false, true);
+}
 
 function resolveLook(lookId) {
   return CLASS_LOOKS[lookId] ?? CLASS_LOOKS.aerin;
@@ -174,8 +196,8 @@ function attachRogueHood(group, palette) {
     hoodMat,
     { thickness: 1.05, outlineColor: palette.outline },
   );
-  hood.position.set(0, .16, -.06);
-  hood.scale.set(1.08, 1.18, 1.12);
+  hood.position.set(0, .18, .02);
+  hood.scale.set(1.14, 1.22, 1.12);
   hood.castShadow = true;
   hairRoot.add(hood);
 
@@ -215,8 +237,8 @@ function attachRogueHood(group, palette) {
     hairMat,
     { thickness: 1.06, outlineColor: palette.outline },
   );
-  bang.position.set(0, .1, .04);
-  bang.scale.set(1, .55, .92);
+  bang.position.set(.03, .13, .22);
+  bang.scale.set(1.04, .58, .78);
   bang.castShadow = true;
   hairRoot.add(bang);
 
@@ -241,8 +263,58 @@ function attachRogueHood(group, palette) {
   group.userData.animeHairRoot = hairRoot;
 }
 
+function attachRangerHair(group, palette) {
+  const anchor = findHeadAnchor(group);
+  if (!anchor || anchor.userData.animeHair) return;
+  const hairRoot = new THREE.Group();
+  hairRoot.name = 'RangerHair';
+  hairRoot.userData.animeHair = true;
+  const hairMat = toonMaterial(palette.hair, { name: 'ranger-hair', emissive: palette.hairDark, emissiveIntensity: .06 });
+  const tieMat = toonMaterial(0xc8b070, { name: 'ranger-hair-tie' });
+
+  const cap = outlinedMesh(
+    new THREE.SphereGeometry(.42, 18, 14, 0, Math.PI * 2, 0, Math.PI * .62),
+    hairMat,
+    { thickness: 1.05, outlineColor: palette.outline },
+  );
+  cap.position.set(0, .17, .03);
+  cap.scale.set(1.08, 1.12, 1.06);
+  cap.castShadow = true;
+  hairRoot.add(cap);
+
+  const fringe = outlinedMesh(
+    new THREE.SphereGeometry(.28, 16, 12, 0, Math.PI * 2, 0, Math.PI * .5),
+    hairMat,
+    { thickness: 1.05, outlineColor: palette.outline },
+  );
+  fringe.position.set(-.08, .12, .24);
+  fringe.scale.set(1.25, .52, .72);
+  fringe.rotation.z = -.18;
+  hairRoot.add(fringe);
+
+  const ponytail = outlinedMesh(
+    new THREE.CylinderGeometry(.13, .075, .66, 12),
+    hairMat,
+    { thickness: 1.05, outlineColor: palette.outline },
+  );
+  ponytail.position.set(.12, -.28, -.28);
+  ponytail.rotation.set(.28, 0, -.12);
+  ponytail.castShadow = true;
+  hairRoot.add(ponytail);
+  const tie = new THREE.Mesh(new THREE.TorusGeometry(.105, .025, 8, 16), tieMat);
+  tie.position.set(.06, .02, -.24);
+  tie.rotation.x = Math.PI / 2 - .28;
+  hairRoot.add(tie);
+
+  hairRoot.position.set(0, .05, 0);
+  anchor.add(hairRoot);
+  anchor.userData.animeHair = true;
+  group.userData.animeHairRoot = hairRoot;
+}
+
 function applyHeadKit(group, look) {
   if (look.headKit === 'rogue') attachRogueHood(group, look.palette);
+  else if (look.headKit === 'ranger') attachRangerHair(group, look.palette);
 }
 
 function boostAnimeProportions(group) {
@@ -338,8 +410,20 @@ export class CharacterFactory {
     applyHeadKit(group, look);
     this.outlines.configure(group, { color: palette.outline, priority: 10, maxDistance: 48 });
 
-    const socket = group.getObjectByName('weapon_socket');
+    let socket = group.getObjectByName('weapon_socket');
     let offhandSocket = group.getObjectByName('offhand_socket');
+    // Ranger animation poses the left arm as the bow hand and the right hand as
+    // the string hand. Mounting the bow to the shared right-hand socket made the
+    // correct asset look like it belonged to another class.
+    if (classId === 'ranger') {
+      const leftHand = group.getObjectByName('left_hand');
+      if (leftHand) {
+        socket = new THREE.Group();
+        socket.name = 'weapon_socket_ranger_runtime';
+        socket.position.set(.03, -.11, .02);
+        leftHand.add(socket);
+      }
+    }
     if (!offhandSocket && classId === 'rogue') {
       const leftHand = group.getObjectByName('left_hand');
       if (leftHand) {
@@ -379,23 +463,15 @@ export class CharacterFactory {
     const weapon = asset.scene;
     refs.weaponQuality = weapon.userData.assetQuality ?? quality;
     weapon.name = `Equipped_${kind}`;
-    // Bow sits more upright on the hip/hand socket; blades keep the legacy tilt.
-    // Rogue dual daggers: compact mid-torso ready, tip forward (toward facing), pommel in hand.
     const rogueDual = refs.classId === 'rogue' && (kind === 'dagger' || kind === 'saber');
-    if (kind === 'bow') {
-      weapon.position.set(.04, -.04, .02);
-      weapon.rotation.set(0.15, Math.PI * 0.92, -0.55);
-    } else if (rogueDual) {
-      weapon.position.set(.01, -.04, .03);
-      weapon.rotation.set(-0.55, Math.PI, 0.05);
-    } else {
-      weapon.position.set(.02, -.02, .01);
-      weapon.rotation.set(0, Math.PI, .14);
-    }
-    const length = (WEAPON_LENGTH[kind] ?? 1.25) * WEAPON_VISUAL_SCALE;
-    const girth = (WEAPON_GIRTH[kind] ?? 1.2) * WEAPON_VISUAL_SCALE;
-    // Dagger mesh tip is +Y; after hand bind that maps tip backward — flip Y so tip faces forward.
-    weapon.scale.set(girth, rogueDual ? -length : length, girth);
+    const mount = WEAPON_MOUNT_PROFILES[kind] ?? WEAPON_MOUNT_PROFILES.default;
+    weapon.rotation.fromArray(mount.rotation);
+    const length = WEAPON_LENGTH[kind] ?? 1;
+    const girth = WEAPON_GIRTH[kind] ?? 1;
+    // Some authored weapons point along the inverse hand axis in their idle mount.
+    // Mirror only the longitudinal axis so the grip stays bound while the blade changes direction.
+    const bladeAxisScale = (rogueDual || mount.reverseBladeAxis) ? -length : length;
+    weapon.scale.set(girth, bladeAxisScale, girth);
     const rarityColor = new THREE.Color(item.rarityColor ?? item.color ?? 0xe8f4ff);
     const outlineColor = resolveLook(getHeroClass(refs.classId).lookId).palette.outline;
     const mainMaterials = new Set();
@@ -426,7 +502,7 @@ export class CharacterFactory {
       object.material = material;
       mainMaterials.add(material);
     });
-    refs.socket.add(weapon);
+    attachWeaponAtGrip(refs.socket, weapon, mount.offset);
     refs.bladeBase = weapon.getObjectByName('blade_base');
     refs.bladeTip = weapon.getObjectByName('blade_tip');
     refs.mainBladeBase = refs.bladeBase;
@@ -441,7 +517,6 @@ export class CharacterFactory {
       offhandRelease = offhandAsset.release;
       offhand = offhandAsset.scene;
       offhand.name = `Equipped_${kind}_offhand`;
-      offhand.position.set(-.01, -.04, .03);
       offhand.rotation.set(-0.55, 0, -.05);
       // Mirror X for left hand; negative Y same as main so tip faces forward.
       offhand.scale.set(-girth, -length, girth);
@@ -466,7 +541,7 @@ export class CharacterFactory {
         object.material = material;
         offhandMaterials.add(material);
       });
-      refs.offhandSocket.add(offhand);
+      attachWeaponAtGrip(refs.offhandSocket, offhand, [0, 0, .01]);
       refs.offhandBladeBase = offhand.getObjectByName('blade_base');
       refs.offhandBladeTip = offhand.getObjectByName('blade_tip');
       refs.offhandWeapon = offhand;

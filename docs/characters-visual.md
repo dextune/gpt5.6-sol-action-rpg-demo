@@ -36,7 +36,7 @@ HUD/input bind from `activeSkills` keys (Q/E/R/C) automatically.
 `CLASS_LOOKS` per `lookId`:
 
 - **palette** — cel recolor by material role (`skin` / `cloth` / `hair` / …)
-- **headKit** — `rogue` (runtime hood/mask) or `none` (use baked head gear)
+- **headKit** — `rogue` (runtime hood/mask), `ranger` (runtime auburn hair), or `none` (use baked head gear)
 
 Maps are cleared for flat anime color priority.
 
@@ -46,6 +46,7 @@ Maps are cleared for flat anime color priority.
 # Requires npm package `three` available for GLTFExporter imports (dev install once)
 node tools/assets/generate_assets.mjs --wizard-only
 node tools/assets/generate_assets.mjs --heroes-only
+node tools/assets/generate_assets.mjs --weapons-only
 node tools/assets/generate_assets.mjs   # full asset set
 ```
 
@@ -56,16 +57,17 @@ Profiles: `HERO_BAKE_PROFILES` in `generate_assets.mjs`. Shared: skeleton, body 
 | Item | Location |
 |------|----------|
 | Equip | `CharacterFactory.equipWeapon` |
-| Global visual scale | `WEAPON_VISUAL_SCALE` (1.5) multiplies length and girth |
-| Length multiplier | `WEAPON_LENGTH` (Y scale, relative per kind) |
-| Girth multiplier | `WEAPON_GIRTH` (X/Z scale, relative per kind) |
+| Grip alignment | Baked `grip_anchor` is aligned to the active hand socket |
+| Length multiplier | `WEAPON_LENGTH` (final Y scale, relative per kind) |
+| Girth multiplier | `WEAPON_GIRTH` (final X/Z scale, relative per kind) |
+| Mount profile | `WEAPON_MOUNT_PROFILES` supplies per-kind rotation and hand offset |
 | Model type | item.model → `weapon.sword` etc. in manifest |
 | Starter | `HERO_CLASSES[*].starterWeapon` via `createClassStarterWeapon` |
 
 Hunter starter: **Swift Field Blade** (`katana`).  
 Wizard starter: **Apprentice Focus** (`relic`).
 
-Applied scale is `(WEAPON_GIRTH * WEAPON_VISUAL_SCALE, WEAPON_LENGTH * WEAPON_VISUAL_SCALE, …)`; rogue offhand uses the same magnitudes with mirrored X. Hit detection `range` / `rangeMult` are independent of mesh length (see `docs/history/weapon-visual-scale-detail.md`).
+Applied scale is `(WEAPON_GIRTH, WEAPON_LENGTH, WEAPON_GIRTH)`; rogue offhand uses the same magnitudes with mirrored X/Y. Ranger bows mount to a mirrored runtime socket on `left_hand`, matching the draw animation. Hit detection `range` / `rangeMult` are independent of mesh length (see `docs/history/weapon-visual-scale-detail.md`).
 
 ## Animation clip names
 

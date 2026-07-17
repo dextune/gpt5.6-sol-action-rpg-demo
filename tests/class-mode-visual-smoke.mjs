@@ -15,7 +15,13 @@ import { fileURLToPath } from 'node:url';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const base = process.env.BASE_URL || 'http://127.0.0.1:8777';
 const outDir = process.env.OUT_DIR || `/tmp/sol-arpg-class-visual-smoke-${Date.now()}`;
-const classes = ['aerin', 'wizard', 'rogue'];
+const classes = ['aerin', 'wizard', 'rogue', 'ranger'];
+const expectedBindings = Object.freeze({
+  aerin: Object.freeze({ name: 'Gareth', heroRoot: 'Knight_Hero_Rig', weaponRoot: 'weapon_sword', socketParent: 'right_hand', marker: 'knight_helm', maxWeaponRatio: .9, expectBladeUp: true }),
+  wizard: Object.freeze({ name: 'Lyra', heroRoot: 'Wizard_Hero_Rig', weaponRoot: 'weapon_staff', socketParent: 'right_hand', marker: 'wizard_hat', maxWeaponRatio: 1.05, expectBladeUp: true }),
+  rogue: Object.freeze({ name: 'Vex', heroRoot: 'Rogue_Hero_Rig', weaponRoot: 'weapon_dagger', socketParent: 'right_hand', marker: 'RogueHood', offhandRoot: 'weapon_dagger', maxWeaponRatio: .55 }),
+  ranger: Object.freeze({ name: 'Sable', heroRoot: 'Ranger_Hero_Rig', weaponRoot: 'weapon_bow', socketParent: 'left_hand', marker: 'RangerHair', maxWeaponRatio: .85 }),
+});
 const failures = [];
 const consoleErrors = [];
 let server;
@@ -53,6 +59,66 @@ async function assertVisible(page, selector, message) {
   if (!visible) failures.push(message);
 }
 
+async function assertRenderBinding(page, classId, label) {
+  const expected = expectedBindings[classId];
+  const actual = await page.evaluate(async expectedClass => {
+    const THREE = await import('./vendor/three.module.min.js');
+    const player = window.__SOL_ARPG_DEMO__?.player;
+    const main = player?.refs?.weapon;
+    const offhand = player?.refs?.offhandWeapon;
+    if (!player || !main) return null;
+
+    const mainVisible = main.visible;
+    const offhandVisible = offhand?.visible;
+    main.visible = false;
+    if (offhand) offhand.visible = false;
+    const heroSize = new THREE.Box3().setFromObject(player.mesh).getSize(new THREE.Vector3());
+    main.visible = mainVisible;
+    if (offhand) offhand.visible = offhandVisible;
+    const weaponSize = new THREE.Box3().setFromObject(main).getSize(new THREE.Vector3());
+    const longestWeaponSide = Math.max(weaponSize.x, weaponSize.y, weaponSize.z);
+    const bladeBase = main.getObjectByName('blade_base');
+    const bladeTip = main.getObjectByName('blade_tip');
+    const bladeAxisY = bladeBase && bladeTip
+      ? bladeTip.getWorldPosition(new THREE.Vector3()).y - bladeBase.getWorldPosition(new THREE.Vector3()).y
+      : null;
+
+    return {
+      classId: player.classId,
+      name: player.name,
+      fallback: player.refs.fallback,
+      heroRoot: Boolean(player.mesh.getObjectByName(expectedClass.heroRoot)),
+      weaponRoot: Boolean(main.getObjectByName(expectedClass.weaponRoot)),
+      socketParent: main.parent?.parent?.name ?? null,
+      marker: Boolean(player.mesh.getObjectByName(expectedClass.marker)),
+      offhandRoot: expectedClass.offhandRoot
+        ? Boolean(offhand?.getObjectByName(expectedClass.offhandRoot))
+        : !offhand,
+      weaponRatio: longestWeaponSide / Math.max(.001, heroSize.y),
+      bladeAxisY,
+    };
+  }, expected);
+
+  if (!actual) {
+    failures.push(`${label}: render binding was unavailable`);
+    return;
+  }
+  if (actual.classId !== classId) failures.push(`${label}: class id ${actual.classId} != ${classId}`);
+  if (actual.name !== expected.name) failures.push(`${label}: hero name ${actual.name} != ${expected.name}`);
+  if (actual.fallback) failures.push(`${label}: fallback hero rendered instead of GLB`);
+  if (!actual.heroRoot) failures.push(`${label}: missing hero root ${expected.heroRoot}`);
+  if (!actual.weaponRoot) failures.push(`${label}: missing weapon root ${expected.weaponRoot}`);
+  if (actual.socketParent !== expected.socketParent) failures.push(`${label}: weapon mounted to ${actual.socketParent}, expected ${expected.socketParent}`);
+  if (!actual.marker) failures.push(`${label}: missing class silhouette marker ${expected.marker}`);
+  if (!actual.offhandRoot) failures.push(`${label}: offhand weapon binding mismatch`);
+  if (actual.weaponRatio < .18 || actual.weaponRatio > expected.maxWeaponRatio) {
+    failures.push(`${label}: weapon/hero ratio ${actual.weaponRatio.toFixed(3)} outside .18-${expected.maxWeaponRatio}`);
+  }
+  if (expected.expectBladeUp && !(actual.bladeAxisY > .1)) {
+    failures.push(`${label}: ${expected.name} idle weapon tip points down (world axis ${actual.bladeAxisY?.toFixed(3) ?? 'missing'})`);
+  }
+}
+
 async function assertGameEntered(page, classId, mode, label) {
   await assertVisible(page, '#hud:not(.hidden)', `${label}: HUD did not appear`);
   await page.waitForFunction(({ wantedClass, wantedMode }) => {
@@ -71,7 +137,7 @@ async function assertGameEntered(page, classId, mode, label) {
   }
   const viewportScale = await page.evaluate(() => window.visualViewport?.scale ?? 1);
   if (Math.abs(viewportScale - 1) > .001) failures.push(`${label}: page viewport is zoomed (${viewportScale})`);
-  if (mode === 'defense') }
+}
 
 async function launchMode(page, classId, mode, imageName, { touch = false } = {}) {
   await page.goto(`${base}/?autostart=0&quality=medium&class=${classId}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
@@ -84,9 +150,11 @@ async function launchMode(page, classId, mode, imageName, { touch = false } = {}
   await page.waitForFunction(wantedClass => window.__SOL_ARPG_DEMO__?.player?.classId === wantedClass, classId, { timeout: 30000 }).catch(() => {
     failures.push(`${mode}/${classId}: title character preview did not update`);
   });
+  await assertRenderBinding(page, classId, `${mode}/${classId}/title`);
   await page.screenshot({ path: resolve(outDir, imageName.replace('.png', '-title.png')), fullPage: false });
   await page.locator(mode === 'defense' ? '#defense-btn' : '#new-game-btn').click();
   await assertGameEntered(page, classId, mode, `${mode}/${classId}`);
+  await assertRenderBinding(page, classId, `${mode}/${classId}/gameplay`);
   await sleep(850);
   await page.screenshot({ path: resolve(outDir, imageName), fullPage: false });
 }
@@ -110,7 +178,7 @@ async function desktopSmoke(browser) {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
   recordConsole(page, 'desktop');
   for (const classId of classes) await launchMode(page, classId, 'hunt', `desktop-${classId}-hunt.png`);
-  await continueSmoke(page, 'rogue', 'desktop-rogue-continue.png');
+  await continueSmoke(page, 'ranger', 'desktop-ranger-continue.png');
   for (const classId of classes) await launchMode(page, classId, 'defense', `desktop-${classId}-defense.png`);
   await page.close();
 }
@@ -141,17 +209,18 @@ async function mobileSmoke(browser) {
       return {
         viewport: { width: innerWidth, height: innerHeight },
         player: rect('.player-card'), currency: rect('.profile-gold-row') || rect('#gold-count'),
+        currencyNested: Boolean(document.querySelector('.player-card')?.contains(document.querySelector('.profile-gold-row'))),
         stick: rect('#touch-stick-zone'), ability: rect('.ability-bar'), menu: rect('#touch-menu-btn'), minimap: rect('.minimap-shell'),
       };
     });
     for (const [name, box] of Object.entries(layout)) {
-      if (name === 'viewport' || !box) continue;
+      if (name === 'viewport' || name === 'currencyNested' || !box) continue;
       const inside = box.x >= -4 && box.y >= -4
         && box.x + box.width <= layout.viewport.width + 4 && box.y + box.height <= layout.viewport.height + 4;
       if (!inside) failures.push(`mobile/${classId}: ${name} is outside the viewport`);
     }
     if (!layout.stick || !layout.ability || !layout.menu || !layout.minimap || !layout.player || !layout.currency) failures.push(`mobile/${classId}: required touch HUD element is missing`);
-    if (layout.player && layout.currency) {
+    if (layout.player && layout.currency && !layout.currencyNested) {
       const overlap = layout.player.x < layout.currency.x + layout.currency.width
         && layout.player.x + layout.player.width > layout.currency.x
         && layout.player.y < layout.currency.y + layout.currency.height
@@ -160,7 +229,7 @@ async function mobileSmoke(browser) {
     }
     await page.screenshot({ path: resolve(outDir, `mobile-${classId}-touch-hud.png`), fullPage: false });
   }
-  await continueSmoke(page, 'rogue', 'mobile-rogue-continue.png', { touch: true });
+  await continueSmoke(page, 'ranger', 'mobile-ranger-continue.png', { touch: true });
   await launchMode(page, 'rogue', 'defense', 'mobile-rogue-defense.png', { touch: true });
   await page.evaluate(() => document.body.classList.add('touch-ui'));
   await page.screenshot({ path: resolve(outDir, 'mobile-rogue-defense-touch.png'), fullPage: false });
@@ -187,5 +256,5 @@ if (failures.length) {
   console.error(`Visual smoke failed (${failures.length}):\n- ${failures.join('\n- ')}`);
   process.exitCode = 1;
 } else {
-  console.log(`Visual smoke passed: desktop 3 Hunts + 3 Defense runs + Continue; mobile 3 Hunts + Rogue Defense + Continue. Screenshots: ${outDir}`);
+  console.log(`Visual smoke passed: desktop 4 Hunts + 4 Defense runs + Continue; mobile 4 Hunts + Rogue Defense + Continue. Screenshots: ${outDir}`);
 }

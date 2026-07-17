@@ -252,7 +252,7 @@ body.touch-ui .controls-mobile { display: flex; }
 
 @media (max-width: 700px) and (orientation: portrait) {
   .title-screen.active {
-    padding: max(18px, calc(env(safe-area-inset-top, 0px) + 12px)) max(14px, calc(env(safe-area-inset-right, 0px) + 10px)) max(14px, calc(env(safe-area-inset-bottom, 0px) + 10px)) max(14px, calc(env(safe-area-inset-left, 0px) + 10px));
+    padding: max(24px, calc(env(safe-area-inset-top, 0px) + 18px)) max(14px, calc(env(safe-area-inset-right, 0px) + 10px)) max(14px, calc(env(safe-area-inset-bottom, 0px) + 10px)) max(14px, calc(env(safe-area-inset-left, 0px) + 10px));
   }
   .title-content {
     --title-panel: min(360px, 100%);
