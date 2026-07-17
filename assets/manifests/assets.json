@@ -123,6 +123,37 @@
         "skill_hunter_mark": "skill_hunter_mark"
       }
     },
+    "hero.gunner": {
+      "type": "character",
+      "lods": {
+        "high": "./assets/models/hero/gunner_lod0.glb",
+        "medium": "./assets/models/hero/gunner_lod1.glb",
+        "low": "./assets/models/hero/gunner_lod1.glb"
+      },
+      "animationMap": {
+        "idle": "idle",
+        "walk": "walk",
+        "run": "run",
+        "sprint": "sprint",
+        "attack_1": "attack_1",
+        "attack_2": "attack_2",
+        "attack_3": "attack_3",
+        "attack_4": "attack_4",
+        "cast_1": "cast_1",
+        "cast_2": "cast_2",
+        "cast_3": "cast_3",
+        "cast_4": "cast_4",
+        "dodge": "dodge",
+        "hit": "hit",
+        "hit_light": "hit_light",
+        "hit_heavy": "hit_heavy",
+        "death": "death",
+        "skill_pierce_shot": "skill_pierce_shot",
+        "skill_trap": "skill_trap",
+        "skill_vault_shot": "skill_vault_shot",
+        "skill_hunter_mark": "skill_hunter_mark"
+      }
+    },
     "monster.slime": {
       "type": "monster",
       "lods": {
@@ -254,6 +285,10 @@
     "weapon.bow": {
       "type": "prop",
       "url": "./assets/models/props/weapon_bow.glb"
+    },
+    "weapon.rifle": {
+      "type": "prop",
+      "url": "./assets/models/props/weapon_rifle.glb"
     }
   },
   "textures": {

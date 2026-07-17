@@ -241,6 +241,15 @@ export function onXpLevelUps(game, levelUps = []) {
         if (skill && !skill.passive && skill.unlockLevel === level) {
           (game.ctx?.ui ?? game.ui).notify(`New skill unlocked · ${skill.name} [${skill.key}]`, 'level', 4.2);
         }
+        // Generic passive feature notice (e.g. Gunner Smartlink at level 5).
+        const notice = skill?.unlockNotice;
+        if (skill?.passive && notice && Number(notice.level) === level) {
+          (game.ctx?.ui ?? game.ui).notify(
+            notice.title ? `${notice.title} — ${notice.body ?? ''}`.trim() : `Feature unlocked · ${skill.name}`,
+            'level',
+            4.6,
+          );
+        }
       }
       // Combat beat: nova + brief invuln (once per level gained).
       levelUpNova(game);

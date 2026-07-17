@@ -1,11 +1,17 @@
 /**
- * Basic attack implementations (melee / magic / ranger strafe).
+ * Basic attack implementations (melee / magic / ranger strafe / gunner rifle).
  * Attached onto CombatSystem.prototype (N5).
  */
 import * as THREE from 'three';
+import { GUNNER_CONFIG } from '../../config.js';
 import { getClassBasicAttack, getHeroClass, SKILLS } from '../../data/content.js';
 import { getFxTheme } from '../../data/fxThemes.js';
 import { clamp } from '../../core/Utils.js';
+import {
+  getGunnerBasicAttackSpec,
+  queryFirstRifleHit,
+  selectSmartlinkTarget,
+} from './gunnerTargeting.js';
 
 const RANGER_BASIC_TARGETING = Object.freeze({
   frontDot: 0,
@@ -196,8 +202,99 @@ _applyFrenzyContact(player, enemy, rawDamage, direction) {
     }
   },
 
+_rifleAttack(player, combo, comboLength = 4) {
+    if (player.classId !== 'gunner') {
+      // Safety: non-gunner should never enter rifle path.
+      this._magicAttack(player, combo, comboLength);
+      return;
+    }
+    const enemies = (this.ctx ?? this.game).enemies?.enemies ?? [];
+    const facing = this._facingDir(player);
+    const smartUnlocked = player.level >= GUNNER_CONFIG.smartlink.unlockLevel;
+    let direction = facing;
+    if (smartUnlocked) {
+      const stickOk = (player._smartlinkStickTimer ?? 0) > 0;
+      const retainedId = stickOk ? (player._smartlinkTargetId ?? null) : null;
+      const target = selectSmartlinkTarget(
+        enemies,
+        player.position,
+        facing,
+        retainedId,
+        GUNNER_CONFIG.smartlink,
+      );
+      if (target?.alive) {
+        direction = this._faceAutoTarget(player, target);
+        player._smartlinkTargetId = target.id ?? target.typeId ?? null;
+        player._smartlinkStickTimer = GUNNER_CONFIG.smartlink.stickTime;
+        player._smartlinkReticleEnemy = target;
+      } else {
+        player._smartlinkTargetId = null;
+        player._smartlinkReticleEnemy = null;
+      }
+    } else {
+      player._smartlinkReticleEnemy = null;
+    }
+
+    const spec = getGunnerBasicAttackSpec(combo);
+    const theme = getFxTheme('brassfire');
+    const color = player.weapon?.rarityColor ?? theme.primary;
+    const origin = (() => {
+      const socket = player.refs?.muzzleSocket
+        ?? player.refs?.weapon?.getObjectByName?.('muzzle_socket');
+      if (socket?.getWorldPosition) {
+        const p = socket.getWorldPosition(new THREE.Vector3());
+        if (Number.isFinite(p.x)) return p;
+      }
+      return player.position.clone().add(new THREE.Vector3(0, 1.15, 0)).addScaledVector(direction, 0.75);
+    })();
+    const effects = (this.ctx ?? this.game).effects;
+    effects?.recipeRifleMuzzle?.(origin, direction, theme);
+    const rounds = Math.max(1, spec.rounds);
+    const perRoundMult = spec.mult;
+    // Finisher: three visual rounds, single proc eligibility (first round only).
+    const procRound = 0;
+    for (let r = 0; r < rounds; r += 1) {
+      this._delay(r * 0.045, () => {
+        if (!player.alive) return;
+        const dir = this._facingDir(player);
+        const muzzle = (() => {
+          const socket = player.refs?.muzzleSocket
+            ?? player.refs?.weapon?.getObjectByName?.('muzzle_socket');
+          if (socket?.getWorldPosition) {
+            const p = socket.getWorldPosition(new THREE.Vector3());
+            if (Number.isFinite(p.x)) return p;
+          }
+          return player.position.clone().add(new THREE.Vector3(0, 1.15, 0)).addScaledVector(dir, 0.75);
+        })();
+        const hit = queryFirstRifleHit(enemies, muzzle, dir, spec.range, spec.radius);
+        const end = hit?.point
+          ? new THREE.Vector3(hit.point.x, hit.point.y, hit.point.z)
+          : muzzle.clone().addScaledVector(dir, spec.range);
+        effects?.recipeRifleTracer?.(muzzle, dir, theme, hit ? hit.distance : spec.range);
+        if (hit?.enemy) {
+          const allowProc = !spec.isFinisher || r === procRound;
+          this._damageEnemy(hit.enemy, player.attackPower * perRoundMult, {
+            direction: dir,
+            knockback: spec.isFinisher ? 2.4 : 1.1,
+            multiHit: rounds > 1,
+            // Block weapon resonance / on-hit refunds on finisher trailing rounds.
+            weaponProcDerived: !allowProc,
+            skill: false,
+          });
+          effects?.burst?.(end, color, 5, { speed: 2.2, size: 0.12, life: 0.22, upward: 0.15 });
+        }
+      });
+    }
+    if (spec.isFinisher) {
+      effects?.ring?.(player.position, color, 2.2, { life: 0.28, startScale: 0.14, opacity: 0.65 });
+    }
+  },
+
 _magicAttack(player, combo, comboLength = 4) {
-    const isBow = getHeroClass(player.classId).attackStyle === 'ranged';
+    // Bow profile only — never treat gunner rifle as arrows.
+    const isBow = getHeroClass(player.classId).attackStyle === 'ranged'
+      && getClassBasicAttack(player.classId).profile !== 'rifle'
+      && player.classId === 'ranger';
     // Ranger L5+ Strafe passive: basic attacks become auto-aimed 10-arrow volleys.
     if (isBow && this._rangerStrafeUnlocked(player)) {
       this._rangerStrafeAttack(player, combo, comboLength);

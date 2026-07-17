@@ -43,6 +43,7 @@ These guides document the architecture and the work done to introduce multi-clas
 | `wizard` | Arcane caster | `hero.wizard` | `magic` | Apprentice Staff (`staff`) |
 | `rogue` | Night fang — short-reach crit flurry | `hero.rogue` | `melee` | Fledgling Dagger (`dagger`) — runtime hood kit |
 | `ranger` | Wildshot — bow volleys, trap & mark | `hero.ranger` | `ranged` | Fledgling Bow (`bow`) — [../history/ranger-class.md](../history/ranger-class.md) |
+| `gunner` | Ember Vanguard — rifle hitscan, Smartlink, flame control | `hero.gunner` | `ranged` (`basicAttack.profile: 'rifle'`) | Service Rifle (`rifle`) — [../plan/gunner-class.md](../plan/gunner-class.md) |
 
 Melee basic-attack combo length grows with player level (3→7); clips `attack_1`–`attack_7` when baked.  
 Wizard basics use `cast_1`–`cast_4`. Ranger plan reuses projectile basics with bow presentation. See [combat-facing.md](./combat-facing.md) and Player `basicComboLength`.

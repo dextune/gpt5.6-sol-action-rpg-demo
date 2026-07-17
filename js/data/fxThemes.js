@@ -43,6 +43,14 @@ export const FX_THEMES = Object.freeze({
     dust: 0xc87840,
     accent: 0xff9a50,
   }),
+  brassfire: Object.freeze({
+    id: 'brassfire',
+    primary: 0xe87838,
+    secondary: 0xffc078,
+    core: 0xffe8c0,
+    dust: 0xa86840,
+    accent: 0xff9a50,
+  }),
   frost: Object.freeze({
     id: 'frost',
     primary: 0x7ad8ff,

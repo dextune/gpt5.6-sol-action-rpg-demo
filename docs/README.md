@@ -38,6 +38,7 @@ Guides for agents modifying the **GPT-5.6: Sol / Action RPG DEMO** (Three.js bro
 
 | Plan | Status |
 |------|--------|
+| [plan/gunner-class.md](./plan/gunner-class.md) | **ready** — fifth hero class with a rifle baseline, level-5 Smartlink, later flame skills, full UI/assets/progression coverage, and staged release gates |
 | [plan/combat-motion-sophistication.md](./plan/combat-motion-sophistication.md) | **ready** — **full** combat action motion upgrade (research, baseline, out-of-scope, class cards, waves, validation) |
 | [plan/max-hunt.md](./plan/max-hunt.md) | **ready** — New Hunt → MAX HUNT conversion with a Lv.70 start, village breach, persistent growth, save migration, and performance gates |
 

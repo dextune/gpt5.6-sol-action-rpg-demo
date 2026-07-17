@@ -28,6 +28,10 @@ export const SKILL_EFFECT_HANDLER_KEYS = Object.freeze([
   'caltrop_trap',
   'vault_shot',
   'hunter_mark',
+  'suppressive_burst',
+  'flame_jet',
+  'stim_rush',
+  'inferno_sweep',
 ]);
 
 /** Energy burst effect ids dispatched by CombatSystem.energyHandlers */

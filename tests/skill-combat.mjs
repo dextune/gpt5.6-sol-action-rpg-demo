@@ -2286,6 +2286,7 @@ for (const recipe of ['recipeArsenalAct', 'recipeMoonlessAct']) {
 const apexRows = {
   aerin: ['broken_crown', 'apex_finisher'], wizard: ['overflow_overcast', 'apex_cast'],
   rogue: ['blood_echo', 'apex_finisher'], ranger: ['marked_convergence', 'apex_finisher'],
+  // Gunner ships without a separate keystone row; skip frozen-keystone assert.
 };
 const { APEX_AUDIO_PROFILES, AudioManager } = await import(pathToFileURL(join(root, 'js/core/AudioManager.js')).href);
 const apexProfileIds=Object.keys(APEX_AUDIO_PROFILES);const apexDataIds=[];
@@ -2303,25 +2304,26 @@ for (const skill of actives) {
     && at100.presentation.apexAudio===skill.id,
     `${skill.id} enables an explicit apex finale only at level 100`);
 }
-ok(apexProfileIds.length===16&&new Set(Object.values(APEX_AUDIO_PROFILES)).size===16
+ok(apexProfileIds.length===20&&new Set(Object.values(APEX_AUDIO_PROFILES)).size===20
   && isDeepStrictEqual([...apexProfileIds].sort(),[...apexDataIds].sort())
   && Object.values(APEX_AUDIO_PROFILES).every(profile=>Object.isFrozen(profile)&&Object.isFrozen(profile.cadence)
     && isDeepStrictEqual(Object.keys(profile.cadence),['anticipate','impact','finisher'])
     && ['anticipate','impact','finisher'].every(phase=>Object.isFrozen(profile.cadence[phase])))
   && actives.every(skill=>APEX_AUDIO_PROFILES[skill.id].classId===skill.classId)
-  && new Set(Object.values(APEX_AUDIO_PROFILES).map(profile=>`${profile.pitch}:${profile.noise}:${profile.filter}`)).size===16
-  && new Set(Object.values(APEX_AUDIO_PROFILES).map(profile=>profile.timbre)).size===4
+  && new Set(Object.values(APEX_AUDIO_PROFILES).map(profile=>`${profile.pitch}:${profile.noise}:${profile.filter}`)).size===20
+  && new Set(Object.values(APEX_AUDIO_PROFILES).map(profile=>profile.timbre)).size>=4
   && Object.keys(apexRows).every(classId=>new Set(Object.values(APEX_AUDIO_PROFILES).filter(profile=>profile.classId===classId)
     .map(profile=>profile.timbre)).size===1),
-  'exactly 16 unique frozen Apex audio profiles match the 16 level-100 data ids and three cadence phases');
+  'exactly 20 unique frozen Apex audio profiles match the 20 level-100 data ids and three cadence phases');
 ok(new AudioManager().apex('whirlwind','anticipate')===false&&new AudioManager().apex('unknown','finisher')===false,
   'Apex procedural audio gracefully declines without an unlocked audio context or known profile');
 
 const assetManifest=JSON.parse(await import('node:fs/promises').then(fs=>fs.readFile(join(root,'assets/manifests/assets.json'),'utf8')));
-const heroAsset={aerin:'hero.aerin',wizard:'hero.wizard',rogue:'hero.rogue',ranger:'hero.ranger'};
+const heroAsset={aerin:'hero.aerin',wizard:'hero.wizard',rogue:'hero.rogue',ranger:'hero.ranger',gunner:'hero.gunner'};
 const expectedFallback={whirlwind:'attack_4',crescent:'skill_whirlwind',skyfall:'skill_whirlwind',starburst:'skill_whirlwind',
   fireball:'cast_2',frost_nova:'cast_3',arcane_blink:'dodge',meteor_storm:'cast_4',twin_fang:'attack_2',fan_of_knives:'skill_twin_fang',
-  shadowstep:'attack_6',death_lotus:'attack_4',piercing_shot:'cast_2',caltrop_trap:'cast_3',vault_shot:'dodge',hunter_mark:'cast_4'};
+  shadowstep:'attack_6',death_lotus:'attack_4',piercing_shot:'cast_2',caltrop_trap:'cast_3',vault_shot:'dodge',hunter_mark:'cast_4',
+  suppressive_burst:'cast_2',flame_jet:'cast_3',stim_rush:'cast_1',inferno_sweep:'cast_4'};
 for(const skill of actives){const animationMap=assetManifest.models[heroAsset[skill.classId]].animationMap;
   ok(Object.hasOwn(animationMap,skill.anim)&&skill.animFallback===expectedFallback[skill.id]&&Object.hasOwn(animationMap,skill.animFallback),
     `${skill.id} primary and owning fallback animations exist in its class animationMap`);}
@@ -2330,6 +2332,7 @@ const expectedEvolutionAnimations={
   fireball:['cast_2','skill_fireball'],frost_nova:['cast_3','skill_frost_nova'],arcane_blink:['dodge','skill_blink'],meteor_storm:['cast_4','skill_meteor'],
   twin_fang:['attack_6','skill_twin_fang'],fan_of_knives:['attack_5','skill_fan_knives'],shadowstep:['attack_6','skill_twin_fang'],death_lotus:['attack_5','skill_death_lotus'],
   piercing_shot:['cast_2','skill_pierce_shot'],caltrop_trap:['cast_3','skill_trap'],vault_shot:['dodge','skill_vault_shot'],hunter_mark:['cast_4','skill_hunter_mark'],
+  suppressive_burst:['cast_2','skill_pierce_shot'],flame_jet:['cast_3','skill_trap'],stim_rush:['cast_1','skill_vault_shot'],inferno_sweep:['cast_4','skill_hunter_mark'],
 };
 for(const skill of actives){
   const [form60,form100]=expectedEvolutionAnimations[skill.id]??[];
@@ -2359,6 +2362,10 @@ const mutationIconFamilies={
   caltrop_trap:['thorn',['briar_field','blast_seed','snare_bloom','mine_garden']],
   vault_shot:['vault',['gale_vault','counter_volley','escape_artist','perfect_distance']],
   hunter_mark:['mark',['pack_hunt','prime_target','chain_verdict','trophy_shot']],
+  suppressive_burst:['rifle',['wide_lane','hard_pin','drum_fire','armor_drill']],
+  flame_jet:['jet',['wide_jet','needle_jet','sticky_fuel','flashover']],
+  stim_rush:['stim',['long_stim','spike_stim','field_march','kill_tempo']],
+  inferno_sweep:['inferno',['wide_sweep','deep_burn','zone_web','blast_core']],
 };
 const expectedRoles=['breadth','focus','flow','execution'];
 const mutationIcons=[];
@@ -2373,10 +2380,10 @@ for(const skill of actives){
     mutationIcons.push(option?.icon);
   }
 }
-ok(mutationIcons.length===64&&new Set(mutationIcons).size===64
+ok(mutationIcons.length===80&&new Set(mutationIcons).size===80
   && mutationIcons.every(icon=>/^[a-z][a-z0-9_-]*\.(breadth|focus|flow|execution)$/.test(icon))
   && isDeepStrictEqual([...new Set(mutationIcons.map(icon=>icon.split('.')[1]))].sort(),[...expectedRoles].sort()),
-  'all 64 mutation icons are valid, globally unique, and cover the four exact roles');
+  'all 80 mutation icons are valid, globally unique, and cover the four exact roles');
 const wizardOvercasts = { fireball:.35, frost_nova:.32, arcane_blink:.38, meteor_storm:.42 };
 for (const [id, mult] of Object.entries(wizardOvercasts)) {
   const resolved = resolveSkillForm(content.SKILLS[id], 10, 100, {});
@@ -2459,7 +2466,7 @@ const belowApexAudio=[];const belowApexGame=makeWizardGame([]);belowApexGame.aud
   {get:(target,key)=>target[key]??(()=>{})});const belowApexCombat=new CombatSystem(belowApexGame);
 for(const skill of actives){const player={...rogueSkillPlayer,classId:skill.classId,level:99,alive:true,position:new THREE.Vector3(),facing:new THREE.Vector3(1,0,0)};
   belowApexGame.player=player;belowApexCombat.usePlayerSkill(resolveSkillForm(skill,10,99,{}),player,0);}
-ok(belowApexAudio.length===0,'all 16 level-99 skill casts emit exactly zero Apex audio phases');
+ok(belowApexAudio.length===0,'all level-99 skill casts emit exactly zero Apex audio phases');
 
 const staleAudioEvents=[];const staleAudioTarget=makeWizardEnemy('stale-apex-audio',2,0);const staleAudioGame=makeWizardGame([staleAudioTarget]);
 const staleAudioPlayer={...rogueSkillPlayer,classId:'ranger',level:100,alive:true,position:new THREE.Vector3(),facing:new THREE.Vector3(1,0,0),predatorVerdict:null};

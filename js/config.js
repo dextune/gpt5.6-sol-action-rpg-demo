@@ -503,6 +503,48 @@ export const WEAPON_OPTION_ENHANCE = Object.freeze({
 });
 
 /**
+ * Gunner Smartlink + rifle basic-attack targeting.
+ * Combat owns hitscan; this table is pure numeric policy only.
+ */
+export const GUNNER_CONFIG = Object.freeze({
+  rifleRange: 26,
+  rifleRadius: 0.55,
+  smartlink: Object.freeze({
+    unlockLevel: 5,
+    acquireRange: 28,
+    retainRange: 31,
+    frontDot: 0.15,
+    rearEmergencyRadius: 9,
+    stickTime: 0.65,
+  }),
+  comboRounds: Object.freeze([1, 1, 1, 3]),
+  comboMults: Object.freeze([0.86, 0.94, 1.02, 0.5]),
+  /** Finisher fires 3 visual rounds but procs once. */
+  finisherProcCap: 1,
+  stim: Object.freeze({
+    duration: 6.5,
+    attackSpeed: 0.22,
+    moveSpeed: 0.18,
+  }),
+  flameJet: Object.freeze({
+    range: 7.2,
+    halfAngle: 0.55,
+    ticks: 4,
+    tickInterval: 0.12,
+    burnPerTargetCap: 1,
+  }),
+  inferno: Object.freeze({
+    range: 8.5,
+    arc: 2.4,
+    zoneCount: 3,
+    zoneLife: 3.2,
+    zoneRadius: 2.4,
+    tickInterval: 0.45,
+    maxZones: 6,
+  }),
+});
+
+/**
  * MAX HUNT — high-pressure Hunt start at a coherent level-70 baseline.
  * World-tier enemy stats stay in Enemy; spawn level policy must not double-count WT.
  * Defense never reads this table.

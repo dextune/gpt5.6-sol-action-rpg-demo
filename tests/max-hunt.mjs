@@ -63,8 +63,9 @@ ok(MAX_HUNT_CONFIG.maxEnemies === 128, 'hard cap 128');
 ok(MAX_HUNT_CONFIG.sectors === 8 && MAX_HUNT_CONFIG.enemiesPerSector === 8, '8×8 opening sectors');
 
 const classIds = Object.keys(HERO_CLASSES);
-ok(classIds.length === 4, 'four playable classes');
-ok(classIds.every(id => MAX_HUNT_CLASS_PRESETS[id]), 'presets for all four classes');
+ok(classIds.length === 5, 'five playable classes');
+ok(classIds.includes('gunner'), 'gunner is a playable class');
+ok(classIds.every(id => MAX_HUNT_CLASS_PRESETS[id]), 'presets for all playable classes');
 
 for (const classId of classIds) {
   const preset = MAX_HUNT_CLASS_PRESETS[classId];

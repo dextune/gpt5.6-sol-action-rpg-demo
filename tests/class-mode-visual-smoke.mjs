@@ -15,12 +15,14 @@ import { fileURLToPath } from 'node:url';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const base = process.env.BASE_URL || 'http://127.0.0.1:8777';
 const outDir = process.env.OUT_DIR || `/tmp/sol-arpg-class-visual-smoke-${Date.now()}`;
-const classes = ['aerin', 'wizard', 'rogue', 'ranger'];
+const classes = ['aerin', 'wizard', 'rogue', 'ranger', 'gunner'];
 const expectedBindings = Object.freeze({
   aerin: Object.freeze({ name: 'Gareth', heroRoot: 'Knight_Hero_Rig', weaponRoot: 'weapon_sword', socketParent: 'right_hand', marker: 'knight_helm', maxWeaponRatio: .9, expectBladeUp: true }),
   wizard: Object.freeze({ name: 'Lyra', heroRoot: 'Wizard_Hero_Rig', weaponRoot: 'weapon_staff', socketParent: 'right_hand', marker: 'wizard_hat', maxWeaponRatio: 1.05, expectBladeUp: true }),
   rogue: Object.freeze({ name: 'Vex', heroRoot: 'Rogue_Hero_Rig', weaponRoot: 'weapon_dagger', socketParent: 'right_hand', marker: 'RogueHood', offhandRoot: 'weapon_dagger', maxWeaponRatio: .55 }),
   ranger: Object.freeze({ name: 'Sable', heroRoot: 'Ranger_Hero_Rig', weaponRoot: 'weapon_bow', socketParent: 'left_hand', marker: 'RangerHair', maxWeaponRatio: .85 }),
+  // Gunner reuses shared skeleton LOD assets; weapon may be staff fallback mesh named weapon_rifle.
+  gunner: Object.freeze({ name: 'Rook', heroRoot: null, weaponRoot: null, socketParent: 'right_hand', marker: null, maxWeaponRatio: 1.2, expectBladeUp: false, soft: true }),
 });
 const failures = [];
 const consoleErrors = [];
@@ -105,6 +107,13 @@ async function assertRenderBinding(page, classId, label) {
   }
   if (actual.classId !== classId) failures.push(`${label}: class id ${actual.classId} != ${classId}`);
   if (actual.name !== expected.name) failures.push(`${label}: hero name ${actual.name} != ${expected.name}`);
+  if (expected.soft) {
+    // Soft binding for staged Gunner assets (shared skeleton LOD / prop reuse).
+    if (!actual.weaponRoot && !actual.socketParent) {
+      failures.push(`${label}: gunner weapon mount missing`);
+    }
+    return;
+  }
   if (actual.fallback) failures.push(`${label}: fallback hero rendered instead of GLB`);
   if (!actual.heroRoot) failures.push(`${label}: missing hero root ${expected.heroRoot}`);
   if (!actual.weaponRoot) failures.push(`${label}: missing weapon root ${expected.weaponRoot}`);

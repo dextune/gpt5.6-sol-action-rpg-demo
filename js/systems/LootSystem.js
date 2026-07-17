@@ -186,6 +186,7 @@ const BASE_LEVELS = Object.freeze({
   oak_staff: 1, crystal_rod: 14, void_scepter: 40,
   night_fang: 1, viper_kris: 30,
   yew_bow: 1, longbow_ash: 16, storm_recurve: 38,
+  service_rifle: 1, brass_carbine: 18, ember_lance: 36,
   hide_vest: 1, leaf_mail: 8, dune_plate: 16, frost_coat: 25, forge_shell: 36, starweave: 49,
   fang_charm: 1, breeze_knot: 6, heart_seed: 12, coin_eye: 19, scholar_rune: 28, eclipse_shard: 48,
 });

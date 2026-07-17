@@ -163,8 +163,14 @@ export function syncAbilityBar(ui, player) {
       if (attackSlot) {
         const icon = attackSlot.querySelector('.ability-icon');
         if (icon) {
-          icon.classList.toggle('sword-icon', hero.attackStyle !== 'magic');
-          icon.classList.toggle('starburst-icon', hero.attackStyle === 'magic');
+          const attackIcon = hero.presentation?.attackIcon
+            ?? hero.basicAttack?.attackIcon
+            ?? (hero.attackStyle === 'magic' ? 'magic' : hero.attackStyle === 'ranged' ? 'bow' : 'melee');
+          icon.classList.toggle('sword-icon', attackIcon === 'melee' || attackIcon === 'sword');
+          icon.classList.toggle('starburst-icon', attackIcon === 'magic');
+          icon.classList.toggle('bow-icon', attackIcon === 'bow');
+          icon.classList.toggle('rifle-icon', attackIcon === 'rifle');
+          icon.classList.toggle('smartlink-ready', false);
         }
       }
       for (const skillId of Object.keys(ui.boundSkillSlots)) delete ui.abilitySlots[skillId];
@@ -300,19 +306,22 @@ export function updateHUD(ui) {
       const overflowVisible = player.classId === 'wizard';
       const thornsVisible = player.classId === 'ranger' && Boolean(player.thornField);
       const verdictVisible = player.classId === 'ranger' && Boolean(player.predatorVerdict);
+      const stimVisible = player.classId === 'gunner' && Boolean(player.stimRushActive);
       const rangerVisible = thornsVisible || verdictVisible;
       const stateCount = Number(frenzyVisible) + Number(overflowVisible)
-        + Number(thornsVisible) + Number(verdictVisible);
+        + Number(thornsVisible) + Number(verdictVisible) + Number(stimVisible);
       ui.elements.hud.classList.toggle('class-state-active', stateCount > 0);
       ui.elements.hud.dataset.classStateCount = String(stateCount);
       const frenzy = ui.elements['frenzy-chip'];
       const overflow = ui.elements['overflow-chip'];
       const ranger = ui.elements['ranger-state-row'];
+      const stim = ui.elements['stim-chip'];
       frenzy.classList.toggle('hidden', !frenzyVisible);
       overflow.classList.toggle('hidden', !overflowVisible);
       ranger.classList.toggle('hidden', !rangerVisible);
-      ui.elements['thorns-chip'].classList.toggle('hidden', !thornsVisible);
-      ui.elements['verdict-chip'].classList.toggle('hidden', !verdictVisible);
+      if (stim) stim.classList.toggle('hidden', !stimVisible);
+      ui.elements['thorns-chip']?.classList.toggle('hidden', !thornsVisible);
+      ui.elements['verdict-chip']?.classList.toggle('hidden', !verdictVisible);
       if (frenzyVisible) {
         frenzy.querySelector('span').textContent = `${player.shadowFrenzy.remaining.toFixed(1)}s`;
         frenzy.style.setProperty('--frenzy-ratio', player.frenzyRatio);
@@ -332,7 +341,25 @@ export function updateHUD(ui) {
       if (verdictVisible) {
         ui.elements['verdict-chip'].querySelector('span').textContent = `${Math.round(100 * player.predatorVerdict.stored / Math.max(1, player.predatorVerdict.cap))}%`;
       }
-      ui.elements['class-state-row'].classList.toggle('hidden', !(frenzyVisible || overflowVisible || rangerVisible));
+      if (stimVisible && stim) {
+        const left = Math.max(0, player.stimRush.remaining);
+        stim.querySelector('span').textContent = `${left.toFixed(1)}s`;
+        stim.setAttribute('aria-label', `Stim Rush: ${left.toFixed(1)} seconds remaining`);
+      }
+      // Smartlink state on the basic-attack slot.
+      const attackSlot = ui.abilitySlots?.attack;
+      const attackIcon = attackSlot?.querySelector('.ability-icon');
+      if (attackIcon && player.classId === 'gunner') {
+        const online = player.level >= 5;
+        const locked = online && Boolean(player._smartlinkReticleEnemy?.alive);
+        attackIcon.classList.toggle('smartlink-ready', online);
+        attackIcon.classList.toggle('smartlink-locked', locked);
+        attackSlot?.classList.toggle('smartlink-online', online);
+      }
+      ui.elements['class-state-row'].classList.toggle(
+        'hidden',
+        !(frenzyVisible || overflowVisible || rangerVisible || stimVisible),
+      );
     }
     if (isDefense) {
       const wave = defenseHud?.wave ?? 1;

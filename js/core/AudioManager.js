@@ -26,6 +26,10 @@ export const APEX_AUDIO_PROFILES = Object.freeze({
   caltrop_trap: apexProfile('ranger', 'sine', 109, .026, 680),
   vault_shot: apexProfile('ranger', 'sine', 139, .017, 820),
   hunter_mark: apexProfile('ranger', 'sine', 121, .020, 740),
+  suppressive_burst: apexProfile('gunner', 'sawtooth', 148, .016, 700),
+  flame_jet: apexProfile('gunner', 'sawtooth', 96, .025, 540),
+  stim_rush: apexProfile('gunner', 'sawtooth', 168, .015, 880),
+  inferno_sweep: apexProfile('gunner', 'sawtooth', 82, .028, 480),
 });
 
 /**

@@ -107,11 +107,19 @@ button { color: inherit; }
  */
 .class-select {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 6px;
   margin: 0 0 9px;
   align-items: stretch;
   justify-items: stretch;
+}
+@media (max-width: 720px) {
+  .class-select {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  .class-select .class-card {
+    grid-column: span 2;
+  }
 }
 .class-card {
   appearance: none;
@@ -739,6 +747,11 @@ body.touch-ui .controls-mobile { display: flex; }
 .lock-level { display: none; position: absolute; z-index: 8; inset: 0; place-items: center; padding-top: 20px; text-align: center; font: 800 8px/1 system-ui; color: #e4e8e4; background: rgba(7,13,18,.46); }
 .ability-icon { position: absolute; z-index: 2; left: 50%; top: 47%; width: 31px; height: 31px; transform: translate(-50%, -50%) rotate(45deg); border-radius: 50% 4px 50% 4px; background: radial-gradient(circle at 35% 30%, #d8ffff, #58b8d0 45%, #285d72 70%); box-shadow: 0 0 12px rgba(100,220,255,.35); }
 .sword-icon { background: linear-gradient(135deg, transparent 40%, #f2f5df 41% 49%, #6f9ba7 50% 56%, transparent 57%), radial-gradient(circle, #a4debe, #2d665e); }
+.bow-icon { background: radial-gradient(circle at 40% 40%, #f0d090, #8a6030 55%, #3a2810); box-shadow: 0 0 10px rgba(232,176,64,.35); }
+.rifle-icon { background: linear-gradient(120deg, #f0c090 10%, #c07030 40%, #4a3830 70%), radial-gradient(circle at 30% 30%, #ffe0b0, #6a4030); box-shadow: 0 0 10px rgba(232,120,56,.4); }
+.rifle-icon.smartlink-ready { outline: 1px solid rgba(255, 200, 120, 0.75); }
+.rifle-icon.smartlink-locked { box-shadow: 0 0 14px rgba(255, 160, 80, 0.85); }
+.stim-chip { border-color: rgba(232, 120, 56, 0.45); color: #ffd0a0; }
 .dash-icon { background: linear-gradient(90deg, transparent 5%, #baf9ef 20% 28%, transparent 29% 38%, #77d9dc 39% 50%, transparent 51%), radial-gradient(circle, #4cbec5, #244c62); }
 .whirlwind-icon { background: repeating-radial-gradient(circle at 42% 46%, transparent 0 4px, #a9f4e8 5px 7px, transparent 8px 11px), #286f75; }
 .crescent-icon { background: radial-gradient(circle at 65% 35%, #1f5869 0 40%, transparent 41%), radial-gradient(circle, #c8f5ff, #4faaca); }

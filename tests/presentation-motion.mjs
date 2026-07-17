@@ -245,7 +245,7 @@ ok((holdSrc.match(/animationClip\('hit'/g) || []).length >= 1
   'S2: hit reaction uses denser multi-key settle');
 
 const assetManifest = JSON.parse(readFileSync(join(root, 'assets/manifests/assets.json'), 'utf8'));
-const heroKeys = ['hero.aerin', 'hero.wizard', 'hero.rogue', 'hero.ranger'];
+const heroKeys = ['hero.aerin', 'hero.wizard', 'hero.rogue', 'hero.ranger', 'hero.gunner'];
 for (const key of heroKeys) {
   const map = assetManifest.models[key]?.animationMap ?? {};
   ok(Object.hasOwn(map, 'walk') && map.walk === 'walk', `S1: ${key} animationMap includes walk`);

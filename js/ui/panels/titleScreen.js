@@ -21,25 +21,17 @@ export function syncClassSelect(ui) {
     }
   }
 
-/** Job labels shown under character name (compact chips). */
-const CLASS_JOB_LABEL = Object.freeze({
-  aerin: 'Knight',
-  wizard: 'Wizard',
-  rogue: 'Rogue',
-  ranger: 'Ranger',
-});
-
-/** Compact hero chips: character name + job only. */
+/** Compact hero chips: character name + job from shared class presentation data. */
 export function fillClassCards(ui) {
     for (const card of ui.classCards) {
       const classId = resolveHeroClassId(card.dataset.classId);
       const hero = getHeroClass(classId);
-      const accent = CLASS_ACCENT[classId] ?? '#78d2ff';
+      const accent = hero?.presentation?.accent ?? CLASS_ACCENT[classId] ?? '#78d2ff';
       card.style.setProperty('--class-accent', accent);
       const nameEl = card.querySelector('.class-card-name');
       const jobEl = card.querySelector('.class-card-job');
       const name = hero?.name ?? classId;
-      const job = CLASS_JOB_LABEL[classId] ?? hero?.title ?? classId;
+      const job = hero?.presentation?.jobLabel ?? hero?.title ?? classId;
       if (nameEl) nameEl.textContent = name;
       if (jobEl) jobEl.textContent = job;
       card.setAttribute('aria-label', `${name}, ${job}`);

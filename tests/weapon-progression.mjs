@@ -30,7 +30,8 @@ const ok = (condition, message) => {
 };
 
 const classIds = Object.keys(HERO_CLASSES);
-ok(classIds.length === 4, 'all four playable classes are under weapon-progression test');
+ok(classIds.length === 5, 'all playable classes are under weapon-progression test');
+ok(classIds.includes('gunner'), 'gunner has weapon progression coverage');
 ok(WEAPON_RESONANCE_LEVELS.join(',') === '3,6,10,15,20,25,30', 'seven fast resonance milestones are fixed');
 
 const totalCostThrough = (weapon, target) => {

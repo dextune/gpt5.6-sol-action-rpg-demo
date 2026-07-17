@@ -165,13 +165,21 @@ ok(typeof content.resolveHeroClassId === 'function' && content.resolveHeroClassI
 ok(allFiles.includes(join(root, 'assets/models/hero/wizard_lod0.glb')), 'wizard lod0 glb exists');
 ok(allFiles.includes(join(root, 'assets/models/hero/wizard_lod1.glb')), 'wizard lod1 glb exists');
 ok(html.includes('data-class-id="rogue"'), 'title rogue class card');
+ok(html.includes('data-class-id="gunner"'), 'title gunner class card');
 ok(html.includes('class="vital-orb hp-orb"') && html.includes('class="vital-orb mp-orb"'), 'HUD HP/MP orbs');
 ok(html.includes('id="mobile-hp-fill"') && html.includes('id="mobile-mp-fill"'), 'mobile profile HP/MP gauges');
 ok(!html.includes('character-vitals-overlay') && !html.includes('hp-arc-fill') && !html.includes('mp-arc-fill'), 'HUD curved gauges removed');
 ok(Boolean(content.HERO_CLASSES?.rogue), 'HERO_CLASSES rogue');
+ok(Boolean(content.HERO_CLASSES?.gunner), 'HERO_CLASSES gunner');
+ok(content.HERO_CLASSES.gunner.activeSkills.length === 4, 'gunner has 4 actives');
+ok(content.HERO_CLASSES.gunner.passiveSkills.length >= 5, 'gunner has 5+ passives');
+ok(content.getBasicAttackProfile('gunner') === 'rifle', 'gunner basic profile is rifle');
+ok(content.getBasicAttackProfile('ranger') === 'bow', 'ranger basic profile stays bow');
 ok(allFiles.includes(join(root, 'assets/models/hero/rogue_lod0.glb')), 'rogue lod0 glb exists');
 ok(allFiles.includes(join(root, 'assets/models/hero/rogue_lod1.glb')), 'rogue lod1 glb exists');
 ok(allFiles.includes(join(root, 'assets/models/props/weapon_dagger.glb')), 'dagger weapon glb exists');
+ok(allFiles.includes(join(root, 'assets/models/hero/gunner_lod0.glb')), 'gunner lod0 glb exists');
+ok(allFiles.includes(join(root, 'assets/models/props/weapon_rifle.glb')), 'rifle weapon glb exists');
 
 const manifest = JSON.parse(await readFile(join(root, 'assets/manifests/assets.json'), 'utf8'));
 ok(Boolean(manifest.models?.['hero.wizard']), 'manifest hero.wizard');
@@ -179,6 +187,8 @@ ok(Boolean(manifest.models?.['hero.aerin']), 'manifest hero.aerin');
 ok(Boolean(manifest.models?.['weapon.staff']), 'manifest weapon.staff');
 ok(Boolean(manifest.models?.['hero.rogue']), 'manifest hero.rogue');
 ok(Boolean(manifest.models?.['weapon.dagger']), 'manifest weapon.dagger');
+ok(Boolean(manifest.models?.['hero.gunner']), 'manifest hero.gunner');
+ok(Boolean(manifest.models?.['weapon.rifle']), 'manifest weapon.rifle');
 if (manifest.audio && typeof manifest.audio === 'object') {
   for (const [key, entry] of Object.entries(manifest.audio)) {
     const urls = Array.isArray(entry?.urls) ? entry.urls : entry?.url ? [entry.url] : [];
@@ -222,6 +232,10 @@ void presentationMotion;
 console.log('\n--- boot-smoke ---');
 const bootSmoke = await import(pathToFileURL(join(root, 'tests/boot-smoke.mjs')));
 ok(bootSmoke !== null, 'boot-smoke nested suite loaded');
+
+console.log('\n--- gunner-class ---');
+const gunnerClass = await import(pathToFileURL(join(root, 'tests/gunner-class.mjs')));
+ok(gunnerClass !== null, 'gunner-class nested suite loaded');
 
 console.log('\n--- max-hunt ---');
 const maxHunt = await import(pathToFileURL(join(root, 'tests/max-hunt.mjs')));

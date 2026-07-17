@@ -7,6 +7,7 @@ Living how-to guides live under **[../](../README.md)** (`combat.md`, `content-d
 
 | Plan | Status |
 |------|--------|
+| [gunner-class.md](./gunner-class.md) | **implemented** — fifth hero class: rifle baseline, level-5 Smartlink, flame kit, UI/assets, progression, and release gates |
 | [combat-motion-sophistication.md](./combat-motion-sophistication.md) | **ready** — full combat action motion upgrade spec (research, history baseline, quality bar, waves S0–S4) |
 | [max-hunt.md](./max-hunt.md) | **implemented** — New Hunt → MAX HUNT conversion: Lv.70 baseline, village invasion, progression, saves, performance, and validation |
 

@@ -1298,6 +1298,77 @@ export class Effects {
     this.#skillContact(muzzle.clone().addScaledVector(direction, 0.6), theme, rail ? 1.1 : 0.85, rail);
   }
 
+  /** Gunner — compact muzzle flash (not an arrow streak). */
+  recipeRifleMuzzle(muzzle, direction, theme) {
+    this.burst(muzzle.clone().addScaledVector(direction, 0.15), theme.core, 8, {
+      speed: 3.2, size: 0.12, life: 0.18, upward: 0.05,
+    });
+    this.slash(muzzle, direction, theme.secondary, 1.2, {
+      height: 0.35, life: 0.12, thickness: 0.04, opacity: 0.75, spin: 0.4,
+    });
+  }
+
+  recipeRifleTracer(muzzle, direction, theme, length = 18) {
+    const len = Math.max(2, Number(length) || 18);
+    this.slash(muzzle, direction, theme.primary, Math.min(len, 10), {
+      height: 0.12, life: 0.1, thickness: 0.02, opacity: 0.55, spin: 0,
+    });
+    this.trail(
+      muzzle.clone().add(new THREE.Vector3(0, 0.05, 0)).addScaledVector(direction, Math.min(4, len * 0.25)),
+      theme.core, 0.35, 0.1,
+    );
+  }
+
+  recipeRifleBurst(muzzle, direction, theme) {
+    this.recipeRifleMuzzle(muzzle, direction, theme);
+    this.slash(muzzle, direction, theme.primary, 3.4, {
+      height: 0.45, life: 0.22, thickness: 0.035, opacity: 0.7,
+    });
+    this.ring(muzzle.clone().addScaledVector(direction, 0.4), theme.accent, 0.9, {
+      life: 0.22, startScale: 0.2, height: 0.5, opacity: 0.5,
+    });
+  }
+
+  recipeFlameJet(muzzle, direction, theme, range = 7) {
+    const r = Math.max(3, Number(range) || 7);
+    this.slash(muzzle, direction, theme.primary, r * 0.55, {
+      height: 0.9, life: 0.28, thickness: 0.08, opacity: 0.72, spin: 1.2,
+    });
+    this.slash(muzzle, direction, theme.secondary, r * 0.4, {
+      height: 1.1, life: 0.22, thickness: 0.05, opacity: 0.55, angleOffset: 0.25,
+    });
+    this.burst(muzzle.clone().addScaledVector(direction, r * 0.35), theme.primary, 18, {
+      speed: 3.6, size: 0.22, life: 0.4, upward: 0.35,
+    });
+    this.groundDecal?.(muzzle.clone().addScaledVector(direction, r * 0.4), theme.accent, r * 0.35, {
+      life: 0.8, opacity: 0.35, startScale: 0.2,
+    });
+  }
+
+  recipeStimPulse(center, theme) {
+    this.ring(center, theme.primary, 2.4, { life: 0.4, startScale: 0.12, opacity: 0.7 });
+    this.burst(center.clone().add(new THREE.Vector3(0, 1.1, 0)), theme.secondary, 14, {
+      speed: 3.8, size: 0.18, life: 0.36, upward: 0.4,
+    });
+    this.trail(center.clone().add(new THREE.Vector3(0, 1.2, 0)), theme.core, 0.45, 0.16);
+  }
+
+  recipeInfernoSweep(center, direction, theme, range = 8) {
+    const r = Math.max(4, Number(range) || 8);
+    this.slash(center, direction, theme.primary, r, {
+      height: 1.15, life: 0.36, thickness: 0.1, opacity: 0.8, spin: 2.2,
+    });
+    this.slash(center, direction, theme.core, r * 0.75, {
+      height: 0.9, life: 0.28, thickness: 0.06, opacity: 0.65, angleOffset: -0.35,
+    });
+    this.ring(center, theme.primary, r * 0.55, { life: 0.5, startScale: 0.1, opacity: 0.7 });
+    this.groundDecal?.(center, theme.accent, r * 0.7, { life: 1.2, opacity: 0.4, startScale: 0.15 });
+    this.burst(center.clone().add(new THREE.Vector3(0, 0.9, 0)), theme.secondary, 28, {
+      speed: 5.2, size: 0.28, life: 0.5, upward: 0.55,
+    });
+    this.#skillContact(center, theme, 1.2, true);
+  }
+
   recipeTrapField(center, theme, radius) {
     this.ring(center, theme.primary, radius, { life: 0.65, startScale: 0.1, opacity: 0.82 });
     this.ring(center, theme.secondary, radius * 0.7, { life: 0.48, startScale: 0.16, height: 0.08, opacity: 0.72 });

@@ -94,6 +94,27 @@ const CLASS_LOOKS = Object.freeze({
     headKit: 'ranger',
     scale: .93,
   }),
+  // Ember Vanguard gunner — slate rescue plate, brass + ember accents.
+  gunner: Object.freeze({
+    palette: Object.freeze({
+      skin: 0xd2a07a,
+      cloth: 0x4a5560,
+      clothDark: 0x2a323c,
+      cape: 0x3a2a22,
+      leather: 0x2a2420,
+      hair: 0x3a3028,
+      hairDark: 0x1e1814,
+      metal: 0xc8a060,
+      eye: 0xe87838,
+      outline: 0x101418,
+      shadowTintCloth: 0x1a222c,
+      shadowTintHair: 0x201810,
+      rimHair: 0xe0c090,
+      rimSkin: 0xffd0b0,
+    }),
+    headKit: 'none',
+    scale: .95,
+  }),
 });
 
 // Authored GLBs already use hero-space units. These values are final visual
@@ -109,6 +130,7 @@ const WEAPON_LENGTH = Object.freeze({
   /** ~85% of prior .78 for a shorter dual-dagger read. */
   dagger: .663,
   bow: 1.05,
+  rifle: 1.12,
 });
 const WEAPON_GIRTH = Object.freeze({
   sword: .92,
@@ -121,6 +143,7 @@ const WEAPON_GIRTH = Object.freeze({
   /** Slimmer than prior 1.0 so the rebaked sharp tip stays readable. */
   dagger: .78,
   bow: .9,
+  rifle: .95,
 });
 
 const WEAPON_MOUNT_PROFILES = Object.freeze({
@@ -129,6 +152,7 @@ const WEAPON_MOUNT_PROFILES = Object.freeze({
   staff: Object.freeze({ offset: [.01, -.02, .01], rotation: [-Math.PI / 2, -Math.PI / 2, 0], reverseBladeAxis: true }),
   dagger: Object.freeze({ offset: [0, 0, .01], rotation: [-.55, Math.PI, .05] }),
   bow: Object.freeze({ offset: [0, 0, .01], rotation: [-Math.PI / 2, Math.PI, 0] }),
+  rifle: Object.freeze({ offset: [0.02, -0.02, 0.04], rotation: [-Math.PI / 2, 0, 0.08] }),
 });
 
 function attachWeaponAtGrip(socket, weapon, offset = [0, 0, 0]) {
@@ -508,6 +532,20 @@ export class CharacterFactory {
     refs.mainBladeBase = refs.bladeBase;
     refs.mainBladeTip = refs.bladeTip;
     refs.weapon = weapon;
+    // Rifle muzzle origin for hitscan tracers (authored socket or tip fallback).
+    let muzzle = weapon.getObjectByName('muzzle_socket');
+    if (!muzzle && kind === 'rifle') {
+      muzzle = new THREE.Object3D();
+      muzzle.name = 'muzzle_socket';
+      const tip = refs.bladeTip;
+      if (tip) {
+        tip.add(muzzle);
+      } else {
+        muzzle.position.set(0, 0.9, 0);
+        weapon.add(muzzle);
+      }
+    }
+    refs.muzzleSocket = muzzle ?? refs.bladeTip ?? null;
     this.outlines.configure(weapon, { color: outlineColor, priority: 8, maxDistance: 36 });
     let offhand = null;
     let offhandRelease = null;

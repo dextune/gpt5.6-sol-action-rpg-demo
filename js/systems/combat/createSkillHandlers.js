@@ -26,6 +26,10 @@ export function createSkillHandlers(combat) {
     caltrop_trap: (p, bundle, _phase, audio) => combat._caltropTrap(p, bundle, audio),
     vault_shot: (p, bundle, _phase, audio) => combat._vaultShot(p, bundle, audio),
     hunter_mark: (p, bundle, _phase, audio) => combat._hunterMark(p, bundle, audio),
+    suppressive_burst: (p, bundle, phase, audio) => combat._suppressiveBurst(p, bundle, phase, audio),
+    flame_jet: (p, bundle, phase, audio) => combat._flameJet(p, bundle, phase, audio),
+    stim_rush: (p, bundle, phase, audio) => combat._stimRush(p, bundle, phase, audio),
+    inferno_sweep: (p, bundle, phase, audio) => combat._infernoSweep(p, bundle, phase, audio),
   };
   assertHandlerKeys(table, SKILL_EFFECT_HANDLER_KEYS, 'CombatSystem.skillHandlers');
   // Mutable map: tests and runtime may replace handlers; keys still assert-locked.

@@ -325,11 +325,22 @@ export class Player {
   get critMultiplier() {
     return PLAYER_CONFIG.critMultiplierBase + this.critOverflow * PLAYER_CONFIG.critOverflowToDamage;
   }
+  clearStimRush() {
+    if (!this.stimRush) return;
+    this.stimRush = null;
+    this.invalidateStats();
+  }
+
+  get stimRushActive() {
+    return Boolean(this.stimRush && this.stimRush.remaining > 0);
+  }
+
   get attackSpeed() {
     const runHaste = this.runMods?.haste ?? 0;
     const frenzyHaste = this.shadowFrenzy?.active ? this.shadowFrenzy.attackHaste : 0;
+    const stimHaste = this.stimRushActive ? (this.stimRush.attackSpeed ?? 0) : 0;
     return clamp(
-      this.equipmentStats.weaponSpeed * (1 + this.equipmentStats.haste + this.passiveEffects.haste + runHaste + frenzyHaste),
+      this.equipmentStats.weaponSpeed * (1 + this.equipmentStats.haste + this.passiveEffects.haste + runHaste + frenzyHaste + stimHaste),
       .65,
       PLAYER_CONFIG.attackSpeedCap,
     );
@@ -337,15 +348,17 @@ export class Player {
   /** Attack speed past the cap accelerates Focus/Rage gain instead. */
   get attackSpeedOverflow() {
     const runHaste = this.runMods?.haste ?? 0;
-    const raw = this.equipmentStats.weaponSpeed * (1 + this.equipmentStats.haste + this.passiveEffects.haste + runHaste);
+    const stimHaste = this.stimRushActive ? (this.stimRush.attackSpeed ?? 0) : 0;
+    const raw = this.equipmentStats.weaponSpeed * (1 + this.equipmentStats.haste + this.passiveEffects.haste + runHaste + stimHaste);
     return Math.max(0, raw - PLAYER_CONFIG.attackSpeedCap);
   }
   get energyGainMul() { return 1 + this.attackSpeedOverflow * PLAYER_CONFIG.attackSpeedOverflowEnergy; }
   get moveSpeed() {
     const runMove = this.runMods?.moveSpeed ?? 0;
     const frenzyMove = this.shadowFrenzy?.active ? this.shadowFrenzy.moveHaste : 0;
+    const stimMove = this.stimRushActive ? (this.stimRush.moveSpeed ?? 0) : 0;
     const slowMul = (this.debuffSlow ?? 0) > 0 ? PLAYER_CONFIG.debuffSlowMoveMul : 1;
-    return (PLAYER_CONFIG.moveSpeed * (1 + this.passiveEffects.moveSpeed + runMove + frenzyMove) + this.equipmentStats.moveSpeed) * slowMul;
+    return (PLAYER_CONFIG.moveSpeed * (1 + this.passiveEffects.moveSpeed + runMove + frenzyMove + stimMove) + this.equipmentStats.moveSpeed) * slowMul;
   }
 
   /** Soft crowd-control slow from enemy controllers / frostbitten elites. */
@@ -524,6 +537,13 @@ export class Player {
       }
     }
     if (this.thornField) this.thornField.remaining = Math.max(0, this.thornField.remaining - delta);
+    if (this.stimRush) {
+      this.stimRush.remaining = Math.max(0, this.stimRush.remaining - delta);
+      if (this.stimRush.remaining <= 0) this.clearStimRush();
+    }
+    if (this._smartlinkStickTimer > 0) {
+      this._smartlinkStickTimer = Math.max(0, this._smartlinkStickTimer - delta);
+    }
     for (const key of Object.keys(this.skillCooldowns)) this.skillCooldowns[key] = Math.max(0, this.skillCooldowns[key] - delta);
     this.knockback.multiplyScalar(Math.pow(.004, delta));
   }
@@ -859,6 +879,8 @@ export class Player {
       this.alive = false;
       this.clearShadowFrenzy();
       this.clearArcaneOverflow();
+      this.clearStimRush();
+      this._smartlinkReticleEnemy = null;
       this.predatorVerdict = null;
       this.thornField = null;
       const F = BASIC_ATTACK_FEEL;
@@ -900,6 +922,8 @@ export class Player {
     this.alive = true;
     this.clearShadowFrenzy();
     this.clearArcaneOverflow();
+    this.clearStimRush();
+    this._smartlinkReticleEnemy = null;
     this.predatorVerdict = null;
     this.thornField = null;
     this.invulnerable = PLAYER_CONFIG.restoreInvuln;

@@ -291,6 +291,9 @@ export const WEAPON_BASES = Object.freeze({
   yew_bow: { id: 'yew_bow', name: 'Yew Recurve', model: 'bow', power: 10, speed: 1.12, crit: 0.05, color: 0xc4a574 },
   longbow_ash: { id: 'longbow_ash', name: 'Ash Longbow', model: 'bow', power: 13, speed: 1.06, crit: 0.055, color: 0xd8c090 },
   storm_recurve: { id: 'storm_recurve', name: 'Storm Recurve', model: 'bow', power: 16, speed: 1.14, crit: 0.07, color: 0x9ad0a8 },
+  service_rifle: { id: 'service_rifle', name: 'Service Rifle', model: 'rifle', power: 11, speed: 1.08, crit: 0.04, color: 0xc8b090 },
+  brass_carbine: { id: 'brass_carbine', name: 'Brass Carbine', model: 'rifle', power: 14, speed: 1.1, crit: 0.05, color: 0xe0a868 },
+  ember_lance: { id: 'ember_lance', name: 'Ember Lance', model: 'rifle', power: 17, speed: 1.06, crit: 0.06, color: 0xff8a50 },
 });
 
 export const ARMOR_BASES = Object.freeze({
@@ -1024,6 +1027,179 @@ export const SKILLS = Object.freeze({
     description: 'Finishes wounded and marked prey with precision.',
     rankText: rank => `+${rank * 3.5}% vs under 30% HP · Crit vs afflicted +${rank}%`,
   },
+
+  // —— Gunner actives ——
+  suppressive_burst: {
+    id: 'suppressive_burst', classId: 'gunner', name: 'Suppressive Burst', key: 'Q', unlockLevel: 3, maxRank: 10, mp: 16, cooldown: 5.2,
+    castTime: .28, anim: 'skill_pierce_shot', animFallback: 'cast_2', effect: 'suppressive_burst',
+    theme: 'brassfire', sfx: 'skill_blade', recipe: 'rifleBurst',
+    timeline: Object.freeze({ hits: Object.freeze([0.22, 0.4, 0.58]) }),
+    combat: Object.freeze({
+      mult: Object.freeze([1.15, 0.12]),
+      range: 24,
+      pierce: 4,
+      radius: 0.7,
+      knockback: 1.5,
+      status: Object.freeze({ id: 'slow', duration: 1.5, power: 0.3 }),
+    }),
+    evolution: Object.freeze({
+      forms: Object.freeze({
+        20: Object.freeze({ label: 'Lane Drill', summary: 'Adds pierce and lane pressure.', combat: Object.freeze({ pierce: 5, radius: 0.85 }) }),
+        60: Object.freeze({ label: 'Brass Storm', summary: 'Faster cadence with wider lane.', anim: 'cast_2', combat: Object.freeze({ pierce: 6, radiusMult: 1.15 }) }),
+        100: Object.freeze({ label: 'Overwatch Barrage', summary: 'Maximum pierce and suppression.', anim: 'skill_pierce_shot', combat: Object.freeze({ pierce: 8, apexFinisher: 1 }), presentation: Object.freeze({ apexMarker: 'overwatch', apexAudio: 'suppressive_burst' }) }),
+      }),
+      mutations: Object.freeze({
+        40: Object.freeze({
+          wide_lane: Object.freeze({ label: 'Wide Lane', summary: 'Broadens the suppression corridor.', icon: 'rifle.breadth', combat: Object.freeze({ radius: 1.05, pierce: 5 }) }),
+          hard_pin: Object.freeze({ label: 'Hard Pin', summary: 'Tighter lane, stronger slow.', icon: 'rifle.focus', combat: Object.freeze({ radius: 0.55, damageMult: 1.2, status: Object.freeze({ id: 'slow', duration: 2.1, power: 0.4 }) }) }),
+        }),
+        80: Object.freeze({
+          drum_fire: Object.freeze({ label: 'Drum Fire', summary: 'Extra pierce through packs.', icon: 'rifle.flow', combat: Object.freeze({ pierce: 7 }) }),
+          armor_drill: Object.freeze({ label: 'Armor Drill', summary: 'Pierces durable armor.', icon: 'rifle.execution', combat: Object.freeze({ armorPierce: 0.35 }) }),
+        }),
+      }),
+    }),
+    description: 'Fires a controlled rifle burst through a narrow lane, slowing survivors.',
+    rankText: rank => `Damage ${Math.round((1.15 + rank * 0.12) * 100)}% · Pierce ${4 + Math.floor(rank / 4)}`,
+  },
+  flame_jet: {
+    id: 'flame_jet', classId: 'gunner', name: 'Flame Jet', key: 'E', unlockLevel: 6, maxRank: 10, mp: 22, cooldown: 7.4,
+    castTime: .32, anim: 'skill_trap', animFallback: 'cast_3', effect: 'flame_jet',
+    theme: 'ember', sfx: 'skill_blade', recipe: 'flameJet',
+    timeline: Object.freeze({ hits: Object.freeze([0.18, 0.36, 0.54, 0.72]) }),
+    combat: Object.freeze({
+      mult: Object.freeze([1.55, 0.16]),
+      range: 7.2,
+      halfAngle: 0.55,
+      ticks: 4,
+      tickInterval: 0.12,
+      cap: 12,
+      status: Object.freeze({ id: 'burn', duration: 2.5, dps: 0.1, tick: 0.4, power: 1 }),
+    }),
+    evolution: Object.freeze({
+      forms: Object.freeze({
+        20: Object.freeze({ label: 'Jet Fan', summary: 'Wider cone coverage.', combat: Object.freeze({ halfAngle: 0.68 }) }),
+        60: Object.freeze({ label: 'Sustained Torch', summary: 'Extra flame ticks.', anim: 'cast_3', combat: Object.freeze({ ticks: 5 }) }),
+        100: Object.freeze({ label: 'Plasma Jet', summary: 'Apex cone with denser burn.', anim: 'skill_trap', combat: Object.freeze({ ticks: 6, apexFinisher: 1 }), presentation: Object.freeze({ apexMarker: 'plasma_jet', apexAudio: 'flame_jet' }) }),
+      }),
+      mutations: Object.freeze({
+        40: Object.freeze({
+          wide_jet: Object.freeze({ label: 'Wide Jet', summary: 'Broader cone for packs.', icon: 'jet.breadth', combat: Object.freeze({ halfAngle: 0.72, range: 7.0 }) }),
+          needle_jet: Object.freeze({ label: 'Needle Jet', summary: 'Longer focused cone.', icon: 'jet.focus', combat: Object.freeze({ halfAngle: 0.38, range: 8.6, damageMult: 1.18 }) }),
+        }),
+        80: Object.freeze({
+          sticky_fuel: Object.freeze({ label: 'Sticky Fuel', summary: 'Longer Burn duration.', icon: 'jet.flow', combat: Object.freeze({ status: Object.freeze({ id: 'burn', duration: 3.4, dps: 0.12, tick: 0.4, power: 1 }) }) }),
+          flashover: Object.freeze({ label: 'Flashover', summary: 'Heavier direct jet damage.', icon: 'jet.execution', combat: Object.freeze({ damageMult: 1.35 }) }),
+        }),
+      }),
+    }),
+    description: 'Projects a short-range incendiary cone. Burn applies once per cast per target.',
+    rankText: rank => `Damage ${Math.round((1.55 + rank * 0.16) * 100)}% · Cone 7.2m`,
+  },
+  stim_rush: {
+    id: 'stim_rush', classId: 'gunner', name: 'Stim Rush', key: 'R', unlockLevel: 10, maxRank: 10, mp: 18, cooldown: 12,
+    castTime: .18, anim: 'skill_vault_shot', animFallback: 'cast_1', effect: 'stim_rush',
+    theme: 'brassfire', sfx: 'skill_blade', recipe: 'stimPulse',
+    timeline: Object.freeze({ hits: Object.freeze([0.2]) }),
+    combat: Object.freeze({
+      mult: Object.freeze([0.2, 0.02]),
+      duration: Object.freeze([6.2, 0.18]),
+      attackSpeed: Object.freeze([0.2, 0.012]),
+      moveSpeed: Object.freeze([0.16, 0.01]),
+    }),
+    evolution: Object.freeze({
+      forms: Object.freeze({
+        20: Object.freeze({ label: 'Field Stim', summary: 'Longer rush window.', combat: Object.freeze({ duration: Object.freeze([7.0, 0.2]) }) }),
+        60: Object.freeze({ label: 'Combat Cocktail', summary: 'Stronger attack cadence.', anim: 'cast_1', combat: Object.freeze({ attackSpeed: Object.freeze([0.28, 0.014]) }) }),
+        100: Object.freeze({ label: 'Overdrive', summary: 'Peak tempo and mobility.', anim: 'skill_vault_shot', combat: Object.freeze({ attackSpeed: Object.freeze([0.34, 0.016]), moveSpeed: Object.freeze([0.24, 0.012]), apexFinisher: 1 }), presentation: Object.freeze({ apexMarker: 'overdrive', apexAudio: 'stim_rush' }) }),
+      }),
+      mutations: Object.freeze({
+        40: Object.freeze({
+          long_stim: Object.freeze({ label: 'Long Stim', summary: 'Extends rush duration.', icon: 'stim.breadth', combat: Object.freeze({ duration: Object.freeze([7.4, 0.22]) }) }),
+          spike_stim: Object.freeze({ label: 'Spike Stim', summary: 'Shorter, sharper haste.', icon: 'stim.focus', combat: Object.freeze({ duration: Object.freeze([5.0, 0.12]), attackSpeed: Object.freeze([0.32, 0.016]) }) }),
+        }),
+        80: Object.freeze({
+          field_march: Object.freeze({ label: 'Field March', summary: 'More movement speed.', icon: 'stim.flow', combat: Object.freeze({ moveSpeed: Object.freeze([0.24, 0.014]) }) }),
+          kill_tempo: Object.freeze({ label: 'Kill Tempo', summary: 'Haste-focused rush.', icon: 'stim.execution', combat: Object.freeze({ attackSpeed: Object.freeze([0.36, 0.018]) }) }),
+        }),
+      }),
+    }),
+    description: 'Injects a temporary attack-speed and move-speed surge. Fully clears on expire, death, or mode reset.',
+    rankText: rank => `Haste +${Math.round((0.2 + rank * 0.012) * 100)}% · Move +${Math.round((0.16 + rank * 0.01) * 100)}% · ${ (6.2 + rank * 0.18).toFixed(1)}s`,
+  },
+  inferno_sweep: {
+    id: 'inferno_sweep', classId: 'gunner', name: 'Inferno Sweep', key: 'C', unlockLevel: 16, maxRank: 10, mp: 34, cooldown: 14,
+    castTime: .48, anim: 'skill_hunter_mark', animFallback: 'cast_4', effect: 'inferno_sweep',
+    theme: 'ember', sfx: 'skill_blade', recipe: 'infernoSweep',
+    timeline: Object.freeze({ hits: Object.freeze([0.28, 0.55]) }),
+    combat: Object.freeze({
+      mult: Object.freeze([2.1, 0.22]),
+      range: 8.5,
+      arc: 2.4,
+      knockback: 3.4,
+      zoneCount: 3,
+      zoneLife: 3.2,
+      zoneRadius: 2.4,
+      zoneMult: 0.22,
+      criticalBonus: 0.08,
+      status: Object.freeze({ id: 'burn', duration: 2.8, dps: 0.12, tick: 0.4, power: 1 }),
+    }),
+    evolution: Object.freeze({
+      forms: Object.freeze({
+        20: Object.freeze({ label: 'Wide Inferno', summary: 'Broader sweep arc.', combat: Object.freeze({ arc: 2.8 }) }),
+        60: Object.freeze({ label: 'Napalm Lattice', summary: 'Extra ground zones.', anim: 'cast_4', combat: Object.freeze({ zoneCount: 4 }) }),
+        100: Object.freeze({ label: 'Thermite Crown', summary: 'Apex sweep and denser ground fire.', anim: 'skill_hunter_mark', combat: Object.freeze({ zoneCount: 5, zoneLife: 4.0, apexFinisher: 1 }), presentation: Object.freeze({ apexMarker: 'thermite', apexAudio: 'inferno_sweep' }) }),
+      }),
+      mutations: Object.freeze({
+        40: Object.freeze({
+          wide_sweep: Object.freeze({ label: 'Wide Sweep', summary: 'Covers more of the front arc.', icon: 'inferno.breadth', combat: Object.freeze({ arc: 2.9, range: 8.2 }) }),
+          deep_burn: Object.freeze({ label: 'Deep Burn', summary: 'Longer ground fire.', icon: 'inferno.focus', combat: Object.freeze({ zoneLife: 4.2, zoneMult: 0.28 }) }),
+        }),
+        80: Object.freeze({
+          zone_web: Object.freeze({ label: 'Zone Web', summary: 'More simultaneous ground zones.', icon: 'inferno.flow', combat: Object.freeze({ zoneCount: 5 }) }),
+          blast_core: Object.freeze({ label: 'Blast Core', summary: 'Heavier initial sweep damage.', icon: 'inferno.execution', combat: Object.freeze({ damageMult: 1.3 }) }),
+        }),
+      }),
+    }),
+    description: 'Sweeps a wide near-field arc, then seeds short burning-ground zones.',
+    rankText: rank => `Damage ${Math.round((2.1 + rank * 0.22) * 100)}% · Zones 3 · ${8.5}m`,
+  },
+  ballistic_drill: {
+    id: 'ballistic_drill', classId: 'gunner', name: 'Ballistic Drill', passive: true, unlockLevel: 2, maxRank: 10,
+    effect: { attack: 0.018, haste: 0.008 },
+    description: 'Disciplined rifle drills raise basic damage and cadence (additive per rank).',
+    rankText: rank => `Attack +${(rank * 1.8).toFixed(1)}% · Haste +${(rank * 0.8).toFixed(1)}%`,
+  },
+  combat_plating: {
+    id: 'combat_plating', classId: 'gunner', name: 'Combat Plating', passive: true, unlockLevel: 2, maxRank: 10,
+    effect: { defense: 0.02, hp: 0.015 },
+    description: 'Industrial rescue plating for flame-range trades (additive per rank).',
+    rankText: rank => `Defense +${(rank * 2).toFixed(1)}% · HP +${(rank * 1.5).toFixed(1)}%`,
+  },
+  smartlink: {
+    id: 'smartlink', classId: 'gunner', name: 'Smartlink', passive: true, unlockLevel: 5, maxRank: 10,
+    effect: { luck: 0.008 },
+    unlockNotice: Object.freeze({
+      level: 5,
+      id: 'smartlink',
+      title: 'SMARTLINK ONLINE',
+      body: 'Basic rifle attacks now acquire targets near your aim direction.',
+    }),
+    description: 'At level 5+, each attack press can acquire a valid target near facing. Ranks slightly improve acquisition feel via luck (does not auto-fire).',
+    rankText: rank => `Smartlink active at Lv.5 · Luck +${(rank * 0.8).toFixed(1)}%`,
+  },
+  scorched_earth: {
+    id: 'scorched_earth', classId: 'gunner', name: 'Scorched Earth', passive: true, unlockLevel: 8, maxRank: 10,
+    effect: { skillPower: 0.02, dotPower: 0.025 },
+    description: 'Improves Burn and ground-zone damage (additive skillPower/dotPower per rank).',
+    rankText: rank => `Skill Power +${(rank * 2).toFixed(1)}% · Burn power +${(rank * 2.5).toFixed(1)}%`,
+  },
+  last_mag: {
+    id: 'last_mag', classId: 'gunner', name: 'Last Mag', passive: true, unlockLevel: 12, maxRank: 5,
+    effect: { execute: 0.03, crit: 0.01 },
+    description: 'Clutch tempo vs wounded prey after sustained fire (execute + crit, additive).',
+    rankText: rank => `+${rank * 3}% vs low HP · Crit +${rank}%`,
+  },
 });
 
 export const HUNT_TITLES = Object.freeze([
@@ -1235,6 +1411,50 @@ export const HERO_CLASSES = Object.freeze({
       locked: true,
     }),
   }),
+  gunner: Object.freeze({
+    id: 'gunner',
+    name: 'Rook',
+    title: 'Ember Vanguard',
+    blurb: 'Rifle control · Smartlink · flame denial',
+    modelKey: 'hero.gunner',
+    lookId: 'gunner',
+    attackStyle: 'ranged',
+    skillPanelTitle: 'Ballistics & Incendiary Arts',
+    attackLabel: 'Fire',
+    presentation: Object.freeze({
+      accent: '#e87838',
+      jobLabel: 'EMBER VANGUARD',
+      attackIcon: 'rifle',
+      portraitKey: 'hero-gunner',
+    }),
+    activeSkills: Object.freeze(['suppressive_burst', 'flame_jet', 'stim_rush', 'inferno_sweep']),
+    passiveSkills: Object.freeze(['ballistic_drill', 'combat_plating', 'smartlink', 'scorched_earth', 'last_mag']),
+    baseStatMods: Object.freeze({ attack: 1.02, mp: 1.0, skillPower: 0.03, hp: 0.96, defense: 0.95 }),
+    weaponBias: Object.freeze({ preferred: Object.freeze(['rifle', 'relic']), mult: 2.6, otherMult: 0 }),
+    basicAttack: Object.freeze({
+      profile: 'rifle',
+      range: 26,
+      comboRounds: Object.freeze([1, 1, 1, 3]),
+      comboMults: Object.freeze([0.86, 0.94, 1.02, 0.5]),
+      attackIcon: 'rifle',
+      audioKind: 'rifle',
+    }),
+    starterWeapon: Object.freeze({
+      id: 'starter-service-rifle',
+      baseId: 'service_rifle',
+      slot: 'weapon',
+      name: 'Service Rifle',
+      rarity: 'common',
+      level: 1,
+      itemLevel: 1,
+      power: 11,
+      speed: 1.08,
+      crit: 0.04,
+      model: 'rifle',
+      color: 0xc8b090,
+      locked: true,
+    }),
+  }),
 });
 
 /**
@@ -1273,6 +1493,14 @@ export const WEAPON_EVOLUTIONS = Object.freeze({
     Object.freeze({ level: 15, name: 'Wildstar Bow', model: 'bow', color: 0xffc46b, rarity: 'epic' }),
     Object.freeze({ level: 22, name: 'Convergence Arc', model: 'relic', color: 0xf2dc9a, rarity: 'legendary' }),
     Object.freeze({ level: 30, name: 'Zenith Convergence', model: 'relic', color: 0xd9ff8a, rarity: 'legendary' }),
+  ]),
+  gunner: Object.freeze([
+    Object.freeze({ level: 0, name: 'Service Rifle', model: 'rifle', color: 0xc8b090, rarity: 'common' }),
+    Object.freeze({ level: 3, name: 'Brass Carbine', model: 'rifle', color: 0xe0a868, rarity: 'uncommon' }),
+    Object.freeze({ level: 7, name: 'Ember Lance', model: 'rifle', color: 0xff8a50, rarity: 'rare' }),
+    Object.freeze({ level: 15, name: 'Thermite Rail', model: 'rifle', color: 0xff7040, rarity: 'epic' }),
+    Object.freeze({ level: 22, name: 'Vanguard Core', model: 'relic', color: 0xffb070, rarity: 'legendary' }),
+    Object.freeze({ level: 30, name: 'Apex Vanguard', model: 'relic', color: 0xffe0a0, rarity: 'legendary' }),
   ]),
 });
 
@@ -1339,6 +1567,20 @@ export const WEAPON_RESONANCES = Object.freeze({
       Object.freeze({ level: 30, name: 'Zenith Convergence', summary: 'Maximum arrows focus or retarget instantly.' }),
     ]),
   }),
+  gunner: Object.freeze({
+    id: 'brass_ricochet', name: 'Brass Ricochet', proc: 'ricochet', color: 0xff9a50,
+    procMult: 0.34, tierMult: 0.065, cooldown: 0.56,
+    statBias: Object.freeze({ crit: 1.2, haste: 1.25, skillPower: 1.15, leech: 0.85, goldBonus: 1.0, luck: 1.1 }),
+    milestones: Object.freeze([
+      Object.freeze({ level: 3, name: 'Brass Spark', summary: 'Landed shots spark a bonus auto-target hit.' }),
+      Object.freeze({ level: 6, name: 'Split Brass', summary: 'Sparks fork to additional nearby prey.' }),
+      Object.freeze({ level: 10, name: 'Ember Pin', summary: 'Sparks expose targets for follow-ups.' }),
+      Object.freeze({ level: 15, name: 'Drum Echo', summary: 'More sparks fire at a faster cadence.' }),
+      Object.freeze({ level: 20, name: 'Thermite Edge', summary: 'Low-health prey take direct finisher damage.' }),
+      Object.freeze({ level: 25, name: 'Mag Storm', summary: 'Sparks flood the local hostile pack.' }),
+      Object.freeze({ level: 30, name: 'Vanguard Apex', summary: 'Maximum sparks focus or retarget instantly.' }),
+    ]),
+  }),
 });
 
 export function weaponResonanceTier(enhanceLevel = 0) {
@@ -1392,18 +1634,44 @@ const MAGIC_BASIC_DEFAULTS = Object.freeze({
   comboMults: Object.freeze([.95, 1.05, 1.15, 1.45]),
 });
 
+const RIFLE_BASIC_DEFAULTS = Object.freeze({
+  profile: 'rifle',
+  range: 26,
+  comboRounds: Object.freeze([1, 1, 1, 3]),
+  comboMults: Object.freeze([0.86, 0.94, 1.02, 0.5]),
+  attackIcon: 'rifle',
+  audioKind: 'rifle',
+});
+
+/**
+ * Explicit basic-attack profile: melee | magic | bow | rifle.
+ * Prefer basicAttack.profile; fall back to attackStyle compatibility.
+ */
+export function getBasicAttackProfile(classId) {
+  const def = getHeroClass(classId);
+  const explicit = def.basicAttack?.profile;
+  if (explicit === 'rifle' || explicit === 'bow' || explicit === 'magic' || explicit === 'melee') {
+    return explicit;
+  }
+  if (def.attackStyle === 'magic') return 'magic';
+  if (def.attackStyle === 'ranged') return 'bow';
+  return 'melee';
+}
+
 /** Merged basic-attack profile for a class (style defaults + class overrides). */
 export function getClassBasicAttack(classId) {
   const def = getHeroClass(classId);
-  const ranged = def.attackStyle === 'magic' || def.attackStyle === 'ranged';
-  const base = ranged ? MAGIC_BASIC_DEFAULTS : MELEE_BASIC_DEFAULTS;
-  return { ...base, ...(def.meleeProfile ?? {}), ...(def.basicAttack ?? {}) };
+  const profile = getBasicAttackProfile(classId);
+  let base = MELEE_BASIC_DEFAULTS;
+  if (profile === 'magic' || profile === 'bow') base = MAGIC_BASIC_DEFAULTS;
+  else if (profile === 'rifle') base = RIFLE_BASIC_DEFAULTS;
+  return { ...base, ...(def.meleeProfile ?? {}), ...(def.basicAttack ?? {}), profile };
 }
 
-/** True for staff/bow projectile basics (cast clips + orb path). */
+/** True for staff/bow/rifle basics (cast/fire clips rather than melee swings). */
 export function isRangedAttackStyle(classId) {
-  const style = getHeroClass(classId).attackStyle ?? 'melee';
-  return style === 'magic' || style === 'ranged';
+  const profile = getBasicAttackProfile(classId);
+  return profile === 'magic' || profile === 'bow' || profile === 'rifle';
 }
 
 /**
@@ -1530,6 +1798,15 @@ export const MAX_HUNT_CLASS_PRESETS = Object.freeze({
       caltrop_trap: 'briar_field',
       vault_shot: 'gale_vault',
       hunter_mark: 'pack_hunt',
+    }),
+  }),
+  gunner: Object.freeze({
+    identity: 'Ember Overwatch',
+    mutations: Object.freeze({
+      suppressive_burst: 'wide_lane',
+      flame_jet: 'wide_jet',
+      stim_rush: 'long_stim',
+      inferno_sweep: 'wide_sweep',
     }),
   }),
 });

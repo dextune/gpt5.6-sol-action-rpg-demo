@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { WEAPON_ENHANCE } from '../config.js';
 import {
-  getHeroClass, getWeaponResonance, isRangedAttackStyle, SKILLS, weaponResonanceTier,
+  getBasicAttackProfile, getHeroClass, getWeaponResonance, isRangedAttackStyle, SKILLS, weaponResonanceTier,
 } from '../data/content.js';
 import { getFxTheme } from '../data/fxThemes.js';
 import { resolveSkillHitRaw, skillDamage } from '../data/skillCombat.js';
@@ -191,8 +191,13 @@ export class CombatSystem {
   }
 
   playerAttack(player, combo, comboLength = 4) {
-    if (isRangedAttackStyle(player.classId)) this._magicAttack(player, combo, comboLength);
-    else this._meleeAttack(player, combo, comboLength);
+    const profile = getBasicAttackProfile(player.classId);
+    if (profile === 'rifle') this._rifleAttack(player, combo, comboLength);
+    else if (profile === 'magic' || profile === 'bow' || isRangedAttackStyle(player.classId)) {
+      this._magicAttack(player, combo, comboLength);
+    } else {
+      this._meleeAttack(player, combo, comboLength);
+    }
   }
 
   /** Ground aim locked to facing — not mouse — so skills match movement direction. */
@@ -887,6 +892,7 @@ export class CombatSystem {
     this._updateTelegraphs(delta);
     this._updateCharges(delta);
     this._updateProjectiles(delta);
+    this._tickGunnerGroundZones?.(delta);
   }
 
   _updateDelayed(delta) {
@@ -978,6 +984,9 @@ export class CombatSystem {
       this.game.player.thornField = null;
       this.game.player.predatorVerdict = null;
       this.game.player.clearArcaneOverflow?.();
+      this.game.player.clearStimRush?.();
+      this.game.player._smartlinkTargetId = null;
+      this.game.player._smartlinkReticleEnemy = null;
       this.rangerGeneration.delete(this.game.player);
       this.rangerBasicTargets.delete(this.game.player);
       this.weaponResonanceLastAt.delete(this.game.player);
@@ -990,6 +999,7 @@ export class CombatSystem {
       this.starburstStates.delete(this.game.player);
       this.lotusStates.delete(this.game.player);
     }
+    this._clearGunnerTransientState?.(this.game.player);
     try {
       const projectiles = this.projectiles.splice(0, this.projectiles.length);
       for (const projectile of projectiles) {

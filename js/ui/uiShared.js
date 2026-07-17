@@ -22,12 +22,13 @@ export const STAT_KEYS = Object.freeze([
 ]);
 export const PERCENT_STATS = new Set(['crit', 'haste', 'leech', 'xpBonus', 'goldBonus', 'skillPower', 'luck']);
 export const RARITY_RANK = Object.freeze({ common: 0, uncommon: 1, rare: 2, epic: 3, legendary: 4 });
-export const ATTACK_STYLE_LABEL = Object.freeze({ melee: 'Melee', magic: 'Magic', ranged: 'Ranged' });
+export const ATTACK_STYLE_LABEL = Object.freeze({ melee: 'Melee', magic: 'Magic', ranged: 'Ranged', rifle: 'Rifle' });
 export const CLASS_ACCENT = Object.freeze({
   aerin: '#d4b86a',
   wizard: '#b06dff',
   rogue: '#35e0b8',
   ranger: '#e8b040',
+  gunner: '#e87838',
 });
 export const HUD_FORM_TIERS = Object.freeze({
   20: Object.freeze({ text: 'I', className: 'evolution-tier-i' }),
@@ -39,6 +40,7 @@ export const MUTATION_FAMILY_GLYPHS = Object.freeze({
   flame: '▲', crystal: '◇', rift: '⌁', meteor: '●',
   fang: '⋀', knives: '✣', shadow: '◩', lotus: '✤',
   arrow: '➤', thorn: '⌗', vault: '⌃', mark: '◎',
+  rifle: '⌖', stim: '⚡', inferno: '❂', jet: '▴',
 });
 export const MUTATION_ROLE_MARKERS = Object.freeze({
   breadth: '•••', focus: '•', flow: '↝', execution: '▼',

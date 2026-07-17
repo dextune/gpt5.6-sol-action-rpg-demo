@@ -34,7 +34,7 @@ export class UI {
     for (const id of [
       'loading-screen', 'loading-text', 'loading-bar', 'title-screen', 'class-select', 'new-game-btn', 'defense-btn', 'continue-btn', 'continue-meta',
       'hud', 'profile-toggle', 'hunt-record-panel', 'player-name', 'portrait-level', 'player-level-text', 'hunter-title', 'hp-fill', 'mobile-hp-fill', 'mp-fill', 'mobile-mp-fill', 'xp-fill', 'xp-text',
-      'class-state-row', 'frenzy-chip', 'overflow-chip',
+      'class-state-row', 'frenzy-chip', 'overflow-chip', 'stim-chip',
       'ranger-state-row', 'thorns-chip', 'verdict-chip',
       'world-tier', 'zone-name', 'zone-subtitle',
       'kill-count', 'streak-count', 'elite-count', 'boss-count',
