@@ -5,11 +5,15 @@ import { createEnemyModel } from '../graphics/ModelFactory.js';
 
 const SHAPE_ARCHETYPE = Object.freeze({
   blob: 'slime', plant: 'slime', beetle: 'slime', crab: 'slime', toad: 'slime',
+  flytrap: 'slime', pitcher: 'slime', mantis: 'slime', moth: 'slime', centipede: 'slime',
+  bombardier: 'slime', fire_ant: 'slime', slag_snail: 'slime',
   // Hare stays light/skirmish; raptor/harpy/owl use taller lean read via scale in create().
-  hare: 'hare', raptor: 'hare', harpy: 'hare', owl: 'hare', fox: 'hare',
+  hare: 'hare', raptor: 'hare', harpy: 'hare', owl: 'hare', fox: 'hare', phoenix: 'hare',
   // Pack hunters use boar mesh but get longer scale + crest kits below.
   boar: 'boar', wolf: 'boar', lizard: 'boar', panther: 'boar', stag: 'boar', asp: 'boar',
-  wisp: 'wisp', imp: 'wisp',
+  pangolin: 'boar', thornback: 'boar', fennec: 'boar', muskox: 'boar', snow_leopard: 'boar',
+  walrus: 'boar', salamander: 'boar',
+  wisp: 'wisp', imp: 'wisp', angler: 'wisp', vampire_squid: 'wisp', siphonophore: 'wisp', nautilus: 'wisp',
   raider: 'humanoid', shaman: 'humanoid', knight: 'humanoid', cyclops: 'humanoid',
   golem: 'colossus', colossus: 'colossus', drake: 'colossus', scorpion: 'colossus',
 });
@@ -35,6 +39,10 @@ const PROCEDURAL_SHAPES = Object.freeze(new Set([
   'harpy', 'stag', 'crab', 'raptor', 'cyclops',
   'scorpion', 'knight', 'imp', 'lizard', 'panther',
   'colossus', 'drake', 'toad', 'fox', 'owl', 'asp',
+  'flytrap', 'pitcher', 'pangolin', 'mantis', 'moth',
+  'centipede', 'thornback', 'fennec', 'bombardier', 'muskox',
+  'snow_leopard', 'walrus', 'salamander', 'fire_ant', 'slag_snail',
+  'phoenix', 'angler', 'vampire_squid', 'siphonophore', 'nautilus',
 ]));
 
 /** Per-shape silhouette multipliers so remapped bodies still read differently (B1-a). */
@@ -43,6 +51,11 @@ const SHAPE_SCALE = Object.freeze({
   harpy: 0.92, plant: 0.88, beetle: 0.82, crab: 1.05, imp: 0.78,
   cyclops: 1.15, drake: 1.22, scorpion: 1.12, golem: 1.08,
   toad: 1.12, fox: 0.95, owl: 1.0, asp: 1.05,
+  flytrap: 1.02, pitcher: 0.98, pangolin: 1.05, mantis: 1.02, moth: 0.96,
+  centipede: 0.9, thornback: 1.04, fennec: 0.92, bombardier: 0.9,
+  muskox: 1.15, snow_leopard: 1.02, walrus: 1.12, salamander: 1.0,
+  fire_ant: 0.78, slag_snail: 1.08, phoenix: 1.08, angler: 1.0,
+  vampire_squid: 1.02, siphonophore: 1.08, nautilus: 1.06,
 });
 
 function makeHealthBar(height, elite, boss) {

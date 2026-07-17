@@ -43,6 +43,8 @@ Helper `enemy(id, name, zone, shape, level, hp, damage, defense, speed, range, x
 **Defense composition:** `DEFENSE_WAVE_ROLE_RECIPES` + `defenseRecipeForWave(wave)` drive role quotas.  
 **Elite affixes:** `ELITE_AFFIXES` (shielded, enraged, volatile, hasted, fortified, arcane, frostbitten, molten, vampiric, summoning).  
 See [history/monster-variety-hunt-defense.md](./history/monster-variety-hunt-defense.md).
+The latest twenty-shape research roster is documented in
+[monster-roster-20-research.md](./monster-roster-20-research.md).
 
 ## Rarities `RARITIES`
 

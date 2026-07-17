@@ -39,12 +39,18 @@ const bosses = enemies.filter(enemy => enemy.boss);
 const shapes = new Set(enemies.map(enemy => enemy.shape));
 
 ok(zones.length === 6, '6 ecological zones');
-ok(enemies.length >= 78, `monster roster expanded (${enemies.length} types)`);
+ok(enemies.length >= 104, `monster roster expanded (${enemies.length} types)`);
 ok(bosses.length === 6, '6 zone bosses');
 const miniBosses = enemies.filter(e => e.miniBoss);
 ok(miniBosses.length === 6, `6 zone mini-bosses (got ${miniBosses.length})`);
-ok(shapes.size >= 26, `monster body shapes expanded (${shapes.size})`);
-for (const shape of ['toad', 'fox', 'owl', 'asp']) {
+ok(shapes.size >= 46, `monster body shapes expanded (${shapes.size})`);
+for (const shape of [
+  'toad', 'fox', 'owl', 'asp',
+  'flytrap', 'pitcher', 'pangolin', 'mantis', 'moth',
+  'centipede', 'thornback', 'fennec', 'bombardier', 'muskox',
+  'snow_leopard', 'walrus', 'salamander', 'fire_ant', 'slag_snail',
+  'phoenix', 'angler', 'vampire_squid', 'siphonophore', 'nautilus',
+]) {
   ok(shapes.has(shape), `shape ${shape} in roster`);
 }
 const knownRoles = new Set(content.ENEMY_ROLES ?? []);
@@ -184,6 +190,10 @@ if (failures.length) {
 console.log(`\nAll checks passed · ${allFiles.length} files · ${jsFiles.length} JS modules`);
 
 // Skill combat params / presentation / status unit tests
+console.log('\n--- monster-roster ---');
+const monsterRoster = await import(pathToFileURL(join(root, 'tests/monster-roster.mjs')));
+void monsterRoster;
+
 console.log('\n--- skill-combat ---');
 const skillCombat = await import(pathToFileURL(join(root, 'tests/skill-combat.mjs')));
 void skillCombat;

@@ -725,6 +725,330 @@ function buildAsp(rig, p, refs) {
   addEyes(rig, p, 1.32, .72, .1, .04, true);
 }
 
+/** Venus flytrap cue: hinged jaw leaves, interlocking teeth, and rooted tendrils. */
+function buildFlytrap(rig, p, refs) {
+  refs.body = addPart(rig, geometry('flytrap-bulb', () => new THREE.SphereGeometry(.45, 9, 7)), p.dark, [0, .35, 0], [1.15, .7, 1]);
+  addPart(rig, geometry('flytrap-stem', () => new THREE.CylinderGeometry(.14, .22, .9, 7)), p.body, [0, .78, 0]);
+  const lower = addPart(rig, geometry('flytrap-jaw', () => new THREE.SphereGeometry(.5, 10, 7)), p.accent, [0, 1.13, .17], [1.08, .3, 1.05], [.22, 0, 0]);
+  const upper = addPart(rig, geometry('flytrap-jaw', () => new THREE.SphereGeometry(.5, 10, 7)), p.body, [0, 1.43, .12], [1.08, .3, 1.05], [-.28, 0, 0]);
+  refs.head = upper;
+  addPart(rig, geometry('flytrap-mouth', () => new THREE.SphereGeometry(.34, 8, 6)), p.eye, [0, 1.28, .5], [1.05, .22, .72], [0, 0, 0], { outline: false });
+  for (const side of [-1, 1]) for (let i = 0; i < 4; i += 1) {
+    const x = side * (.12 + i * .1);
+    coneBetween(rig, [x, 1.27 + side * .06, .5], [x * 1.12, 1.3 + side * .1, .78], .035, p.white, { segments: 4, outline: false });
+  }
+  for (let i = 0; i < 4; i += 1) {
+    const angle = i * Math.PI / 2 + .4;
+    coneBetween(rig, [0, .25, 0], [Math.cos(angle) * .72, .08, Math.sin(angle) * .72], .12, p.body, { segments: 6 });
+  }
+  refs.petals.push(lower, upper);
+}
+
+/** Pitcher plant cue: deep urn, slippery rim, hood, and ground leaves. */
+function buildPitcher(rig, p, refs) {
+  refs.body = addPart(rig, geometry('pitcher-urn', () => new THREE.CylinderGeometry(.38, .58, 1.15, 10)), p.body, [0, .68, 0], [1, 1, .9]);
+  addPart(rig, geometry('pitcher-rim', () => new THREE.TorusGeometry(.41, .09, 7, 14)), p.accent, [0, 1.27, 0], [1.08, 1, .92], [Math.PI / 2, 0, 0]);
+  addPart(rig, geometry('pitcher-throat', () => new THREE.CylinderGeometry(.31, .28, .06, 10)), p.dark, [0, 1.25, 0], [1, 1, .85]);
+  const hood = addPart(rig, geometry('pitcher-hood', () => new THREE.SphereGeometry(.42, 9, 6)), p.accent, [0, 1.52, -.16], [1.05, .22, .92], [-.32, 0, 0]); refs.head = hood;
+  for (let i = 0; i < 5; i += 1) {
+    const angle = i * Math.PI * 2 / 5;
+    const leaf = addPart(rig, geometry('pitcher-leaf', () => new THREE.ConeGeometry(.25, .95, 5)), i % 2 ? p.dark : p.body,
+      [Math.cos(angle) * .38, .13, Math.sin(angle) * .38], [1, 1, .3], [Math.PI / 2, 0, -angle]);
+    refs.petals.push(leaf);
+  }
+  addEyes(rig, p, .88, .48, .17, .045, true);
+}
+
+/** Pangolin cue: overlapping dorsal scales, pointed snout, and armored tail. */
+function buildPangolin(rig, p, refs) {
+  refs.body = addPart(rig, geometry('pangolin-body', () => new THREE.SphereGeometry(.56, 10, 8)), p.body, [0, .62, -.1], [1.05, .72, 1.55]);
+  const head = addPart(rig, geometry('pangolin-head', () => new THREE.SphereGeometry(.3, 8, 6)), p.dark, [0, .68, .82], [.9, .8, 1.25]); refs.head = head;
+  coneBetween(rig, [0, .68, 1.0], [0, .58, 1.48], .2, p.dark, { segments: 7 });
+  for (let row = 0; row < 5; row += 1) for (const side of [-1, 0, 1]) {
+    addPart(rig, geometry('pangolin-scale', () => new THREE.ConeGeometry(.18, .42, 5)), row % 2 ? p.accent : p.dark,
+      [side * .28, .98 - Math.abs(side) * .08, .42 - row * .34], [1, 1, .6], [Math.PI / 2.7, 0, side * .08]);
+  }
+  for (const side of [-1, 1]) for (const z of [-.48, .45]) {
+    const leg = addPart(rig, geometry('pangolin-leg', () => new THREE.CylinderGeometry(.1, .14, .45, 6)), p.dark, [side * .42, .28, z], [1, 1, 1], [0, 0, side * .18]);
+    refs.legs.push(leg);
+  }
+  const tail = new THREE.Group(); tail.position.set(0, .55, -.95); rig.add(tail); refs.tail = tail;
+  coneBetween(tail, [0, 0, 0], [0, -.12, -1.35], .3, p.body, { segments: 8 });
+  addEyes(rig, p, .76, 1.08, .1, .035, false);
+}
+
+/** Praying mantis cue: triangular head, long thorax, and folded raptorial forelegs. */
+function buildMantis(rig, p, refs) {
+  refs.body = addPart(rig, geometry('mantis-abdomen', () => new THREE.SphereGeometry(.34, 8, 7)), p.body, [0, .82, -.35], [.82, 1.3, 1.25], [.35, 0, 0]);
+  addPart(rig, geometry('mantis-thorax', () => new THREE.CylinderGeometry(.13, .22, .95, 6)), p.dark, [0, 1.35, .12], [1, 1, 1], [-.35, 0, 0]);
+  const head = addPart(rig, geometry('mantis-head', () => new THREE.ConeGeometry(.36, .32, 3)), p.accent, [0, 1.85, .4], [1, 1, .75], [Math.PI / 2, 0, 0]); refs.head = head;
+  for (const side of [-1, 1]) {
+    const arm = new THREE.Group(); arm.position.set(side * .16, 1.5, .22); rig.add(arm); refs.arms.push(arm);
+    cylinderBetween(arm, [0, 0, 0], [side * .43, -.18, .35], .07, p.body, { segments: 6 });
+    coneBetween(arm, [side * .43, -.18, .35], [side * .18, -.48, .78], .09, p.accent, { segments: 5 });
+    for (const z of [-.35, .15]) {
+      const leg = cylinderBetween(rig, [side * .18, .82, z], [side * .65, .08, z + .12], .045, p.dark, { segments: 5 });
+      refs.legs.push(leg);
+    }
+    coneBetween(rig, [side * .12, 1.93, .48], [side * .32, 2.22, .7], .025, p.accent, { segments: 4, outline: false });
+  }
+  addEyes(rig, p, 1.9, .58, .2, .075, true);
+}
+
+/** Giant moth cue: fuzzy core, broad patterned wings, and feathered antennae. */
+function buildMoth(rig, p, refs) {
+  refs.body = addPart(rig, geometry('moth-body', () => new THREE.SphereGeometry(.3, 9, 7)), p.dark, [0, 1.08, 0], [.72, 1.5, .72]);
+  const head = addPart(rig, geometry('moth-head', () => new THREE.SphereGeometry(.28, 8, 6)), p.body, [0, 1.52, .24], [1, .9, 1]); refs.head = head;
+  for (const side of [-1, 1]) {
+    const wing = new THREE.Group(); wing.position.set(side * .18, 1.18, -.05); rig.add(wing); refs.wings.push(wing);
+    const upper = addPart(wing, geometry('moth-wing-upper', () => new THREE.ConeGeometry(.72, 1.55, 4)), p.accent,
+      [side * .62, .18, 0], [1, 1, .16], [.12, 0, side * -.95], { thickness: 1.035 });
+    const lower = addPart(wing, geometry('moth-wing-lower', () => new THREE.ConeGeometry(.52, 1.2, 4)), p.body,
+      [side * .5, -.38, -.18], [1, 1, .14], [.18, 0, side * -.72], { thickness: 1.035 });
+    addPart(wing, geometry('moth-eyespot', () => new THREE.SphereGeometry(.16, 7, 5)), p.eye, [side * .78, .2, .08], [1, .25, 1], [0, 0, 0], { outline: false });
+    refs.feathers.push(upper, lower);
+    for (let i = 0; i < 3; i += 1) coneBetween(rig, [side * .08, 1.68, .33], [side * (.25 + i * .1), 1.98 - i * .05, .5], .018, p.light, { segments: 4, outline: false });
+  }
+  addEyes(rig, p, 1.58, .48, .16, .065, false);
+}
+
+/** Centipede cue: flattened segmented body, one leg pair per segment, venom claws. */
+function buildCentipede(rig, p, refs) {
+  const segments = [];
+  for (let i = 0; i < 8; i += 1) {
+    const z = -.82 + i * .24;
+    const segment = addPart(rig, geometry('centipede-segment', () => new THREE.SphereGeometry(.2, 7, 5)), i % 2 ? p.body : p.dark, [0, .28, z], [1.25, .55, 1]);
+    segments.push(segment);
+    for (const side of [-1, 1]) cylinderBetween(rig, [side * .14, .27, z], [side * (.42 + i % 2 * .05), .06, z - .04], .025, p.accent, { segments: 4, outline: false });
+  }
+  refs.body = segments[3];
+  const head = addPart(rig, geometry('centipede-head', () => new THREE.SphereGeometry(.27, 8, 6)), p.accent, [0, .34, 1.18], [1.1, .68, 1.18]); refs.head = head;
+  for (const side of [-1, 1]) {
+    coneBetween(rig, [side * .11, .35, 1.36], [side * .32, .2, 1.7], .035, p.white, { segments: 4 });
+    coneBetween(rig, [side * .13, .45, 1.34], [side * .42, .58, 1.75], .018, p.accent, { segments: 4, outline: false });
+  }
+  addEyes(rig, p, .43, 1.42, .12, .04, true);
+}
+
+/** Thorny devil cue: broad lizard, conical armor, and a false-head shoulder hump. */
+function buildThornback(rig, p, refs) {
+  refs.body = addPart(rig, geometry('thornback-body', () => new THREE.SphereGeometry(.5, 9, 7)), p.body, [0, .52, -.05], [1.15, .56, 1.45]);
+  const head = addPart(rig, geometry('thornback-head', () => new THREE.SphereGeometry(.31, 8, 6)), p.dark, [0, .55, .78], [1.12, .72, 1.12]); refs.head = head;
+  addPart(rig, geometry('thornback-false-head', () => new THREE.SphereGeometry(.22, 7, 5)), p.accent, [0, .83, .2], [1.1, .85, 1]);
+  for (let i = 0; i < 7; i += 1) {
+    const z = -.62 + i * .22;
+    addPart(rig, geometry('thornback-spike', () => new THREE.ConeGeometry(.08, .32, 5)), i % 2 ? p.accent : p.dark, [0, .88, z]);
+    if (i % 2 === 0) for (const side of [-1, 1]) addPart(rig, geometry('thornback-side-spike', () => new THREE.ConeGeometry(.06, .24, 5)), p.accent, [side * .48, .65, z], [1, 1, 1], [0, 0, side * -.55]);
+  }
+  for (const side of [-1, 1]) for (const z of [-.38, .5]) {
+    const leg = cylinderBetween(rig, [side * .35, .42, z], [side * .72, .08, z + .08], .08, p.dark, { segments: 6 }); refs.legs.push(leg);
+  }
+  const tail = new THREE.Group(); tail.position.set(0, .5, -.85); rig.add(tail); refs.tail = tail;
+  coneBetween(tail, [0, 0, 0], [0, -.08, -1.05], .2, p.body, { segments: 7 });
+  addEyes(rig, p, .64, 1.03, .13, .04, true);
+}
+
+/** Fennec cue: tiny desert body dominated by heat-radiating ears. */
+function buildFennec(rig, p, refs) {
+  refs.body = addPart(rig, geometry('fennec-body', () => new THREE.SphereGeometry(.43, 9, 7)), p.body, [0, .62, -.2], [.9, .72, 1.45]);
+  const head = addPart(rig, geometry('fennec-head', () => new THREE.SphereGeometry(.33, 9, 7)), p.light, [0, .82, .62], [1, .92, 1.05]); refs.head = head;
+  coneBetween(rig, [0, .78, .8], [0, .7, 1.18], .19, p.light, { segments: 7 });
+  for (const side of [-1, 1]) {
+    addPart(rig, geometry('fennec-ear', () => new THREE.ConeGeometry(.24, .82, 5)), p.accent, [side * .24, 1.36, .52], [1, 1, .45], [0, 0, side * -.12]);
+    for (const z of [-.45, .35]) {
+      const leg = addPart(rig, geometry('fennec-leg', () => new THREE.CylinderGeometry(.07, .1, .52, 6)), p.dark, [side * .28, .27, z]); refs.legs.push(leg);
+    }
+  }
+  const tail = new THREE.Group(); tail.position.set(0, .62, -.85); rig.add(tail); refs.tail = tail;
+  for (let i = 0; i < 3; i += 1) addPart(tail, geometry('fennec-tail', () => new THREE.SphereGeometry(.26, 8, 6)), i === 2 ? p.white : p.body, [0, .1 + i * .08, -.3 - i * .32], [1, .8, 1.35], [.4, 0, 0]);
+  addEyes(rig, p, .88, .91, .14, .05, false);
+}
+
+/** Bombardier beetle cue: swollen chemical abdomen and paired rear nozzles. */
+function buildBombardier(rig, p, refs) {
+  refs.body = addPart(rig, geometry('bombardier-abdomen', () => new THREE.SphereGeometry(.5, 10, 7)), p.dark, [0, .46, -.35], [1, .56, 1.38]);
+  addPart(rig, geometry('bombardier-elytra', () => new THREE.SphereGeometry(.43, 9, 6)), p.accent, [0, .63, -.28], [1, .28, 1.2]);
+  addPart(rig, geometry('bombardier-thorax', () => new THREE.SphereGeometry(.3, 8, 6)), p.body, [0, .43, .42], [1.1, .65, 1]);
+  const head = addPart(rig, geometry('bombardier-head', () => new THREE.SphereGeometry(.23, 8, 6)), p.dark, [0, .42, .83], [1, .72, 1]); refs.head = head;
+  for (const side of [-1, 1]) {
+    for (let i = 0; i < 3; i += 1) {
+      const z = -.45 + i * .42;
+      const leg = cylinderBetween(rig, [side * .25, .4, z], [side * (.65 + i * .05), .05, z + (i - 1) * .12], .04, p.body, { segments: 5 }); refs.legs.push(leg);
+    }
+    coneBetween(rig, [side * .14, .44, -.78], [side * .24, .32, -1.2], .09, p.accent, { segments: 6 });
+    coneBetween(rig, [side * .1, .48, .98], [side * .3, .58, 1.3], .018, p.accent, { segments: 4, outline: false });
+  }
+  addEyes(rig, p, .49, 1.03, .1, .035, true);
+}
+
+/** Muskox cue: barrel body, shaggy curtain, helmet boss, and upturned horns. */
+function buildMuskox(rig, p, refs) {
+  refs.body = addPart(rig, geometry('muskox-body', () => new THREE.SphereGeometry(.68, 10, 8)), p.dark, [0, .9, -.18], [1.15, .86, 1.45]);
+  for (const side of [-1, 0, 1]) for (const z of [-.65, -.2, .25]) addPart(rig, geometry('muskox-fringe', () => new THREE.ConeGeometry(.16, .75, 5)), p.body, [side * .4, .43, z], [1, 1, .72]);
+  const head = addPart(rig, geometry('muskox-head', () => new THREE.SphereGeometry(.42, 9, 7)), p.body, [0, .92, .78], [1.2, .9, .85]); refs.head = head;
+  addPart(rig, geometry('muskox-boss', () => new THREE.TorusGeometry(.31, .11, 6, 12, Math.PI)), p.accent, [0, 1.17, .94], [1.2, 1, 1], [0, 0, Math.PI]);
+  for (const side of [-1, 1]) {
+    coneBetween(rig, [side * .28, 1.16, .9], [side * .72, 1.02, 1.02], .13, p.accent, { segments: 6 });
+    coneBetween(rig, [side * .72, 1.02, 1.02], [side * .62, 1.48, 1.08], .09, p.white, { segments: 6 });
+    for (const z of [-.52, .38]) {
+      const leg = addPart(rig, geometry('muskox-leg', () => new THREE.CylinderGeometry(.12, .16, .58, 6)), p.dark, [side * .42, .25, z]); refs.legs.push(leg);
+    }
+  }
+  addEyes(rig, p, 1.03, 1.16, .19, .045, true);
+}
+
+/** Snow leopard cue: wide paws, compact cat body, markings, and oversized balancing tail. */
+function buildSnowLeopard(rig, p, refs) {
+  refs.body = addPart(rig, geometry('snow-leopard-body', () => new THREE.SphereGeometry(.47, 10, 7)), p.light, [0, .7, -.18], [.9, .68, 1.55]);
+  const head = addPart(rig, geometry('snow-leopard-head', () => new THREE.SphereGeometry(.32, 9, 7)), p.body, [0, .77, .72], [1.12, .95, 1]); refs.head = head;
+  for (const side of [-1, 1]) {
+    addPart(rig, geometry('snow-leopard-ear', () => new THREE.ConeGeometry(.11, .28, 5)), p.dark, [side * .2, 1.12, .65], [1, 1, .7], [0, 0, side * -.2]);
+    for (const z of [-.52, .35]) {
+      const leg = addPart(rig, geometry('snow-leopard-leg', () => new THREE.CylinderGeometry(.09, .13, .55, 6)), p.body, [side * .31, .3, z]); refs.legs.push(leg);
+      addPart(rig, geometry('snow-leopard-paw', () => new THREE.SphereGeometry(.13, 7, 5)), p.light, [side * .31, .06, z + .08], [1.35, .45, 1.3]);
+    }
+    for (let i = 0; i < 3; i += 1) addPart(rig, geometry('snow-leopard-rosette', () => new THREE.SphereGeometry(.055, 6, 4)), p.dark, [side * .42, .78, -.52 + i * .36], [1, .6, 1], [0, 0, 0], { outline: false });
+  }
+  const tail = new THREE.Group(); tail.position.set(0, .68, -.95); rig.add(tail); refs.tail = tail;
+  addPart(tail, geometry('snow-leopard-tail', () => new THREE.TorusGeometry(.58, .11, 7, 16, Math.PI * 1.45)), p.body, [.42, .05, -.35], [1, 1, 1], [Math.PI / 2, 0, .35]);
+  addEyes(rig, p, .84, 1.0, .14, .045, true);
+}
+
+/** Walrus cue: massive wrinkled body, broad flippers, whiskered muzzle, and tusks. */
+function buildWalrus(rig, p, refs) {
+  refs.body = addPart(rig, geometry('walrus-body', () => new THREE.SphereGeometry(.72, 11, 8)), p.body, [0, .6, -.18], [1.15, .72, 1.4]);
+  const head = addPart(rig, geometry('walrus-head', () => new THREE.SphereGeometry(.42, 9, 7)), p.light, [0, .68, .72], [1.2, .9, .9]); refs.head = head;
+  for (const side of [-1, 1]) {
+    addPart(rig, geometry('walrus-muzzle', () => new THREE.SphereGeometry(.2, 7, 5)), p.accent, [side * .18, .58, 1.02], [1.1, .72, .8]);
+    coneBetween(rig, [side * .18, .54, 1.1], [side * .2, .05, 1.18], .075, p.white, { segments: 7 });
+    const flipper = addPart(rig, geometry('walrus-flipper', () => new THREE.SphereGeometry(.3, 8, 6)), p.dark, [side * .72, .35, -.05], [1.4, .22, .8], [0, 0, side * -.25]); refs.arms.push(flipper);
+    for (let i = 0; i < 4; i += 1) coneBetween(rig, [side * .08, .64 + i * .035, 1.09], [side * (.48 + i * .05), .54 + i * .05, 1.34], .01, p.white, { segments: 3, outline: false });
+  }
+  addEyes(rig, p, .82, .98, .17, .045, false);
+}
+
+/** Fire salamander cue: low amphibian gait, long tail, and a glowing dorsal crest. */
+function buildSalamander(rig, p, refs) {
+  refs.body = addPart(rig, geometry('salamander-body', () => new THREE.SphereGeometry(.42, 9, 7)), p.dark, [0, .4, -.18], [.9, .48, 1.65]);
+  const head = addPart(rig, geometry('salamander-head', () => new THREE.SphereGeometry(.31, 8, 6)), p.body, [0, .42, .75], [1.15, .72, 1.05]); refs.head = head;
+  for (let i = 0; i < 6; i += 1) addPart(rig, geometry('salamander-crest', () => new THREE.ConeGeometry(.075, .32, 5)), p.accent, [0, .69, .45 - i * .27], [1, 1 + i * .05, .7]);
+  for (const side of [-1, 1]) for (const z of [-.48, .42]) {
+    const leg = cylinderBetween(rig, [side * .28, .35, z], [side * .68, .06, z + .12], .06, p.body, { segments: 5 }); refs.legs.push(leg);
+  }
+  const tail = new THREE.Group(); tail.position.set(0, .4, -1.0); rig.add(tail); refs.tail = tail;
+  coneBetween(tail, [0, 0, 0], [.12, -.06, -1.45], .24, p.dark, { segments: 8 });
+  addEyes(rig, p, .49, .99, .13, .045, true);
+}
+
+/** Fire ant cue: three-part insect body, six legs, antennae, and oversized mandibles. */
+function buildFireAnt(rig, p, refs) {
+  refs.body = addPart(rig, geometry('fire-ant-abdomen', () => new THREE.SphereGeometry(.38, 9, 7)), p.dark, [0, .42, -.52], [.9, .72, 1.25]);
+  addPart(rig, geometry('fire-ant-thorax', () => new THREE.SphereGeometry(.25, 8, 6)), p.body, [0, .4, .06], [1, .8, 1.15]);
+  const head = addPart(rig, geometry('fire-ant-head', () => new THREE.SphereGeometry(.28, 8, 6)), p.accent, [0, .43, .52], [1.12, .9, 1]); refs.head = head;
+  for (const side of [-1, 1]) {
+    for (let i = 0; i < 3; i += 1) {
+      const z = -.35 + i * .34;
+      const leg = cylinderBetween(rig, [side * .18, .4, z], [side * (.62 + Math.abs(i - 1) * .08), .05, z + (i - 1) * .17], .035, p.dark, { segments: 5 }); refs.legs.push(leg);
+    }
+    coneBetween(rig, [side * .12, .42, .73], [side * .38, .28, 1.02], .06, p.white, { segments: 5 });
+    cylinderBetween(rig, [side * .12, .55, .68], [side * .34, .78, .94], .018, p.accent, { segments: 4, outline: false });
+  }
+  addEyes(rig, p, .53, .74, .13, .045, true);
+}
+
+/** Scaly-foot snail cue: iron shell, armored foot scales, and sensory stalks. */
+function buildSlagSnail(rig, p, refs) {
+  refs.body = addPart(rig, geometry('slag-snail-foot', () => new THREE.SphereGeometry(.45, 9, 6)), p.body, [0, .28, .08], [1.05, .35, 1.65]);
+  const shell = addPart(rig, geometry('slag-snail-shell', () => new THREE.TorusGeometry(.48, .22, 8, 18)), p.dark, [0, .82, -.28], [1, 1, .72], [0, Math.PI / 2, 0]); refs.head = shell;
+  addPart(rig, geometry('slag-snail-shell-core', () => new THREE.SphereGeometry(.28, 8, 6)), p.accent, [0, .82, -.28], [1, 1, .55]);
+  for (const side of [-1, 1]) {
+    coneBetween(rig, [side * .2, .39, .75], [side * .34, .86, 1.08], .035, p.accent, { segments: 5 });
+    addPart(rig, geometry('slag-snail-eye', () => new THREE.SphereGeometry(.055, 6, 4)), p.eye, [side * .34, .88, 1.1], [1, 1, 1], [0, 0, 0], { outline: false });
+  }
+  for (let i = 0; i < 7; i += 1) for (const side of [-1, 1]) addPart(rig, geometry('slag-snail-scale', () => new THREE.ConeGeometry(.09, .24, 5)), i % 2 ? p.metal : p.accent, [side * .34, .48, -.62 + i * .2], [1, 1, .6], [0, 0, side * -.55]);
+}
+
+/** Phoenix cue: eagle-like core, wide flame wings, crown, and streaming tail. */
+function buildPhoenix(rig, p, refs) {
+  refs.body = addPart(rig, geometry('phoenix-body', () => new THREE.SphereGeometry(.38, 9, 7)), p.body, [0, 1.12, 0], [.78, 1.25, .78]);
+  const head = addPart(rig, geometry('phoenix-head', () => new THREE.SphereGeometry(.25, 8, 6)), p.light, [0, 1.7, .24], [1, 1, 1]); refs.head = head;
+  coneBetween(rig, [0, 1.67, .42], [0, 1.59, .75], .13, p.white, { segments: 5 });
+  for (const side of [-1, 1]) {
+    const wing = new THREE.Group(); wing.position.set(side * .2, 1.35, 0); rig.add(wing); refs.wings.push(wing);
+    for (let i = 0; i < 4; i += 1) {
+      const feather = addPart(wing, geometry('phoenix-wing-feather', () => new THREE.ConeGeometry(.24, 1.6, 4)), i % 2 ? p.accent : p.body,
+        [side * (.38 + i * .24), .1 - i * .12, -.08 * i], [1, 1, .3], [.08, 0, side * (-.92 + i * .08)], { thickness: 1.035 });
+      refs.feathers.push(feather);
+    }
+    addPart(rig, geometry('phoenix-crown', () => new THREE.ConeGeometry(.07, .4, 4)), p.accent, [side * .1, 2.0, .12], [1, 1, .65], [0, 0, side * -.2]);
+  }
+  for (let i = -2; i <= 2; i += 1) addPart(rig, geometry('phoenix-tail-feather', () => new THREE.ConeGeometry(.16, 1.45, 4)), i % 2 ? p.accent : p.dark,
+    [i * .15, .45 - Math.abs(i) * .06, -.35], [1, 1 + (2 - Math.abs(i)) * .18, .25], [-.2, 0, i * -.12]);
+  addEyes(rig, p, 1.76, .45, .11, .04, true);
+}
+
+/** Deep-sea angler cue: gaping maw, needle teeth, fins, and a luminous lure. */
+function buildAngler(rig, p, refs) {
+  refs.body = addPart(rig, geometry('angler-body', () => new THREE.SphereGeometry(.62, 10, 8)), p.dark, [0, 1.0, 0], [1, .82, 1.18]);
+  const mouth = addPart(rig, geometry('angler-mouth', () => new THREE.TorusGeometry(.35, .11, 7, 14)), p.accent, [0, .92, .62], [1.1, .8, 1]); refs.head = mouth;
+  addPart(rig, geometry('angler-throat', () => new THREE.SphereGeometry(.3, 8, 6)), p.eye, [0, .92, .62], [1, .7, .35], [0, 0, 0], { outline: false });
+  for (let i = -2; i <= 2; i += 1) for (const side of [-1, 1]) coneBetween(rig, [i * .1, .92 + side * .08, .72], [i * .13, .92 + side * .16, .88], .025, p.white, { segments: 4, outline: false });
+  for (const side of [-1, 1]) {
+    addPart(rig, geometry('angler-fin', () => new THREE.ConeGeometry(.3, .8, 4)), p.body, [side * .65, 1.0, -.05], [1, 1, .15], [0, 0, side * -.9]);
+    addPart(rig, geometry('angler-eye', () => new THREE.SphereGeometry(.09, 7, 5)), p.eye, [side * .24, 1.2, .55], [1, 1, .6], [0, 0, 0], { outline: false });
+  }
+  cylinderBetween(rig, [.08, 1.45, .05], [.2, 2.03, .48], .025, p.accent, { segments: 5, outline: false });
+  const lure = addPart(rig, geometry('angler-lure', () => new THREE.SphereGeometry(.13, 8, 6)), p.light, [.2, 2.05, .5], [1, 1, 1], [0, 0, 0], { outline: false }); refs.glow = lure;
+}
+
+/** Vampire squid cue: cloak-like web, huge eyes, mantle, and eight tapered arms. */
+function buildVampireSquid(rig, p, refs) {
+  refs.body = addPart(rig, geometry('vampire-squid-mantle', () => new THREE.SphereGeometry(.48, 10, 8)), p.dark, [0, 1.55, -.1], [.82, 1.18, .82]);
+  const head = addPart(rig, geometry('vampire-squid-head', () => new THREE.SphereGeometry(.38, 9, 7)), p.body, [0, 1.15, .15], [1.05, .8, .95]); refs.head = head;
+  for (const side of [-1, 1]) addPart(rig, geometry('vampire-squid-eye', () => new THREE.SphereGeometry(.13, 8, 6)), p.eye, [side * .2, 1.25, .45], [1, 1.15, .65], [0, 0, 0], { outline: false });
+  for (let i = 0; i < 8; i += 1) {
+    const angle = i * Math.PI * 2 / 8;
+    const x = Math.cos(angle) * (.42 + (i % 2) * .12);
+    const z = Math.sin(angle) * .45 + .08;
+    coneBetween(rig, [Math.cos(angle) * .22, 1.0, Math.sin(angle) * .18], [x, .12 + (i % 3) * .08, z], .12, i % 2 ? p.accent : p.body, { segments: 6 });
+  }
+  for (const side of [-1, 1]) addPart(rig, geometry('vampire-squid-fin', () => new THREE.ConeGeometry(.2, .55, 4)), p.accent, [side * .4, 1.75, -.12], [1, 1, .18], [0, 0, side * -.9]);
+}
+
+/** Siphonophore cue: tall colonial chain of specialized glowing zooids and tentacles. */
+function buildSiphonophore(rig, p, refs) {
+  const bell = addPart(rig, geometry('siphonophore-bell', () => new THREE.SphereGeometry(.42, 10, 7)), p.light, [0, 2.18, 0], [1, 1.2, 1]); refs.head = bell;
+  refs.glow = addPart(rig, geometry('siphonophore-core', () => new THREE.SphereGeometry(.2, 8, 6)), p.eye, [0, 2.18, .25], [1, 1, .5], [0, 0, 0], { outline: false });
+  const zooids = [];
+  for (let i = 0; i < 6; i += 1) {
+    const y = 1.78 - i * .26;
+    const node = addPart(rig, geometry('siphonophore-zooid', () => new THREE.SphereGeometry(.2, 8, 6)), i % 2 ? p.accent : p.body,
+      [Math.sin(i * 1.8) * .12, y, Math.cos(i * 1.4) * .1], [1 + i * .05, .72, 1]);
+    zooids.push(node);
+  }
+  refs.body = zooids[2]; refs.orbs.push(...zooids);
+  for (let i = 0; i < 5; i += 1) {
+    const angle = i * Math.PI * 2 / 5;
+    const x = Math.cos(angle) * .24;
+    const z = Math.sin(angle) * .24;
+    cylinderBetween(rig, [x, .52, z], [x * 1.8, -.2 - (i % 2) * .25, z * 1.8], .018, p.accent, { segments: 4, outline: false });
+  }
+}
+
+/** Nautilus cue: chambered external shell, hooded head, and a crown of grasping arms. */
+function buildNautilus(rig, p, refs) {
+  refs.body = addPart(rig, geometry('nautilus-shell', () => new THREE.TorusGeometry(.55, .25, 9, 20)), p.body, [0, 1.1, -.18], [1, 1, .78], [0, Math.PI / 2, 0]);
+  addPart(rig, geometry('nautilus-shell-core', () => new THREE.SphereGeometry(.34, 9, 7)), p.accent, [0, 1.1, -.18], [1, 1, .64]);
+  const head = addPart(rig, geometry('nautilus-head', () => new THREE.SphereGeometry(.32, 8, 6)), p.dark, [0, 1.08, .58], [1.1, .85, 1]); refs.head = head;
+  for (let i = 0; i < 10; i += 1) {
+    const angle = i * Math.PI * 2 / 10;
+    const x = Math.cos(angle) * .36;
+    const y = 1.03 + Math.sin(angle) * .26;
+    coneBetween(rig, [Math.cos(angle) * .14, 1.06 + Math.sin(angle) * .1, .78], [x, y, 1.34 + (i % 2) * .18], .035, i % 2 ? p.light : p.accent, { segments: 5, outline: false });
+  }
+  addEyes(rig, p, 1.18, .84, .17, .055, false);
+}
+
 export function createEnemyModel(data, elite = false) {
   const group = new THREE.Group();
   group.name = `${data.name}${elite ? ' [Elite]' : ''}`;
@@ -743,6 +1067,11 @@ export function createEnemyModel(data, elite = false) {
     scorpion: buildScorpion, knight: buildKnight, imp: buildImp, lizard: buildLizard, panther: buildPanther,
     colossus: buildColossus, drake: buildDrake,
     toad: buildToad, fox: buildFox, owl: buildOwl, asp: buildAsp,
+    flytrap: buildFlytrap, pitcher: buildPitcher, pangolin: buildPangolin, mantis: buildMantis,
+    moth: buildMoth, centipede: buildCentipede, thornback: buildThornback, fennec: buildFennec,
+    bombardier: buildBombardier, muskox: buildMuskox, snow_leopard: buildSnowLeopard, walrus: buildWalrus,
+    salamander: buildSalamander, fire_ant: buildFireAnt, slag_snail: buildSlagSnail, phoenix: buildPhoenix,
+    angler: buildAngler, vampire_squid: buildVampireSquid, siphonophore: buildSiphonophore, nautilus: buildNautilus,
   };
   (builders[data.shape] ?? buildBlob)(rig, palette, refs);
 
@@ -750,7 +1079,11 @@ export function createEnemyModel(data, elite = false) {
     wolf: 1.75, plant: 1.65, golem: 2.45, shaman: 2.25, harpy: 2.25, stag: 3.0,
     crab: 1.35, raptor: 2.0, cyclops: 2.75, scorpion: 2.5, knight: 2.7, imp: 2.35,
     lizard: 1.45, panther: 1.75, colossus: 3.3, drake: 3.4,
-    toad: 1.35, fox: 1.55, owl: 2.05, asp: 1.55 })[data.shape] ?? 2;
+    toad: 1.35, fox: 1.55, owl: 2.05, asp: 1.55,
+    flytrap: 1.85, pitcher: 1.75, pangolin: 1.45, mantis: 2.25, moth: 2.05,
+    centipede: .75, thornback: 1.25, fennec: 1.75, bombardier: .9, muskox: 1.65,
+    snow_leopard: 1.35, walrus: 1.35, salamander: .95, fire_ant: .8, slag_snail: 1.45,
+    phoenix: 2.35, angler: 2.2, vampire_squid: 2.25, siphonophore: 2.75, nautilus: 1.75 })[data.shape] ?? 2;
   refs.shadow = createShadow(group, (data.boss ? 1.65 : elite ? 1.05 : .78) * (data.scale ?? 1), data.boss ? .3 : .2);
   const health = createHealthBar(group, modelHeight + .38, data.boss ? 2.2 : elite ? 2 : 1.45);
   Object.assign(refs, { healthGroup: health.group, healthBack: health.back, healthFill: health.fill, healthWidth: health.width, modelHeight });
