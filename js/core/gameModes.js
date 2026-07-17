@@ -3,7 +3,7 @@
  * Frame loop, camera, and input stay on Game.js.
  */
 import * as THREE from 'three';
-import { DEFENSE_CONFIG, GAME_CONFIG, HUNT_SPAWN_CONFIG } from '../config.js';
+import { DEFENSE_CONFIG, GAME_CONFIG, HUNT_SPAWN_CONFIG, MAX_HUNT_CONFIG } from '../config.js';
 import { clamp } from '../../packages/template-3d/index.js';
 import { applyKillChainMods } from './killFeedback.js';
 
@@ -113,8 +113,25 @@ export function respawnPlayer(game) {
     game.state = 'playing';
     (game.ctx?.ui ?? game.ui).hideDeath();
     game.snapCamera();
-    (game.ctx?.enemies ?? game.enemies).populate(HUNT_SPAWN_CONFIG.respawnEnemies);
-    (game.ctx?.ui ?? game.ui).notify(penalty > 0 ? `Revived at hub · Repair cost ${penalty}G` : 'Revived at hub.', 'danger', 3.8);
+    const isMax = Boolean(game.hunt?.isMax);
+    if (isMax) {
+      (game.ctx?.enemies ?? game.enemies).startMaxHuntPressure?.(MAX_HUNT_CONFIG.respawn.immediate)
+        ?? (game.ctx?.enemies ?? game.enemies).populate(MAX_HUNT_CONFIG.respawn.immediate);
+      (game.ctx?.ui ?? game.ui).notify(
+        penalty > 0
+          ? `Revived at the breached hub · Repair cost ${penalty}G`
+          : 'Revived at the breached hub.',
+        'danger',
+        3.8,
+      );
+    } else {
+      (game.ctx?.enemies ?? game.enemies).populate(HUNT_SPAWN_CONFIG.respawnEnemies);
+      (game.ctx?.ui ?? game.ui).notify(
+        penalty > 0 ? `Revived at hub · Repair cost ${penalty}G` : 'Revived at hub.',
+        'danger',
+        3.8,
+      );
+    }
     game.requestSave();
   }
 
@@ -123,30 +140,33 @@ export function startNewGame(game, options = {}) {
     clearRun(game);
     game.mode = 'hunt';
     game.defense.reset();
-    (game.ctx?.player ?? game.player).reset(classId);
-    game.hunt.reset();
+    const player = game.ctx?.player ?? game.player;
+    player.reset(classId);
+    // MAX HUNT is the public New Hunt entry: level-70 baseline + perimeter invasion.
+    player.applyMaxHuntBaseline();
+    game.hunt.reset({ variant: 'max' });
     game.playTime = 0;
     game.autoSaveTimer = GAME_CONFIG.autoSaveSeconds;
     game.saveRequested = false;
     game.cameraYaw = .55;
     game.cameraDistance = GAME_CONFIG.cameraDistance;
-    (game.ctx?.world ?? game.world).resolvePosition((game.ctx?.player ?? game.player).position, .48);
+    (game.ctx?.world ?? game.world).resolvePosition(player.position, .48);
     game.state = 'playing';
-    (game.ctx?.ui ?? game.ui).showHUD();
-    game.snapCamera();
-    (game.ctx?.enemies ?? game.enemies).populate(HUNT_SPAWN_CONFIG.initialEnemies);
-    const heroName = (game.ctx?.player ?? game.player).name;
     const ui = game.ctx?.ui ?? game.ui;
-    ui.notify(`Hunt started · ${heroName} enters the field.`, 'contract', 4.5);
-    // On-level guidance: point new hunters at a fitting band immediately.
-    const tip = game.hunt?.recommendedHuntTip?.()
-      ?? 'Hunt tip · Emerald Meadow (Lv.1–14) fits you';
-    ui.notify(tip, 'loot', 5.2);
-    // Seed contract on start so guided objectives appear within the first seconds.
-    game.hunt.update?.(0);
+    ui.showHUD();
+    game.snapCamera();
+    (game.ctx?.enemies ?? game.enemies).startMaxHuntInvasion();
+    const heroName = player.name;
+    ui.notify(`MAX HUNT STARTED · ${heroName.toUpperCase()} · LV.${player.level}`, 'contract', 4.5);
+    ui.notify('THE HUB IS NOT SAFE', 'danger', 4.2);
     if (game.hunt.contract?.label) {
-      ui.notify(`New contract · ${game.hunt.contract.label}`, 'contract', 3.6);
+      ui.notify(
+        `${game.hunt.contract.label} · ${game.hunt.contract.target} INVADERS`,
+        'contract',
+        3.8,
+      );
     }
+    game.hunt.update?.(0);
     // Immediate localStorage write so Continue is available even if the tab closes early.
     game.saveGame(false);
   }
@@ -226,18 +246,26 @@ export function continueSavedGame(game) {
       if ((game.ctx?.ui ?? game.ui)) (game.ctx?.ui ?? game.ui).selectedClassId = (game.ctx?.player ?? game.player).classId;
       (game.ctx?.ui ?? game.ui).showHUD();
       game.snapCamera();
-      (game.ctx?.enemies ?? game.enemies).populate(HUNT_SPAWN_CONFIG.initialEnemies);
+      // Never re-apply MAX baseline on Continue. Resume pressure only for MAX saves.
+      if (game.hunt?.isMax) {
+        (game.ctx?.enemies ?? game.enemies).startMaxHuntPressure?.(MAX_HUNT_CONFIG.respawn.recovery3s)
+          ?? (game.ctx?.enemies ?? game.enemies).populate(MAX_HUNT_CONFIG.respawn.recovery3s);
+      } else {
+        (game.ctx?.enemies ?? game.enemies).populate(HUNT_SPAWN_CONFIG.initialEnemies);
+      }
       // Re-write current schema so Continue stays durable after version upgrades.
       game.saveGame(false);
+      const resumed = game.ctx?.player ?? game.player;
+      const label = game.hunt?.isMax ? 'MAX HUNT resumed' : 'Hunt resumed';
       (game.ctx?.ui ?? game.ui).notify(
-        `Hunt resumed · ${(game.ctx?.player ?? game.player).name} · Lv.${(game.ctx?.player ?? game.player).level} · ${game.hunt.hunterTitle}`,
+        `${label} · ${resumed.name} · Lv.${resumed.level} · ${game.hunt.hunterTitle}`,
         'contract',
         3.8,
       );
       return true;
     } catch (error) {
       console.error('[continueGame] failed', error);
-      (game.ctx?.ui ?? game.ui).notify('Could not load save. Try New Hunt or clear site data.', 'danger', 4.5);
+      (game.ctx?.ui ?? game.ui).notify('Could not load save. Try MAX HUNT or clear site data.', 'danger', 4.5);
       game.state = 'title';
       (game.ctx?.ui ?? game.ui).showTitle();
       return false;

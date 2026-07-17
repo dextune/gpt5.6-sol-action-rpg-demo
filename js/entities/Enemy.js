@@ -197,8 +197,9 @@ export class Enemy {
     const toPlayer = TMP_A.copy(player.position).sub(this.position);
     toPlayer.y = 0;
     const distance = toPlayer.length();
-    // Hunt hub is a safe zone; Defense arena is not — waves must always engage.
-    const playerSafe = game.mode !== 'defense'
+    // Legacy Hunt hub is safe; MAX HUNT and Defense always allow engagement.
+    const playerSafe = game.mode === 'hunt'
+      && game.hunt?.campSafe
       && Math.hypot(player.position.x, player.position.z) < GAME_CONFIG.campRadius;
     const engaged = player.alive && !playerSafe && (distance < this.aggroRadius || this.boss || this.hitTimer > 0 || this.defenseWave);
 
@@ -212,7 +213,7 @@ export class Enemy {
     }
 
     this.position.addScaledVector(this.knockback, delta);
-    this.#keepOutOfCamp();
+    this.#keepOutOfCamp(game);
     game.world.resolvePosition(this.position, this.radius);
     this.#animate(delta, game.elapsed, distance, game.player?.level ?? 1);
     this.#updateBillboard(game.camera);
@@ -680,7 +681,9 @@ export class Enemy {
     } else this.#brake(delta, 1.4);
   }
 
-  #keepOutOfCamp() {
+  /** Radial hub push — skipped for MAX HUNT so invaders can enter the village. Defense unchanged. */
+  #keepOutOfCamp(game) {
+    if (game?.mode === 'hunt' && game.hunt && !game.hunt.campSafe) return;
     const distance = Math.hypot(this.position.x, this.position.z);
     const min = GAME_CONFIG.campRadius + this.radius + 1.2;
     if (distance > 0.001 && distance < min) {

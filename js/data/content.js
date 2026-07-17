@@ -1244,33 +1244,121 @@ export const HERO_CLASSES = Object.freeze({
 export const WEAPON_EVOLUTIONS = Object.freeze({
   aerin: Object.freeze([
     Object.freeze({ level: 0, name: 'Knight Longsword', model: 'sword', color: 0xd8e4f0, rarity: 'common' }),
-    Object.freeze({ level: 6, name: 'Oathbound Saber', model: 'saber', color: 0xf0d48a, rarity: 'uncommon' }),
-    Object.freeze({ level: 12, name: 'Sunsteel Greatblade', model: 'greatsword', color: 0xffb95f, rarity: 'rare' }),
-    Object.freeze({ level: 20, name: 'Crownbreaker', model: 'greatsword', color: 0xff805c, rarity: 'epic' }),
-    Object.freeze({ level: 30, name: 'Apex Aegis', model: 'relic', color: 0xe1b4ff, rarity: 'legendary' }),
+    Object.freeze({ level: 3, name: 'Oathbound Saber', model: 'saber', color: 0xf0d48a, rarity: 'uncommon' }),
+    Object.freeze({ level: 7, name: 'Sunsteel Greatblade', model: 'greatsword', color: 0xffb95f, rarity: 'rare' }),
+    Object.freeze({ level: 15, name: 'Crownbreaker', model: 'greatsword', color: 0xff805c, rarity: 'epic' }),
+    Object.freeze({ level: 22, name: 'Apex Aegis', model: 'relic', color: 0xe1b4ff, rarity: 'legendary' }),
+    Object.freeze({ level: 30, name: 'Worldbreaker Aegis', model: 'relic', color: 0xffe38b, rarity: 'legendary' }),
   ]),
   wizard: Object.freeze([
     Object.freeze({ level: 0, name: 'Apprentice Staff', model: 'staff', color: 0xc8b4ff, rarity: 'common' }),
-    Object.freeze({ level: 6, name: 'Crystal Rod', model: 'staff', color: 0x9ed8ff, rarity: 'uncommon' }),
-    Object.freeze({ level: 12, name: 'Astral Scepter', model: 'staff', color: 0xc09aff, rarity: 'rare' }),
-    Object.freeze({ level: 20, name: 'Void Conduit', model: 'staff', color: 0xe18bff, rarity: 'epic' }),
-    Object.freeze({ level: 30, name: 'Starforged Focus', model: 'relic', color: 0xf1c2ff, rarity: 'legendary' }),
+    Object.freeze({ level: 3, name: 'Crystal Rod', model: 'staff', color: 0x9ed8ff, rarity: 'uncommon' }),
+    Object.freeze({ level: 7, name: 'Astral Scepter', model: 'staff', color: 0xc09aff, rarity: 'rare' }),
+    Object.freeze({ level: 15, name: 'Void Conduit', model: 'staff', color: 0xe18bff, rarity: 'epic' }),
+    Object.freeze({ level: 22, name: 'Starforged Focus', model: 'relic', color: 0xf1c2ff, rarity: 'legendary' }),
+    Object.freeze({ level: 30, name: 'Event Horizon Focus', model: 'relic', color: 0x9ff6ff, rarity: 'legendary' }),
   ]),
   rogue: Object.freeze([
     Object.freeze({ level: 0, name: 'Fledgling Dagger', model: 'dagger', color: 0x9fe8d8, rarity: 'common' }),
-    Object.freeze({ level: 6, name: 'Viper Kris', model: 'dagger', color: 0x68e6b3, rarity: 'uncommon' }),
-    Object.freeze({ level: 12, name: 'Moonfang', model: 'saber', color: 0xa8f0dc, rarity: 'rare' }),
-    Object.freeze({ level: 20, name: 'Night Lotus', model: 'saber', color: 0xd86fff, rarity: 'epic' }),
-    Object.freeze({ level: 30, name: 'Eclipse Fang', model: 'relic', color: 0xff98d8, rarity: 'legendary' }),
+    Object.freeze({ level: 3, name: 'Viper Kris', model: 'dagger', color: 0x68e6b3, rarity: 'uncommon' }),
+    Object.freeze({ level: 7, name: 'Moonfang', model: 'saber', color: 0xa8f0dc, rarity: 'rare' }),
+    Object.freeze({ level: 15, name: 'Night Lotus', model: 'saber', color: 0xd86fff, rarity: 'epic' }),
+    Object.freeze({ level: 22, name: 'Eclipse Fang', model: 'relic', color: 0xff98d8, rarity: 'legendary' }),
+    Object.freeze({ level: 30, name: 'Moonless Eclipse', model: 'relic', color: 0xff6fcf, rarity: 'legendary' }),
   ]),
   ranger: Object.freeze([
     Object.freeze({ level: 0, name: 'Fledgling Bow', model: 'bow', color: 0xc4a574, rarity: 'common' }),
-    Object.freeze({ level: 6, name: 'Ash Longbow', model: 'bow', color: 0xe0bf82, rarity: 'uncommon' }),
-    Object.freeze({ level: 12, name: 'Storm Recurve', model: 'bow', color: 0x9ad0a8, rarity: 'rare' }),
-    Object.freeze({ level: 20, name: 'Wildstar Bow', model: 'bow', color: 0xffc46b, rarity: 'epic' }),
-    Object.freeze({ level: 30, name: 'Convergence Arc', model: 'relic', color: 0xf2dc9a, rarity: 'legendary' }),
+    Object.freeze({ level: 3, name: 'Ash Longbow', model: 'bow', color: 0xe0bf82, rarity: 'uncommon' }),
+    Object.freeze({ level: 7, name: 'Storm Recurve', model: 'bow', color: 0x9ad0a8, rarity: 'rare' }),
+    Object.freeze({ level: 15, name: 'Wildstar Bow', model: 'bow', color: 0xffc46b, rarity: 'epic' }),
+    Object.freeze({ level: 22, name: 'Convergence Arc', model: 'relic', color: 0xf2dc9a, rarity: 'legendary' }),
+    Object.freeze({ level: 30, name: 'Zenith Convergence', model: 'relic', color: 0xd9ff8a, rarity: 'legendary' }),
   ]),
 });
+
+/**
+ * Fast-loop signature effects. +3 unlocks the first visible proc; later tiers
+ * increase its cadence, targets, repeats, control, and finally execution power.
+ */
+export const WEAPON_RESONANCE_LEVELS = Object.freeze([3, 6, 10, 15, 20, 25, 30]);
+
+export const WEAPON_RESONANCES = Object.freeze({
+  aerin: Object.freeze({
+    id: 'oathquake', name: 'Oathquake', proc: 'nova', color: 0xffcf67,
+    procMult: 0.42, tierMult: 0.08, cooldown: 0.62,
+    statBias: Object.freeze({ leech: 1.5, skillPower: 0.9, haste: 0.9, goldBonus: 0.8, luck: 0.7 }),
+    milestones: Object.freeze([
+      Object.freeze({ level: 3, name: 'Oathwave', summary: 'Landed hits release a radial damage wave.' }),
+      Object.freeze({ level: 6, name: 'Wide Oath', summary: 'The wave grows wider, faster, and stronger.' }),
+      Object.freeze({ level: 10, name: 'Sundering Edge', summary: 'Waves expose enemy armor for follow-up hits.' }),
+      Object.freeze({ level: 15, name: 'Twin Judgment', summary: 'Every trigger repeats with a second shockwave.' }),
+      Object.freeze({ level: 20, name: 'Royal Execution', summary: 'Low-health prey take direct finisher damage.' }),
+      Object.freeze({ level: 25, name: 'Crownstorm', summary: 'Judgment cadence and radius surge again.' }),
+      Object.freeze({ level: 30, name: 'Worldbreaker', summary: 'Three massive waves crush the whole pack.' }),
+    ]),
+  }),
+  wizard: Object.freeze({
+    id: 'star_chain', name: 'Star Chain', proc: 'chain', color: 0xa98cff,
+    procMult: 0.38, tierMult: 0.07, cooldown: 0.64,
+    statBias: Object.freeze({ skillPower: 1.6, haste: 1.15, leech: 0.7 }),
+    milestones: Object.freeze([
+      Object.freeze({ level: 3, name: 'Star Spark', summary: 'Landed hits arc bonus damage to nearby prey.' }),
+      Object.freeze({ level: 6, name: 'Forked Current', summary: 'The arc forks into additional auto-targets.' }),
+      Object.freeze({ level: 10, name: 'Frost Circuit', summary: 'Arc targets are slowed and easier to finish.' }),
+      Object.freeze({ level: 15, name: 'Astral Cascade', summary: 'More chains fire at a much faster cadence.' }),
+      Object.freeze({ level: 20, name: 'Gravity Collapse', summary: 'Low-health prey take direct finisher damage.' }),
+      Object.freeze({ level: 25, name: 'Constellation', summary: 'The current fills a wider hostile cluster.' }),
+      Object.freeze({ level: 30, name: 'Supernova Circuit', summary: 'Maximum chains erupt on every trigger.' }),
+    ]),
+  }),
+  rogue: Object.freeze({
+    id: 'aftercut', name: 'Aftercut', proc: 'echo', color: 0xff70d0,
+    procMult: 0.32, tierMult: 0.06, cooldown: 0.52,
+    statBias: Object.freeze({ crit: 1.35, haste: 1.45, leech: 1.4, skillPower: 0.9, goldBonus: 1.1, luck: 1.2 }),
+    milestones: Object.freeze([
+      Object.freeze({ level: 3, name: 'Aftercut', summary: 'Every trigger adds a direct auto-targeted slash.' }),
+      Object.freeze({ level: 6, name: 'Twin Echo', summary: 'Echo damage and trigger cadence rise sharply.' }),
+      Object.freeze({ level: 10, name: 'Hemorrhage', summary: 'Echo cuts stack bleeding on their target.' }),
+      Object.freeze({ level: 15, name: 'Lotus Rush', summary: 'Two echo cuts rapidly reacquire living prey.' }),
+      Object.freeze({ level: 20, name: 'Reaper Instinct', summary: 'Low-health prey take direct finisher damage.' }),
+      Object.freeze({ level: 25, name: 'Moonless Flurry', summary: 'Three echo cuts flood the nearest target.' }),
+      Object.freeze({ level: 30, name: 'Eclipse Sequence', summary: 'Four lethal cuts retarget without downtime.' }),
+    ]),
+  }),
+  ranger: Object.freeze({
+    id: 'seeking_ricochet', name: 'Seeking Ricochet', proc: 'ricochet', color: 0xdfff72,
+    procMult: 0.35, tierMult: 0.065, cooldown: 0.58,
+    statBias: Object.freeze({ crit: 1.4, haste: 1.2, leech: 0.8, goldBonus: 1.2, luck: 1.45 }),
+    milestones: Object.freeze([
+      Object.freeze({ level: 3, name: 'Seeking Arrow', summary: 'Landed hits fire a bonus auto-targeted arrow.' }),
+      Object.freeze({ level: 6, name: 'Split Hunt', summary: 'Ricochets seek additional nearby targets.' }),
+      Object.freeze({ level: 10, name: 'Predator Mark', summary: 'Ricochets expose prey to follow-up damage.' }),
+      Object.freeze({ level: 15, name: 'Relentless Volley', summary: 'More arrows fire at a much faster cadence.' }),
+      Object.freeze({ level: 20, name: 'Trophy Execution', summary: 'Low-health prey take direct finisher damage.' }),
+      Object.freeze({ level: 25, name: 'Pocket Arrowstorm', summary: 'Ricochets flood the local hostile pack.' }),
+      Object.freeze({ level: 30, name: 'Zenith Convergence', summary: 'Maximum arrows focus or retarget instantly.' }),
+    ]),
+  }),
+});
+
+export function weaponResonanceTier(enhanceLevel = 0) {
+  const level = Math.max(0, Number(enhanceLevel) || 0);
+  let tier = 0;
+  for (const unlock of WEAPON_RESONANCE_LEVELS) {
+    if (level < unlock) break;
+    tier += 1;
+  }
+  return tier;
+}
+
+export function getWeaponResonance(classId) {
+  return WEAPON_RESONANCES[resolveHeroClassId(classId)] ?? WEAPON_RESONANCES.aerin;
+}
+
+export function getWeaponResonanceUnlock(classId, enhanceLevel = 0) {
+  const level = Math.max(0, Number(enhanceLevel) || 0);
+  return getWeaponResonance(classId).milestones.find(entry => entry.level === level) ?? null;
+}
 
 export function getWeaponEvolution(classId, enhanceLevel = 0) {
   const stages = WEAPON_EVOLUTIONS[resolveHeroClassId(classId)] ?? WEAPON_EVOLUTIONS.aerin;
@@ -1402,3 +1490,71 @@ export function createClassStarterWeapon(classId = DEFAULT_HERO_CLASS_ID) {
   item.optionStats = {};
   return item;
 }
+
+/**
+ * MAX HUNT class level-40 mutation presets (explicit skill → choice id).
+ * Identity names match the plan; IDs are legal mutation keys only.
+ */
+export const MAX_HUNT_CLASS_PRESETS = Object.freeze({
+  aerin: Object.freeze({
+    identity: 'Pack Breaker',
+    mutations: Object.freeze({
+      whirlwind: 'cyclone',
+      crescent: 'wide_moon',
+      skyfall: 'iron_vortex',
+      starburst: 'constellation',
+    }),
+  }),
+  wizard: Object.freeze({
+    identity: 'Cataclysm Lock',
+    mutations: Object.freeze({
+      fireball: 'wildfire',
+      frost_nova: 'glacier_ring',
+      arcane_blink: 'echo_step',
+      meteor_storm: 'meteor_rain',
+    }),
+  }),
+  rogue: Object.freeze({
+    identity: 'Relentless Flurry',
+    mutations: Object.freeze({
+      twin_fang: 'raptor',
+      fan_of_knives: 'black_fan',
+      shadowstep: 'ghost_rush',
+      death_lotus: 'crimson_lotus',
+    }),
+  }),
+  ranger: Object.freeze({
+    identity: 'Seeking Volley',
+    mutations: Object.freeze({
+      piercing_shot: 'split_arrow',
+      caltrop_trap: 'briar_field',
+      vault_shot: 'gale_vault',
+      hunter_mark: 'pack_hunt',
+    }),
+  }),
+});
+
+/**
+ * Curated non-boss invasion roster for the village breach.
+ * Weights target ~60% fodder, 15–20% frontline/rusher, 10–15% ranged, 5–10% bruiser/support.
+ */
+export const MAX_HUNT_INVASION_ROSTER = Object.freeze([
+  Object.freeze({ id: 'dew_blob', weight: 14 }),
+  Object.freeze({ id: 'seed_mite', weight: 12 }),
+  Object.freeze({ id: 'spore_puff', weight: 11 }),
+  Object.freeze({ id: 'root_centipede', weight: 10 }),
+  Object.freeze({ id: 'meadow_buck', weight: 6 }),
+  Object.freeze({ id: 'dusk_wolf', weight: 6 }),
+  Object.freeze({ id: 'snapjaw_bloom', weight: 5 }),
+  Object.freeze({ id: 'shellback', weight: 5 }),
+  Object.freeze({ id: 'thorn_toad', weight: 4 }),
+  Object.freeze({ id: 'bark_guard', weight: 4 }),
+  Object.freeze({ id: 'pollen_wisp', weight: 5 }),
+  Object.freeze({ id: 'vine_sniper', weight: 4 }),
+  Object.freeze({ id: 'thornling', weight: 3 }),
+  Object.freeze({ id: 'brush_boar', weight: 3 }),
+  Object.freeze({ id: 'leaf_raider', weight: 2 }),
+  Object.freeze({ id: 'hive_tender', weight: 2 }),
+  Object.freeze({ id: 'clover_sprite', weight: 2 }),
+  Object.freeze({ id: 'branch_shaman', weight: 2 }),
+]);

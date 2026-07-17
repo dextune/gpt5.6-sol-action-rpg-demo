@@ -11,6 +11,8 @@ import {
   RARITIES,
   WEAPON_EVOLUTIONS,
   getHeroClass,
+  getWeaponResonance,
+  weaponResonanceTier,
 } from '../../data/content.js';
 import {
   gearEnhanceCost,
@@ -156,6 +158,16 @@ export function renderInventory(ui) {
     const optionCost = weaponOptionEnhanceCost(weapon);
     const stages = WEAPON_EVOLUTIONS[player.classId] ?? [];
     const stageTrack = stages.map(stage => `<span class="weapon-stage ${weaponLevel >= stage.level ? 'is-complete' : ''}${weaponLevel === stage.level ? ' is-current' : ''}"><i></i><small>+${stage.level}</small><b>${escapeHtml(stage.name)}</b></span>`).join('');
+    const resonance = getWeaponResonance(player.classId);
+    const resonanceTier = weaponResonanceTier(weaponLevel);
+    const nextResonance = resonance.milestones.find(entry => entry.level > weaponLevel)?.level ?? Infinity;
+    const hitAmp = resonanceTier > 0
+      ? weaponLevel * WEAPON_ENHANCE.damageAmpStep + resonanceTier * WEAPON_ENHANCE.damageAmpTierStep
+      : 0;
+    const resonanceTrack = resonance.milestones.map(entry => {
+      const state = weaponLevel >= entry.level ? 'is-unlocked' : entry.level === nextResonance ? 'is-next' : '';
+      return `<span class="weapon-resonance-node ${state}"><small>+${entry.level}</small><b>${escapeHtml(entry.name)}</b><em>${escapeHtml(entry.summary)}</em></span>`;
+    }).join('');
     const options = Object.entries(weapon.optionStats ?? {})
       .filter(([, value]) => Number(value) > 0)
       .map(([key, value]) => `<span>${STAT_LABELS[key] ?? titleCaseId(key)} +${PERCENT_STATS.has(key) ? `${(Number(value) * 100).toFixed(1)}%` : Math.round(value)}</span>`)
@@ -182,13 +194,17 @@ export function renderInventory(ui) {
         <section class="enhancement-column">
           <div class="enhancement-banner"><span>GOLD RESOURCES</span><strong>${player.gold.toLocaleString('en-US')}G</strong><small>Hunting rewards are gold only. Your signature weapon never drops.</small></div>
           <article class="enhancement-card weapon-enhancement-card">
-            <div><span class="enhancement-kicker">WEAPON ENHANCE</span><h3>Evolution ${weaponLevel} / ${WEAPON_ENHANCE.maxLevel}</h3><p>Raises attack and advances the weapon's name, model, color, and rarity at milestone levels. Failure keeps the current level.</p></div>
+            <div><span class="enhancement-kicker">WEAPON ENHANCE</span><h3>Evolution ${weaponLevel} / ${WEAPON_ENHANCE.maxLevel}</h3><p>Each level grants +${Math.round(WEAPON_ENHANCE.powerStep * 100)}% base power, intrinsic combat stats, and faster attacks. Resonance milestones multiply power again and unlock visible bonus hits.</p></div>
             <div class="weapon-stage-track">${stageTrack}</div>
             <button type="button" class="forge-button" data-action="weapon-enhance" ${weaponMax || player.gold < weaponCost ? 'disabled' : ''}>${weaponMax ? 'Evolution Complete' : `Weapon Enhance · ${weaponCost.toLocaleString('en-US')}G · ${Math.round(weaponChance * 100)}%`}</button>
           </article>
           <article class="enhancement-card option-enhancement-card">
-            <div><span class="enhancement-kicker">WEAPON OPTION ENHANCE</span><h3>Options ${optionLevel} / ${WEAPON_OPTION_ENHANCE.maxLevel}</h3><p>Unlocks and improves secondary weapon stats. This track does not change the weapon model.</p></div>
+            <div><span class="enhancement-kicker">WEAPON OPTION ENHANCE</span><h3>Options ${optionLevel} / ${WEAPON_OPTION_ENHANCE.maxLevel}</h3><p>Deterministically grants large Crit, Haste, Skill Power, Gold, Luck, and Lifesteal gains in a rapid six-stat cycle.</p></div>
             <button type="button" class="forge-button option-button" data-action="weapon-option-enhance" ${optionMax || player.gold < optionCost ? 'disabled' : ''}>${optionMax ? 'Options Complete' : `Option Enhance · ${optionCost.toLocaleString('en-US')}G`}</button>
+          </article>
+          <article class="enhancement-card weapon-resonance-card" style="--resonance:${hexColor(resonance.color)}">
+            <div class="weapon-resonance-heading"><span class="enhancement-kicker">CLASS WEAPON RESONANCE</span><h3>${escapeHtml(resonance.name)} · Tier ${resonanceTier}/${resonance.milestones.length}</h3><strong>${resonanceTier ? `All hit damage +${Math.round(hitAmp * 100)}%` : 'First proc unlocks at +3'}</strong></div>
+            <div class="weapon-resonance-track">${resonanceTrack}</div>
           </article>
         </section>
       </div>`;

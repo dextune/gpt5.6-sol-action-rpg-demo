@@ -1,5 +1,8 @@
 import * as THREE from 'three';
-import { getHeroClass, isRangedAttackStyle, SKILLS } from '../data/content.js';
+import { WEAPON_ENHANCE } from '../config.js';
+import {
+  getHeroClass, getWeaponResonance, isRangedAttackStyle, SKILLS, weaponResonanceTier,
+} from '../data/content.js';
 import { getFxTheme } from '../data/fxThemes.js';
 import { resolveSkillHitRaw, skillDamage } from '../data/skillCombat.js';
 import { disposeProjectileVisual } from '../graphics/ProjectileMeshes.js';
@@ -34,6 +37,8 @@ export class CombatSystem {
     this.rangerGeneration = new WeakMap();
     this.rangerBasicTargets = new WeakMap();
     this.rangerSerial = 0;
+    this.weaponResonanceLastAt = new WeakMap();
+    this.weaponResonanceSerial = 0;
     this.apexAudioStates = new WeakMap();
     this.apexAudioSerial = 0;
     this.ownedCastGenerations = new WeakMap();
@@ -589,15 +594,119 @@ export class CombatSystem {
     return hits;
   }
 
+  _triggerWeaponResonance(player, sourceEnemy, tier) {
+    if (!player?.alive || tier <= 0) return false;
+    const profile = getWeaponResonance(player.classId);
+    const now = Math.max(0, Number(this.game.elapsed) || 0);
+    const cooldown = Math.max(0.16, profile.cooldown - (tier - 1) * 0.055);
+    const previous = this.weaponResonanceLastAt.get(player);
+    if (previous != null && now >= previous && now - previous < cooldown) return false;
+    this.weaponResonanceLastAt.set(player, now);
+
+    const serial = ++this.weaponResonanceSerial;
+    const anchor = sourceEnemy.position.clone();
+    const effects = (this.ctx ?? this.game).effects;
+    const damage = player.attackPower * (profile.procMult + (tier - 1) * profile.tierMult);
+    const status = tier < 3 ? null
+      : profile.id === 'star_chain'
+        ? { id: 'slow', duration: 1.6 + tier * 0.08, power: 0.34 }
+        : profile.id === 'aftercut'
+          ? { id: 'bleed', duration: 2.5, dps: 0.08 + tier * 0.005, tick: 0.45, power: 1 }
+          : { id: 'expose', duration: 2.1, power: 0.08 + tier * 0.015, damageAmp: 0.03 + tier * 0.01 };
+    const hit = (target, index, scale = 1) => {
+      const liveTarget = target?.alive ? target : this._autoTargetEnemy(player, 14 + tier);
+      if (!liveTarget) return 0;
+      const direction = liveTarget.position.clone().sub(anchor).setY(0);
+      if (direction.lengthSq() < 0.001) direction.copy(this._facingDir(player));
+      else direction.normalize();
+      effects.slash?.(liveTarget.position, direction, profile.color, 1.5 + tier * 0.12, {
+        height: liveTarget.refs.modelHeight * 0.46,
+        thickness: 0.09 + tier * 0.006,
+        life: 0.18,
+      });
+      const result = this._damageEnemy(liveTarget, damage * scale, {
+        direction,
+        knockback: 0.55 + tier * 0.12,
+        armorPierce: tier >= 3 ? 0.08 + tier * 0.02 : 0,
+        criticalBonus: tier * 0.02,
+        multiHit: true,
+        skill: true,
+        weaponProcDerived: true,
+        status,
+        sameCastHit: { key: `weapon-${profile.id}-${serial}-${index}`, maxHits: 1 },
+      });
+      return result.amount;
+    };
+
+    effects.burst?.(anchor.clone().add(new THREE.Vector3(0, 0.7, 0)), profile.color, 8 + tier * 2, {
+      speed: 4.5 + tier * 0.3,
+      size: 0.17 + tier * 0.012,
+      life: 0.32,
+      gravity: 2,
+      upward: 0.35,
+      height: 0,
+    });
+    (this.ctx ?? this.game).ui?.floatText?.(
+      anchor.clone().add(new THREE.Vector3(0, sourceEnemy.refs.modelHeight * 0.72, 0)),
+      profile.name.toUpperCase(),
+      'loot',
+    );
+
+    if (profile.proc === 'nova') {
+      const pulses = tier >= 7 ? 3 : tier >= 4 ? 2 : 1;
+      const radius = 2.4 + tier * 0.22;
+      const pulse = index => {
+        effects.ring?.(anchor, profile.color, radius + index * 0.35, {
+          life: 0.34,
+          startScale: 0.18,
+          opacity: 0.78,
+        });
+        this._hitEnemiesInRadius(anchor, radius + index * 0.28, damage * (1 - index * 0.12), {
+          knockback: 1.1 + tier * 0.18,
+          armorPierce: tier >= 3 ? 0.1 + tier * 0.02 : 0,
+          criticalBonus: tier * 0.02,
+          multiHit: true,
+          skill: true,
+          weaponProcDerived: true,
+          status,
+          sameCastHit: { key: `weapon-${profile.id}-${serial}-pulse-${index}`, maxHits: 1 },
+        });
+      };
+      pulse(0);
+      for (let index = 1; index < pulses; index += 1) this._delay(index * 0.09, () => pulse(index));
+      return true;
+    }
+
+    if (profile.proc === 'echo') {
+      const strikes = 1 + Math.floor((tier - 1) / 2);
+      const strike = index => hit(sourceEnemy, index, 1 - index * 0.08);
+      strike(0);
+      for (let index = 1; index < strikes; index += 1) this._delay(index * 0.075, () => strike(index));
+      return true;
+    }
+
+    const cap = Math.min(6, 1 + Math.floor(tier / 2));
+    const candidates = this._autoTargetEnemies(player, 10 + tier, cap + 1, { origin: anchor })
+      .filter(target => target !== sourceEnemy)
+      .slice(0, cap);
+    if (!candidates.length && sourceEnemy.alive) candidates.push(sourceEnemy);
+    if (profile.proc === 'ricochet' && candidates.length < cap && sourceEnemy.alive
+      && !candidates.includes(sourceEnemy)) candidates.unshift(sourceEnemy);
+    candidates.slice(0, cap).forEach((target, index) => hit(target, index, 1 - index * 0.06));
+    return candidates.length > 0;
+  }
+
   _damageEnemy(enemy, rawDamage, options = {}) {
-    const player = this.game.player;
+    const player = (this.ctx ?? this.game).player;
+    const weaponLevel = Math.max(0, Number(player.weapon?.weaponEnhanceLevel ?? player.weapon?.enhanceLevel) || 0);
+    const resonanceTier = weaponResonanceTier(weaponLevel);
     // Status synergy: slowed enemies are easier to crit (all classes);
     // rogue Opportunist adds crit vs bleeding/slowed prey.
     const statusAfflicted = enemy.statuses?.slow?.remaining > 0 || enemy.statuses?.bleed?.remaining > 0;
     const slowCritBonus = enemy.statuses?.slow?.remaining > 0 ? 0.04 : 0;
     const opportunistBonus = statusAfflicted ? player.passiveEffects.statusCrit : 0;
     const critical = !options.cannotCrit && Math.random() < clamp(player.critChance + (options.criticalBonus ?? 0) + slowCritBonus + opportunistBonus, 0, .8);
-    const finisher = Boolean(options.finisher);
+    let finisher = Boolean(options.finisher);
     let armorPierce = options.armorPierce ?? 0;
     if (enemy.statuses?.expose?.remaining > 0) {
       armorPierce = Math.min(0.85, armorPierce + (enemy.statuses.expose.power ?? 0.15));
@@ -610,6 +719,19 @@ export class CombatSystem {
       critical,
       critMultiplier: player.critMultiplier,
     });
+    if (resonanceTier > 0) {
+      damage *= 1 + weaponLevel * WEAPON_ENHANCE.damageAmpStep
+        + resonanceTier * WEAPON_ENHANCE.damageAmpTierStep;
+      if (resonanceTier >= WEAPON_ENHANCE.executeTier) {
+        const executeThreshold = WEAPON_ENHANCE.executeThreshold
+          + (resonanceTier - WEAPON_ENHANCE.executeTier) * WEAPON_ENHANCE.executeThresholdPerTier;
+        if (enemy.hp / Math.max(1, enemy.maxHp) <= executeThreshold) {
+          damage *= 1 + WEAPON_ENHANCE.executeDamage
+            + (resonanceTier - WEAPON_ENHANCE.executeTier) * WEAPON_ENHANCE.executeDamagePerTier;
+          finisher = true;
+        }
+      }
+    }
     // Knight Executioner / Ranger Predator: bonus damage vs enemies below 30% health.
     if (player.passiveEffects.execute > 0 && enemy.hp / Math.max(1, enemy.maxHp) < .3) {
       damage *= 1 + player.passiveEffects.execute;
@@ -687,6 +809,9 @@ export class CombatSystem {
     });
 
     if (player.leech > 0) player.heal(result.amount * player.leech);
+    if (!options.weaponProcDerived && resonanceTier > 0) {
+      this._triggerWeaponResonance(player, enemy, resonanceTier);
+    }
     return result;
   }
 
@@ -855,6 +980,7 @@ export class CombatSystem {
       this.game.player.clearArcaneOverflow?.();
       this.rangerGeneration.delete(this.game.player);
       this.rangerBasicTargets.delete(this.game.player);
+      this.weaponResonanceLastAt.delete(this.game.player);
       this.ownedCastGenerations.delete(this.game.player);
       this.whirlwindStates.delete(this.game.player);
       this.twinFangStates.delete(this.game.player);

@@ -1,12 +1,13 @@
 import * as THREE from 'three';
 import {
-  BASIC_ATTACK_FEEL, GEAR_ENHANCE, HIT_REACTION_CONFIG, PLAYER_CONFIG,
+  BASIC_ATTACK_FEEL, GEAR_ENHANCE, HIT_REACTION_CONFIG, MAX_HUNT_CONFIG, PLAYER_CONFIG,
   PLAYER_GROWTH_CONFIG, WEAPON_ENHANCE, WEAPON_OPTION_ENHANCE,
 } from '../config.js';
 import {
-  DEFAULT_HERO_CLASS_ID, RARITIES, SKILLS,
+  DEFAULT_HERO_CLASS_ID, MAX_HUNT_CLASS_PRESETS, RARITIES, SKILLS,
   canClassUseWeapon, createClassStarterWeapon, createEmptySkillCooldowns, createEmptySkillRanks,
-  getClassSkillIds, getHeroClass, isRangedAttackStyle, resolveHeroClassId,
+  getClassSkillIds, getHeroClass, getWeaponResonance, getWeaponResonanceUnlock,
+  isRangedAttackStyle, resolveHeroClassId,
 } from '../data/content.js';
 import {
   normalizeSkillEvolutionState, normalizeSkillRank, resolveSkillForm, updateSkillMutationChoices,
@@ -160,6 +161,72 @@ export class Player {
     setMaterialHitPulse(this.mesh, 0);
     this.invalidateStats();
     this.#updateWeaponVisual();
+  }
+
+  /**
+   * MAX HUNT level-70 combat baseline. Call only after reset() on a new MAX start.
+   * Does not simulate XP level-ups (avoids feedback / intermediate state).
+   * Continue / respawn / load must never call this.
+   */
+  applyMaxHuntBaseline() {
+    const cfg = MAX_HUNT_CONFIG.baseline;
+    const classId = this.classId;
+    const heroDef = getHeroClass(classId);
+    const preset = MAX_HUNT_CLASS_PRESETS[classId];
+
+    this.level = Math.max(1, cfg.level);
+    this.xp = Math.max(0, cfg.xp);
+
+    const ranks = createEmptySkillRanks(classId);
+    const actives = heroDef.activeSkills ?? [];
+    const passives = heroDef.passiveSkills ?? [];
+    for (const id of actives) {
+      const skill = SKILLS[id];
+      if (!skill) continue;
+      ranks[id] = Math.min(skill.maxRank ?? 10, cfg.activeRank);
+    }
+    for (let i = 0; i < passives.length; i += 1) {
+      const id = passives[i];
+      const skill = SKILLS[id];
+      if (!skill) continue;
+      const isFinal = i === passives.length - 1;
+      const target = isFinal ? cfg.finalPassiveRank : cfg.passiveRank;
+      ranks[id] = Math.min(skill.maxRank ?? 10, target);
+    }
+    this.skills = ranks;
+
+    this.skillEvolution = {};
+    if (preset?.mutations) {
+      for (const [skillId, choiceId] of Object.entries(preset.mutations)) {
+        this.setSkillMutation(skillId, 40, choiceId);
+      }
+    }
+
+    this.skillPoints = Math.max(0, cfg.unspentSkillPoints);
+    this.gold = Math.max(0, cfg.gold);
+    this.maxPotions = Math.max(this.maxPotions, cfg.maxPotions);
+    this.potions = Math.min(this.maxPotions, cfg.potions);
+
+    const weapon = this.weapon ?? createClassStarterWeapon(classId);
+    weapon.classId = classId;
+    weapon.weaponEnhanceLevel = Math.min(WEAPON_ENHANCE.maxLevel, cfg.weaponEnhance);
+    weapon.optionEnhanceLevel = 0;
+    weapon.optionStats = {};
+    recomputeWeaponFromEnhance(weapon);
+    const optionTarget = Math.min(WEAPON_OPTION_ENHANCE.maxLevel, cfg.optionEnhance);
+    for (let i = 0; i < optionTarget; i += 1) {
+      enhanceWeaponOptions(weapon);
+    }
+    this.inventory = [weapon];
+    this.equipped = { weapon: weapon.id };
+
+    this.energy = this.maxEnergy;
+    this.invalidateStats();
+    this.hp = this.maxHp;
+    this.mp = this.maxMp;
+    this.alive = true;
+    this.#updateWeaponVisual();
+    return this;
   }
 
   get position() { return this.mesh.position; }
@@ -466,7 +533,25 @@ export class Player {
     this.mp = Math.min(this.maxMp, this.mp + delta * PLAYER_CONFIG.mpRegenPerSec * focusRegen);
     const campDistance = Math.hypot(this.position.x, this.position.z);
     if (campDistance < PLAYER_CONFIG.campRadius) {
-      this.hp = Math.min(this.maxHp, this.hp + delta * this.maxHp * PLAYER_CONFIG.campHpHealRatioPerSec);
+      let hpMul = 1;
+      // MAX HUNT contested spring: full HP only when no enemy within radius; MP stays full.
+      if (game?.mode === 'hunt' && game.hunt?.isMax) {
+        const radius = MAX_HUNT_CONFIG.contestedSpring.enemyRadius;
+        const radiusSq = radius * radius;
+        const enemies = game.enemies?.enemies ?? [];
+        let contested = false;
+        for (const enemy of enemies) {
+          if (!enemy?.alive) continue;
+          const dx = enemy.position.x - this.position.x;
+          const dz = enemy.position.z - this.position.z;
+          if (dx * dx + dz * dz <= radiusSq) {
+            contested = true;
+            break;
+          }
+        }
+        if (contested) hpMul = MAX_HUNT_CONFIG.contestedSpring.contestedHpMul;
+      }
+      this.hp = Math.min(this.maxHp, this.hp + delta * this.maxHp * PLAYER_CONFIG.campHpHealRatioPerSec * hpMul);
       this.mp = Math.min(this.maxMp, this.mp + delta * PLAYER_CONFIG.campMpRegenPerSec);
     }
   }
@@ -904,7 +989,17 @@ export class Player {
     this.invalidateStats();
     this.hp = Math.min(this.hp, this.maxHp);
     this.#updateWeaponVisual();
-    return { ok: true, cost, level: weapon.weaponEnhanceLevel, stage: weapon.evolutionStage };
+    const unlock = getWeaponResonanceUnlock(this.classId, weapon.weaponEnhanceLevel);
+    const resonance = unlock
+      ? { ...unlock, color: getWeaponResonance(this.classId).color }
+      : null;
+    return {
+      ok: true,
+      cost,
+      level: weapon.weaponEnhanceLevel,
+      stage: weapon.evolutionStage,
+      resonance,
+    };
   }
 
   /** Spend gold on the weapon's deterministic option-growth track. */

@@ -66,7 +66,16 @@ export function handlePanelAction(ui, event) {
         return;
       }
       ui.game.audio.levelUp?.();
-      ui.notify(`Weapon evolved · ${ui.game.player.weapon.name} · +${result.level}`, 'level', 3.6);
+      if (result.resonance) {
+        const player = ui.game.player;
+        ui.game.effects.ring?.(player.position, result.resonance.color, 4.2, { life: 0.8, opacity: 0.9 });
+        ui.game.effects.burst?.(player.position, result.resonance.color, 28, {
+          speed: 7, size: 0.24, life: 0.75, gravity: 3, upward: 0.65, height: 0.8,
+        });
+        ui.notify(`RESONANCE UNLOCKED · ${result.resonance.name} · ${result.resonance.summary}`, 'level', 5.2);
+      } else {
+        ui.notify(`Weapon surged · ${ui.game.player.weapon.name} · +${result.level}`, 'level', 3.6);
+      }
       ui.game.requestSave();
       renderInventory(ui);
     } else if (action === 'weapon-option-enhance') {
@@ -76,7 +85,7 @@ export function handlePanelAction(ui, event) {
         return;
       }
       ui.game.audio.click();
-      ui.notify(`Weapon option improved · ${titleCaseId(result.stat)} · Lv.${result.level}`, 'loot', 3.2);
+      ui.notify(`Weapon option surged · ${titleCaseId(result.stat)} +${(result.amount * 100).toFixed(1)}% · Lv.${result.level}`, 'loot', 3.2);
       ui.game.requestSave();
       renderInventory(ui);
     } else if (action === 'enhance') {

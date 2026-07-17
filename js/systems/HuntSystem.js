@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { HUNT_TITLES, ZONES } from '../data/content.js';
-import { HUNT_THREAT_CONFIG } from '../config.js';
+import { HUNT_THREAT_CONFIG, MAX_HUNT_CONFIG } from '../config.js';
 import { clamp, rand, randInt, uid, weightedPick } from '../core/Utils.js';
 import { createGameContext } from '../core/GameContext.js';
 import {
@@ -30,7 +30,10 @@ export class HuntSystem {
     this.reset();
   }
 
-  reset() {
+  /**
+   * @param {{ variant?: 'max'|'legacy' }} [options]
+   */
+  reset(options = {}) {
     this.totalKills = 0;
     this.elitesKilled = 0;
     this.bossesKilled = 0;
@@ -48,6 +51,24 @@ export class HuntSystem {
       HUNT_THREAT_CONFIG.fieldMarkMinSec,
       HUNT_THREAT_CONFIG.fieldMarkMaxSec,
     );
+    this.variant = options.variant === 'max' ? 'max' : 'legacy';
+    this.maxBaselineVersion = this.variant === 'max'
+      ? (Number(options.maxBaselineVersion) || MAX_HUNT_CONFIG.baseline.maxBaselineVersion)
+      : 0;
+    this.invasionPhase = this.variant === 'max' ? 'opening' : 'none';
+    this.invasionElapsed = 0;
+    if (this.variant === 'max') {
+      this.contract = this.#makeBreachContract();
+    }
+  }
+
+  get isMax() {
+    return this.variant === 'max';
+  }
+
+  /** Legacy Hunt keeps the hub safe; MAX HUNT opens the perimeter. Defense ignores this. */
+  get campSafe() {
+    return this.variant !== 'max';
   }
 
   get worldTier() {
@@ -60,6 +81,35 @@ export class HuntSystem {
 
   get bossReady() { return this.bossCharge >= 100; }
 
+  #makeBreachContract() {
+    const c = MAX_HUNT_CONFIG.openingContract;
+    return {
+      id: uid('contract'),
+      type: c.type,
+      progress: 0,
+      complete: false,
+      zoneId: 'verdant',
+      rewardTier: c.rewardTier,
+      target: c.target,
+      label: c.label,
+      description: c.description,
+      rewardHint: c.rewardHint,
+    };
+  }
+
+  /** Advance invasion phase timers (opening → surge → steady). */
+  tickInvasion(delta) {
+    if (!this.isMax) return;
+    this.invasionElapsed += Math.max(0, Number(delta) || 0);
+    if (this.invasionPhase === 'opening' || this.invasionPhase === 'surge') {
+      if (this.invasionElapsed >= MAX_HUNT_CONFIG.surgeSeconds) {
+        this.invasionPhase = 'steady';
+      } else if (this.invasionPhase === 'opening' && this.invasionElapsed > 0.05) {
+        this.invasionPhase = 'surge';
+      }
+    }
+  }
+
   /** Recommended hunting zone for the current player level. */
   recommendedZoneId() {
     return recommendedZoneId(this.game.player?.level ?? 1);
@@ -70,6 +120,7 @@ export class HuntSystem {
   }
 
   update(delta) {
+    this.tickInvasion(delta);
     if (!this.contract) this.contract = this.#makeContract();
     this.streakTimer = Math.max(0, this.streakTimer - delta);
     if (this.streakTimer <= 0 && this.streak > 0) this.streak = 0;
@@ -84,7 +135,8 @@ export class HuntSystem {
     }
 
     if (this.game.mode === 'hunt' && this.game.state === 'playing' && this.game.player?.alive) {
-      this.#tickFieldMark(delta);
+      // Opening breach already floods the village — suppress field-mark spam for MAX.
+      if (!this.isMax) this.#tickFieldMark(delta);
     }
   }
 
@@ -153,7 +205,10 @@ export class HuntSystem {
       this.bossCharge = 0;
       this.bossPendingTimer = 0;
     } else if (!this.game.enemies.activeBoss) {
-      this.bossCharge = clamp(this.bossCharge + (enemy.elite ? 9 : 2.35), 0, 100);
+      const chargeGain = this.isMax
+        ? (enemy.elite ? MAX_HUNT_CONFIG.bossCharge.elite : MAX_HUNT_CONFIG.bossCharge.normal)
+        : (enemy.elite ? 9 : 2.35);
+      this.bossCharge = clamp(this.bossCharge + chargeGain, 0, 100);
       if (this.bossCharge >= 100 && this.bossPendingTimer <= 0) {
         this.bossPendingTimer = 2.25;
         this.game.ui.notify('A mighty presence shakes the hunting ground…', 'boss', 3.2);
@@ -172,7 +227,7 @@ export class HuntSystem {
     const contract = this.contract;
     if (!contract || contract.complete) return;
     let amount = 0;
-    if (contract.type === 'kills') amount = 1;
+    if (contract.type === 'kills' || contract.type === 'breach') amount = 1;
     else if (contract.type === 'elite' && enemy.elite) amount = 1;
     else if (contract.type === 'boss' && enemy.boss) amount = 1;
     else if (contract.type === 'zone' && enemy.data.zone === contract.zoneId) amount = 1;
@@ -187,8 +242,15 @@ export class HuntSystem {
     if (!contract || contract.complete) return;
     contract.complete = true;
     this.completedContracts += 1;
-    const reward = this.game.loot.grantContractReward(contract.rewardTier);
-    const spNote = contract.rewardTier >= 4 ? ' · Skill Point' : '';
+    let rewardTier = contract.rewardTier;
+    // MAX HUNT: scale contract reward tier once (bounded; no double gold grants).
+    if (this.isMax && contract.type === 'breach') {
+      rewardTier = clamp(Math.round(rewardTier * MAX_HUNT_CONFIG.rewards.contract), 1, 5);
+    } else if (this.isMax) {
+      rewardTier = clamp(Math.round(rewardTier * Math.min(1.25, MAX_HUNT_CONFIG.rewards.contract)), 1, 5);
+    }
+    const reward = this.game.loot.grantContractReward(rewardTier);
+    const spNote = rewardTier >= 4 ? ' · Skill Point' : '';
     this.game.ui.notify(
       `Contract complete · ${contract.label} · +${reward.gold}G${spNote}`,
       'contract',
@@ -297,6 +359,8 @@ export class HuntSystem {
 
   serialize() {
     return {
+      variant: this.variant === 'max' ? 'max' : 'legacy',
+      maxBaselineVersion: this.isMax ? (this.maxBaselineVersion || MAX_HUNT_CONFIG.baseline.maxBaselineVersion) : 0,
       totalKills: this.totalKills,
       elitesKilled: this.elitesKilled,
       bossesKilled: this.bossesKilled,
@@ -310,7 +374,8 @@ export class HuntSystem {
   }
 
   load(state = {}) {
-    this.reset();
+    const variant = state.variant === 'max' ? 'max' : 'legacy';
+    this.reset({ variant, maxBaselineVersion: state.maxBaselineVersion });
     this.totalKills = Math.max(0, Number(state.totalKills) || 0);
     this.elitesKilled = Math.max(0, Number(state.elitesKilled) || 0);
     this.bossesKilled = Math.max(0, Number(state.bossesKilled) || 0);
@@ -319,11 +384,18 @@ export class HuntSystem {
     this.killsByType = { ...(state.killsByType ?? {}) };
     this.bestStreak = Math.max(0, Number(state.bestStreak) || 0);
     this.bossCharge = clamp(Number(state.bossCharge) || 0, 0, 99.5);
+    // Resume pressure profile — not a fresh opening grant.
+    this.invasionPhase = this.isMax ? 'steady' : 'none';
+    this.invasionElapsed = this.isMax ? MAX_HUNT_CONFIG.surgeSeconds : 0;
+    // reset() seeds a fresh VILLAGE BREACH for max starts. Continue must not reopen it:
+    // restore only an incomplete contract; completed/missing/invalid → null (normal generator).
     if (state.contract && typeof state.contract === 'object' && !state.contract.complete) {
       const c = { ...state.contract };
       c.progress = clamp(Number(c.progress) || 0, 0, Number(c.target) || 1);
       if (!c.rewardHint) c.rewardHint = rewardHintForTier(c.rewardTier ?? 1);
       this.contract = c;
+    } else {
+      this.contract = null;
     }
   }
 }

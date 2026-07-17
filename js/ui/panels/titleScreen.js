@@ -60,9 +60,10 @@ export function refreshContinueButton(ui) {
     const hero = summary.classId ? getHeroClass(summary.classId) : null;
     const label = hero?.title || hero?.name || summary.name || 'Hunter';
     const age = formatSaveAge(summary.savedAt);
+    const prefix = summary.variant === 'max' ? 'MAX · ' : 'Legacy Hunt · ';
     meta.textContent = age
-      ? `${label} Lv.${summary.level} · ${summary.kills} kills · ${age}`
-      : `${label} Lv.${summary.level} · ${formatTime(summary.playTime)} · ${summary.kills} kills`;
+      ? `${prefix}${label} Lv.${summary.level} · ${summary.kills} kills · ${age}`
+      : `${prefix}${label} Lv.${summary.level} · ${formatTime(summary.playTime)} · ${summary.kills} kills`;
   }
 
 export function showTitle(ui) {

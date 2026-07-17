@@ -8,6 +8,7 @@ Living how-to guides live under **[../](../README.md)** (`combat.md`, `content-d
 | Plan | Status |
 |------|--------|
 | [combat-motion-sophistication.md](./combat-motion-sophistication.md) | **ready** — full combat action motion upgrade spec (research, history baseline, quality bar, waves S0–S4) |
+| [max-hunt.md](./max-hunt.md) | **implemented** — New Hunt → MAX HUNT conversion: Lv.70 baseline, village invasion, progression, saves, performance, and validation |
 
 ## When to add a plan here
 

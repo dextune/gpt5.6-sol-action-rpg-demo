@@ -155,6 +155,19 @@ Junk/elite candidate ratio in the same zone:
 Raising base power scales the entire range.  
 To strengthen a specific range only → delay appearance level with `BASE_LEVELS` or adjust itemLevel coefficient.
 
+### Signature weapon fast progression
+
+The live game keeps one class-bound signature weapon. Its two forge tracks are separate:
+
+- `WEAPON_ENHANCE` in `js/config.js` controls power, attack speed, intrinsic secondary stats, cost, success, hit amplification, and the +20 execution ramp.
+- `WEAPON_EVOLUTIONS` in `content.js` changes the weapon name/model/color at +3/+7/+15/+22/+30.
+- `WEAPON_RESONANCES` in `content.js` defines the seven class-specific proc milestones at +3/+6/+10/+15/+20/+25/+30.
+- `WEAPON_OPTION_ENHANCE` controls the rapid six-stat Crit/Haste/Skill Power/Gold/Luck/Lifesteal cycle.
+- `LootSystem.recomputeWeaponFromEnhance` is authoritative for rebuilt stats and old-save compatibility.
+- `CombatSystem._damageEnemy` applies resonance hit amplification and dispatches the bounded, non-recursive class proc.
+
+Run `node tests/weapon-progression.mjs` after changing this curve. The test verifies every class, all milestone unlocks, stat growth, early affordability/success, and actual proc dispatch. Run `node tests/weapon-progression-visual.mjs` for the browser smoke that hits live Hunt enemies with all four class procs and checks the max-level forge at desktop and phone widths.
+
 ## Application: skill unlock pace
 
 `unlockLevel` + `Player.addXp` auto grants rank 1 on level-up.  

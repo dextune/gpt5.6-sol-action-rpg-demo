@@ -81,7 +81,9 @@ ok(content.HERO_CLASSES.wizard.activeSkills.includes('fireball'), 'wizard has fi
 ok(content.HERO_CLASSES.wizard.attackStyle === 'magic', 'wizard attackStyle magic');
 ok(content.HERO_CLASSES.aerin.attackStyle === 'melee', 'knight (aerin) attackStyle melee');
 ok(config.GAME_CONFIG.maxEnemies >= 42, 'max concurrent enemies setting');
-ok(config.GAME_CONFIG.saveVersion === 5, 'save data version 5');
+ok(config.GAME_CONFIG.saveVersion === 6, 'save data version 6');
+ok(Boolean(config.MAX_HUNT_CONFIG), 'MAX_HUNT_CONFIG exported');
+ok(config.MAX_HUNT_CONFIG.baseline?.level === 70, 'MAX HUNT baseline level 70');
 ok(config.HUNT_THREAT_CONFIG?.onLevelMaxGap === 3, 'HUNT_THREAT_CONFIG on-level gap');
 ok(Array.isArray(config.HUNT_THREAT_CONFIG?.receiveGapMul) && config.HUNT_THREAT_CONFIG.receiveGapMul.length >= 4, 'receive softcap table');
 
@@ -95,6 +97,12 @@ ok(huntThreat.recommendedZoneId(1) === 'verdant', 'lv1 recommends verdant');
 ok(huntThreat.recommendedZoneId(12) === 'forest', 'lv12 recommends forest');
 ok(huntThreat.clampHuntSpawnLevel(50, content.ZONES.verdant) <= content.ZONES.verdant.maxLevel + config.HUNT_THREAT_CONFIG.spawnMaxSlack, 'spawn clamp respects band');
 ok(huntThreat.huntRewardMul(0) === config.HUNT_THREAT_CONFIG.onLevelRewardMul, 'on-level reward mul');
+ok(typeof huntThreat.maxHuntSpawnLevel === 'function', 'maxHuntSpawnLevel helper');
+ok(
+  huntThreat.maxHuntSpawnLevel({ playerLevel: 70, role: 'frontline', rngOffset: 0 })
+    > content.ZONES.verdant.maxLevel + config.HUNT_THREAT_CONFIG.spawnMaxSlack,
+  'MAX spawn-level bypasses early-zone clamp',
+);
 
 const storage = new Map();
 globalThis.localStorage = {
@@ -194,6 +202,10 @@ console.log('\n--- monster-roster ---');
 const monsterRoster = await import(pathToFileURL(join(root, 'tests/monster-roster.mjs')));
 void monsterRoster;
 
+console.log('\n--- weapon-progression ---');
+const weaponProgression = await import(pathToFileURL(join(root, 'tests/weapon-progression.mjs')));
+void weaponProgression;
+
 console.log('\n--- skill-combat ---');
 const skillCombat = await import(pathToFileURL(join(root, 'tests/skill-combat.mjs')));
 void skillCombat;
@@ -210,6 +222,10 @@ void presentationMotion;
 console.log('\n--- boot-smoke ---');
 const bootSmoke = await import(pathToFileURL(join(root, 'tests/boot-smoke.mjs')));
 ok(bootSmoke !== null, 'boot-smoke nested suite loaded');
+
+console.log('\n--- max-hunt ---');
+const maxHunt = await import(pathToFileURL(join(root, 'tests/max-hunt.mjs')));
+ok(maxHunt !== null, 'max-hunt nested suite loaded');
 
 // Nested import/reference integrity + combat/class simulations (prevents SKILLS-not-defined class bugs).
 console.log('\n--- import-integrity ---');

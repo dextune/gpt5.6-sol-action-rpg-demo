@@ -4,11 +4,12 @@ import {
   defenseRarityFloor, enemyGoldLevelMul,
 } from '../config.js';
 import {
-  AFFIXES, ARMOR_BASES, CHARM_BASES, RARITIES, WEAPON_BASES, getHeroClass, getWeaponEvolution,
+  AFFIXES, ARMOR_BASES, CHARM_BASES, RARITIES, WEAPON_BASES,
+  getHeroClass, getWeaponEvolution, getWeaponResonance, weaponResonanceTier,
 } from '../data/content.js';
 import { chance, clamp, pick, rand, randInt, uid, weightedPick } from '../core/Utils.js';
 import { createGameContext } from '../core/GameContext.js';
-import { huntRewardMul } from './huntThreat.js';
+import { composeHuntRewardMul } from './huntThreat.js';
 
 const RARITY_ORDER = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
 const STAT_KEYS = ['power', 'defense', 'hp', 'crit', 'haste', 'leech', 'xpBonus', 'goldBonus', 'skillPower', 'moveSpeed', 'luck'];
@@ -103,7 +104,8 @@ export function weaponEnhanceSuccessChance(item) {
   if (!item) return 0;
   const next = Math.max(0, Number(item.weaponEnhanceLevel ?? item.enhanceLevel) || 0) + 1;
   if (next > WEAPON_ENHANCE.maxLevel) return 0;
-  return WEAPON_ENHANCE.successByTarget[next] ?? Math.max(0.12, 0.96 - next * 0.08);
+  return WEAPON_ENHANCE.successByTarget[next]
+    ?? Math.max(WEAPON_ENHANCE.successFloor, WEAPON_ENHANCE.successBase - next * WEAPON_ENHANCE.successFalloff);
 }
 
 /** Gold cost for the next weapon-option level. */
@@ -133,8 +135,11 @@ export function recomputeWeaponFromEnhance(item) {
     Math.min(WEAPON_OPTION_ENHANCE.maxLevel, Number(item.optionEnhanceLevel) || 0),
   );
   item.enhanceLevel = item.weaponEnhanceLevel;
-  const flatMul = 1 + item.weaponEnhanceLevel * WEAPON_ENHANCE.powerStep;
+  const resonanceTier = weaponResonanceTier(item.weaponEnhanceLevel);
+  const flatMul = (1 + item.weaponEnhanceLevel * WEAPON_ENHANCE.powerStep)
+    * (1 + resonanceTier * WEAPON_ENHANCE.powerMilestoneStep);
   const evolution = getWeaponEvolution(item.classId, item.weaponEnhanceLevel);
+  const resonance = getWeaponResonance(item.classId);
   item.evolutionStage = evolution.level;
   item.name = evolution.name;
   item.model = evolution.model;
@@ -147,6 +152,9 @@ export function recomputeWeaponFromEnhance(item) {
   for (const key of STAT_KEYS) {
     if (key === 'power') continue;
     item[key] = Number(item.baseStats[key]) || 0;
+  }
+  for (const [key, step] of Object.entries(WEAPON_ENHANCE.intrinsicSteps)) {
+    item[key] += item.weaponEnhanceLevel * step * (resonance.statBias[key] ?? 1);
   }
   const optionStats = item.optionStats && typeof item.optionStats === 'object' ? item.optionStats : {};
   item.optionStats = optionStats;
@@ -165,10 +173,11 @@ export function enhanceWeaponOptions(item) {
   const level = item.optionEnhanceLevel;
   if (level >= WEAPON_OPTION_ENHANCE.maxLevel) return { ok: false, reason: 'max', level };
   const stat = OPTION_ORDER[level % OPTION_ORDER.length];
+  const amount = WEAPON_OPTION_ENHANCE.steps[stat];
   item.optionEnhanceLevel = level + 1;
-  item.optionStats[stat] = (Number(item.optionStats[stat]) || 0) + WEAPON_OPTION_ENHANCE.steps[stat];
+  item.optionStats[stat] = (Number(item.optionStats[stat]) || 0) + amount;
   recomputeWeaponFromEnhance(item);
-  return { ok: true, level: item.optionEnhanceLevel, stat };
+  return { ok: true, level: item.optionEnhanceLevel, stat, amount };
 }
 
 const BASE_LEVELS = Object.freeze({
@@ -303,8 +312,12 @@ export class LootSystem {
     const levelBonus = enemyGoldLevelMul(enemy.level);
     let threatMul = 1;
     if (!defense && this.game.player) {
-      // Hunt on-level / danger reward bias (see huntThreat.huntRewardMul).
-      threatMul = huntRewardMul((enemy.level ?? 1) - this.game.player.level);
+      // Hunt on-level / danger reward bias (+ MAX HUNT gold scale once).
+      const kind = enemy.boss ? 'boss' : 'gold';
+      threatMul = composeHuntRewardMul(
+        (enemy.level ?? 1) - this.game.player.level,
+        { isMax: Boolean(this.game.hunt?.isMax), kind },
+      );
     }
     const multiplier = (enemy.elite ? 2.2 : 1)
       * (enemy.boss ? 5 : 1)

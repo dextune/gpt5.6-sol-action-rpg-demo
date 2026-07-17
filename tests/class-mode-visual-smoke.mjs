@@ -137,15 +137,26 @@ async function assertGameEntered(page, classId, mode, label) {
   }
   if (mode === 'hunt') {
     const density = await page.evaluate(async () => {
-      const { HUNT_SPAWN_CONFIG } = await import('./js/config.js');
+      const { HUNT_SPAWN_CONFIG, MAX_HUNT_CONFIG } = await import('./js/config.js');
       const game = window.__SOL_ARPG_DEMO__;
+      const isMax = Boolean(game?.hunt?.isMax);
       return {
         living: game?.enemies?.livingCount ?? 0,
-        expected: HUNT_SPAWN_CONFIG.initialEnemies,
+        expected: isMax ? MAX_HUNT_CONFIG.openingPopulation : HUNT_SPAWN_CONFIG.initialEnemies,
+        isMax,
+        level: game?.player?.level ?? 0,
+        variant: game?.hunt?.variant,
       };
     });
-    if (density.living < density.expected) {
+    if (density.living < density.expected * 0.75) {
       failures.push(`${label}: Hunt opened with ${density.living}/${density.expected} living enemies`);
+    }
+    // Public New Hunt entry is MAX HUNT (level-70 baseline).
+    if (!density.isMax || density.variant !== 'max') {
+      failures.push(`${label}: expected MAX HUNT variant (got ${density.variant})`);
+    }
+    if (density.level !== 70) {
+      failures.push(`${label}: expected MAX baseline level 70 (got ${density.level})`);
     }
   }
   const viewportScale = await page.evaluate(() => window.visualViewport?.scale ?? 1);

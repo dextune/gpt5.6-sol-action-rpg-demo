@@ -1,7 +1,7 @@
 export const GAME_CONFIG = Object.freeze({
   title: 'GPT-5.6: Sol / Action RPG DEMO',
   saveKey: 'gpt5.6-sol-arpg-demo-v1',
-  saveVersion: 5,
+  saveVersion: 6,
   worldRadius: 172,
   terrainSize: 360,
   terrainSegments: 144,
@@ -442,40 +442,152 @@ export function enemyGoldLevelMul(level = 1) {
 /** Signature weapon growth. Every class uses the same progression rules. */
 export const WEAPON_ENHANCE = Object.freeze({
   maxLevel: 30,
-  powerStep: 0.075,
-  speedStep: 0.004,
-  costBase: 42,
-  costPerLevel: 8,
-  costPow: 1.32,
+  /** Base-power growth is multiplied again at each resonance milestone. */
+  powerStep: 0.12,
+  powerMilestoneStep: 0.08,
+  speedStep: 0.008,
+  /** Always-on hit amp unlocked with resonance at +3. */
+  damageAmpStep: 0.012,
+  damageAmpTierStep: 0.025,
+  /** +20 resonance turns low-health hits into direct finishers. */
+  executeTier: 5,
+  executeThreshold: 0.24,
+  executeThresholdPerTier: 0.02,
+  executeDamage: 0.35,
+  executeDamagePerTier: 0.10,
+  /** Intrinsic secondary stats granted by every weapon-enhance level. */
+  intrinsicSteps: Object.freeze({
+    crit: 0.004,
+    haste: 0.004,
+    leech: 0.0008,
+    skillPower: 0.012,
+    goldBonus: 0.003,
+    luck: 0.003,
+  }),
+  costBase: 18,
+  costPerLevel: 3,
+  costPow: 1.14,
   /** Success chance when attempting to reach the next weapon level. */
   successByTarget: Object.freeze({
-    1: 0.95,
-    2: 0.90,
-    3: 0.82,
-    4: 0.72,
-    5: 0.60,
-    6: 0.48,
-    7: 0.38,
-    8: 0.30,
-    9: 0.24,
-    10: 0.18,
+    1: 1,
+    2: 1,
+    3: 1,
+    4: 1,
+    5: 1,
+    6: 1,
+    7: 1,
+    8: 1,
+    9: 1,
+    10: 1,
   }),
+  successFloor: 0.70,
+  successBase: 1.01,
+  successFalloff: 0.01,
 });
 
 /** Weapon option growth. Options unlock and improve independently of evolution. */
 export const WEAPON_OPTION_ENHANCE = Object.freeze({
   maxLevel: 20,
-  optionSlots: 4,
-  costBase: 64,
-  costPerLevel: 11,
-  costPow: 1.38,
+  optionSlots: 6,
+  costBase: 25,
+  costPerLevel: 4,
+  costPow: 1.18,
   steps: Object.freeze({
-    crit: 0.012,
-    haste: 0.012,
-    leech: 0.006,
-    skillPower: 0.016,
-    goldBonus: 0.018,
-    luck: 0.014,
+    crit: 0.020,
+    haste: 0.020,
+    leech: 0.008,
+    skillPower: 0.035,
+    goldBonus: 0.040,
+    luck: 0.030,
+  }),
+});
+
+/**
+ * MAX HUNT — high-pressure Hunt start at a coherent level-70 baseline.
+ * World-tier enemy stats stay in Enemy; spawn level policy must not double-count WT.
+ * Defense never reads this table.
+ */
+export const MAX_HUNT_CONFIG = Object.freeze({
+  /** Player baseline (applied only on new MAX start). */
+  baseline: Object.freeze({
+    level: 70,
+    xp: 0,
+    weaponEnhance: 20,
+    optionEnhance: 12,
+    activeRank: 7,
+    passiveRank: 6,
+    finalPassiveRank: 4,
+    unspentSkillPoints: 13,
+    /** Earned skill points from levels 2..70 (one per level-up). */
+    earnedSkillPoints: 69,
+    spentSkillPoints: 56,
+    gold: 2500,
+    potions: 5,
+    maxPotions: 5,
+    maxBaselineVersion: 1,
+  }),
+  /** Population / spawn ring. */
+  sectors: 8,
+  enemiesPerSector: 8,
+  openingPopulation: 64,
+  surgePopulation: 96,
+  surgeSeconds: 3,
+  steadyTarget: 104,
+  maxEnemies: 128,
+  capBuffer: 8,
+  packMin: 6,
+  packMax: 10,
+  spawnInnerRadius: 19,
+  spawnOuterRadius: 32,
+  aggroRange: 64,
+  sparseLiving: 48,
+  sparseInterval: 0.04,
+  steadyInterval: 0.095,
+  /** Respawn pressure after death (not a full opening grant). */
+  respawn: Object.freeze({
+    immediate: 36,
+    recovery3s: 64,
+    recovery8s: 80,
+  }),
+  /**
+   * Spawn level offsets vs player (applied once; Enemy still multiplies WT on stats).
+   * At player 70 this lands village invaders in the high band (~76–88 by role).
+   */
+  levelOffsets: Object.freeze({
+    fodder: Object.freeze([6, 10]),
+    normal: Object.freeze([8, 14]),
+    elite: Object.freeze([12, 16]),
+    boss: Object.freeze([14, 18]),
+  }),
+  /** Boss Presence charge (first boss near 70–80 ordinary kills). */
+  bossCharge: Object.freeze({
+    normal: 1.3,
+    elite: 7,
+    threshold: 100,
+  }),
+  eliteLiveCap: 10,
+  openingElites: 4,
+  invasionRosterLocalWeight: 0.7,
+  invasionRosterGlobalWeight: 0.3,
+  /** Contested spring: full camp regen only when no enemy within radius. */
+  contestedSpring: Object.freeze({
+    enemyRadius: 12,
+    contestedHpMul: 0.25,
+  }),
+  /** Reward multipliers compose once with hunt threat bias. */
+  rewards: Object.freeze({
+    xp: 1.5,
+    gold: 1.35,
+    contract: 1.5,
+    boss: 1.4,
+  }),
+  openingContract: Object.freeze({
+    type: 'breach',
+    target: 60,
+    rewardTier: 3,
+    label: 'VILLAGE BREACH',
+    description: 'Defeat 60 invaders. The spring is no longer safe.',
+    rewardHint: 'Solid gold · Weapon forge fund · Breach bonus',
   }),
 });
 

@@ -23,6 +23,15 @@ export function normalizeSaveData(raw) {
 
   const player = { ...raw.player };
   const hunt = isPlainObject(raw.hunt) ? { ...raw.hunt } : {};
+  // v5 (and earlier) Continue saves without a variant stay legacy — never promote to MAX.
+  if (hunt.variant !== 'max' && hunt.variant !== 'legacy') {
+    hunt.variant = 'legacy';
+  }
+  if (hunt.variant === 'legacy') {
+    hunt.maxBaselineVersion = 0;
+  } else if (!Number.isFinite(Number(hunt.maxBaselineVersion))) {
+    hunt.maxBaselineVersion = 1;
+  }
   const defenseMeta = isPlainObject(raw.defenseMeta)
     ? {
       bestWave: Math.max(0, Number(raw.defenseMeta.bestWave) || 0),
@@ -94,6 +103,7 @@ export class SaveManager {
       kills: Math.max(0, Number(data.hunt?.totalKills) || 0),
       savedAt: data.savedAt || 0,
       gold: Math.max(0, Number(data.player.gold) || 0),
+      variant: data.hunt?.variant === 'max' ? 'max' : 'legacy',
     };
   }
 

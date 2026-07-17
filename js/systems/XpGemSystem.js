@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { clamp } from '../core/Utils.js';
 import { createGameContext } from '../core/GameContext.js';
-import { huntRewardMul } from './huntThreat.js';
+import { composeHuntRewardMul } from './huntThreat.js';
 
 const MAX_GEMS = 200;
 const MERGE_RADIUS = 1.2;
@@ -53,10 +53,13 @@ export class XpGemSystem {
     const player = this.game.player;
     if (!enemy || !player) return null;
     let totalXp = Math.max(1, Math.round(enemy.xpValue || 1));
-    // Hunt on-level / grey / danger reward bias.
+    // Hunt on-level / grey / danger reward bias (+ MAX HUNT scale once).
     if (this.game.mode === 'hunt' && this.game.player) {
       totalXp = Math.max(1, Math.round(
-        totalXp * huntRewardMul((enemy.level ?? 1) - this.game.player.level),
+        totalXp * composeHuntRewardMul(
+          (enemy.level ?? 1) - this.game.player.level,
+          { isMax: Boolean(this.game.hunt?.isMax), kind: 'xp' },
+        ),
       ));
     }
     const result = player.addXp(totalXp);

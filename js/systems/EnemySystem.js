@@ -1,14 +1,15 @@
 import * as THREE from 'three';
 import {
-  GAME_CONFIG, HORDE_CONFIG, HUNT_SPAWN_CONFIG, HUNT_THREAT_CONFIG,
+  GAME_CONFIG, HORDE_CONFIG, HUNT_SPAWN_CONFIG, HUNT_THREAT_CONFIG, MAX_HUNT_CONFIG,
 } from '../config.js';
 import {
-  ELITE_AFFIXES, ENEMY_TYPES, ZONES, ZONE_BOSSES, ZONE_SPAWNS, enemiesByZoneRole,
+  ELITE_AFFIXES, ENEMY_TYPES, MAX_HUNT_INVASION_ROSTER, ZONES, ZONE_BOSSES, ZONE_SPAWNS,
+  enemiesByZoneRole,
 } from '../data/content.js';
 import { chance, clamp, rand, randInt, weightedPick } from '../core/Utils.js';
 import { createGameContext } from '../core/GameContext.js';
 import { Enemy } from '../entities/Enemy.js';
-import { clampHuntSpawnLevel, zoneThreat } from './huntThreat.js';
+import { clampHuntSpawnLevel, maxHuntSpawnLevel, zoneThreat } from './huntThreat.js';
 
 const TMP = new THREE.Vector3();
 
@@ -40,6 +41,36 @@ export class EnemySystem {
     return count;
   }
 
+  /** Single authority for living hard cap (MAX vs legacy). Defense never uses this. */
+  get activeEnemyCap() {
+    return this.game.hunt?.isMax ? MAX_HUNT_CONFIG.maxEnemies : GAME_CONFIG.maxEnemies;
+  }
+
+  get activeCapBuffer() {
+    return this.game.hunt?.isMax ? MAX_HUNT_CONFIG.capBuffer : HUNT_SPAWN_CONFIG.capBuffer;
+  }
+
+  get activeSpawnInner() {
+    return this.game.hunt?.isMax ? MAX_HUNT_CONFIG.spawnInnerRadius : GAME_CONFIG.spawnInnerRadius;
+  }
+
+  get activeSpawnOuter() {
+    return this.game.hunt?.isMax ? MAX_HUNT_CONFIG.spawnOuterRadius : GAME_CONFIG.spawnOuterRadius;
+  }
+
+  get activePackMin() {
+    return this.game.hunt?.isMax ? MAX_HUNT_CONFIG.packMin : HORDE_CONFIG.packMin;
+  }
+
+  get activePackMax() {
+    return this.game.hunt?.isMax ? MAX_HUNT_CONFIG.packMax : HORDE_CONFIG.packMax;
+  }
+
+  /** Room under hard cap + buffer. */
+  #spawnRoom() {
+    return this.activeEnemyCap + this.activeCapBuffer - this.enemies.length;
+  }
+
   update(delta) {
     this.spawnTimer -= delta;
     this.separationTimer -= delta;
@@ -47,6 +78,7 @@ export class EnemySystem {
 
     const defenseMode = this.game.mode === 'defense';
     const huntMode = this.game.mode === 'hunt';
+    const isMax = Boolean(this.game.hunt?.isMax);
 
     for (let i = this.enemies.length - 1; i >= 0; i -= 1) {
       const enemy = this.enemies[i];
@@ -68,27 +100,50 @@ export class EnemySystem {
 
     // Continuous field spawn is Hunt-only. Defense authors its own wave encounters.
     if (huntMode && this.spawnTimer <= 0 && this.game.state === 'playing' && this.game.player.alive) {
-      this.spawnTimer = this.livingCount < HUNT_SPAWN_CONFIG.sparseLiving
-        ? HUNT_SPAWN_CONFIG.sparseInterval
-        : HUNT_SPAWN_CONFIG.steadyInterval;
-      const target = clamp(
-        GAME_CONFIG.targetEnemies
-          + Math.floor(Math.max(0, this.game.player.level - 1) / HUNT_SPAWN_CONFIG.levelTargetDivisor),
-        Math.min(HUNT_SPAWN_CONFIG.initialEnemies, GAME_CONFIG.targetEnemies),
-        GAME_CONFIG.maxEnemies,
-      );
+      const sparseLiving = isMax ? MAX_HUNT_CONFIG.sparseLiving : HUNT_SPAWN_CONFIG.sparseLiving;
+      const sparseInterval = isMax ? MAX_HUNT_CONFIG.sparseInterval : HUNT_SPAWN_CONFIG.sparseInterval;
+      const steadyInterval = isMax ? MAX_HUNT_CONFIG.steadyInterval : HUNT_SPAWN_CONFIG.steadyInterval;
+      this.spawnTimer = this.livingCount < sparseLiving ? sparseInterval : steadyInterval;
+
+      let target;
+      if (isMax) {
+        const phase = this.game.hunt.invasionPhase;
+        const elapsed = this.game.hunt.invasionElapsed ?? 0;
+        if (phase === 'opening') target = MAX_HUNT_CONFIG.openingPopulation;
+        else if (phase === 'surge' || elapsed < MAX_HUNT_CONFIG.surgeSeconds) {
+          target = MAX_HUNT_CONFIG.surgePopulation;
+        } else if (phase === 'respawn') {
+          if (elapsed < 3) target = MAX_HUNT_CONFIG.respawn.recovery3s;
+          else if (elapsed < 8) target = MAX_HUNT_CONFIG.respawn.recovery8s;
+          else {
+            this.game.hunt.invasionPhase = 'steady';
+            target = MAX_HUNT_CONFIG.steadyTarget;
+          }
+        } else {
+          target = MAX_HUNT_CONFIG.steadyTarget;
+        }
+        target = Math.min(target, this.activeEnemyCap);
+      } else {
+        target = clamp(
+          GAME_CONFIG.targetEnemies
+            + Math.floor(Math.max(0, this.game.player.level - 1) / HUNT_SPAWN_CONFIG.levelTargetDivisor),
+          Math.min(HUNT_SPAWN_CONFIG.initialEnemies, GAME_CONFIG.targetEnemies),
+          this.activeEnemyCap,
+        );
+      }
+
       if (this.livingCount < target) {
-        // Prefer packs for horde density; fall back to singles near cap.
-        // On-level pack pressure: denser packs when the field is sparse.
-        const room = GAME_CONFIG.maxEnemies + HUNT_SPAWN_CONFIG.capBuffer - this.enemies.length;
+        const room = this.#spawnRoom();
         const zone = this.game.world.currentZone;
         const threat = zoneThreat(this.game.player.level, zone);
         const pressure = this.livingCount < HUNT_THREAT_CONFIG.packPressureLiving
           && (threat.id === 'onlevel' || threat.id === 'challenging');
-        const packRoll = pressure
-          ? HUNT_THREAT_CONFIG.packPressureChance
-          : HORDE_CONFIG.packChance;
-        if (room >= HORDE_CONFIG.packMin && chance(packRoll)) {
+        const packRoll = isMax
+          ? 0.82
+          : pressure
+            ? HUNT_THREAT_CONFIG.packPressureChance
+            : HORDE_CONFIG.packChance;
+        if (room >= this.activePackMin && chance(packRoll)) {
           this.spawnPack();
         } else {
           this.#spawnOne();
@@ -97,7 +152,16 @@ export class EnemySystem {
     }
   }
 
-  #huntSpawnLevel(data, zone, player) {
+  #huntSpawnLevel(data, zone, player, options = {}) {
+    if (this.game.hunt?.isMax) {
+      return maxHuntSpawnLevel({
+        playerLevel: player.level,
+        role: data?.role,
+        elite: Boolean(options.elite),
+        boss: Boolean(data?.boss || options.boss),
+        rngOffset: Math.random(),
+      });
+    }
     const levelFloor = Math.max(data.level, zone.minLevel ?? 1);
     const adaptive = player.level + randInt(-3, 2) + Math.max(0, this.game.hunt.worldTier - 1) * 2;
     const raw = Math.max(levelFloor, adaptive);
@@ -107,34 +171,49 @@ export class EnemySystem {
   #spawnOne() {
     const player = this.game.player;
     const world = this.game.world;
-    const position = world.randomSpawnAround(player.position, GAME_CONFIG.spawnInnerRadius, GAME_CONFIG.spawnOuterRadius);
+    const position = world.randomSpawnAround(player.position, this.activeSpawnInner, this.activeSpawnOuter);
     const zone = world.zoneAt(position.x, position.z);
     const entries = this.#huntSpawnEntries(zone.id);
     const typeId = weightedPick(entries);
     const data = ENEMY_TYPES[typeId];
     if (!data) return null;
 
-    const level = this.#huntSpawnLevel(data, zone, player);
+    const eliteCap = this.game.hunt?.isMax ? MAX_HUNT_CONFIG.eliteLiveCap : 7;
     const eliteChance = clamp(.045 + player.luck * .65 + this.game.hunt.worldTier * .006, .045, .26);
-    const elite = chance(eliteChance) && this.enemies.filter(enemy => enemy.elite && enemy.alive).length < 7;
+    const elite = chance(eliteChance) && this.enemies.filter(enemy => enemy.elite && enemy.alive).length < eliteCap;
+    const level = this.#huntSpawnLevel(data, zone, player, { elite });
     const eliteAffix = elite ? this.rollEliteAffix(zone.id) : null;
     // ~70% fodder; elites/bosses never fodder (enforced in Enemy + here).
     const fodder = !elite && !data.boss && chance(HORDE_CONFIG.fodderRatio);
-    return this.spawn(data, position, { level, elite, eliteAffix, fodder });
+    const enemy = this.spawn(data, position, { level, elite, eliteAffix, fodder });
+    if (enemy && this.game.hunt?.isMax) {
+      enemy.aggroRadius = Math.max(enemy.aggroRadius, MAX_HUNT_CONFIG.aggroRange);
+    }
+    return enemy;
   }
 
   /** Soft artillery/support cap so Hunt backline does not stack unfairly. */
   #huntSpawnEntries(zoneId) {
     const base = ZONE_SPAWNS[zoneId] ?? ZONE_SPAWNS.verdant;
+    // MAX HUNT mixes invasion roster so the village is not only early-zone fodder.
+    let pool = base;
+    if (this.game.hunt?.isMax && MAX_HUNT_INVASION_ROSTER?.length) {
+      const localW = MAX_HUNT_CONFIG.invasionRosterLocalWeight;
+      const invW = MAX_HUNT_CONFIG.invasionRosterGlobalWeight;
+      pool = [
+        ...base.map(e => ({ id: e.id, weight: (e.weight ?? 1) * localW })),
+        ...MAX_HUNT_INVASION_ROSTER.map(e => ({ id: e.id, weight: (e.weight ?? 1) * invW })),
+      ];
+    }
     const livingArtillery = this.enemies.filter(
       e => e.alive && !e.boss && (e.data.role === 'artillery' || e.data.role === 'controller'),
     ).length;
-    if (livingArtillery < HUNT_ARTILLERY_CAP) return base;
-    const filtered = base.filter(entry => {
+    if (livingArtillery < HUNT_ARTILLERY_CAP) return pool;
+    const filtered = pool.filter(entry => {
       const data = ENEMY_TYPES[entry.id];
       return data && data.role !== 'artillery' && data.role !== 'controller';
     });
-    return filtered.length ? filtered : base;
+    return filtered.length ? filtered : pool;
   }
 
   #pickByRoles(zoneId, roles, fallbackEntries) {
@@ -158,24 +237,24 @@ export class EnemySystem {
   spawnPack(typeOrData = null, count = null, origin = null) {
     const player = this.game.player;
     const world = this.game.world;
-    const packCap = GAME_CONFIG.maxEnemies + HUNT_SPAWN_CONFIG.capBuffer - this.enemies.length;
+    const packCap = this.#spawnRoom();
     if (packCap <= 0) return [];
 
     const size = Math.min(
       packCap,
       Math.max(
         1,
-        count ?? randInt(HORDE_CONFIG.packMin, HORDE_CONFIG.packMax),
+        count ?? randInt(this.activePackMin, this.activePackMax),
       ),
     );
     if (size < 1) return [];
 
     const center = origin?.clone?.()
-      ?? world.randomSpawnAround(player.position, GAME_CONFIG.spawnInnerRadius, GAME_CONFIG.spawnOuterRadius);
+      ?? world.randomSpawnAround(player.position, this.activeSpawnInner, this.activeSpawnOuter);
     world.resolvePosition(center, .7);
 
     const zone = world.zoneAt(center.x, center.z);
-    const entries = ZONE_SPAWNS[zone.id] ?? ZONE_SPAWNS.verdant;
+    const entries = this.#huntSpawnEntries(zone.id);
     let alpha = typeof typeOrData === 'string'
       ? ENEMY_TYPES[typeOrData]
       : typeOrData;
@@ -200,7 +279,7 @@ export class EnemySystem {
 
     const spawned = [];
     for (let i = 0; i < size; i += 1) {
-      if (this.enemies.length >= GAME_CONFIG.maxEnemies + HUNT_SPAWN_CONFIG.capBuffer) break;
+      if (this.enemies.length >= this.activeEnemyCap + this.activeCapBuffer) break;
       const angle = (i / size) * Math.PI * 2 + rand(-0.25, 0.25);
       const dist = rand(0.4, 2.5);
       const pos = new THREE.Vector3(
@@ -215,10 +294,123 @@ export class EnemySystem {
       else data = this.#pickByRoles(zone.id, PACK_FILL_ROLES, entries) ?? alpha;
       // Packs are always fodder clusters (never elite); alpha may be non-fodder silhouette.
       const fodder = i > 0 || data.role === 'fodder_swarm';
-      const enemy = this.spawn(data, pos, { level, elite: false, fodder });
-      if (enemy) spawned.push(enemy);
+      const unitLevel = this.game.hunt?.isMax
+        ? this.#huntSpawnLevel(data, zone, player, { elite: false })
+        : level;
+      const enemy = this.spawn(data, pos, { level: unitLevel, elite: false, fodder });
+      if (enemy) {
+        if (this.game.hunt?.isMax) {
+          enemy.aggroRadius = Math.max(enemy.aggroRadius, MAX_HUNT_CONFIG.aggroRange);
+        }
+        spawned.push(enemy);
+      }
     }
     return spawned;
+  }
+
+  /**
+   * MAX HUNT opening: eight perimeter sectors, telegraphs, role-aware packs, distributed elites.
+   * Spawns outside camp (World.randomSpawnAround exclusion); AI immediately invades.
+   */
+  startMaxHuntInvasion() {
+    if (!this.game.hunt?.isMax) {
+      this.populate(HUNT_SPAWN_CONFIG.initialEnemies);
+      return this.livingCount;
+    }
+    const player = this.game.player;
+    const world = this.game.world;
+    const sectors = MAX_HUNT_CONFIG.sectors;
+    const perSector = MAX_HUNT_CONFIG.enemiesPerSector;
+    const ringInner = MAX_HUNT_CONFIG.spawnInnerRadius;
+    const ringOuter = MAX_HUNT_CONFIG.spawnOuterRadius;
+    const openingElites = MAX_HUNT_CONFIG.openingElites;
+    const eliteSectors = new Set();
+    while (eliteSectors.size < Math.min(openingElites, sectors)) {
+      eliteSectors.add(randInt(0, sectors - 1));
+    }
+    let rangedSectors = 0;
+
+    for (let s = 0; s < sectors; s += 1) {
+      const baseAngle = (s / sectors) * Math.PI * 2 + rand(-0.08, 0.08);
+      const dist = rand(ringInner, ringOuter);
+      const origin = new THREE.Vector3(
+        Math.cos(baseAngle) * dist,
+        0,
+        Math.sin(baseAngle) * dist,
+      );
+      // Keep origin outside camp exclusion with a small radial nudge if needed.
+      const campMin = GAME_CONFIG.campRadius + 4;
+      const oh = Math.hypot(origin.x, origin.z);
+      if (oh < campMin && oh > 0.001) {
+        origin.x *= campMin / oh;
+        origin.z *= campMin / oh;
+      }
+      world.resolvePosition(origin, 0.7);
+
+      this.game.effects?.ring?.(origin, 0xff6a4a, 3.2, {
+        life: 0.7,
+        startScale: 0.1,
+        height: 0.07,
+        opacity: 0.62,
+      });
+
+      const zone = world.zoneAt(origin.x, origin.z);
+      const entries = this.#huntSpawnEntries(zone.id);
+      const alpha = this.#pickByRoles(zone.id, PACK_ALPHA_ROLES, entries)
+        ?? ENEMY_TYPES[weightedPick(entries)];
+      if (!alpha || alpha.boss) continue;
+
+      const wantRanged = rangedSectors < 2 || chance(0.35);
+      const rangedData = wantRanged
+        ? this.#pickByRoles(zone.id, PACK_RANGED_ROLES, entries)
+        : null;
+      if (rangedData) rangedSectors += 1;
+
+      const placeElite = eliteSectors.has(s);
+      for (let i = 0; i < perSector; i += 1) {
+        if (this.enemies.length >= this.activeEnemyCap + this.activeCapBuffer) break;
+        const angle = baseAngle + (i / perSector) * 0.55 + rand(-0.1, 0.1);
+        const d = dist + rand(-1.2, 1.2);
+        const pos = new THREE.Vector3(Math.cos(angle) * d, 0, Math.sin(angle) * d);
+        world.resolvePosition(pos, 0.55);
+        let data = alpha;
+        if (rangedData && i === perSector - 1) data = rangedData;
+        else if (i > 0) data = this.#pickByRoles(zone.id, PACK_FILL_ROLES, entries) ?? alpha;
+        const elite = placeElite && i === 0;
+        const level = this.#huntSpawnLevel(data, zone, player, { elite });
+        const fodder = !elite && (i > 0 || data.role === 'fodder_swarm');
+        const enemy = this.spawn(data, pos, {
+          level,
+          elite,
+          eliteAffix: elite ? this.rollEliteAffix(zone.id) : null,
+          fodder,
+        });
+        if (enemy) {
+          enemy.aggroRadius = Math.max(enemy.aggroRadius, MAX_HUNT_CONFIG.aggroRange);
+        }
+      }
+    }
+
+    this.game.hunt.invasionPhase = 'opening';
+    this.game.hunt.invasionElapsed = 0;
+    this.spawnTimer = MAX_HUNT_CONFIG.sparseInterval;
+    return this.livingCount;
+  }
+
+  /** Post-death / Continue perimeter pressure (bounded; not a full opening grant). */
+  startMaxHuntPressure(count = MAX_HUNT_CONFIG.respawn.immediate) {
+    if (!this.game.hunt?.isMax) {
+      this.populate(count);
+      return this.livingCount;
+    }
+    this.game.hunt.invasionPhase = 'respawn';
+    this.game.hunt.invasionElapsed = 0;
+    this.populate(Math.min(count, this.activeEnemyCap));
+    for (const enemy of this.enemies) {
+      if (enemy.alive) enemy.aggroRadius = Math.max(enemy.aggroRadius, MAX_HUNT_CONFIG.aggroRange);
+    }
+    this.spawnTimer = MAX_HUNT_CONFIG.sparseInterval;
+    return this.livingCount;
   }
 
   rollEliteAffix(zoneId = null) {
@@ -238,12 +430,12 @@ export class EnemySystem {
   }
 
   populate(count = HUNT_SPAWN_CONFIG.initialEnemies) {
-    const target = Math.min(count, GAME_CONFIG.maxEnemies);
+    const target = Math.min(count, this.activeEnemyCap);
     // Fill denser with packs first, then singles to top off.
     while (this.livingCount < target) {
       const room = target - this.livingCount;
-      if (room >= HORDE_CONFIG.packMin && chance(HUNT_SPAWN_CONFIG.populatePackChance)) {
-        const want = Math.min(room, randInt(HORDE_CONFIG.packMin, HORDE_CONFIG.packMax));
+      if (room >= this.activePackMin && chance(HUNT_SPAWN_CONFIG.populatePackChance)) {
+        const want = Math.min(room, randInt(this.activePackMin, this.activePackMax));
         const before = this.livingCount;
         this.spawnPack(null, want);
         if (this.livingCount <= before) this.#spawnOne();
@@ -253,12 +445,14 @@ export class EnemySystem {
         if (this.livingCount <= before) break;
       }
     }
-    this.spawnTimer = HUNT_SPAWN_CONFIG.steadyInterval;
+    this.spawnTimer = this.game.hunt?.isMax
+      ? MAX_HUNT_CONFIG.steadyInterval
+      : HUNT_SPAWN_CONFIG.steadyInterval;
   }
 
   spawn(dataOrId, position, options = {}) {
     const data = typeof dataOrId === 'string' ? ENEMY_TYPES[dataOrId] : dataOrId;
-    if (!data || this.enemies.length >= GAME_CONFIG.maxEnemies + HUNT_SPAWN_CONFIG.capBuffer) return null;
+    if (!data || this.enemies.length >= this.activeEnemyCap + this.activeCapBuffer) return null;
     const spawnPosition = position.clone();
     this.game.world.resolvePosition(spawnPosition, .7);
     const enemy = new Enemy(this.game.scene, data, spawnPosition, {
@@ -308,14 +502,27 @@ export class EnemySystem {
       position.set(zone.center[0] + 12, 0, zone.center[1] + 12);
     }
     this.game.world.resolvePosition(position, 1.6);
-    const rawBossLevel = Math.max(
-      data.level,
-      this.game.player.level + 2 + (this.game.hunt.worldTier - 1) * 2,
-    );
-    // Keep zone ladder; softcap on player receive still blunts underlevel boss spikes.
-    const level = Math.max(data.level, clampHuntSpawnLevel(rawBossLevel, zone));
+    let level;
+    if (this.game.hunt?.isMax) {
+      level = maxHuntSpawnLevel({
+        playerLevel: this.game.player.level,
+        boss: true,
+        rngOffset: 0.5,
+      });
+      level = Math.max(data.level, level);
+    } else {
+      const rawBossLevel = Math.max(
+        data.level,
+        this.game.player.level + 2 + (this.game.hunt.worldTier - 1) * 2,
+      );
+      // Keep zone ladder; softcap on player receive still blunts underlevel boss spikes.
+      level = Math.max(data.level, clampHuntSpawnLevel(rawBossLevel, zone));
+    }
     const boss = this.spawn(data, position, { level, elite: false, fodder: false });
     if (boss) {
+      if (this.game.hunt?.isMax) {
+        boss.aggroRadius = Math.max(boss.aggroRadius, MAX_HUNT_CONFIG.aggroRange);
+      }
       this.game.audio.boss();
       this.game.effects.pillar(position, data.accent, 12, { life: 1.25, bottom: 1.9 });
       this.game.effects.ring(position, data.accent, 7, { life: 1.05, startScale: .06 });

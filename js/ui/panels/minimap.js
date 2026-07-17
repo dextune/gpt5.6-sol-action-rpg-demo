@@ -74,11 +74,26 @@ export function drawMinimap(ui) {
     const campX = center + (0 - player.position.x) * scale;
     const campY = center + (0 - player.position.z) * scale;
     if (campX > 0 && campX < width && campY > 0 && campY < width) {
+      const isMax = Boolean(ui.game.hunt?.isMax);
+      let enemyInCamp = false;
+      if (isMax) {
+        for (const enemy of ui.game.enemies?.enemies ?? []) {
+          if (!enemy.alive) continue;
+          if (Math.hypot(enemy.position.x, enemy.position.z) < 15) {
+            enemyInCamp = true;
+            break;
+          }
+        }
+      }
       context.globalAlpha = .9;
-      context.strokeStyle = '#8effd3';
-      context.lineWidth = 2;
-      context.beginPath(); context.arc(campX, campY, 5, 0, Math.PI * 2); context.stroke();
-      context.fillStyle = '#d7fff0'; context.fillRect(campX - 1, campY - 1, 2, 2);
+      // MAX HUNT: amber/red breached ring; pulse when hostiles are inside camp.
+      context.strokeStyle = isMax
+        ? (enemyInCamp ? '#ff5d62' : '#ffb04a')
+        : '#8effd3';
+      context.lineWidth = isMax && enemyInCamp ? 2.6 : 2;
+      context.beginPath(); context.arc(campX, campY, isMax ? 6 : 5, 0, Math.PI * 2); context.stroke();
+      context.fillStyle = isMax ? '#ffd9a0' : '#d7fff0';
+      context.fillRect(campX - 1, campY - 1, 2, 2);
     }
 
     // Guided / zone contract compass — target zone center.

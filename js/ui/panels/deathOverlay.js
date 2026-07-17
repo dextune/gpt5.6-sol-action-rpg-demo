@@ -26,6 +26,10 @@ export function showDeath(ui) {
         ? `Best wave ${best} · ${kills} kills · Last mutator: ${mut}. Returning to title.`
         : `Best wave ${best} · ${kills} kills. Returning to title.`;
     }
+  } else if (game.hunt?.isMax) {
+    if (eyebrow) eyebrow.textContent = 'BREACH OVERRUN';
+    if (title) title.textContent = 'The invasion does not end';
+    if (copy) copy.textContent = 'Revived at the breached hub. The spring is not safe.';
   } else {
     if (eyebrow) eyebrow.textContent = 'HUNTER DOWN';
     if (title) title.textContent = 'The hunt is not over';

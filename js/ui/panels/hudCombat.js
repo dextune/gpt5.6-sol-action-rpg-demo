@@ -8,6 +8,7 @@ import {
 import {
   getClassActiveSkills,
   getHeroClass,
+  weaponResonanceTier,
 } from '../../data/content.js';
 import {
   weaponEnhanceCost,
@@ -43,7 +44,8 @@ export function syncCombatForge(ui, player) {
     const oCost = weaponOptionEnhanceCost(weapon);
     const wChance = weaponEnhanceSuccessChance(weapon);
     if (ui.elements['combat-weapon-level']) {
-      ui.elements['combat-weapon-level'].textContent = wMax ? 'MAX' : `+${wLv}`;
+      const resonanceTier = weaponResonanceTier(wLv);
+      ui.elements['combat-weapon-level'].textContent = wMax ? 'MAX · R7' : `+${wLv} · R${resonanceTier}`;
     }
     if (ui.elements['combat-option-level']) {
       ui.elements['combat-option-level'].textContent = oMax ? 'MAX' : `+${oLv}`;
@@ -92,7 +94,16 @@ export function runCombatWeaponEnhance(ui) {
       return;
     }
     ui.game.audio.levelUp?.();
-    ui.notify(`Weapon evolved · ${ui.game.player.weapon.name} · +${result.level}`, 'level', 3.6);
+    if (result.resonance) {
+      const player = ui.game.player;
+      ui.game.effects.ring?.(player.position, result.resonance.color, 4.2, { life: 0.8, opacity: 0.9 });
+      ui.game.effects.burst?.(player.position, result.resonance.color, 28, {
+        speed: 7, size: 0.24, life: 0.75, gravity: 3, upward: 0.65, height: 0.8,
+      });
+      ui.notify(`RESONANCE UNLOCKED · ${result.resonance.name} · ${result.resonance.summary}`, 'level', 5.2);
+    } else {
+      ui.notify(`Weapon surged · ${ui.game.player.weapon.name} · +${result.level}`, 'level', 3.6);
+    }
     ui.game.requestSave();
     syncCombatForge(ui, ui.game.player);
   }
@@ -110,7 +121,7 @@ export function runCombatOptionEnhance(ui) {
       return;
     }
     ui.game.audio.click();
-    ui.notify(`Weapon option improved · ${titleCaseId(result.stat)} · Lv.${result.level}`, 'loot', 3.2);
+    ui.notify(`Weapon option surged · ${titleCaseId(result.stat)} +${(result.amount * 100).toFixed(1)}% · Lv.${result.level}`, 'loot', 3.2);
     ui.game.requestSave();
     syncCombatForge(ui, ui.game.player);
   }
@@ -260,7 +271,9 @@ export function updateHUD(ui) {
     const levelLabel = `LV.${player.level}`;
     if (ui.elements['portrait-level']) ui.elements['portrait-level'].textContent = levelLabel;
     if (ui.elements['player-level-text']) ui.elements['player-level-text'].textContent = levelLabel;
-    ui.elements['hunter-title'].textContent = isDefense ? 'Defense Hunter' : hunt.hunterTitle;
+    ui.elements['hunter-title'].textContent = isDefense
+      ? 'Defense Hunter'
+      : (hunt.isMax ? `MAX · ${hunt.hunterTitle}` : hunt.hunterTitle);
     const hpTransform = `scaleY(${player.healthRatio})`;
     if (ui.elements['hp-fill'].style.transform !== hpTransform) {
       ui.elements['hp-fill'].style.transform = hpTransform;
@@ -369,11 +382,37 @@ export function updateHUD(ui) {
       ui.elements['elite-count'].textContent = defenseHud?.elitesKilled ?? 0;
       ui.elements['boss-count'].textContent = defenseHud?.bossesKilled ?? 0;
     } else {
-      ui.elements['world-tier'].textContent = `WORLD TIER ${hunt.worldTier}`;
+      const isMax = Boolean(hunt.isMax);
+      ui.elements['world-tier'].textContent = isMax
+        ? `MAX · WT ${hunt.worldTier}`
+        : `WORLD TIER ${hunt.worldTier}`;
       ui.elements['zone-name'].textContent = zone.name;
-      const bandLine = zoneBandSubtitle(zone, player.level);
+      const living = ui.game.enemies?.livingCount ?? 0;
+      const campDist = Math.hypot(player.position.x, player.position.z);
+      let bandLine = zoneBandSubtitle(zone, player.level);
+      if (isMax) {
+        const contested = campDist < (ui.game?.config?.campRadius ?? 15) + 2;
+        if (contested) {
+          bandLine = living > 0
+            ? `VILLAGE BREACH · ${living} HOSTILES`
+            : 'CONTESTED SPRING';
+          // Nearby enemies within spring contest radius → contested label.
+          const radius = 12;
+          const enemies = ui.game.enemies?.enemies ?? [];
+          let near = false;
+          for (const e of enemies) {
+            if (!e?.alive) continue;
+            const dx = e.position.x - player.position.x;
+            const dz = e.position.z - player.position.z;
+            if (dx * dx + dz * dz <= radius * radius) { near = true; break; }
+          }
+          if (near && campDist < 15) bandLine = `CONTESTED SPRING · ${living} HOSTILES`;
+        } else {
+          bandLine = `${bandLine} · ${living} hostiles`;
+        }
+      }
       ui.elements['zone-subtitle'].textContent = bandLine;
-      const threat = zoneThreat(player.level, zone);
+      const threat = isMax ? { id: 'danger' } : zoneThreat(player.level, zone);
       const ribbon = ui.elements['zone-subtitle']?.closest?.('.zone-ribbon')
         ?? document.querySelector('.zone-ribbon');
       if (ribbon) ribbon.dataset.threat = threat.id;

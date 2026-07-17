@@ -39,6 +39,7 @@ Guides for agents modifying the **GPT-5.6: Sol / Action RPG DEMO** (Three.js bro
 | Plan | Status |
 |------|--------|
 | [plan/combat-motion-sophistication.md](./plan/combat-motion-sophistication.md) | **ready** — **full** combat action motion upgrade (research, baseline, out-of-scope, class cards, waves, validation) |
+| [plan/max-hunt.md](./plan/max-hunt.md) | **ready** — New Hunt → MAX HUNT conversion with a Lv.70 start, village breach, persistent growth, save migration, and performance gates |
 
 See also [plan/README.md](./plan/README.md).
 
