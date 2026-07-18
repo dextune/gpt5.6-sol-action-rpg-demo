@@ -118,6 +118,7 @@ async function snapshot(page) {
       };
     };
     const profile = document.querySelector('.hunter-profile');
+    const resources = document.querySelector('.profile-gold-row');
     const hunt = document.getElementById('hunt-record-panel');
     const mapHeading = document.querySelector('.minimap-heading span');
     return {
@@ -130,7 +131,8 @@ async function snapshot(page) {
       option: rect('#combat-option-enhance'),
       zone: rect('.zone-ribbon'),
       minimap: rect('.minimap-shell'),
-      resources: rect('.profile-gold-row') || rect('#gold-count'),
+      resources: rect('.profile-gold-row'),
+      resourcesNested: Boolean(profile?.contains(resources)),
       notifications: rect('#notifications'),
       ability: rect('.ability-bar'),
       health: rect('.combat-vitals-health'),
@@ -142,6 +144,7 @@ async function snapshot(page) {
       huntExpanded: document.getElementById('profile-toggle')?.getAttribute('aria-expanded') === 'true',
       huntHidden: hunt?.classList.contains('hidden') ?? false,
       profileClipped: Boolean(profile && profile.scrollHeight > profile.clientHeight + 1),
+      profileOverflowY: profile ? getComputedStyle(profile).overflowY : '',
       zoneBeforeDisplay: getComputedStyle(document.querySelector('.zone-ribbon'), '::before').display,
       zoneAfterDisplay: getComputedStyle(document.querySelector('.zone-ribbon'), '::after').display,
       curvedGaugeCount: document.querySelectorAll('.character-vitals-overlay, .character-gauge, #hp-arc-fill, #mp-arc-fill, #energy-fill').length,
@@ -162,6 +165,7 @@ function auditLayout(label, layout, touch) {
   }
   if (layout.huntExpanded || !layout.huntHidden || layout.hunt) failures.push(`${label}: Hunt record is expanded by default`);
   if (layout.profileClipped) failures.push(`${label}: profile content is clipped`);
+  if (!layout.resourcesNested) failures.push(`${label}: gold is not nested in the hunter profile`);
   if (layout.mapHeading !== 'TACTICAL MAP') failures.push(`${label}: minimap heading mismatch (${layout.mapHeading})`);
   if (layout.zoneBeforeDisplay !== 'none' || layout.zoneAfterDisplay !== 'none') failures.push(`${label}: center-title gradient lines returned`);
   if (layout.curvedGaugeCount !== 0) failures.push(`${label}: curved gauges remain in the HUD`);
@@ -173,13 +177,6 @@ function auditLayout(label, layout, touch) {
   if (layout.zone && layout.minimap) {
     if (layout.zone.bottom > layout.minimap.top + 1) failures.push(`${label}: zone title is not above minimap`);
     if (Math.abs(layout.zone.width - layout.minimap.width) > 1) failures.push(`${label}: zone/minimap width mismatch`);
-  }
-  if (layout.minimap && layout.resources) {
-    if (Math.abs(layout.minimap.width - layout.resources.width) > 1) failures.push(`${label}: minimap/resources width mismatch`);
-    if (layout.resources.top < layout.minimap.bottom) failures.push(`${label}: resources are not below minimap`);
-  }
-  if (layout.resources && layout.notifications && layout.notifications.top < layout.resources.bottom) {
-    failures.push(`${label}: notifications begin above resources`);
   }
   if (overlaps(layout.profile, layout.zone, 4) || overlaps(layout.profile, layout.minimap, 4)) {
     failures.push(`${label}: left profile overlaps right map column`);
@@ -206,7 +203,10 @@ async function auditToggle(page, label) {
   const expanded = await snapshot(page);
   if (!expanded.huntExpanded || expanded.huntHidden || !expanded.hunt) failures.push(`${label}: Hunt record did not expand`);
   if (!expanded.weapon || !expanded.option) failures.push(`${label}: WPN/OPT disappeared while Hunt record was open`);
-  if (expanded.profileClipped || !inside(expanded.profile, expanded.viewport)) failures.push(`${label}: expanded profile is clipped/outside viewport`);
+  const scrollableProfile = expanded.profileOverflowY === 'auto' || expanded.profileOverflowY === 'scroll';
+  if (!inside(expanded.profile, expanded.viewport) || (expanded.profileClipped && !scrollableProfile)) {
+    failures.push(`${label}: expanded profile is clipped/outside viewport`);
+  }
   await page.click('#profile-toggle');
   await sleep(50);
   const collapsed = await snapshot(page);

@@ -58,6 +58,8 @@ export class AudioManager {
     this.sampleReady = false;
     this._lastHitAt = 0;
     this._hitBurstCount = 0;
+    this._lastRifleAt = 0;
+    this._rifleBurstCount = 0;
   }
 
   async unlock() {
@@ -277,6 +279,41 @@ export class AudioManager {
     }
   }
 
+  /** Data-driven basic-attack facade. Existing classes retain their swing mix. */
+  basicAttack(kind = 'melee', combo = 0) {
+    if (kind !== 'rifle') {
+      this.swing(combo);
+      return;
+    }
+    if (!this.context || !this.sfx || this.muted) return;
+    const now = this.context.currentTime;
+    if (now - this._lastRifleAt > 0.09) this._rifleBurstCount = 0;
+    this._lastRifleAt = now;
+    this._rifleBurstCount += 1;
+    // Cap pathological duplicate triggers while preserving the authored burst.
+    if (this._rifleBurstCount > 3) return;
+
+    const c = Math.max(0, Math.min(3, combo | 0));
+    const played = this.playSample(`rifle_${c}`, {
+      volume: c >= 3 ? 0.66 : 0.52 + c * 0.035,
+      rate: 0.97 + Math.random() * 0.06,
+      filter: 3200,
+    }) || this.playSample('rifle', {
+      volume: c >= 3 ? 0.64 : 0.52,
+      rate: 0.96 + Math.random() * 0.07,
+      filter: 3200,
+    });
+    if (played) return;
+
+    // Neutral, bounded gunshot fallback: short grit + mechanical crack, never a melee whoosh.
+    this.#noise(c >= 3 ? 0.055 : 0.042, c >= 3 ? 0.045 : 0.035, {
+      type: 'bandpass', frequency: 1450 + c * 90, q: 0.85, decay: 2.4,
+    });
+    this.#tone(185 + c * 8, c >= 3 ? 0.075 : 0.055, {
+      type: 'square', volume: c >= 3 ? 0.035 : 0.027, end: 76, filter: 1900,
+    });
+  }
+
   /**
    * Successful damage contact.
    * @param {boolean} critical
@@ -448,6 +485,7 @@ export class AudioManager {
       skill_bow: 'skill_bow',
       skill_trap: 'skill_trap',
       skill_dagger: 'skill_dagger',
+      skill_rifle: 'skill_rifle',
       windsteel: 'skill_blade',
       bladewave: 'skill_blade',
       skyice: 'skill_leap',

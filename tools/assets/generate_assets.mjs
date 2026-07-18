@@ -4,12 +4,90 @@ import { MarchingCubes } from '../../vendor/examples/jsm/objects/MarchingCubes.j
 import { RoundedBoxGeometry } from '../../vendor/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries, mergeVertices } from '../../vendor/examples/jsm/utils/BufferGeometryUtils.js';
 import { mkdir, writeFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createHash } from 'node:crypto';
+const GENERATOR_SOURCE_HASH = createHash('sha256')
+  .update(readFileSync(fileURLToPath(import.meta.url)))
+  .digest('hex')
+  .slice(0, 16);
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '../..');
-const ASSETS = resolve(ROOT, 'assets');
+// Opt-in override for isolated verification runs; production builds always resolve
+// to the repo's real assets/ directory unless this env var is explicitly set.
+const ASSETS = process.env.GENERATE_ASSETS_DIR ? resolve(process.env.GENERATE_ASSETS_DIR) : resolve(ROOT, 'assets');
+
+/** Shared hero rig identity (schema v2, docs/plan/character-graphics-animation-overhaul.md §7). */
+const HERO_RIG_ID = 'sol_humanoid_v2';
+const HERO_SCHEMA_VERSION = 2;
+const HERO_RECIPE_VERSION = 5;
+/** Adult heroic head/face reproportion factor shared by heroSkeleton/heroBodyGeometry/createHero. */
+const HERO_HEAD_K = 0.43;
+/**
+ * Legacy shipping bone/socket name -> target v2 rig-contract name. The authored-recipe
+ * exporter below still emits the legacy names as the real skinned/animated skeleton
+ * (stable clip tracks depend on them), but every hero root carries this alias table in
+ * its extras so tooling and future Blender-authored assets can converge on one contract
+ * without breaking existing runtime bindings mid-migration.
+ */
+const RIG_V2_ALIASES = Object.freeze({
+  root: 'root', pelvis: 'pelvis', spine: 'spine_01', chest: 'spine_03', neck: 'neck', head: 'head',
+  left_upper_arm: 'upperarm_l', left_lower_arm: 'lowerarm_l', left_hand: 'hand_l',
+  right_upper_arm: 'upperarm_r', right_lower_arm: 'lowerarm_r', right_hand: 'hand_r',
+  left_upper_leg: 'thigh_l', left_lower_leg: 'calf_l', left_foot: 'foot_l',
+  right_upper_leg: 'thigh_r', right_lower_leg: 'calf_r', right_foot: 'foot_r',
+  cape_root: 'cape_01', cape_mid: 'cape_02', cape_tip: 'cape_03',
+  hair_root: 'hair_01', hair_tip: 'hair_02',
+  weapon_socket: 'weapon_socket_r',
+});
+
+function contentHash(payload) {
+  return createHash('sha256').update(JSON.stringify(payload)).digest('hex').slice(0, 16);
+}
+
+/**
+ * Deterministic position-hashed pseudo-noise (classic GLSL-style hash). Pure function of the
+ * sample coordinates only -- no Math.random/time input -- so identical geometry always yields
+ * an identical breakup pattern and therefore an identical exported GLB (docs/plan §12.5).
+ */
+function deterministicBreakupNoise(x, y, z) {
+  const s = Math.sin(x * 12.9898 + y * 78.233 + z * 37.719) * 43758.5453;
+  return s - Math.floor(s);
+}
+
+/**
+ * Deterministic vertex-color surface breakup (docs/plan/character-graphics-animation-overhaul.md
+ * §7.5/§11.2 -- vertex colors are an approved, StylizedMaterial-preserved channel). Adds subtle,
+ * reproducible per-vertex tint variance so flat material-role fills read as designed surfaces
+ * instead of perfectly flat silhouette fills, without any texture/runtime dependency.
+ */
+function addSurfaceBreakupVertexColors(geometry, strength = .07) {
+  const position = geometry.getAttribute('position');
+  const colors = new Float32Array(position.count * 3);
+  for (let i = 0; i < position.count; i += 1) {
+    const x = position.getX(i);
+    const y = position.getY(i);
+    const z = position.getZ(i);
+    const n = deterministicBreakupNoise(x, y, z);
+    const v = 1 - strength * .5 + n * strength;
+    colors[i * 3] = v;
+    colors[i * 3 + 1] = v;
+    colors[i * 3 + 2] = v;
+  }
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  return geometry;
+}
+
+/** v2 weapon anchor node (docs/plan §7.3/§12.1) — always identity/positive scale (plan D9). */
+function v2WeaponAnchor(name, position) {
+  const anchor = new THREE.Object3D();
+  anchor.name = name;
+  anchor.userData.socket = name;
+  anchor.position.copy(position);
+  return anchor;
+}
 
 if (!globalThis.FileReader) {
   globalThis.FileReader = class FileReaderPolyfill {
@@ -356,101 +434,253 @@ function heroSkeleton() {
     { name: 'chest', parent: 'spine', position: [0, .42, 0] },
     { name: 'neck', parent: 'chest', position: [0, .34, .015] },
     { name: 'head', parent: 'neck', position: [0, .28, .02] },
-    { name: 'left_upper_arm', parent: 'chest', position: [.43, .22, 0] },
-    { name: 'left_lower_arm', parent: 'left_upper_arm', position: [.24, -.42, .01] },
-    { name: 'left_hand', parent: 'left_lower_arm', position: [.08, -.40, .035] },
-    { name: 'right_upper_arm', parent: 'chest', position: [-.43, .22, 0] },
-    { name: 'right_lower_arm', parent: 'right_upper_arm', position: [-.24, -.42, .01] },
-    { name: 'right_hand', parent: 'right_lower_arm', position: [-.08, -.40, .035] },
+    // Real deformation/helper bones (docs/plan/character-graphics-animation-overhaul.md §7.2).
+    // Each helper below sits at a zero local offset relative to its legacy parent, so every
+    // legacy bone's rest-pose WORLD position (and therefore heroSkinRules/heroAnimations,
+    // which key off the legacy names) is numerically unchanged -- the legacy bones remain
+    // the real animated compatibility parents; the helpers are additive real joints, not
+    // just decoration, and heroSkinRules below gives each of them genuine skin influence.
+    { name: 'clavicle_l', parent: 'chest', position: [.43, .22, 0] },
+    { name: 'left_upper_arm', parent: 'clavicle_l', position: [0, 0, 0] },
+    { name: 'upperarm_twist_l', parent: 'left_upper_arm', position: [0, 0, 0] },
+    { name: 'left_lower_arm', parent: 'upperarm_twist_l', position: [.24, -.42, .01] },
+    { name: 'lowerarm_twist_l', parent: 'left_lower_arm', position: [0, 0, 0] },
+    { name: 'left_hand', parent: 'lowerarm_twist_l', position: [.08, -.40, .035] },
+    { name: 'clavicle_r', parent: 'chest', position: [-.43, .22, 0] },
+    { name: 'right_upper_arm', parent: 'clavicle_r', position: [0, 0, 0] },
+    { name: 'upperarm_twist_r', parent: 'right_upper_arm', position: [0, 0, 0] },
+    { name: 'right_lower_arm', parent: 'upperarm_twist_r', position: [-.24, -.42, .01] },
+    { name: 'lowerarm_twist_r', parent: 'right_lower_arm', position: [0, 0, 0] },
+    { name: 'right_hand', parent: 'lowerarm_twist_r', position: [-.08, -.40, .035] },
     { name: 'left_upper_leg', parent: 'pelvis', position: [.22, -.08, 0] },
-    { name: 'left_lower_leg', parent: 'left_upper_leg', position: [.01, -.52, .03] },
+    { name: 'thigh_twist_l', parent: 'left_upper_leg', position: [0, 0, 0] },
+    { name: 'left_lower_leg', parent: 'thigh_twist_l', position: [.01, -.52, .03] },
     { name: 'left_foot', parent: 'left_lower_leg', position: [0, -.48, .10] },
+    { name: 'ball_l', parent: 'left_foot', position: [0, -.06, .14] },
     { name: 'right_upper_leg', parent: 'pelvis', position: [-.22, -.08, 0] },
-    { name: 'right_lower_leg', parent: 'right_upper_leg', position: [-.01, -.52, .03] },
+    { name: 'thigh_twist_r', parent: 'right_upper_leg', position: [0, 0, 0] },
+    { name: 'right_lower_leg', parent: 'thigh_twist_r', position: [-.01, -.52, .03] },
     { name: 'right_foot', parent: 'right_lower_leg', position: [0, -.48, .10] },
+    { name: 'ball_r', parent: 'right_foot', position: [0, -.06, .14] },
     { name: 'cape_root', parent: 'chest', position: [0, .08, -.25] },
     { name: 'cape_mid', parent: 'cape_root', position: [0, -.38, -.05] },
     { name: 'cape_tip', parent: 'cape_mid', position: [0, -.40, -.04] },
-    { name: 'hair_root', parent: 'head', position: [0, .08, -.08] },
-    { name: 'hair_tip', parent: 'hair_root', position: [0, -.38, -.12] },
+    // Hair mount offsets scale with the adult heroic head shrink (HERO_HEAD_K) so hair stays
+    // anchored to the smaller head instead of floating off the now-smaller skull surface.
+    { name: 'hair_root', parent: 'head', position: [0, .08 * HERO_HEAD_K, -.08 * HERO_HEAD_K] },
+    { name: 'hair_tip', parent: 'hair_root', position: [0, -.38 * HERO_HEAD_K, -.12 * HERO_HEAD_K] },
     { name: 'weapon_socket', parent: 'right_hand', position: [-.03, -.11, .02] },
+    // v2 sockets/markers (schema v2, plan §7.3) — additive, non-deforming, identity/positive scale.
+    { name: 'weapon_socket_r', parent: 'right_hand', position: [-.03, -.11, .02] },
+    { name: 'weapon_socket_l', parent: 'left_hand', position: [.03, -.11, .02] },
+    { name: 'hand_ik_r', parent: 'right_hand', position: [0, 0, 0] },
+    { name: 'hand_ik_l', parent: 'left_hand', position: [0, 0, 0] },
+    { name: 'foot_contact_r', parent: 'right_foot', position: [0, -.03, .06] },
+    { name: 'foot_contact_l', parent: 'left_foot', position: [0, -.03, .06] },
+    { name: 'head_look_target', parent: 'head', position: [0, .05, .35] },
   ]);
 }
 
-function heroBodyGeometry(resolution = 52) {
+const HERO_PHYSIQUE_PROFILES = Object.freeze({
+  aerin: Object.freeze({
+    torsoCenterY: 1.82,
+    torso: [.52, .60, .33],
+    pelvis: [.28, .30, .25],
+    core: [.24, .46],
+    shoulderX: .43,
+    upperArm: [.18, .14],
+    lowerArm: [.135, .105],
+    hand: [.12, .14, .105],
+    thigh: [.17, .145],
+    calf: [.14, .105],
+    muscle: 1.15,
+    headScale: .40,
+    beltRadius: .30,
+    collarRadius: .32,
+    strapRadius: .50,
+    smoothness: .078,
+  }),
+  wizard: Object.freeze({
+    torsoCenterY: 1.75,
+    torso: [.35, .72, .27],
+    pelvis: [.27, .35, .23],
+    core: [.25, .31],
+    shoulderX: .38,
+    upperArm: [.13, .105],
+    lowerArm: [.105, .085],
+    hand: [.105, .13, .095],
+    thigh: [.145, .12],
+    calf: [.12, .09],
+    muscle: .58,
+    headScale: .39,
+    beltRadius: .285,
+    collarRadius: .30,
+    strapRadius: .46,
+    smoothness: .074,
+  }),
+  rogue: Object.freeze({
+    torsoCenterY: 1.76,
+    torso: [.34, .56, .27],
+    pelvis: [.27, .28, .23],
+    core: [.23, .30],
+    shoulderX: .37,
+    upperArm: [.125, .10],
+    lowerArm: [.10, .082],
+    hand: [.10, .125, .09],
+    thigh: [.14, .115],
+    calf: [.115, .085],
+    muscle: .68,
+    headScale: .37,
+    beltRadius: .27,
+    collarRadius: .285,
+    strapRadius: .43,
+    smoothness: .068,
+  }),
+  ranger: Object.freeze({
+    torsoCenterY: 1.77,
+    torso: [.36, .62, .28],
+    pelvis: [.28, .30, .24],
+    core: [.245, .325],
+    shoulderX: .39,
+    upperArm: [.12, .095],
+    lowerArm: [.095, .078],
+    hand: [.10, .13, .09],
+    thigh: [.145, .12],
+    calf: [.12, .09],
+    muscle: .62,
+    headScale: .39,
+    beltRadius: .29,
+    collarRadius: .305,
+    strapRadius: .47,
+    smoothness: .07,
+  }),
+  gunner: Object.freeze({
+    torsoCenterY: 1.79,
+    torso: [.42, .60, .31],
+    pelvis: [.31, .31, .26],
+    core: [.285, .36],
+    shoulderX: .41,
+    upperArm: [.15, .12],
+    lowerArm: [.12, .095],
+    hand: [.11, .135, .10],
+    thigh: [.16, .135],
+    calf: [.135, .10],
+    muscle: .9,
+    headScale: .40,
+    beltRadius: .32,
+    collarRadius: .325,
+    strapRadius: .51,
+    smoothness: .078,
+  }),
+});
+
+function heroBodyGeometry(resolution = 52, profileId = 'aerin') {
+  const physique = HERO_PHYSIQUE_PROFILES[profileId] ?? HERO_PHYSIQUE_PROFILES.aerin;
+  const HEAD_PIVOT = V3(0, 2.46, .035);
+  const HEAD_K = physique.headScale;
+  const headPos = (x, y, z) => V3(
+    HEAD_PIVOT.x + (x - HEAD_PIVOT.x) * HEAD_K,
+    HEAD_PIVOT.y + (y - HEAD_PIVOT.y) * HEAD_K,
+    HEAD_PIVOT.z + (z - HEAD_PIVOT.z) * HEAD_K,
+  );
+  const headRad = (x, y, z) => V3(x * HEAD_K, y * HEAD_K, z * HEAD_K);
+  const [torsoX, torsoY, torsoZ] = physique.torso;
+  const [pelvisX, pelvisY, pelvisZ] = physique.pelvis;
+  const [coreLower, coreUpper] = physique.core;
+  const [upperArmStart, upperArmEnd] = physique.upperArm;
+  const [lowerArmStart, lowerArmEnd] = physique.lowerArm;
+  const [handX, handY, handZ] = physique.hand;
+  const [thighStart, thighEnd] = physique.thigh;
+  const [calfStart, calfEnd] = physique.calf;
+  const muscle = physique.muscle;
   const parts = [
-    p => sdfEllipsoid(p, V3(0, 1.72, 0), V3(.53, .66, .36)),
-    p => sdfEllipsoid(p, V3(0, 1.18, .005), V3(.42, .38, .33)),
-    p => sdfCapsule(p, V3(0, 1.45, 0), V3(0, 2.27, 0), .40, .43),
-    p => sdfCapsule(p, V3(.42, 2.02, 0), V3(.67, 1.60, .01), .19, .16),
-    p => sdfCapsule(p, V3(.67, 1.60, .01), V3(.75, 1.20, .04), .16, .13),
-    p => sdfEllipsoid(p, V3(.76, 1.12, .06), V3(.16, .18, .14)),
-    p => sdfCapsule(p, V3(-.42, 2.02, 0), V3(-.67, 1.60, .01), .19, .16),
-    p => sdfCapsule(p, V3(-.67, 1.60, .01), V3(-.75, 1.20, .04), .16, .13),
-    p => sdfEllipsoid(p, V3(-.76, 1.12, .06), V3(.16, .18, .14)),
-    p => sdfCapsule(p, V3(.22, 1.14, 0), V3(.23, .58, .02), .22, .18),
-    p => sdfCapsule(p, V3(.23, .58, .02), V3(.23, .15, .08), .18, .14),
-    p => sdfEllipsoid(p, V3(.23, .10, .20), V3(.20, .12, .32)),
-    p => sdfCapsule(p, V3(-.22, 1.14, 0), V3(-.23, .58, .02), .22, .18),
-    p => sdfCapsule(p, V3(-.23, .58, .02), V3(-.23, .15, .08), .18, .14),
-    p => sdfEllipsoid(p, V3(-.23, .10, .20), V3(.20, .12, .32)),
-    p => sdfCapsule(p, V3(0, 2.19, 0), V3(0, 2.40, .01), .21, .22),
-    p => sdfEllipsoid(p, V3(0, 2.70, .035), V3(.49, .54, .44)),
-    p => sdfEllipsoid(p, V3(0, 2.67, .43), V3(.13, .12, .15)),
-    p => sdfEllipsoid(p, V3(.47, 2.70, .02), V3(.09, .17, .10)),
-    p => sdfEllipsoid(p, V3(-.47, 2.70, .02), V3(.09, .17, .10)),
-    // Musculature pass — pecs, delts, traps, forearms, calves for a defined heroic build.
-    p => sdfEllipsoid(p, V3(.19, 1.97, .26), V3(.20, .15, .13)),
-    p => sdfEllipsoid(p, V3(-.19, 1.97, .26), V3(.20, .15, .13)),
-    p => sdfEllipsoid(p, V3(0, 1.60, .25), V3(.16, .22, .10)),
-    p => sdfEllipsoid(p, V3(.45, 2.08, 0), V3(.16, .14, .14)),
-    p => sdfEllipsoid(p, V3(-.45, 2.08, 0), V3(.16, .14, .14)),
-    p => sdfCapsule(p, V3(.12, 2.32, -.04), V3(.40, 2.14, -.02), .10, .08),
-    p => sdfCapsule(p, V3(-.12, 2.32, -.04), V3(-.40, 2.14, -.02), .10, .08),
-    p => sdfEllipsoid(p, V3(.70, 1.44, .03), V3(.11, .15, .10)),
-    p => sdfEllipsoid(p, V3(-.70, 1.44, .03), V3(.11, .15, .10)),
-    p => sdfEllipsoid(p, V3(.25, .52, -.03), V3(.13, .20, .13)),
-    p => sdfEllipsoid(p, V3(-.25, .52, -.03), V3(.13, .20, .13)),
-    p => sdfEllipsoid(p, V3(.16, 2.02, -.24), V3(.14, .18, .10)),
-    p => sdfEllipsoid(p, V3(-.16, 2.02, -.24), V3(.14, .18, .10)),
-    // Facial structure — chin/jaw plane, cheekbones, thumb nubs on the mitts.
-    p => sdfEllipsoid(p, V3(0, 2.50, .32), V3(.16, .12, .13)),
-    p => sdfEllipsoid(p, V3(.24, 2.64, .28), V3(.10, .09, .10)),
-    p => sdfEllipsoid(p, V3(-.24, 2.64, .28), V3(.10, .09, .10)),
-    p => sdfCapsule(p, V3(.82, 1.10, .14), V3(.88, 1.02, .20), .055, .04),
-    p => sdfCapsule(p, V3(-.82, 1.10, .14), V3(-.88, 1.02, .20), .055, .04),
+    p => sdfEllipsoid(p, V3(0, physique.torsoCenterY, 0), V3(torsoX, torsoY, torsoZ)),
+    p => sdfEllipsoid(p, V3(0, 1.18, .005), V3(pelvisX, pelvisY, pelvisZ)),
+    p => sdfCapsule(p, V3(0, 1.40, 0), V3(0, 2.27, 0), coreLower, coreUpper),
+    p => sdfCapsule(p, V3(physique.shoulderX, 2.02, 0), V3(.66, 1.60, .01), upperArmStart, upperArmEnd),
+    p => sdfCapsule(p, V3(.66, 1.60, .01), V3(.75, 1.20, .04), lowerArmStart, lowerArmEnd),
+    p => sdfEllipsoid(p, V3(.76, 1.12, .06), V3(handX, handY, handZ)),
+    p => sdfCapsule(p, V3(-physique.shoulderX, 2.02, 0), V3(-.66, 1.60, .01), upperArmStart, upperArmEnd),
+    p => sdfCapsule(p, V3(-.66, 1.60, .01), V3(-.75, 1.20, .04), lowerArmStart, lowerArmEnd),
+    p => sdfEllipsoid(p, V3(-.76, 1.12, .06), V3(handX, handY, handZ)),
+    p => sdfCapsule(p, V3(.20, 1.14, 0), V3(.22, .58, .02), thighStart, thighEnd),
+    p => sdfCapsule(p, V3(.22, .58, .02), V3(.22, .15, .08), calfStart, calfEnd),
+    p => sdfEllipsoid(p, V3(.22, .10, .18), V3(.15, .09, .245)),
+    p => sdfCapsule(p, V3(-.20, 1.14, 0), V3(-.22, .58, .02), thighStart, thighEnd),
+    p => sdfCapsule(p, V3(-.22, .58, .02), V3(-.22, .15, .08), calfStart, calfEnd),
+    p => sdfEllipsoid(p, V3(-.22, .10, .18), V3(.15, .09, .245)),
+    p => sdfCapsule(p, V3(0, 2.19, 0), V3(0, 2.40, .01), .14, .15),
+    p => sdfEllipsoid(p, headPos(0, 2.70, .035), headRad(.49, .54, .44)),
+    p => sdfEllipsoid(p, headPos(0, 2.67, .43), headRad(.13, .12, .15)),
+    p => sdfEllipsoid(p, headPos(.47, 2.70, .02), headRad(.09, .17, .10)),
+    p => sdfEllipsoid(p, headPos(-.47, 2.70, .02), headRad(.09, .17, .10)),
+    p => sdfEllipsoid(p, V3(.18, 1.98, .25), V3(.20 * muscle, .15 * muscle, .13 * muscle)),
+    p => sdfEllipsoid(p, V3(-.18, 1.98, .25), V3(.20 * muscle, .15 * muscle, .13 * muscle)),
+    p => sdfEllipsoid(p, V3(0, 1.60, .24), V3(.15 * muscle, .21 * muscle, .09 * muscle)),
+    p => sdfEllipsoid(p, V3(physique.shoulderX, 2.08, 0), V3(.13 * muscle, .115 * muscle, .11 * muscle)),
+    p => sdfEllipsoid(p, V3(-physique.shoulderX, 2.08, 0), V3(.13 * muscle, .115 * muscle, .11 * muscle)),
+    p => sdfCapsule(p, V3(.12, 2.32, -.04), V3(.38, 2.14, -.02), .08 * muscle, .065 * muscle),
+    p => sdfCapsule(p, V3(-.12, 2.32, -.04), V3(-.38, 2.14, -.02), .08 * muscle, .065 * muscle),
+    p => sdfEllipsoid(p, V3(.69, 1.44, .03), V3(.085 * muscle, .11 * muscle, .08 * muscle)),
+    p => sdfEllipsoid(p, V3(-.69, 1.44, .03), V3(.085 * muscle, .11 * muscle, .08 * muscle)),
+    p => sdfEllipsoid(p, V3(.23, .52, -.03), V3(.10 * muscle, .15 * muscle, .10 * muscle)),
+    p => sdfEllipsoid(p, V3(-.23, .52, -.03), V3(.10 * muscle, .15 * muscle, .10 * muscle)),
+    p => sdfEllipsoid(p, V3(.16, 2.02, -.23), V3(.13 * muscle, .17 * muscle, .09 * muscle)),
+    p => sdfEllipsoid(p, V3(-.16, 2.02, -.23), V3(.13 * muscle, .17 * muscle, .09 * muscle)),
+    p => sdfEllipsoid(p, headPos(0, 2.50, .32), headRad(.16, .12, .13)),
+    p => sdfEllipsoid(p, headPos(.24, 2.64, .28), headRad(.10, .09, .10)),
+    p => sdfEllipsoid(p, headPos(-.24, 2.64, .28), headRad(.10, .09, .10)),
+    p => sdfCapsule(p, V3(.82, 1.10, .14), V3(.88, 1.02, .20), .05, .035),
+    p => sdfCapsule(p, V3(-.82, 1.10, .14), V3(-.88, 1.02, .20), .05, .035),
   ];
-  return implicitGeometry(p => unionSdf(parts, p, .105), {
+  return implicitGeometry(p => unionSdf(parts, p, physique.smoothness), {
     min: V3(-1.05, -.08, -.62), max: V3(1.05, 3.32, .70),
   }, resolution, 190000);
 }
 
 function heroSkinRules(skeletonInfo) {
+  // Side membership for the new v2 helper/deformation bones (docs/plan/character-graphics-animation-overhaul.md
+  // §7.2): they don't use the left_/right_ prefix convention, so the quadrant selector below needs an explicit
+  // lookup instead of `startsWith('left_'/'right_')`.
+  const LEFT_HELPER_BONES = new Set(['clavicle_l', 'upperarm_twist_l', 'lowerarm_twist_l', 'thigh_twist_l', 'ball_l']);
+  const RIGHT_HELPER_BONES = new Set(['clavicle_r', 'upperarm_twist_r', 'lowerarm_twist_r', 'thigh_twist_r', 'ball_r']);
+  const isLeft = bone => bone.startsWith('left_') || LEFT_HELPER_BONES.has(bone);
+  const isRight = bone => bone.startsWith('right_') || RIGHT_HELPER_BONES.has(bone);
   const rules = [
     { bone: 'pelvis', start: 'pelvis', end: 'spine', sigma: .34, bias: 1.2 },
     { bone: 'spine', start: 'spine', end: 'chest', sigma: .34, bias: 1.3 },
     { bone: 'chest', start: 'chest', end: 'neck', sigma: .38, bias: 1.2 },
     { bone: 'neck', start: 'neck', end: 'head', sigma: .24, bias: 1 },
     { bone: 'head', start: 'head', end: 'head', sigma: .46, bias: 2.2 },
+    { bone: 'clavicle_l', start: 'chest', end: 'left_upper_arm', sigma: .22, bias: .55 },
     { bone: 'left_upper_arm', start: 'left_upper_arm', end: 'left_lower_arm', sigma: .25, bias: 1.8 },
+    { bone: 'upperarm_twist_l', start: 'left_upper_arm', end: 'left_lower_arm', sigma: .16, bias: .35 },
     { bone: 'left_lower_arm', start: 'left_lower_arm', end: 'left_hand', sigma: .21, bias: 1.8 },
+    { bone: 'lowerarm_twist_l', start: 'left_lower_arm', end: 'left_hand', sigma: .14, bias: .35 },
     { bone: 'left_hand', start: 'left_hand', end: 'left_hand', sigma: .18, bias: 2.1 },
+    { bone: 'clavicle_r', start: 'chest', end: 'right_upper_arm', sigma: .22, bias: .55 },
     { bone: 'right_upper_arm', start: 'right_upper_arm', end: 'right_lower_arm', sigma: .25, bias: 1.8 },
+    { bone: 'upperarm_twist_r', start: 'right_upper_arm', end: 'right_lower_arm', sigma: .16, bias: .35 },
     { bone: 'right_lower_arm', start: 'right_lower_arm', end: 'right_hand', sigma: .21, bias: 1.8 },
+    { bone: 'lowerarm_twist_r', start: 'right_lower_arm', end: 'right_hand', sigma: .14, bias: .35 },
     { bone: 'right_hand', start: 'right_hand', end: 'right_hand', sigma: .18, bias: 2.1 },
     { bone: 'left_upper_leg', start: 'left_upper_leg', end: 'left_lower_leg', sigma: .27, bias: 1.8 },
+    { bone: 'thigh_twist_l', start: 'left_upper_leg', end: 'left_lower_leg', sigma: .18, bias: .35 },
     { bone: 'left_lower_leg', start: 'left_lower_leg', end: 'left_foot', sigma: .23, bias: 1.8 },
     { bone: 'left_foot', start: 'left_foot', end: 'left_foot', sigma: .24, bias: 1.7 },
+    { bone: 'ball_l', start: 'left_foot', end: 'ball_l', sigma: .12, bias: .5 },
     { bone: 'right_upper_leg', start: 'right_upper_leg', end: 'right_lower_leg', sigma: .27, bias: 1.8 },
+    { bone: 'thigh_twist_r', start: 'right_upper_leg', end: 'right_lower_leg', sigma: .18, bias: .35 },
     { bone: 'right_lower_leg', start: 'right_lower_leg', end: 'right_foot', sigma: .23, bias: 1.8 },
     { bone: 'right_foot', start: 'right_foot', end: 'right_foot', sigma: .24, bias: 1.7 },
+    { bone: 'ball_r', start: 'right_foot', end: 'ball_r', sigma: .12, bias: .5 },
   ];
   const selector = p => {
     if (p.y > 2.34) return rules.filter(rule => ['head', 'neck', 'chest'].includes(rule.bone));
-    if (p.x > .38 && p.y > 1.0) return rules.filter(rule => rule.bone.startsWith('left_') || ['chest', 'spine'].includes(rule.bone));
-    if (p.x < -.38 && p.y > 1.0) return rules.filter(rule => rule.bone.startsWith('right_') || ['chest', 'spine'].includes(rule.bone));
-    if (p.y < 1.18 && p.x >= 0) return rules.filter(rule => rule.bone.startsWith('left_') || rule.bone === 'pelvis');
-    if (p.y < 1.18 && p.x < 0) return rules.filter(rule => rule.bone.startsWith('right_') || rule.bone === 'pelvis');
+    if (p.x > .38 && p.y > 1.0) return rules.filter(rule => isLeft(rule.bone) || ['chest', 'spine'].includes(rule.bone));
+    if (p.x < -.38 && p.y > 1.0) return rules.filter(rule => isRight(rule.bone) || ['chest', 'spine'].includes(rule.bone));
+    if (p.y < 1.18 && p.x >= 0) return rules.filter(rule => isLeft(rule.bone) || rule.bone === 'pelvis');
+    if (p.y < 1.18 && p.x < 0) return rules.filter(rule => isRight(rule.bone) || rule.bone === 'pelvis');
     return rules.filter(rule => ['pelvis', 'spine', 'chest', 'neck'].includes(rule.bone));
   };
   return { rules, selector };
@@ -526,9 +756,17 @@ const HERO_CLASS_CLIPS = Object.freeze({
     'cast_1', 'cast_2', 'cast_3', 'cast_4',
     'skill_pierce_shot', 'skill_trap', 'skill_vault_shot', 'skill_hunter_mark',
   ]),
+  gunner: Object.freeze([
+    'attack_1', 'attack_2', 'attack_3', 'attack_4',
+    'cast_1', 'cast_2', 'cast_3', 'cast_4',
+    'skill_suppressive_burst', 'skill_flame_jet', 'skill_stim_rush', 'skill_inferno_sweep',
+  ]),
 });
 const HERO_SHARED_CLIPS = Object.freeze([
-  'idle', 'walk', 'run', 'sprint', 'dodge', 'hit', 'hit_light', 'hit_heavy', 'death',
+  'idle', 'walk', 'run', 'sprint',
+  'locomotion_start', 'locomotion_stop', 'pivot_left', 'pivot_right', 'pivot_180',
+  'aim_idle_add', 'breath_add', 'recoil_add', 'hit_add',
+  'dodge', 'hit', 'hit_light', 'hit_heavy', 'death',
 ]);
 
 /**
@@ -536,6 +774,45 @@ const HERO_SHARED_CLIPS = Object.freeze([
  * Soft combat stances (not T-pose arms) so attacks/casts start from a natural ready pose.
  */
 function classWeaponHold(profileId = 'aerin') {
+  if (profileId === 'gunner') {
+    // Two-hand shouldered rifle: stock hand near chest, support hand forward.
+    const ready = Object.freeze({
+      pelvis: [.07, -.06, 0], spine: [-.12, -.04, .02], chest: [-.16, -.06, -.04],
+      neck: [.05, .03, 0], head: [.04, .04, -.01],
+      left_upper_arm: [-.5, .18, .34], left_lower_arm: [-.58, .06, .2], left_hand: [.06, .08, .06],
+      right_upper_arm: [-.5, .2, .68], right_lower_arm: [-.72, -.04, 1.42], right_hand: [.08, -.08, -.05],
+      left_upper_leg: [.18, .08, .07], left_lower_leg: [.32, 0, 0], left_foot: [-.08, 0, .03],
+      right_upper_leg: [-.05, -.09, -.08], right_lower_leg: [.45, 0, 0], right_foot: [-.06, 0, -.02],
+      cape_root: [.12, 0, 0], hair_root: [-.02, 0, 0],
+    });
+    return {
+      idleDuration: 1.5,
+      idle: {
+        a: ready,
+        b: { ...ready, pelvis: [.06, -.05, 0], spine: [-.1, -.03, .018], chest: [-.14, -.05, -.035], left_upper_arm: [-.47, .17, .32], left_lower_arm: [-.55, .05, .18], right_upper_arm: [-.47, .19, .65], right_lower_arm: [-.69, -.03, 1.38], cape_root: [.16, .02, 0], hair_root: [.03, 0, 0] },
+        bob: [0, -.025, .015],
+        bobMid: [0, -.008, .02],
+      },
+      runArms: (phase) => {
+        const pump = Math.sin(phase * Math.PI * 2) * .1;
+        return {
+          spine: [-.12, -.04, pump * .16], chest: [-.16, -.05, -.04 + pump * .12],
+          left_upper_arm: [-.72 + pump * .07, .2, .34], left_lower_arm: [-.7, .07, .22], left_hand: [.07, .09, .07],
+          right_upper_arm: [-.65 - pump * .07, .22, .7 + pump * .05], right_lower_arm: [-.96, -.04, 1.42], right_hand: [.09, -.09, -.06],
+          cape_root: [.42, pump * .08, 0], hair_root: [.12, 0, 0],
+        };
+      },
+      sprintArms: (phase) => {
+        const pump = Math.sin(phase * Math.PI * 2) * .14;
+        return {
+          spine: [-.17, -.03, pump * .2], chest: [-.21, -.04, -.05 + pump * .14],
+          left_upper_arm: [-.64 + pump * .09, .17, .3], left_lower_arm: [-.64, .06, .2], left_hand: [.06, .08, .06],
+          right_upper_arm: [-.58 - pump * .09, .18, .64 + pump * .06], right_lower_arm: [-.88, -.04, 1.34], right_hand: [.08, -.08, -.05],
+          cape_root: [.7, pump * .1, 0], hair_root: [.26, 0, 0],
+        };
+      },
+    };
+  }
   if (profileId === 'rogue') {
     // Compact dual-dagger combat ready: hands mid-torso, blades forward/down,
     // elbows tucked — not shoulder-rest "blades on shoulders" idle.
@@ -1069,6 +1346,15 @@ const COMBAT_MOTION_PROFILE = Object.freeze({
     durationScale: 0.96,
     mass: 0.92,
   }),
+  gunner: Object.freeze({
+    antiRatio: 0.2,
+    contactRatio: 0.07,
+    finisherAntiBoost: 0.04,
+    finisherRecoveryBoost: 0.06,
+    contactSnap: 1.2,
+    durationScale: 0.94,
+    mass: 1.02,
+  }),
 });
 
 function combatMotionProfile(profileId = 'aerin') {
@@ -1523,6 +1809,87 @@ function buildClassCombatClipSpecs(profileId, F) {
     return [...attacks, ...casts];
   }
 
+  // —— Gunner: shouldered aim → compact recoil → immediate sight recovery.
+  if (profileId === 'gunner') {
+    const rifleBeat = (name, base, yaw = 0, recoil = .18, finisher = false) => {
+      const duration = combatClipDuration(base, profile, { finisher });
+      return [name, duration, strikePhases(duration, {
+        finisher,
+        ready: { pelvis: [.06, yaw * .35, 0], spine: [-.12, yaw * .45, .02], chest: [-.16, yaw, -.04],
+          left_upper_arm: [-.82, .22 + yaw * .2, .38], left_lower_arm: [-.74, .08, .24],
+          right_upper_arm: [-.72, -.18 + yaw * .2, -.38], right_lower_arm: [-1.02, -.05, -.2], ...weightR(.38) },
+        coil: { pelvis: [.1, yaw * .55, 0], spine: [-.18, yaw * .7, .01], chest: [-.23, yaw * 1.15, -.07], neck: [.08, yaw * .15, 0],
+          left_upper_arm: [-.94, .25 + yaw * .22, .43], left_lower_arm: [-.82, .08, .26],
+          right_upper_arm: [-.86, -.2 + yaw * .22, -.43], right_lower_arm: [-1.12, -.05, -.23], cape_root: [.3, -yaw * .3, 0], ...weightR(.7) },
+        coilPos: { pelvis: [0, -.015, .015] },
+        contact: { pelvis: [.02, -yaw * .2, 0], spine: [recoil * .32, -yaw * .28, -.02], chest: [recoil, -yaw * .38, .05], neck: [-recoil * .3, 0, 0],
+          left_upper_arm: [-.7, .17 + yaw * .12, .32], left_lower_arm: [-.62, .06, .2],
+          right_upper_arm: [-.58, -.13 + yaw * .12, -.32], right_lower_arm: [-.86, -.04, -.16], cape_root: [.48, yaw * .2, 0], ...weightL(.4) },
+        contactPos: { pelvis: [0, .01, -recoil * .12] },
+        follow: { spine: [-.06, yaw * .2, .01], chest: [-.08, yaw * .35, -.01],
+          left_upper_arm: [-.76, .2, .35], right_upper_arm: [-.65, -.16, -.35], ...weightL(.14) },
+        settle: { spine: [-.1, -.03, .018], chest: [-.14, -.05, -.035],
+          left_upper_arm: [-.8, .22, .37], right_upper_arm: [-.7, -.18, -.37] },
+      })];
+    };
+    const attacks = [
+      rifleBeat('attack_1', .52, -.05, .15),
+      rifleBeat('attack_2', .55, .045, .17),
+      rifleBeat('attack_3', .58, -.025, .2),
+      rifleBeat('attack_4', .7, .02, .3, true),
+    ];
+    const casts = [
+      rifleBeat('cast_1', .54, -.04, .16),
+      rifleBeat('cast_2', .58, .045, .19),
+      rifleBeat('cast_3', .62, -.02, .22),
+      rifleBeat('cast_4', .76, .015, .34, true),
+    ];
+    const suppressDuration = combatClipDuration(.86, profile);
+    const flameDuration = combatClipDuration(.92, profile);
+    const stimDuration = combatClipDuration(.68, profile);
+    const infernoDuration = combatClipDuration(1.12, profile, { finisher: true });
+    const skills = [
+      ['skill_suppressive_burst', suppressDuration, strikePhases(suppressDuration, {
+        ready: { pelvis: [.08, -.08, 0], chest: [-.2, -.12, -.06], ...weightR(.55) },
+        coil: { pelvis: [.16, -.12, 0], spine: [-.22, -.08, 0], chest: [-.3, -.16, -.1],
+          left_upper_arm: [-1.0, .27, .45], right_upper_arm: [-.94, -.23, -.46], cape_root: [.36, -.08, 0], ...weightR(1) },
+        contact: { pelvis: [.02, .05, 0], spine: [.1, .04, -.03], chest: [.24, .08, .08],
+          left_upper_arm: [-.64, .15, .28], right_upper_arm: [-.52, -.11, -.28], cape_root: [.6, .12, 0], ...weightL(.65) },
+        contactPos: { pelvis: [0, .015, -.06] },
+        follow: { chest: [-.04, -.02, 0], left_upper_arm: [-.74, .19, .34], right_upper_arm: [-.64, -.15, -.34] },
+      })],
+      ['skill_flame_jet', flameDuration, strikePhases(flameDuration, {
+        ready: { pelvis: [.08, -.04, 0], chest: [-.18, -.08, -.05], ...weightR(.45) },
+        coil: { pelvis: [.14, -.08, 0], spine: [-.2, -.05, 0], chest: [-.27, -.1, -.08],
+          left_upper_arm: [-1.02, .24, .46], right_upper_arm: [-.92, -.2, -.45], ...weightR(.9) },
+        contact: { pelvis: [-.03, .08, 0], spine: [-.02, .12, 0], chest: [.08, .18, .08],
+          left_upper_arm: [-.56, .1, .25], right_upper_arm: [-.5, -.08, -.25], cape_root: [.68, .16, 0], ...weightL(.72) },
+        contactPos: { pelvis: [0, .025, .08] },
+        follow: { chest: [-.04, .03, .01], left_upper_arm: [-.7, .17, .32], right_upper_arm: [-.62, -.13, -.32] },
+      })],
+      ['skill_stim_rush', stimDuration, strikePhases(stimDuration, {
+        ready: { pelvis: [.04, .08, 0], chest: [-.12, .12, -.03], ...weightL(.35) },
+        coil: { pelvis: [.1, .22, 0], spine: [-.14, .18, 0], chest: [-.18, .34, -.06],
+          left_upper_arm: [-.38, .58, .52], left_lower_arm: [-1.18, .12, .3], right_upper_arm: [-.72, -.18, -.36], ...weightL(.72) },
+        contact: { pelvis: [-.04, -.14, 0], spine: [.04, -.12, 0], chest: [.12, -.24, .08],
+          left_upper_arm: [-.18, -.62, .38], left_lower_arm: [-.42, -.08, .18], right_upper_arm: [-.58, -.12, -.3], cape_root: [.55, -.16, 0], ...weightR(.55) },
+        follow: { chest: [-.06, -.08, 0], left_upper_arm: [-.65, .12, .3], right_upper_arm: [-.64, -.14, -.33] },
+      })],
+      ['skill_inferno_sweep', infernoDuration, strikePhases(infernoDuration, {
+        finisher: true,
+        ready: { pelvis: [.1, -.28, 0], spine: [-.18, -.2, 0], chest: [-.24, -.46, -.1], ...weightR(.7) },
+        coil: { pelvis: [.18, -.65, 0], spine: [-.24, -.48, 0], chest: [-.34, -.95, -.16], neck: [.1, -.14, 0],
+          left_upper_arm: [-1.12, .02, .48], right_upper_arm: [-1.05, -.45, -.5], cape_root: [.48, -.25, 0], ...weightR(1.12) },
+        contact: { pelvis: [-.02, .72, 0], spine: [.04, .5, 0], chest: [.12, 1.05, .16], neck: [-.05, .16, 0],
+          left_upper_arm: [-.38, -.95, .32], right_upper_arm: [-.32, .72, -.22], cape_root: [.9, .32, 0], ...weightL(.9) },
+        contactPos: { pelvis: [0, .035, .1] },
+        follow: { pelvis: [.02, .34, 0], chest: [-.04, .48, .06], left_upper_arm: [-.55, -.42, .3], right_upper_arm: [-.48, .32, -.28], ...weightL(.35) },
+        settle: { chest: [-.1, .08, -.02], left_upper_arm: [-.75, .14, .34], right_upper_arm: [-.66, -.12, -.34] },
+      })],
+    ];
+    return [...attacks, ...casts, ...skills];
+  }
+
   // —— Ranger: draw → loose grammar (bow torsion, string line, quick re-nock).
   if (profileId === 'ranger') {
     const dA = combatClipDuration(.58, profile);
@@ -1665,6 +2032,56 @@ function heroAnimations(skeletonInfo, profileId = null) {
   clips.push(buildClassWalkClip(skeletonInfo, classId, F));
   clips.push(buildClassRunClip(skeletonInfo, classId, F));
   clips.push(buildClassSprintClip(skeletonInfo, classId, F));
+  const transitionClips = [
+    ['locomotion_start', .18, [
+      pose(0),
+      pose(.07, { pelvis: [-.12, 0, 0], spine: [-.08, 0, 0], chest: [-.06, 0, 0] }, { pelvis: [0, -.025, .025] }),
+      pose(.18),
+    ]],
+    ['locomotion_stop', .18, [
+      pose(0),
+      pose(.08, { pelvis: [.1, 0, 0], spine: [.06, 0, 0], chest: [.04, 0, 0] }, { pelvis: [0, -.02, -.02] }),
+      pose(.18),
+    ]],
+    ['pivot_left', .15, [
+      pose(0),
+      pose(.07, { pelvis: [0, .34, 0], spine: [0, .18, 0], chest: [0, .12, 0], left_upper_leg: [.12, -.16, 0], right_upper_leg: [-.08, .12, 0] }),
+      pose(.15),
+    ]],
+    ['pivot_right', .15, [
+      pose(0),
+      pose(.07, { pelvis: [0, -.34, 0], spine: [0, -.18, 0], chest: [0, -.12, 0], left_upper_leg: [-.08, -.12, 0], right_upper_leg: [.12, .16, 0] }),
+      pose(.15),
+    ]],
+    ['pivot_180', .15, [
+      pose(0),
+      pose(.07, { pelvis: [0, .62, 0], spine: [0, .3, 0], chest: [0, .2, 0], left_upper_leg: [.18, -.2, 0], right_upper_leg: [-.14, .18, 0] }),
+      pose(.15),
+    ]],
+    ['aim_idle_add', 1.2, [
+      pose(0),
+      pose(.6, { spine: [-.015, .025, 0], chest: [-.02, .04, 0], neck: [.01, -.02, 0], head: [.008, -.025, 0] }),
+      pose(1.2),
+    ]],
+    ['breath_add', 1.5, [
+      pose(0),
+      pose(.75, { spine: [-.018, 0, 0], chest: [-.032, 0, 0], neck: [.012, 0, 0] }, { pelvis: [0, .008, 0] }),
+      pose(1.5),
+    ]],
+    ['recoil_add', .16, [
+      pose(0),
+      pose(.045, { spine: [.08, 0, 0], chest: [.13, 0, 0], right_upper_arm: [.14, 0, 0], right_lower_arm: [.1, 0, 0] }),
+      pose(.16),
+    ]],
+    ['hit_add', .22, [
+      pose(0),
+      pose(.06, { spine: [.1, 0, -.05], chest: [.16, 0, -.08], neck: [-.06, 0, .03] }),
+      pose(.22),
+    ]],
+  ];
+  for (const [name, duration, frames] of transitionClips) {
+    clips.push(animationClip(name, duration, frames, skeletonInfo));
+  }
 
   for (const [name, duration, frames] of buildClassCombatClipSpecs(classId, F)) {
     clips.push(animationClip(name, duration, frames, skeletonInfo));
@@ -2060,9 +2477,9 @@ const HERO_BAKE_PROFILES = Object.freeze({
   aerin: Object.freeze({
     name: 'Knight_Hero_Rig',
     skin: 0xd4a07a,
-    cloth: 0x7a8fa3,
+    cloth: 0x4f6478,
     leather: 0x2a303c,
-    cape: 0x8b1a28,
+    cape: 0x781c2a,
     hair: 0x2a1f18,
     eye: 0x2a4060,
     eyeWhite: 0xfff4e8,
@@ -2079,9 +2496,9 @@ const HERO_BAKE_PROFILES = Object.freeze({
   wizard: Object.freeze({
     name: 'Wizard_Hero_Rig',
     skin: 0xe9a87e,
-    cloth: 0x3a4f9c,
-    leather: 0x2a2440,
-    cape: 0x24306e,
+    cloth: 0x30448c,
+    leather: 0x201b38,
+    cape: 0x1b285f,
     hair: 0xe8e0f4,
     eye: 0x6b2db8,
     eyeWhite: 0xfff6df,
@@ -2099,15 +2516,15 @@ const HERO_BAKE_PROFILES = Object.freeze({
   rogue: Object.freeze({
     name: 'Rogue_Hero_Rig',
     skin: 0xdca27e,
-    cloth: 0x3c4e5a,
-    leather: 0x1a222c,
-    cape: 0x28323e,
+    cloth: 0x294149,
+    leather: 0x141d26,
+    cape: 0x192831,
     hair: 0x3aa890,
     eye: 0x2bd1b4,
     eyeWhite: 0xfdf6e8,
     brow: 0x1c3830,
     mouth: 0x7a4a44,
-    trim: 0x9ad8c8,
+    trim: 0x58d9bd,
     belt: 0x14181e,
     buckle: 0xb8e8d8,
     outline: 0x0a0e14,
@@ -2119,18 +2536,38 @@ const HERO_BAKE_PROFILES = Object.freeze({
   ranger: Object.freeze({
     name: 'Ranger_Hero_Rig',
     skin: 0xd8a882,
-    cloth: 0x4a6a48,
-    leather: 0x3a2a1c,
-    cape: 0x3a4a30,
+    cloth: 0x365a3d,
+    leather: 0x302215,
+    cape: 0x273c2c,
     hair: 0x8a4028,
     eye: 0xe8b040,
     eyeWhite: 0xfff6e8,
     brow: 0x5a2818,
     mouth: 0x7a4a44,
-    trim: 0xc8b070,
+    trim: 0xe0bd68,
     belt: 0x241810,
     buckle: 0xd4b862,
     outline: 0x101810,
+    hairStyle: 'knight',
+    headGear: 'none',
+    bodyStyle: 'default',
+  }),
+  // Ember Vanguard — industrial rescue armor, slate cloth, brass and ember accents.
+  gunner: Object.freeze({
+    name: 'Gunner_Hero_Rig',
+    skin: 0xc9906f,
+    cloth: 0x344852,
+    leather: 0x172126,
+    cape: 0x713521,
+    hair: 0x30251f,
+    eye: 0xf08a45,
+    eyeWhite: 0xfff2e5,
+    brow: 0x241a16,
+    mouth: 0x75463e,
+    trim: 0xe0a14c,
+    belt: 0x1b2022,
+    buckle: 0xe0ad58,
+    outline: 0x0b1013,
     hairStyle: 'knight',
     headGear: 'none',
     bodyStyle: 'default',
@@ -2267,6 +2704,17 @@ function attachKnightHelm(headBone, profile) {
   brow.name = 'knight_helm_brow';
   brow.position.set(0, .33, .40);
   root.add(brow);
+  const noseGuard = new THREE.Mesh(new RoundedBoxGeometry(.075, .38, .08, 2, .025), gold);
+  noseGuard.name = 'knight_helm_nose_guard';
+  noseGuard.position.set(0, .08, .465);
+  root.add(noseGuard);
+  for (const side of [-1, 1]) {
+    const cheek = new THREE.Mesh(new RoundedBoxGeometry(.15, .3, .09, 2, .025), steel);
+    cheek.name = side > 0 ? 'knight_helm_cheek_L' : 'knight_helm_cheek_R';
+    cheek.position.set(side * .25, -.08, .42);
+    cheek.rotation.z = side * -.08;
+    root.add(cheek);
+  }
 
   const neckGuard = new THREE.Mesh(new RoundedBoxGeometry(.52, .18, .22, 2, .05), steel);
   neckGuard.name = 'knight_helm_neck';
@@ -2296,34 +2744,46 @@ function attachKnightHelm(headBone, profile) {
 }
 
 /** Pauldrons, breastplate, greave bands — knight bulk on shared skeleton. */
-function attachKnightArmor(skeletonInfo, profile) {
+function attachKnightArmor(skeletonInfo, profile, lod = 0) {
   const steel = material('hero_cloth', profile.cloth, .36, .75);
   const dark = material('hero_leather', profile.leather, .55, .4);
   const gold = material('hero_trim', profile.trim, .38, .82);
+  const includeDetail = lod < 2;
   const chest = skeletonInfo.bones.get('chest');
   const pelvis = skeletonInfo.bones.get('pelvis');
 
-  const breast = new THREE.Mesh(new RoundedBoxGeometry(.72, .7, .28, 3, .06), steel);
+  const breast = new THREE.Mesh(new RoundedBoxGeometry(.82, .60, .27, 3, .06), steel);
   breast.name = 'knight_breastplate';
-  breast.position.set(0, .08, .16);
+  breast.position.set(0, .13, .16);
   breast.castShadow = true;
   chest.add(breast);
 
-  const ridge = new THREE.Mesh(new RoundedBoxGeometry(.12, .55, .08, 2, .02), gold);
+  const ridge = new THREE.Mesh(new RoundedBoxGeometry(.11, .47, .08, 2, .02), gold);
   ridge.position.set(0, .1, .32);
   chest.add(ridge);
+  const chestTabard = new THREE.Mesh(includeDetail
+    ? new RoundedBoxGeometry(.34, .46, .045, 2, .015)
+    : new THREE.BoxGeometry(.34, .46, .045), material('hero_cape', profile.cape, .88, 0));
+  chestTabard.name = 'knight_chest_tabard';
+  chestTabard.position.set(0, -.04, .325);
+  chest.add(chestTabard);
 
   for (const side of [-1, 1]) {
-    const pauldron = new THREE.Mesh(new THREE.SphereGeometry(.28, 14, 12, 0, Math.PI * 2, 0, Math.PI * .72), steel);
+    const pauldron = new THREE.Mesh(includeDetail
+      ? new RoundedBoxGeometry(.42, .19, .38, 3, .065)
+      : new THREE.BoxGeometry(.42, .19, .38), steel);
     pauldron.name = side > 0 ? 'knight_pauldron_L' : 'knight_pauldron_R';
-    pauldron.position.set(side * .52, .28, 0);
-    pauldron.scale.set(1.15, .85, 1.05);
+    pauldron.position.set(side * .57, .28, -.01);
+    pauldron.rotation.z = side * -.16;
     pauldron.castShadow = true;
     chest.add(pauldron);
-    const spike = new THREE.Mesh(new THREE.ConeGeometry(.08, .22, 6), dark);
-    spike.position.set(side * .62, .42, 0);
-    spike.rotation.z = side * -.7;
-    chest.add(spike);
+    if (includeDetail) {
+      const rim = new THREE.Mesh(new RoundedBoxGeometry(.38, .055, .4, 2, .018), gold);
+      rim.name = side > 0 ? 'knight_pauldron_rim_L' : 'knight_pauldron_rim_R';
+      rim.position.set(side * .57, .18, 0);
+      rim.rotation.z = side * -.16;
+      chest.add(rim);
+    }
   }
 
   const gorget = new THREE.Mesh(new THREE.TorusGeometry(.32, .07, 8, 20), steel);
@@ -2331,9 +2791,16 @@ function attachKnightArmor(skeletonInfo, profile) {
   gorget.position.set(0, .32, .04);
   chest.add(gorget);
 
-  const fauld = new THREE.Mesh(new THREE.CylinderGeometry(.38, .48, .28, 12, 1, true), dark);
+  const fauld = new THREE.Mesh(new THREE.CylinderGeometry(.31, .35, .28, 12, 1, true), dark);
   fauld.position.set(0, -.08, 0);
   pelvis.add(fauld);
+  const waistPlate = new THREE.Mesh(
+    includeDetail ? new RoundedBoxGeometry(.46, .22, .18, 2, .035) : new THREE.BoxGeometry(.46, .22, .18),
+    steel,
+  );
+  waistPlate.name = 'knight_narrow_waist_plate';
+  waistPlate.position.set(0, .13, .16);
+  pelvis.add(waistPlate);
 
   const tabard = new THREE.Mesh(new RoundedBoxGeometry(.42, .55, .06, 2, .02), material('hero_cape', profile.cape, .88, 0));
   tabard.position.set(0, -.05, .22);
@@ -2401,7 +2868,7 @@ function attachKnightArmor(skeletonInfo, profile) {
 }
 
 /** Cloth-class fit — bracers, wrist trim, boot cuffs, toe caps, diagonal chest strap. */
-function attachAdventurerGear(skeletonInfo, profile) {
+function attachAdventurerGear(skeletonInfo, profile, physique) {
   const leather = material('hero_leather', profile.leather, .62, .05);
   const trim = material('hero_trim', profile.trim, .42, .7);
   for (const side of ['left', 'right']) {
@@ -2437,7 +2904,7 @@ function attachAdventurerGear(skeletonInfo, profile) {
   strapGroup.name = 'hero_strap_group';
   strapGroup.position.set(0, -.02, .01);
   strapGroup.scale.set(1, 1, .58);
-  const strap = new THREE.Mesh(new THREE.TorusGeometry(.62, .05, 8, 36), leather);
+  const strap = new THREE.Mesh(new THREE.TorusGeometry(physique.strapRadius, .045, 8, 36), leather);
   strap.name = 'hero_leather_strap';
   strap.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(.86, .51, 0).normalize());
   strapGroup.add(strap);
@@ -2450,9 +2917,53 @@ function attachAdventurerGear(skeletonInfo, profile) {
 }
 
 /** Rogue kit — throwing knives on the strap, thigh sheath, shoulder pad, forearm wraps. */
-function attachRogueKit(skeletonInfo, profile) {
+function attachRogueKit(skeletonInfo, profile, lod = 0, headScale = HERO_HEAD_K) {
   const chest = skeletonInfo.bones.get('chest');
   const knifeMat = material('hero_trim_knife', profile.trim, .35, .8);
+  const head = skeletonInfo.bones.get('head');
+  const hoodRoot = new THREE.Group();
+  hoodRoot.name = 'rogue_authored_hood';
+  hoodRoot.scale.setScalar(headScale);
+  const hoodMat = material('hero_cloth', profile.cloth, .86, 0);
+  const hood = new THREE.Mesh(
+    new THREE.SphereGeometry(.62, 18, 14, 0, Math.PI * 2, 0, Math.PI * .72),
+    hoodMat,
+  );
+  hood.name = 'rogue_hood_shell';
+  hood.position.set(0, .12, -.02);
+  hood.scale.set(1.0, 1.12, 1.04);
+  hood.castShadow = true;
+  hoodRoot.add(hood);
+  const mask = new THREE.Mesh(new RoundedBoxGeometry(.64, .34, .14, 3, .035), material('hero_leather_mask', profile.leather, .72, .06));
+  mask.name = 'rogue_face_wrap';
+  mask.position.set(0, -.05, .56);
+  mask.rotation.x = -.08;
+  hoodRoot.add(mask);
+  const hoodTail = new THREE.Mesh(new THREE.ConeGeometry(.18, .5, 12), hoodMat);
+  hoodTail.name = 'rogue_hood_tail';
+  hoodTail.position.set(.08, -.18, -.4);
+  hoodTail.rotation.x = -.25;
+  head.add(hoodRoot);
+  hoodRoot.add(hoodTail);
+  const visorFrame = new THREE.Mesh(
+    lod < 2 ? new RoundedBoxGeometry(.68, .22, .12, 3, .035) : new THREE.BoxGeometry(.68, .22, .12),
+    material('hero_leather_visor', profile.leather, .68, .08),
+  );
+  visorFrame.name = 'rogue_hood_visor_frame';
+  visorFrame.position.set(0, .08, .58);
+  hoodRoot.add(visorFrame);
+  const eyeGlow = material('hero_eye_hood', profile.eye, .18, .05, profile.eye, 1.0);
+  for (const side of [-1, 1]) {
+    const eyeSlit = new THREE.Mesh(new RoundedBoxGeometry(.22, .075, .035, 2, .012), eyeGlow);
+    eyeSlit.name = side > 0 ? 'rogue_hood_eye_L' : 'rogue_hood_eye_R';
+    eyeSlit.position.set(side * .15, .08, .66);
+    eyeSlit.rotation.z = side * -.08;
+    hoodRoot.add(eyeSlit);
+  }
+  const visorLine = new THREE.Mesh(new RoundedBoxGeometry(.54, .06, .035, 2, .014), eyeGlow);
+  visorLine.name = 'rogue_hood_visor_line';
+  visorLine.position.set(0, .08, .68);
+  hoodRoot.add(visorLine);
   for (let i = 0; i < 3; i += 1) {
     const knife = new THREE.Mesh(new THREE.ConeGeometry(.036, .20, 6), knifeMat);
     knife.name = `rogue_knife_${i}`;
@@ -2492,36 +3003,55 @@ function attachRogueKit(skeletonInfo, profile) {
 }
 
 /** Ranger kit — back quiver with fletched arrows, cloak clasp, reinforced bow bracer. */
-function attachRangerKit(skeletonInfo, profile) {
+function attachRangerKit(skeletonInfo, profile, lod = 0, headScale = HERO_HEAD_K) {
   const chest = skeletonInfo.bones.get('chest');
   const leather = material('hero_leather', profile.leather, .62, .05);
   const trim = material('hero_trim', profile.trim, .42, .7);
+  const includeDetail = lod < 2;
+  const vest = new THREE.Mesh(
+    includeDetail ? new RoundedBoxGeometry(.46, .58, .10, 3, .03) : new THREE.BoxGeometry(.46, .58, .10),
+    leather,
+  );
+  vest.name = 'ranger_light_leather_vest';
+  vest.position.set(0, .02, .25);
+  vest.castShadow = true;
+  chest.add(vest);
+  if (includeDetail) {
+    for (const sign of [-1, 1]) {
+      const lacing = new THREE.Mesh(new THREE.BoxGeometry(.025, .42, .025), trim);
+      lacing.name = sign > 0 ? 'ranger_vest_lacing_L' : 'ranger_vest_lacing_R';
+      lacing.position.set(sign * .12, .02, .315);
+      lacing.rotation.z = sign * .14;
+      chest.add(lacing);
+    }
+  }
   const quiver = new THREE.Group();
   quiver.name = 'ranger_quiver';
-  quiver.position.set(-.30, .14, -.44);
+  quiver.position.set(-.32, .12, -.46);
   quiver.rotation.set(.24, 0, -.42);
-  const tube = new THREE.Mesh(new THREE.CylinderGeometry(.105, .09, .58, 12), leather);
+  const tube = new THREE.Mesh(new THREE.CylinderGeometry(.13, .105, .76, 12), leather);
   tube.name = 'ranger_quiver_tube';
   tube.castShadow = true;
   quiver.add(tube);
-  const rim = new THREE.Mesh(new THREE.TorusGeometry(.105, .018, 8, 18), trim);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(.13, .022, 8, 18), trim);
   rim.name = 'ranger_quiver_rim';
   rim.rotation.x = Math.PI / 2;
-  rim.position.y = .29;
+  rim.position.y = .38;
   quiver.add(rim);
   const shaftMat = material('hero_hair_arrow', profile.hair, .8, 0);
   const fletchMat = material('hero_eye_fletch', profile.eye, .8, 0);
-  for (let i = 0; i < 4; i += 1) {
-    const angle = i / 4 * Math.PI * 2 + .4;
-    const ox = Math.cos(angle) * .05;
-    const oz = Math.sin(angle) * .05;
-    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(.02, .02, .42, 6), shaftMat);
+  const arrowCount = includeDetail ? 5 : 2;
+  for (let i = 0; i < arrowCount; i += 1) {
+    const angle = i / arrowCount * Math.PI * 2 + .4;
+    const ox = Math.cos(angle) * .065;
+    const oz = Math.sin(angle) * .065;
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(.018, .018, .55, 6), shaftMat);
     shaft.name = `ranger_arrow_${i}`;
-    shaft.position.set(ox, .44, oz);
+    shaft.position.set(ox, .56, oz);
     quiver.add(shaft);
-    const fletch = new THREE.Mesh(new THREE.ConeGeometry(.05, .14, 5), fletchMat);
+    const fletch = new THREE.Mesh(new THREE.ConeGeometry(.06, .16, 5), fletchMat);
     fletch.name = `ranger_fletch_${i}`;
-    fletch.position.set(ox, .63, oz);
+    fletch.position.set(ox, .83, oz);
     quiver.add(fletch);
   }
   chest.add(quiver);
@@ -2530,6 +3060,38 @@ function attachRangerKit(skeletonInfo, profile) {
   clasp.position.set(0, .30, .28);
   clasp.rotation.z = Math.PI / 4;
   chest.add(clasp);
+  const shoulderCape = new THREE.Mesh(
+    includeDetail ? new RoundedBoxGeometry(.46, 1.0, .055, 3, .02) : new THREE.BoxGeometry(.46, 1.0, .055),
+    material('hero_cape', profile.cape, .9, 0),
+  );
+  shoulderCape.name = 'ranger_asymmetric_shoulder_cape';
+  shoulderCape.position.set(-.18, -.28, -.31);
+  shoulderCape.rotation.set(.08, -.05, -.13);
+  shoulderCape.castShadow = true;
+  chest.add(shoulderCape);
+  const head = skeletonInfo.bones.get('head');
+  const headbandRoot = new THREE.Group();
+  headbandRoot.name = 'ranger_headband';
+  headbandRoot.scale.setScalar(headScale);
+  const headband = new THREE.Mesh(new THREE.TorusGeometry(.47, .055, 8, 28), material('hero_cloth', profile.cloth, .82, 0));
+  headband.rotation.x = Math.PI / 2;
+  headband.position.y = .08;
+  headbandRoot.add(headband);
+  const cap = new THREE.Mesh(
+    new THREE.ConeGeometry(.64, 1.05, includeDetail ? 18 : 10),
+    material('hero_cloth', profile.cloth, .82, 0),
+  );
+  cap.name = 'ranger_pointed_field_hood';
+  cap.position.set(0, .55, -.08);
+  cap.rotation.x = -.22;
+  cap.castShadow = true;
+  headbandRoot.add(cap);
+  const feather = new THREE.Mesh(new THREE.ConeGeometry(.06, .42, includeDetail ? 7 : 4), trim);
+  feather.name = 'ranger_headband_feather';
+  feather.position.set(-.42, .36, -.05);
+  feather.rotation.z = -.42;
+  headbandRoot.add(feather);
+  head.add(headbandRoot);
   const lowerArm = skeletonInfo.bones.get('left_lower_arm');
   const bowBracer = new THREE.Mesh(new THREE.CylinderGeometry(.17, .19, .22, 12, 1, true), leather);
   bowBracer.name = 'ranger_bow_bracer';
@@ -2543,26 +3105,185 @@ function attachRangerKit(skeletonInfo, profile) {
   lowerArm.add(bracerStud);
 }
 
+/** Gunner kit — powered expeditionary armor with articulated limb plating and compact power pack. */
+function attachGunnerKit(skeletonInfo, profile, lod = 0, headScale = HERO_HEAD_K) {
+  const chest = skeletonInfo.bones.get('chest');
+  const spine = skeletonInfo.bones.get('spine');
+  const pelvis = skeletonInfo.bones.get('pelvis');
+  const armor = material('gunner_painted_metal', profile.cloth, .38, .68);
+  const brass = material('gunner_bare_metal', profile.trim, .3, .82);
+  const ember = material('gunner_emissive', profile.eye, .22, .18, profile.eye, .8);
+  const dark = material('gunner_composite', profile.leather, .68, .16);
+  const includeDetail = lod < 2;
+
+  const chestPlate = new THREE.Mesh(new RoundedBoxGeometry(.66, .50, .15, includeDetail ? 4 : 1, .05), armor);
+  chestPlate.name = 'gunner_powered_cuirass';
+  chestPlate.position.set(0, .13, .31);
+  chestPlate.rotation.x = -.08;
+  chestPlate.castShadow = true;
+  chest.add(chestPlate);
+
+  const collar = new THREE.Mesh(new THREE.TorusGeometry(.27, .065, includeDetail ? 10 : 6, includeDetail ? 30 : 16), dark);
+  collar.name = 'gunner_enclosed_collar';
+  collar.position.set(0, .39, .02);
+  collar.rotation.x = Math.PI / 2;
+  chest.add(collar);
+
+  for (let index = 0; index < (includeDetail ? 3 : 1); index++) {
+    const flex = new THREE.Mesh(new RoundedBoxGeometry(.4 - index * .035, .09, .08, includeDetail ? 2 : 1, .025), dark);
+    flex.name = `gunner_abdominal_flex_${index + 1}`;
+    flex.position.set(0, .06 - index * .11, .29);
+    flex.rotation.x = -.08 + index * .025;
+    spine.add(flex);
+  }
+
+  const backpack = new THREE.Mesh(new RoundedBoxGeometry(.48, .5, .18, includeDetail ? 4 : 1, .05), dark);
+  backpack.name = 'gunner_power_pack';
+  backpack.position.set(0, .1, -.34);
+  backpack.castShadow = true;
+  chest.add(backpack);
+  if (includeDetail) {
+    for (const sign of [-1, 1]) {
+      const powerCell = new THREE.Mesh(new THREE.CylinderGeometry(.075, .09, .4, 12), armor);
+      powerCell.name = `gunner_power_cell_${sign > 0 ? 'L' : 'R'}`;
+      powerCell.position.set(sign * .16, .08, -.47);
+      powerCell.rotation.x = .08;
+      chest.add(powerCell);
+    }
+  }
+
+  if (includeDetail) {
+    const statusLamp = new THREE.Mesh(new RoundedBoxGeometry(.13, .06, .04, 2, .015), ember);
+    statusLamp.name = 'gunner_status_lamp';
+    statusLamp.position.set(-.2, .2, .415);
+    chest.add(statusLamp);
+  }
+  for (const sign of [-1, 1]) {
+    const powderCharge = new THREE.Mesh(new THREE.CylinderGeometry(.055, .065, .24, includeDetail ? 10 : 6), dark);
+    powderCharge.name = sign > 0 ? 'gunner_powder_charge_L' : 'gunner_powder_charge_R';
+    powderCharge.position.set(sign * .26, -.20, .20);
+    powderCharge.rotation.z = sign * .12;
+    pelvis.add(powderCharge);
+    const powderCap = new THREE.Mesh(new THREE.CylinderGeometry(.067, .067, .035, includeDetail ? 10 : 6), brass);
+    powderCap.name = sign > 0 ? 'gunner_powder_cap_L' : 'gunner_powder_cap_R';
+    powderCap.position.set(sign * .28, -.08, .20);
+    powderCap.rotation.z = sign * .12;
+    pelvis.add(powderCap);
+  }
+  const head = skeletonInfo.bones.get('head');
+  const helmetRoot = new THREE.Group();
+  helmetRoot.name = 'gunner_field_helmet';
+  helmetRoot.scale.setScalar(headScale);
+  const helmetShell = new THREE.Mesh(
+    new THREE.SphereGeometry(.57, includeDetail ? 22 : 14, includeDetail ? 14 : 10, 0, Math.PI * 2, 0, Math.PI * .7),
+    armor,
+  );
+  helmetShell.name = 'gunner_helmet_shell';
+  helmetShell.position.set(0, .13, -.02);
+  helmetShell.scale.set(1.02, 1.04, 1.04);
+  helmetRoot.add(helmetShell);
+  const facePlate = new THREE.Mesh(
+    new RoundedBoxGeometry(.72, .44, .14, includeDetail ? 3 : 1, .045),
+    dark,
+  );
+  facePlate.name = 'gunner_full_face_plate';
+  facePlate.position.set(0, -.05, .52);
+  helmetRoot.add(facePlate);
+  const visorFrame = new THREE.Mesh(new RoundedBoxGeometry(.82, .28, .16, includeDetail ? 3 : 1, .045), dark);
+  visorFrame.name = 'gunner_visor_frame';
+  visorFrame.position.set(0, .06, .56);
+  helmetRoot.add(visorFrame);
+  const visor = new THREE.Mesh(new RoundedBoxGeometry(.6, .11, .035, includeDetail ? 3 : 1, .025), ember);
+  visor.name = 'gunner_ember_visor';
+  visor.position.set(0, .08, .665);
+  helmetRoot.add(visor);
+  const jaw = new THREE.Mesh(new RoundedBoxGeometry(.58, .28, .18, includeDetail ? 3 : 1, .045), armor);
+  jaw.name = 'gunner_helmet_jaw';
+  jaw.position.set(0, -.18, .52);
+  helmetRoot.add(jaw);
+  head.add(helmetRoot);
+
+  for (const sign of [-1, 1]) {
+    const side = sign > 0 ? 'L' : 'R';
+    const pad = new THREE.Mesh(new RoundedBoxGeometry(.30, .17, .28, includeDetail ? 3 : 1, .05), armor);
+    pad.name = `gunner_pauldron_${side}`;
+    pad.position.set(sign * .46, .25, .02);
+    pad.rotation.z = sign * -.18;
+    pad.castShadow = true;
+    chest.add(pad);
+
+    if (includeDetail) {
+      const stripe = new THREE.Mesh(new THREE.BoxGeometry(.035, .18, .31), brass);
+      stripe.name = `gunner_pauldron_stripe_${side}`;
+      stripe.position.set(sign * .46, .26, .025);
+      stripe.rotation.z = sign * -.18;
+      chest.add(stripe);
+    }
+
+    const lowerArm = skeletonInfo.bones.get(sign > 0 ? 'left_lower_arm' : 'right_lower_arm');
+    const bracer = new THREE.Mesh(new THREE.CylinderGeometry(.145, .16, .3, includeDetail ? 12 : 8, 1, true), armor);
+    bracer.name = `gunner_forearm_plate_${side}`;
+    bracer.position.set(sign * .02, -.24, .015);
+    bracer.rotation.z = sign * -.16;
+    lowerArm.add(bracer);
+
+    const upperLeg = skeletonInfo.bones.get(sign > 0 ? 'left_upper_leg' : 'right_upper_leg');
+    const thighPlate = new THREE.Mesh(new RoundedBoxGeometry(.22, .31, .12, includeDetail ? 3 : 1, .035), armor);
+    thighPlate.name = `gunner_thigh_plate_${side}`;
+    thighPlate.position.set(0, -.28, .17);
+    upperLeg.add(thighPlate);
+
+    const lowerLeg = skeletonInfo.bones.get(sign > 0 ? 'left_lower_leg' : 'right_lower_leg');
+    const shinPlate = new THREE.Mesh(new RoundedBoxGeometry(.2, .34, .11, includeDetail ? 3 : 1, .03), armor);
+    shinPlate.name = `gunner_shin_plate_${side}`;
+    shinPlate.position.set(0, -.24, .16);
+    lowerLeg.add(shinPlate);
+
+    if (includeDetail) {
+      const utility = new THREE.Mesh(new RoundedBoxGeometry(.14, .22, .1, 2, .025), dark);
+      utility.name = `gunner_utility_module_${side}`;
+      utility.position.set(sign * .35, -.18, -.12);
+      utility.rotation.z = sign * .08;
+      pelvis.add(utility);
+    }
+  }
+}
+
 /** Wizard kit — shoulder mantle, belt tome, vial, off-hand rune ring. */
-function attachWizardKit(skeletonInfo, profile) {
+function attachWizardKit(skeletonInfo, profile, lod = 0) {
   const chest = skeletonInfo.bones.get('chest');
   const pelvis = skeletonInfo.bones.get('pelvis');
   const clothMat = material('hero_cloth', profile.cloth, .86, 0);
   const trim = material('hero_trim', profile.trim, .42, .7);
+  const includeDetail = lod < 2;
+  const arcane = material('hero_arcane_ornament', profile.eye, .24, .2, profile.eye, .65);
   for (const sign of [-1, 1]) {
-    const mantle = new THREE.Mesh(new THREE.SphereGeometry(.26, 14, 10, 0, Math.PI * 2, 0, Math.PI * .6), clothMat);
+    const mantle = new THREE.Mesh(
+      includeDetail ? new RoundedBoxGeometry(.34, .15, .32, 3, .05) : new THREE.BoxGeometry(.34, .15, .32),
+      clothMat,
+    );
     mantle.name = sign > 0 ? 'wizard_mantle_L' : 'wizard_mantle_R';
-    mantle.position.set(sign * .48, .28, 0);
-    mantle.scale.set(1.12, .74, 1.05);
+    mantle.position.set(sign * .44, .29, 0);
+    mantle.rotation.z = sign * -.14;
     mantle.castShadow = true;
     chest.add(mantle);
-    const mantleTrim = new THREE.Mesh(new THREE.TorusGeometry(.25, .02, 8, 20), trim);
-    mantleTrim.name = sign > 0 ? 'wizard_mantle_trim_L' : 'wizard_mantle_trim_R';
-    mantleTrim.rotation.x = Math.PI / 2;
-    mantleTrim.position.set(sign * .48, .22, 0);
-    mantleTrim.scale.set(1.12, 1.05, 1);
-    chest.add(mantleTrim);
+    if (includeDetail) {
+      const mantleTrim = new THREE.Mesh(new RoundedBoxGeometry(.32, .045, .34, 2, .015), trim);
+      mantleTrim.name = sign > 0 ? 'wizard_mantle_trim_L' : 'wizard_mantle_trim_R';
+      mantleTrim.position.set(sign * .44, .20, 0);
+      mantleTrim.rotation.z = sign * -.14;
+      chest.add(mantleTrim);
+    }
+    const crystal = new THREE.Mesh(new THREE.OctahedronGeometry(.07, 0), arcane);
+    crystal.name = sign > 0 ? 'wizard_arcane_crystal_L' : 'wizard_arcane_crystal_R';
+    crystal.position.set(sign * .43, .40, .12);
+    crystal.rotation.z = sign * .24;
+    chest.add(crystal);
   }
+  const brooch = new THREE.Mesh(new THREE.OctahedronGeometry(.09, 0), arcane);
+  brooch.name = 'wizard_arcane_brooch';
+  brooch.position.set(0, .20, .36);
+  chest.add(brooch);
   const tome = new THREE.Mesh(new RoundedBoxGeometry(.20, .26, .08, 2, .02), material('hero_leather_tome', profile.leather, .6, .05));
   tome.name = 'wizard_tome';
   tome.position.set(.34, -.16, .10);
@@ -2587,20 +3308,46 @@ function attachWizardKit(skeletonInfo, profile) {
   runeRing.rotation.x = Math.PI / 2;
   runeRing.position.set(-.02, -.36, .03);
   skeletonInfo.bones.get('left_lower_arm').add(runeRing);
+  const robeFront = new THREE.Mesh(
+    includeDetail ? new RoundedBoxGeometry(.40, 1.05, .055, 3, .02) : new THREE.BoxGeometry(.40, 1.05, .055),
+    material('hero_cloth', profile.cloth, .9, 0),
+  );
+  robeFront.name = 'wizard_split_robe_front';
+  robeFront.position.set(0, -.60, .24);
+  robeFront.rotation.x = -.08;
+  robeFront.castShadow = true;
+  pelvis.add(robeFront);
+  if (includeDetail) {
+    const robeBack = robeFront.clone();
+    robeBack.name = 'wizard_split_robe_back';
+    robeBack.position.z = -.24;
+    robeBack.rotation.x = .08;
+    pelvis.add(robeBack);
+  }
 }
 
-function createHero(resolution = 52, profileId = 'aerin') {
+function createHero(resolution = 52, profileId = 'aerin', options = {}) {
   const profile = HERO_BAKE_PROFILES[profileId] ?? HERO_BAKE_PROFILES.aerin;
+  const physique = HERO_PHYSIQUE_PROFILES[profileId] ?? HERO_PHYSIQUE_PROFILES.aerin;
+  const lod = options.lod ?? 0;
   const group = new THREE.Group();
   group.name = profile.name;
   group.userData.assetType = 'hero';
   group.userData.heroClass = profileId;
   group.userData.modelHeight = 3.28;
+  // Schema v2 metadata (docs/plan/character-graphics-animation-overhaul.md §7.6).
+  group.userData.schemaVersion = HERO_SCHEMA_VERSION;
+  group.userData.classId = profileId;
+  group.userData.rigId = HERO_RIG_ID;
+  group.userData.lod = lod;
+  group.userData.physiqueProfile = profileId;
+  group.userData.physiqueVersion = 1;
+  group.userData.rigAliases = RIG_V2_ALIASES;
   const skeletonInfo = heroSkeleton();
   group.add(skeletonInfo.rootBone);
   group.updateMatrixWorld(true);
 
-  const body = heroBodyGeometry(resolution);
+  const body = heroBodyGeometry(resolution, profileId);
   const { rules, selector } = heroSkinRules(skeletonInfo);
   applySkinWeights(body, skeletonInfo, rules, selector);
   const isKnight = profile.bodyStyle === 'knight';
@@ -2625,65 +3372,83 @@ function createHero(resolution = 52, profileId = 'aerin') {
     material('hero_cloth', profile.cloth, isKnight ? .38 : .84, isKnight ? .72 : 0),
     material('hero_leather', profile.leather, isKnight ? .48 : .62, isKnight ? .35 : 0),
   ];
+  // Deterministic surface breakup (docs/plan §7.5/§11.2) — vertex colors are an approved,
+  // StylizedMaterial-preserved channel; enabling per-material keeps every consuming geometry
+  // (all three body subsets) matched with a real 'color' attribute.
+  for (const mat of mats) mat.vertexColors = true;
   for (let i = 0; i < 3; i += 1) {
     const geometry = subsetGeometry(body, classify, i);
     if (geometry.getAttribute('position').count === 0) continue;
-    group.add(makeSkinnedMesh(weld(geometry), mats[i], skeletonInfo.skeleton, `hero_body_${i}`));
+    const welded = addSurfaceBreakupVertexColors(weld(geometry));
+    group.add(makeSkinnedMesh(welded, mats[i], skeletonInfo.skeleton, `hero_body_${i}`));
   }
-  const outlineMat = new THREE.MeshBasicMaterial({ name: 'outline_proxy', color: profile.outline, transparent: true, opacity: .001, depthWrite: false, side: THREE.BackSide });
-  const outline = makeSkinnedMesh(weld(body.clone()), outlineMat, skeletonInfo.skeleton, 'hero_outline_proxy');
-  outline.userData.outlineProxy = true;
-  group.add(outline);
+  // Outline is a runtime post-process concern; the shipping hero root no longer carries
+  // a duplicate skinned outline_proxy body (plan §12.3 rule 9 / X6.5).
 
   const cape = makeSkinnedMesh(createCapeGeometry(skeletonInfo), material('hero_cape', profile.cape, .9, 0), skeletonInfo.skeleton, 'hero_cape');
   group.add(cape);
 
   const headBone = skeletonInfo.bones.get('head');
+  // Adult heroic proportion pass (docs/plan/character-graphics-animation-overhaul.md §6.1) — the
+  // face/eye/brow/mouth/headgear cluster shrinks together around the head bone's own origin via
+  // one scaled group, instead of touching every attached feature's literal coordinates.
+  const faceRoot = new THREE.Group();
+  faceRoot.name = 'hero_face_root';
+  faceRoot.scale.setScalar(physique.headScale);
+  headBone.add(faceRoot);
   const eyeMat = material('hero_eye', profile.eye, .35, 0, profile.eye, profileId === 'wizard' ? .25 : 0);
   const eyeWhite = material('hero_eye_white', profile.eyeWhite, .45, 0);
   const eyeGeo = new THREE.CircleGeometry(isKnight ? .09 : .105, 24);
-  addSurfaceDetail(group, headBone, 'eye_white_L', eyeGeo, eyeWhite, [.185, .10, .425], [0, 0, 0], [1.12, 1.35, 1]);
-  addSurfaceDetail(group, headBone, 'eye_white_R', eyeGeo, eyeWhite, [-.185, .10, .425], [0, 0, 0], [1.12, 1.35, 1]);
-  addSurfaceDetail(group, headBone, 'eye_L', eyeGeo, eyeMat, [.185, .10, .437], [0, 0, 0], [.5, .72, 1]);
-  addSurfaceDetail(group, headBone, 'eye_R', eyeGeo, eyeMat, [-.185, .10, .437], [0, 0, 0], [.5, .72, 1]);
+  addSurfaceDetail(group, faceRoot, 'eye_white_L', eyeGeo, eyeWhite, [.185, .10, .425], [0, 0, 0], [1.12, 1.35, 1]);
+  addSurfaceDetail(group, faceRoot, 'eye_white_R', eyeGeo, eyeWhite, [-.185, .10, .425], [0, 0, 0], [1.12, 1.35, 1]);
+  addSurfaceDetail(group, faceRoot, 'eye_L', eyeGeo, eyeMat, [.185, .10, .437], [0, 0, 0], [.5, .72, 1]);
+  addSurfaceDetail(group, faceRoot, 'eye_R', eyeGeo, eyeMat, [-.185, .10, .437], [0, 0, 0], [.5, .72, 1]);
   // Catch-light glints sell the eyes at close-camera range.
   const glintMat = material('hero_eye_white_glint', 0xffffff, .2, 0);
   const glintGeo = new THREE.CircleGeometry(.026, 10);
-  addSurfaceDetail(group, headBone, 'eye_glint_L', glintGeo, glintMat, [.212, .135, .448]);
-  addSurfaceDetail(group, headBone, 'eye_glint_R', glintGeo, glintMat, [-.158, .135, .448]);
+  addSurfaceDetail(group, faceRoot, 'eye_glint_L', glintGeo, glintMat, [.212, .135, .448]);
+  addSurfaceDetail(group, faceRoot, 'eye_glint_R', glintGeo, glintMat, [-.158, .135, .448]);
   const browGeo = new THREE.BoxGeometry(isKnight ? .16 : .18, isKnight ? .035 : .025, .018);
-  const browL = addSurfaceDetail(group, headBone, 'brow_L', browGeo, material('hero_brow', profile.brow, .9, 0), [.185, .245, .44], [0, 0, isKnight ? -.2 : -.12]);
-  const browR = addSurfaceDetail(group, headBone, 'brow_R', browGeo, browL.material, [-.185, .245, .44], [0, 0, isKnight ? .2 : .12]);
+  const browL = addSurfaceDetail(group, faceRoot, 'brow_L', browGeo, material('hero_brow', profile.brow, .9, 0), [.185, .245, .44], [0, 0, isKnight ? -.2 : -.12]);
+  const browR = addSurfaceDetail(group, faceRoot, 'brow_R', browGeo, browL.material, [-.185, .245, .44], [0, 0, isKnight ? .2 : .12]);
   void browR;
   const mouthCurve = new THREE.QuadraticBezierCurve3(V3(-.11, -.06, .447), V3(0, isKnight ? -.08 : -.11, .457), V3(.11, -.06, .447));
-  addSurfaceDetail(group, headBone, 'mouth', new THREE.TubeGeometry(mouthCurve, 12, .012, 5, false), material('hero_mouth', profile.mouth, .72, 0), [0, 0, 0]);
+  addSurfaceDetail(group, faceRoot, 'mouth', new THREE.TubeGeometry(mouthCurve, 12, .012, 5, false), material('hero_mouth', profile.mouth, .72, 0), [0, 0, 0]);
 
   const hairParts = heroHairParts(profile.hairStyle);
-  const hairGeometry = weld(implicitGeometry(p => unionSdf(hairParts, p, .08), { min: V3(-.65, -.72, -.62), max: V3(.65, .68, .48) }, Math.max(34, resolution - 10), 90000));
+  const hairResolution = lod === 2 ? 16 : lod === 1 ? 30 : Math.max(34, resolution - 10);
+  const hairGeometry = weld(implicitGeometry(
+    p => unionSdf(hairParts, p, .08),
+    { min: V3(-.65, -.72, -.62), max: V3(.65, .68, .48) },
+    hairResolution,
+    90000,
+  ));
   const hair = new THREE.Mesh(hairGeometry, material('hero_hair', profile.hair, .55, 0));
   hair.name = 'hero_hair_silhouette';
   hair.castShadow = true;
   hair.receiveShadow = true;
+  hair.scale.setScalar(physique.headScale);
   skeletonInfo.bones.get('hair_root').add(hair);
 
-  if (profile.headGear === 'hat') attachWizardHat(headBone, profile);
-  if (profile.headGear === 'helm') attachKnightHelm(headBone, profile);
+  if (profile.headGear === 'hat') attachWizardHat(faceRoot, profile);
+  if (profile.headGear === 'helm') attachKnightHelm(faceRoot, profile);
 
   if (isKnight) {
-    attachKnightArmor(skeletonInfo, profile);
+    attachKnightArmor(skeletonInfo, profile, lod);
   } else {
-    attachAdventurerGear(skeletonInfo, profile);
-    if (profileId === 'rogue') attachRogueKit(skeletonInfo, profile);
-    if (profileId === 'ranger') attachRangerKit(skeletonInfo, profile);
-    if (profileId === 'wizard') attachWizardKit(skeletonInfo, profile);
-    const collar = new THREE.Mesh(new THREE.TorusGeometry(.39, .055, 8, 36), material('hero_trim', profile.trim, .42, .72));
+    attachAdventurerGear(skeletonInfo, profile, physique);
+    if (profileId === 'rogue') attachRogueKit(skeletonInfo, profile, lod, physique.headScale);
+    if (profileId === 'ranger') attachRangerKit(skeletonInfo, profile, lod, physique.headScale);
+    if (profileId === 'gunner') attachGunnerKit(skeletonInfo, profile, lod, physique.headScale);
+    if (profileId === 'wizard') attachWizardKit(skeletonInfo, profile, lod);
+    const collar = new THREE.Mesh(new THREE.TorusGeometry(physique.collarRadius, .05, 8, 36), material('hero_trim', profile.trim, .42, .72));
     collar.name = 'hero_collar';
     collar.rotation.x = Math.PI / 2;
     collar.scale.z = .72;
     collar.position.set(0, .27, .015);
     skeletonInfo.bones.get('chest').add(collar);
   }
-  const belt = new THREE.Mesh(new THREE.TorusGeometry(.375, .055, 8, 40), material('hero_belt', profile.belt, .7, .05));
+  const belt = new THREE.Mesh(new THREE.TorusGeometry(physique.beltRadius, .05, 8, 40), material('hero_belt', profile.belt, .7, .05));
   belt.name = 'hero_belt';
   belt.rotation.x = Math.PI / 2;
   belt.scale.z = .64;
@@ -2706,8 +3471,41 @@ function createHero(resolution = 52, profileId = 'aerin') {
 
   const socket = skeletonInfo.bones.get('weapon_socket');
   socket.userData.socket = 'weapon';
+  for (const marker of ['weapon_socket_r', 'weapon_socket_l', 'hand_ik_r', 'hand_ik_l', 'foot_contact_r', 'foot_contact_l', 'head_look_target']) {
+    const bone = skeletonInfo.bones.get(marker);
+    if (bone) bone.userData.socket = marker;
+  }
   const animations = heroAnimations(skeletonInfo, profileId);
   group.userData.animationMap = Object.fromEntries(animations.map(clip => [clip.name, clip.name]));
+
+  // Provenance/stats hash (docs/plan/character-graphics-animation-overhaul.md §12.5) — deterministic,
+  // no wall-clock input, so identical inputs always reproduce the identical hash.
+  const boneNames = [...skeletonInfo.bones.keys()].sort();
+  const clipNames = animations.map(clip => clip.name).sort();
+  let triangles = 0;
+  let vertices = 0;
+  group.traverse(node => {
+    if (!node.isMesh || !node.geometry) return;
+    const position = node.geometry.getAttribute('position');
+    if (!position) return;
+    vertices += position.count;
+    triangles += (node.geometry.index ? node.geometry.index.count : position.count) / 3;
+  });
+  const provenance = {
+    generator: 'tools/assets/generate_assets.mjs',
+    mode: 'authored-recipe',
+    sourceHash: GENERATOR_SOURCE_HASH,
+    recipeVersion: HERO_RECIPE_VERSION,
+    headScale: physique.headScale,
+    rigId: HERO_RIG_ID,
+    schemaVersion: HERO_SCHEMA_VERSION,
+    classId: profileId,
+    lod,
+    resolution,
+  };
+  group.userData.provenance = provenance;
+  group.userData.provenanceHash = contentHash({ ...provenance, boneNames, clipNames });
+  group.userData.stats = { triangles: Math.round(triangles), vertices, bones: boneNames.length, clips: clipNames.length };
   return { group, animations };
 }
 
@@ -2745,6 +3543,7 @@ function bladeShape(kind, length, width) {
 function createWeapon(kind) {
   if (kind === 'staff') return createStaff();
   if (kind === 'bow') return createBow();
+  if (kind === 'rifle') return createRifle();
   const specs = {
     sword: { length: 1.55, width: .18 },
     saber: { length: 1.62, width: .18 },
@@ -2752,17 +3551,26 @@ function createWeapon(kind) {
     leaf: { length: 1.58, width: .24 },
     katana: { length: 1.72, width: .14 },
     relic: { length: 1.76, width: .25 },
-    // 85% of prior .98 length; narrower width for a sharper dual-dagger silhouette.
-    dagger: { length: .833, width: .1 },
+    // Long, narrow stiletto blade with compact furniture for a clean twin-dagger silhouette.
+    dagger: { length: .92, width: .085 },
   }[kind];
   const group = new THREE.Group();
   group.name = `weapon_${kind}`;
   group.userData.weaponKind = kind;
+  group.userData.assetType = 'weapon';
+  group.userData.schemaVersion = HERO_SCHEMA_VERSION;
   const bladeMat = material('weapon_metal', kind === 'relic' ? 0xb9cae6 : 0xcbd8dc, .28, .78);
   const gripMat = material('weapon_grip', 0x3c2c28, .8, .05);
   const trimMat = material('weapon_trim', 0xc99d4d, .35, .82);
   const runeMat = material('weapon_rune', 0x6fc8ff, .24, .2, 0x4faeff, .75);
   const isDagger = kind === 'dagger';
+  const guardHalfSpan = isDagger ? .22 : .42;
+  const guardInnerSpan = isDagger ? .10 : .18;
+  const guardRadius = isDagger ? .03 : .055;
+  const handleEndY = isDagger ? -.34 : -.42;
+  const handleRadius = isDagger ? .055 : .075;
+  const pommelSize = isDagger ? .11 : .16;
+  const pommelY = isDagger ? -.40 : -.48;
   const bladeGeo = new THREE.ExtrudeGeometry(bladeShape(kind, specs.length, specs.width), {
     depth: kind === 'greatsword' ? .12 : isDagger ? .048 : .075,
     bevelEnabled: true,
@@ -2779,19 +3587,25 @@ function createWeapon(kind) {
   blade.castShadow = true;
   blade.receiveShadow = true;
   group.add(blade);
-  const guardCurve = new THREE.CatmullRomCurve3([V3(-.42, .16, 0), V3(-.18, .22, .02), V3(0, .19, 0), V3(.18, .22, -.02), V3(.42, .16, 0)]);
-  const guard = new THREE.Mesh(new THREE.TubeGeometry(guardCurve, 24, .055, 8, false), trimMat);
+  const guardCurve = new THREE.CatmullRomCurve3([
+    V3(-guardHalfSpan, .17, 0),
+    V3(-guardInnerSpan, .21, .02),
+    V3(0, .19, 0),
+    V3(guardInnerSpan, .21, -.02),
+    V3(guardHalfSpan, .17, 0),
+  ]);
+  const guard = new THREE.Mesh(new THREE.TubeGeometry(guardCurve, 24, guardRadius, 8, false), trimMat);
   guard.name = 'weapon_guard';
   guard.castShadow = true;
   group.add(guard);
-  const handleCurve = new THREE.LineCurve3(V3(0, .12, 0), V3(0, -.42, 0));
-  const handle = new THREE.Mesh(new THREE.TubeGeometry(handleCurve, 10, .075, 10, false), gripMat);
+  const handleCurve = new THREE.LineCurve3(V3(0, .12, 0), V3(0, handleEndY, 0));
+  const handle = new THREE.Mesh(new THREE.TubeGeometry(handleCurve, 10, handleRadius, 10, false), gripMat);
   handle.name = 'weapon_grip';
   handle.castShadow = true;
   group.add(handle);
-  const pommel = new THREE.Mesh(new RoundedBoxGeometry(.16, .16, .12, 3, .045), trimMat);
+  const pommel = new THREE.Mesh(new RoundedBoxGeometry(pommelSize, pommelSize, isDagger ? .09 : .12, 3, isDagger ? .03 : .045), trimMat);
   pommel.name = 'weapon_pommel';
-  pommel.position.set(0, -.48, 0);
+  pommel.position.set(0, pommelY, 0);
   pommel.rotation.z = Math.PI / 4;
   group.add(pommel);
   const runeShape = new THREE.Shape();
@@ -2801,7 +3615,7 @@ function createWeapon(kind) {
   rune.position.z = .07;
   group.add(rune);
   // Detail pass — fuller groove, leather grip wraps, guard caps, pommel gem.
-  const fullerDepth = kind === 'greatsword' ? .092 : .066;
+  const fullerDepth = kind === 'greatsword' ? .092 : isDagger ? .045 : .066;
   for (const side of [-1, 1]) {
     const fuller = new THREE.Mesh(new THREE.BoxGeometry(.022, specs.length * .52, .012), gripMat);
     fuller.name = `weapon_fuller_${side}`;
@@ -2809,21 +3623,21 @@ function createWeapon(kind) {
     group.add(fuller);
   }
   for (let i = 0; i < 3; i += 1) {
-    const wrapRing = new THREE.Mesh(new THREE.TorusGeometry(.078, .013, 6, 14), trimMat);
+    const wrapRing = new THREE.Mesh(new THREE.TorusGeometry(isDagger ? .058 : .078, .013, 6, 14), trimMat);
     wrapRing.name = `weapon_trim_wrap_${i}`;
     wrapRing.rotation.x = Math.PI / 2;
     wrapRing.position.set(0, .02 - i * .13, 0);
     group.add(wrapRing);
   }
   for (const side of [-1, 1]) {
-    const guardCap = new THREE.Mesh(new THREE.SphereGeometry(.062, 10, 8), trimMat);
+    const guardCap = new THREE.Mesh(new THREE.SphereGeometry(isDagger ? .04 : .062, 10, 8), trimMat);
     guardCap.name = `weapon_guard_cap_${side}`;
-    guardCap.position.set(side * .42, .16, 0);
+    guardCap.position.set(side * guardHalfSpan, .17, 0);
     group.add(guardCap);
   }
   const pommelGem = new THREE.Mesh(new THREE.OctahedronGeometry(.055, 0), runeMat);
   pommelGem.name = 'weapon_rune_pommel';
-  pommelGem.position.set(0, -.48, .085);
+  pommelGem.position.set(0, pommelY, isDagger ? .06 : .085);
   group.add(pommelGem);
   const gripAnchor = new THREE.Object3D();
   gripAnchor.name = 'grip_anchor';
@@ -2834,8 +3648,94 @@ function createWeapon(kind) {
   const tip = new THREE.Object3D();
   tip.name = 'blade_tip';
   tip.position.set(0, specs.length + .23, 0);
-  group.add(gripAnchor, base, tip);
+  const gripMain = v2WeaponAnchor('grip_main', gripAnchor.position);
+  const trailBase = v2WeaponAnchor('trail_base', base.position);
+  const trailTip = v2WeaponAnchor('trail_tip', tip.position);
+  group.add(gripAnchor, base, tip, gripMain, trailBase, trailTip);
   group.rotation.set(0, 0, -.08);
+  return group;
+}
+
+function createRifle() {
+  const group = new THREE.Group();
+  group.name = 'weapon_rifle';
+  group.userData.weaponKind = 'rifle';
+  group.userData.assetType = 'weapon';
+  group.userData.schemaVersion = HERO_SCHEMA_VERSION;
+  const armor = material('rifle_receiver', 0x46535b, .38, .66);
+  const dark = material('rifle_grip', 0x20272b, .72, .12);
+  const brass = material('rifle_brass', 0xc5964c, .32, .8);
+  const ember = material('rifle_ember', 0xe87838, .24, .18, 0xe87838, .55);
+
+  const receiver = new THREE.Mesh(new RoundedBoxGeometry(.28, .68, .23, 4, .045), armor);
+  receiver.name = 'blade_mesh';
+  receiver.position.set(0, .68, 0);
+  receiver.castShadow = true;
+  group.add(receiver);
+  const upperRail = new THREE.Mesh(new RoundedBoxGeometry(.13, .52, .07, 2, .018), brass);
+  upperRail.name = 'rifle_upper_rail';
+  upperRail.position.set(0, .73, -.14);
+  group.add(upperRail);
+  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(.052, .062, .72, 12), dark);
+  barrel.name = 'rifle_barrel';
+  barrel.position.set(0, 1.36, 0);
+  barrel.castShadow = true;
+  group.add(barrel);
+  const shroud = new THREE.Mesh(new THREE.CylinderGeometry(.09, .1, .34, 12), armor);
+  shroud.name = 'rifle_barrel_shroud';
+  shroud.position.set(0, 1.08, 0);
+  shroud.castShadow = true;
+  group.add(shroud);
+  const muzzle = new THREE.Mesh(new THREE.CylinderGeometry(.075, .058, .13, 12), brass);
+  muzzle.name = 'rifle_muzzle_brake';
+  muzzle.position.set(0, 1.765, 0);
+  group.add(muzzle);
+
+  const stock = new THREE.Mesh(new RoundedBoxGeometry(.25, .48, .2, 4, .05), dark);
+  stock.name = 'rifle_stock';
+  stock.position.set(0, .12, 0);
+  stock.rotation.z = -.08;
+  stock.castShadow = true;
+  group.add(stock);
+  const grip = new THREE.Mesh(new RoundedBoxGeometry(.14, .3, .15, 3, .035), dark);
+  grip.name = 'weapon_grip';
+  grip.position.set(.09, .43, .08);
+  grip.rotation.z = -.3;
+  group.add(grip);
+  const magazine = new THREE.Mesh(new RoundedBoxGeometry(.17, .3, .16, 3, .035), brass);
+  magazine.name = 'rifle_magazine';
+  magazine.position.set(-.08, .48, .08);
+  magazine.rotation.z = .14;
+  group.add(magazine);
+  const igniter = new THREE.Mesh(new THREE.CylinderGeometry(.055, .065, .42, 10), dark);
+  igniter.name = 'rifle_underslung_igniter';
+  igniter.position.set(.11, .88, .12);
+  igniter.rotation.z = -.08;
+  group.add(igniter);
+  const pilot = new THREE.Mesh(new THREE.SphereGeometry(.045, 10, 8), ember);
+  pilot.name = 'weapon_rune';
+  pilot.position.set(.13, 1.02, .14);
+  group.add(pilot);
+
+  const gripAnchor = new THREE.Object3D();
+  gripAnchor.name = 'grip_anchor';
+  gripAnchor.position.set(0, .46, 0);
+  const muzzleSocket = new THREE.Object3D();
+  muzzleSocket.name = 'muzzle_socket';
+  muzzleSocket.position.set(0, 1.84, 0);
+  const stockAnchor = new THREE.Object3D();
+  stockAnchor.name = 'stock_anchor';
+  stockAnchor.position.set(0, -.08, 0);
+  const base = new THREE.Object3D();
+  base.name = 'blade_base';
+  base.position.set(0, .32, 0);
+  const tip = new THREE.Object3D();
+  tip.name = 'blade_tip';
+  tip.position.copy(muzzleSocket.position);
+  const gripMain = v2WeaponAnchor('grip_main', gripAnchor.position);
+  const gripSupport = v2WeaponAnchor('grip_support', V3(0, 1.08, .18));
+  const projectileSocket = v2WeaponAnchor('projectile_socket', muzzleSocket.position);
+  group.add(gripAnchor, muzzleSocket, stockAnchor, base, tip, gripMain, gripSupport, projectileSocket);
   return group;
 }
 
@@ -2843,6 +3743,8 @@ function createBow() {
   const group = new THREE.Group();
   group.name = 'weapon_bow';
   group.userData.weaponKind = 'bow';
+  group.userData.assetType = 'weapon';
+  group.userData.schemaVersion = HERO_SCHEMA_VERSION;
   const wood = material('weapon_grip', 0x6a4a28, .82, .06);
   const dark = material('weapon_metal', 0x3a2a18, .55, .25);
   const stringMat = material('weapon_trim', 0xe8dcc0, .4, .15);
@@ -2905,7 +3807,10 @@ function createBow() {
   const tip = new THREE.Object3D();
   tip.name = 'blade_tip';
   tip.position.set(0, 1.55, 0);
-  group.add(gripAnchor, base, tip);
+  const gripMain = v2WeaponAnchor('grip_main', gripAnchor.position);
+  const stringAnchor = v2WeaponAnchor('string_anchor', V3(0.22, 0.85, 0));
+  const projectileSocket = v2WeaponAnchor('projectile_socket', V3(0.22, 0.85, 0));
+  group.add(gripAnchor, base, tip, gripMain, stringAnchor, projectileSocket);
   group.rotation.set(0, 0, -0.12);
   return group;
 }
@@ -2914,6 +3819,8 @@ function createStaff() {
   const group = new THREE.Group();
   group.name = 'weapon_staff';
   group.userData.weaponKind = 'staff';
+  group.userData.assetType = 'weapon';
+  group.userData.schemaVersion = HERO_SCHEMA_VERSION;
   const wood = material('weapon_grip', 0x6a4a32, .85, .05);
   const metal = material('weapon_metal', 0xb8c8e0, .32, .7);
   const crystal = material('weapon_rune', 0xb06dff, .22, .15, 0x8a4dff, .9);
@@ -2975,7 +3882,11 @@ function createStaff() {
   const tip = new THREE.Object3D();
   tip.name = 'blade_tip';
   tip.position.set(0, 2.15, 0);
-  group.add(gripAnchor, base, tip);
+  const gripMain = v2WeaponAnchor('grip_main', gripAnchor.position);
+  const gripSupport = v2WeaponAnchor('grip_support', V3(0, .95, 0));
+  const trailBase = v2WeaponAnchor('trail_base', base.position);
+  const trailTip = v2WeaponAnchor('trail_tip', tip.position);
+  group.add(gripAnchor, base, tip, gripMain, gripSupport, trailBase, trailTip);
   group.rotation.set(0, 0, -.06);
   return group;
 }
@@ -3630,11 +4541,20 @@ function createWell() {
   return root;
 }
 
-async function exportHeroClass(classId, fileStem) {
-  const hero0 = createHero(66, classId);
+async function exportHeroClass(classId, fileStem, { withLod2 = true } = {}) {
+  const hero0 = createHero(66, classId, { lod: 0 });
   await exportGLB(hero0.group, resolve(ASSETS, `models/hero/${fileStem}_lod0.glb`), hero0.animations);
-  const hero1 = createHero(46, classId);
+  console.log(`  ${fileStem}_lod0 provenanceHash=${hero0.group.userData.provenanceHash} stats=${JSON.stringify(hero0.group.userData.stats)}`);
+  const hero1 = createHero(46, classId, { lod: 1 });
   await exportGLB(hero1.group, resolve(ASSETS, `models/hero/${fileStem}_lod1.glb`), hero1.animations);
+  console.log(`  ${fileStem}_lod1 provenanceHash=${hero1.group.userData.provenanceHash} stats=${JSON.stringify(hero1.group.userData.stats)}`);
+  // LOD2 (docs/plan/character-graphics-animation-overhaul.md §12.4/§9.5) ships by default so
+  // every hero build produces the full LOD0/1/2 set; --no-lod2 remains for a fast partial build.
+  if (withLod2) {
+    const hero2 = createHero(18, classId, { lod: 2 });
+    await exportGLB(hero2.group, resolve(ASSETS, `models/hero/${fileStem}_lod2.glb`), hero2.animations);
+    console.log(`  ${fileStem}_lod2 provenanceHash=${hero2.group.userData.provenanceHash} stats=${JSON.stringify(hero2.group.userData.stats)}`);
+  }
 }
 
 async function main() {
@@ -3643,11 +4563,14 @@ async function main() {
   const wizardOnly = args.has('--wizard-only');
   const rogueOnly = args.has('--rogue-only');
   const rangerOnly = args.has('--ranger-only');
-  const heroesOnly = args.has('--heroes-only') || wizardOnly || aerinOnly || rogueOnly || rangerOnly;
+  const gunnerOnly = args.has('--gunner-only');
+  const heroesOnly = args.has('--heroes-only') || wizardOnly || aerinOnly || rogueOnly || rangerOnly || gunnerOnly;
   const weaponsOnly = args.has('--weapons-only');
   const staffOnly = args.has('--staff-only');
   const daggerOnly = args.has('--dagger-only');
   const bowOnly = args.has('--bow-only');
+  const rifleOnly = args.has('--rifle-only');
+  const withLod2 = !args.has('--no-lod2');
 
   await mkdir(resolve(ASSETS, 'models/hero'), { recursive: true });
   await mkdir(resolve(ASSETS, 'models/props'), { recursive: true });
@@ -3670,24 +4593,33 @@ async function main() {
     return;
   }
 
+  if (rifleOnly) {
+    await exportGLB(createWeapon('rifle'), resolve(ASSETS, 'models/props/weapon_rifle.glb'));
+    console.log('Rifle weapon generation complete.');
+    return;
+  }
+
   if (!heroesOnly && !weaponsOnly) {
     await mkdir(resolve(ASSETS, 'models/monsters'), { recursive: true });
     await mkdir(resolve(ASSETS, 'models/environment'), { recursive: true });
   }
 
   if (aerinOnly) {
-    await exportHeroClass('aerin', 'aerin');
+    await exportHeroClass('aerin', 'aerin', { withLod2 });
   } else if (wizardOnly) {
-    await exportHeroClass('wizard', 'wizard');
+    await exportHeroClass('wizard', 'wizard', { withLod2 });
   } else if (rogueOnly) {
-    await exportHeroClass('rogue', 'rogue');
+    await exportHeroClass('rogue', 'rogue', { withLod2 });
   } else if (rangerOnly) {
-    await exportHeroClass('ranger', 'ranger');
+    await exportHeroClass('ranger', 'ranger', { withLod2 });
+  } else if (gunnerOnly) {
+    await exportHeroClass('gunner', 'gunner', { withLod2 });
   } else if (!args.has('--no-heroes') && !weaponsOnly) {
-    await exportHeroClass('aerin', 'aerin');
-    await exportHeroClass('wizard', 'wizard');
-    await exportHeroClass('rogue', 'rogue');
-    await exportHeroClass('ranger', 'ranger');
+    await exportHeroClass('aerin', 'aerin', { withLod2 });
+    await exportHeroClass('wizard', 'wizard', { withLod2 });
+    await exportHeroClass('rogue', 'rogue', { withLod2 });
+    await exportHeroClass('ranger', 'ranger', { withLod2 });
+    await exportHeroClass('gunner', 'gunner', { withLod2 });
   }
 
   if (heroesOnly) {
@@ -3695,7 +4627,7 @@ async function main() {
     return;
   }
 
-  for (const kind of ['sword', 'saber', 'greatsword', 'leaf', 'katana', 'relic', 'staff', 'dagger', 'bow']) {
+  for (const kind of ['sword', 'saber', 'greatsword', 'leaf', 'katana', 'relic', 'staff', 'dagger', 'bow', 'rifle']) {
     await exportGLB(createWeapon(kind), resolve(ASSETS, `models/props/weapon_${kind}.glb`));
   }
 

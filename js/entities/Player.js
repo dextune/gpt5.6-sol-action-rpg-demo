@@ -6,13 +6,14 @@ import {
 import {
   DEFAULT_HERO_CLASS_ID, MAX_HUNT_CLASS_PRESETS, RARITIES, SKILLS,
   canClassUseWeapon, createClassStarterWeapon, createEmptySkillCooldowns, createEmptySkillRanks,
-  getClassSkillIds, getHeroClass, getWeaponResonance, getWeaponResonanceUnlock,
+  getBasicAttackProfile, getClassSkillIds, getHeroClass, getWeaponResonance, getWeaponResonanceUnlock,
   isRangedAttackStyle, resolveHeroClassId,
 } from '../data/content.js';
 import {
   normalizeSkillEvolutionState, normalizeSkillRank, resolveSkillForm, updateSkillMutationChoices,
 } from '../data/skillCombat.js';
 import { clamp, disposeObject } from '../core/Utils.js';
+import { GROUNDING_CONFIG } from '../core/runtimeConstants.js';
 import { setMaterialHitPulse } from '../graphics/StylizedMaterial.js';
 import {
   enhanceWeaponOptions, ensureGearBaseStats, gearSellValue, recomputeWeaponFromEnhance,
@@ -25,6 +26,12 @@ const NUMERIC_GEAR_STATS = Object.freeze([
 ]);
 
 const TMP_VEL_DIR = new THREE.Vector3();
+const UPPER_BODY_ATTACK_CLASSES = new Set(['wizard', 'ranger', 'gunner']);
+const UPPER_BODY_SKILL_ANIMS = new Set([
+  'skill_fireball', 'skill_frost_nova',
+  'skill_pierce_shot', 'skill_hunter_mark',
+  'skill_suppressive_burst', 'skill_flame_jet', 'skill_stim_rush',
+]);
 
 /**
  * Resolve player hit-reaction clip name from damage severity (static-resource plan S4).
@@ -53,6 +60,7 @@ export class Player {
     this.velocity = new THREE.Vector3();
     this.moveDirection = new THREE.Vector3();
     this.facing = new THREE.Vector3(0, 0, 1);
+    this.animationYaw = 0;
     this.dashDirection = new THREE.Vector3(0, 0, 1);
     this.knockback = new THREE.Vector3();
     this.reset(this.classId);
@@ -66,6 +74,7 @@ export class Player {
     this.mesh = character.group;
     this.normalScale = this.mesh.scale.clone();
     this.scene.add(this.mesh);
+    this._groundingWorld = null;
   }
 
   /** Rebuild skeletal mesh when class changes (title start / continue). */
@@ -107,6 +116,7 @@ export class Player {
     this.mesh = null;
     this.refs = null;
     this.animation = null;
+    this._groundingWorld = null;
   }
 
   reset(classId = this.classId) {
@@ -139,6 +149,10 @@ export class Player {
     this.arcaneOverflow = 0;
     this.predatorVerdict = null;
     this.thornField = null;
+    this.clearStimRush();
+    this._smartlinkTargetId = null;
+    this._smartlinkStickTimer = 0;
+    this._smartlinkReticleEnemy = null;
     this.dashTimer = 0;
     this.dashCooldown = 0;
     this.potionCooldown = 0;
@@ -543,6 +557,10 @@ export class Player {
     }
     if (this._smartlinkStickTimer > 0) {
       this._smartlinkStickTimer = Math.max(0, this._smartlinkStickTimer - delta);
+      if (this._smartlinkStickTimer <= 0) {
+        this._smartlinkTargetId = null;
+        this._smartlinkReticleEnemy = null;
+      }
     }
     for (const key of Object.keys(this.skillCooldowns)) this.skillCooldowns[key] = Math.max(0, this.skillCooldowns[key] - delta);
     this.knockback.multiplyScalar(Math.pow(.004, delta));
@@ -629,15 +647,46 @@ export class Player {
     }
   }
 
+  #configureGrounding(world) {
+    if (!world || this._groundingWorld === world) return;
+    const contacts = [
+      ['left_foot', 'left_upper_leg', 'left_lower_leg'],
+      ['right_foot', 'right_upper_leg', 'right_lower_leg'],
+    ].map(([name, rootName, midName]) => ({
+      name,
+      root: this.mesh.getObjectByName(rootName),
+      mid: this.mesh.getObjectByName(midName),
+      end: this.mesh.getObjectByName(name),
+      offset: GROUNDING_CONFIG.footOffset,
+      maxCorrection: GROUNDING_CONFIG.maxCorrection,
+      weight: GROUNDING_CONFIG.weight,
+    })).filter(contact => contact.root && contact.mid && contact.end);
+    this.animation.setGrounding(contacts.length > 0 ? {
+      sampleGround: (x, z) => ({ height: world.heightAt(x, z) }),
+      contacts,
+    } : null);
+    this._groundingWorld = world;
+  }
+
   #animate(delta, game) {
     const speed = this.alive ? this.velocity.length() : 0;
+    let turnDelta = this.mesh.rotation.y - this.animationYaw;
+    while (turnDelta > Math.PI) turnDelta -= Math.PI * 2;
+    while (turnDelta < -Math.PI) turnDelta += Math.PI * 2;
+    this.animationYaw = this.mesh.rotation.y;
+    this.#configureGrounding(game?.world);
     if (this.alive) {
       this.animation.setLocomotion(speed, {
         sprint: speed > this.moveSpeed * PLAYER_CONFIG.sprintMoveRatio,
+        turnDelta,
       });
     }
     const distance = game?.camera ? game.camera.position.distanceTo(this.position) : 0;
-    this.animation.update(delta, { distance, visible: this.mesh.visible });
+    this.animation.update(delta, {
+      distance,
+      visible: this.mesh.visible,
+      secondary: { quality: this.quality },
+    });
     setMaterialHitPulse(this.mesh, this.hitTimer > 0 ? Math.min(1, this.hitTimer / .16) : 0);
     // Keep mesh scale stable so the follow camera never "jitters" with squash/stretch.
     this.mesh.scale.copy(this.normalScale);
@@ -739,9 +788,21 @@ export class Player {
       fade: F.attackFade,
       fadeOut: finisher ? F.attackFadeOutFinisher : F.attackFadeOut,
       timeScale: timeScale * lateBoost,
+      layer: UPPER_BODY_ATTACK_CLASSES.has(this.classId) ? 'upper' : 'full',
       fallback: 'idle',
     });
-    game.audio.swing(Math.min(3, this.comboIndex));
+    if (this.classId === 'gunner') {
+      this.animation.playAdditive('recoil_add', {
+        weight: finisher ? .78 : .56,
+        timeScale: Math.max(1, timeScale),
+        fadeOut: .055,
+      });
+    }
+    if (typeof game.audio.basicAttack === 'function') {
+      game.audio.basicAttack(getBasicAttackProfile(this.classId), Math.min(3, this.comboIndex));
+    } else {
+      game.audio.swing(Math.min(3, this.comboIndex));
+    }
     game.combat.playerAttack(this, this.comboIndex, comboLength);
     return true;
   }
@@ -820,6 +881,7 @@ export class Player {
       fade: F.skillFade,
       fadeOut: F.skillFadeOut,
       timeScale: bundle.castTime > F.skillCastSlowThreshold ? F.skillTimeScaleSlow : F.skillTimeScaleFast,
+      layer: UPPER_BODY_SKILL_ANIMS.has(anim) ? 'upper' : 'full',
       fallback: 'idle',
     });
     if (typeof game.audio.skill === 'function') {
@@ -880,6 +942,8 @@ export class Player {
       this.clearShadowFrenzy();
       this.clearArcaneOverflow();
       this.clearStimRush();
+      this._smartlinkTargetId = null;
+      this._smartlinkStickTimer = 0;
       this._smartlinkReticleEnemy = null;
       this.predatorVerdict = null;
       this.thornField = null;
@@ -923,6 +987,8 @@ export class Player {
     this.clearShadowFrenzy();
     this.clearArcaneOverflow();
     this.clearStimRush();
+    this._smartlinkTargetId = null;
+    this._smartlinkStickTimer = 0;
     this._smartlinkReticleEnemy = null;
     this.predatorVerdict = null;
     this.thornField = null;

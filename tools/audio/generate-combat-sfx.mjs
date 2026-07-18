@@ -299,7 +299,7 @@ function synthSkill(seed) {
   return fade(out, 2, 8);
 }
 
-/** Themed skill banks — blade / fire / ice / arcane / leap / star / bow / trap / dagger */
+/** Themed skill banks — blade / fire / ice / arcane / leap / star / bow / trap / dagger / rifle */
 function synthSkillTheme(seed, theme = 'blade') {
   const rng = mulberry32(seed);
   const pink = makePink(rng);
@@ -309,6 +309,7 @@ function synthSkillTheme(seed, theme = 'blade') {
     theme === 'leap' ? 0.28
       : theme === 'trap' ? 0.18
         : theme === 'dagger' ? 0.16
+          : theme === 'rifle' ? 0.13
           : theme === 'bow' ? 0.22
             : 0.24
   ));
@@ -357,6 +358,13 @@ function synthSkillTheme(seed, theme = 'blade') {
       const scrape = lp(pink(), lerp(850, 320, u)) * expDecay(t, 16) * 0.4;
       const light = Math.sin(2 * Math.PI * 95 * t) * expDecay(t, 18) * 0.22;
       sample = click + scrape + light;
+    } else if (theme === 'rifle') {
+      // Dry mechanical crack + short pressure body; no melee air or bow string.
+      const crack = hp(pink(), 950) * expDecay(t, 82) * 0.62;
+      const mechanism = lp(pink(), lerp(1500, 420, u)) * expDecay(t, 30) * 0.42;
+      const body = Math.sin(2 * Math.PI * lerp(190, 72, Math.min(1, t * 14)) * t)
+        * expDecay(t, 24) * 0.4;
+      sample = crack + mechanism + body;
     } else {
       sample = lp(pink(), 500) * expDecay(t, 10) * 0.5
         + Math.sin(2 * Math.PI * 80 * t) * expDecay(t, 8) * 0.4;
@@ -489,6 +497,11 @@ save('skill_star_0', synthSkillTheme(9260, 'star'));
 save('skill_bow_0', synthSkillTheme(9270, 'bow'));
 save('skill_trap_0', synthSkillTheme(9280, 'trap'));
 save('skill_dagger_0', synthSkillTheme(9290, 'dagger'));
+save('skill_rifle_0', synthSkillTheme(9295, 'rifle'));
+save('rifle_0', synthSkillTheme(9310, 'rifle'));
+save('rifle_1', synthSkillTheme(9311, 'rifle'));
+save('rifle_2', synthSkillTheme(9312, 'rifle'));
+save('rifle_3', synthSkillTheme(9313, 'rifle'));
 save('hurt_0', synthHurt(9301));
 save('hurt_1', synthHurt(9302));
 save('pickup_0', synthPickup(9401, 0.9));
@@ -499,4 +512,4 @@ save('legendary_0', synthLegendary(9701));
 
 console.log(`Generated ${files.length} SFX → assets/audio/combat/`);
 for (const f of files) console.log(`  ${f.slice(ROOT.length + 1)}`);
-console.log('Class banks: skill_bow_0.wav, skill_trap_0.wav, skill_dagger_0.wav (register in assets.json if not already).');
+console.log('Class banks: bow, trap, dagger, rifle skills + rifle_0–rifle_3 basics (register in assets.json if not already).');

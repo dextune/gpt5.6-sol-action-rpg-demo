@@ -1031,8 +1031,8 @@ export const SKILLS = Object.freeze({
   // —— Gunner actives ——
   suppressive_burst: {
     id: 'suppressive_burst', classId: 'gunner', name: 'Suppressive Burst', key: 'Q', unlockLevel: 3, maxRank: 10, mp: 16, cooldown: 5.2,
-    castTime: .28, anim: 'skill_pierce_shot', animFallback: 'cast_2', effect: 'suppressive_burst',
-    theme: 'brassfire', sfx: 'skill_blade', recipe: 'rifleBurst',
+    castTime: .28, anim: 'skill_suppressive_burst', animFallback: 'cast_2', effect: 'suppressive_burst',
+    theme: 'brassfire', sfx: 'skill_rifle', recipe: 'rifleBurst',
     timeline: Object.freeze({ hits: Object.freeze([0.22, 0.4, 0.58]) }),
     combat: Object.freeze({
       mult: Object.freeze([1.15, 0.12]),
@@ -1046,7 +1046,7 @@ export const SKILLS = Object.freeze({
       forms: Object.freeze({
         20: Object.freeze({ label: 'Lane Drill', summary: 'Adds pierce and lane pressure.', combat: Object.freeze({ pierce: 5, radius: 0.85 }) }),
         60: Object.freeze({ label: 'Brass Storm', summary: 'Faster cadence with wider lane.', anim: 'cast_2', combat: Object.freeze({ pierce: 6, radiusMult: 1.15 }) }),
-        100: Object.freeze({ label: 'Overwatch Barrage', summary: 'Maximum pierce and suppression.', anim: 'skill_pierce_shot', combat: Object.freeze({ pierce: 8, apexFinisher: 1 }), presentation: Object.freeze({ apexMarker: 'overwatch', apexAudio: 'suppressive_burst' }) }),
+        100: Object.freeze({ label: 'Overwatch Barrage', summary: 'Maximum pierce and suppression.', anim: 'skill_suppressive_burst', combat: Object.freeze({ pierce: 8, apexFinisher: 1 }), presentation: Object.freeze({ apexMarker: 'overwatch', apexAudio: 'suppressive_burst' }) }),
       }),
       mutations: Object.freeze({
         40: Object.freeze({
@@ -1064,8 +1064,8 @@ export const SKILLS = Object.freeze({
   },
   flame_jet: {
     id: 'flame_jet', classId: 'gunner', name: 'Flame Jet', key: 'E', unlockLevel: 6, maxRank: 10, mp: 22, cooldown: 7.4,
-    castTime: .32, anim: 'skill_trap', animFallback: 'cast_3', effect: 'flame_jet',
-    theme: 'ember', sfx: 'skill_blade', recipe: 'flameJet',
+    castTime: .32, anim: 'skill_flame_jet', animFallback: 'cast_3', effect: 'flame_jet',
+    theme: 'ember', sfx: 'skill_fire', recipe: 'flameJet',
     timeline: Object.freeze({ hits: Object.freeze([0.18, 0.36, 0.54, 0.72]) }),
     combat: Object.freeze({
       mult: Object.freeze([1.55, 0.16]),
@@ -1080,7 +1080,7 @@ export const SKILLS = Object.freeze({
       forms: Object.freeze({
         20: Object.freeze({ label: 'Jet Fan', summary: 'Wider cone coverage.', combat: Object.freeze({ halfAngle: 0.68 }) }),
         60: Object.freeze({ label: 'Sustained Torch', summary: 'Extra flame ticks.', anim: 'cast_3', combat: Object.freeze({ ticks: 5 }) }),
-        100: Object.freeze({ label: 'Plasma Jet', summary: 'Apex cone with denser burn.', anim: 'skill_trap', combat: Object.freeze({ ticks: 6, apexFinisher: 1 }), presentation: Object.freeze({ apexMarker: 'plasma_jet', apexAudio: 'flame_jet' }) }),
+        100: Object.freeze({ label: 'Plasma Jet', summary: 'Apex cone with denser burn.', anim: 'skill_flame_jet', combat: Object.freeze({ ticks: 6, apexFinisher: 1 }), presentation: Object.freeze({ apexMarker: 'plasma_jet', apexAudio: 'flame_jet' }) }),
       }),
       mutations: Object.freeze({
         40: Object.freeze({
@@ -1098,8 +1098,8 @@ export const SKILLS = Object.freeze({
   },
   stim_rush: {
     id: 'stim_rush', classId: 'gunner', name: 'Stim Rush', key: 'R', unlockLevel: 10, maxRank: 10, mp: 18, cooldown: 12,
-    castTime: .18, anim: 'skill_vault_shot', animFallback: 'cast_1', effect: 'stim_rush',
-    theme: 'brassfire', sfx: 'skill_blade', recipe: 'stimPulse',
+    castTime: .18, anim: 'skill_stim_rush', animFallback: 'cast_1', effect: 'stim_rush',
+    theme: 'brassfire', sfx: 'skill_rifle', recipe: 'stimPulse',
     timeline: Object.freeze({ hits: Object.freeze([0.2]) }),
     combat: Object.freeze({
       mult: Object.freeze([0.2, 0.02]),
@@ -1111,7 +1111,7 @@ export const SKILLS = Object.freeze({
       forms: Object.freeze({
         20: Object.freeze({ label: 'Field Stim', summary: 'Longer rush window.', combat: Object.freeze({ duration: Object.freeze([7.0, 0.2]) }) }),
         60: Object.freeze({ label: 'Combat Cocktail', summary: 'Stronger attack cadence.', anim: 'cast_1', combat: Object.freeze({ attackSpeed: Object.freeze([0.28, 0.014]) }) }),
-        100: Object.freeze({ label: 'Overdrive', summary: 'Peak tempo and mobility.', anim: 'skill_vault_shot', combat: Object.freeze({ attackSpeed: Object.freeze([0.34, 0.016]), moveSpeed: Object.freeze([0.24, 0.012]), apexFinisher: 1 }), presentation: Object.freeze({ apexMarker: 'overdrive', apexAudio: 'stim_rush' }) }),
+        100: Object.freeze({ label: 'Overdrive', summary: 'Peak tempo and mobility.', anim: 'skill_stim_rush', combat: Object.freeze({ attackSpeed: Object.freeze([0.34, 0.016]), moveSpeed: Object.freeze([0.24, 0.012]), apexFinisher: 1 }), presentation: Object.freeze({ apexMarker: 'overdrive', apexAudio: 'stim_rush' }) }),
       }),
       mutations: Object.freeze({
         40: Object.freeze({
@@ -1129,8 +1129,8 @@ export const SKILLS = Object.freeze({
   },
   inferno_sweep: {
     id: 'inferno_sweep', classId: 'gunner', name: 'Inferno Sweep', key: 'C', unlockLevel: 16, maxRank: 10, mp: 34, cooldown: 14,
-    castTime: .48, anim: 'skill_hunter_mark', animFallback: 'cast_4', effect: 'inferno_sweep',
-    theme: 'ember', sfx: 'skill_blade', recipe: 'infernoSweep',
+    castTime: .48, anim: 'skill_inferno_sweep', animFallback: 'cast_4', effect: 'inferno_sweep',
+    theme: 'ember', sfx: 'skill_fire', recipe: 'infernoSweep',
     timeline: Object.freeze({ hits: Object.freeze([0.28, 0.55]) }),
     combat: Object.freeze({
       mult: Object.freeze([2.1, 0.22]),
@@ -1148,7 +1148,7 @@ export const SKILLS = Object.freeze({
       forms: Object.freeze({
         20: Object.freeze({ label: 'Wide Inferno', summary: 'Broader sweep arc.', combat: Object.freeze({ arc: 2.8 }) }),
         60: Object.freeze({ label: 'Napalm Lattice', summary: 'Extra ground zones.', anim: 'cast_4', combat: Object.freeze({ zoneCount: 4 }) }),
-        100: Object.freeze({ label: 'Thermite Crown', summary: 'Apex sweep and denser ground fire.', anim: 'skill_hunter_mark', combat: Object.freeze({ zoneCount: 5, zoneLife: 4.0, apexFinisher: 1 }), presentation: Object.freeze({ apexMarker: 'thermite', apexAudio: 'inferno_sweep' }) }),
+        100: Object.freeze({ label: 'Thermite Crown', summary: 'Apex sweep and denser ground fire.', anim: 'skill_inferno_sweep', combat: Object.freeze({ zoneCount: 5, zoneLife: 4.0, apexFinisher: 1 }), presentation: Object.freeze({ apexMarker: 'thermite', apexAudio: 'inferno_sweep' }) }),
       }),
       mutations: Object.freeze({
         40: Object.freeze({
@@ -1458,49 +1458,49 @@ export const HERO_CLASSES = Object.freeze({
 });
 
 /**
- * Signature-weapon evolution stages. The stage is selected by Weapon Enhance;
- * no hero receives a replacement drop. Models stay inside each class allow-list.
+ * Enhancement changes the weapon's name, finish, and rarity without changing its
+ * class-defining silhouette. Title preview and gameplay therefore share one weapon family.
  */
 export const WEAPON_EVOLUTIONS = Object.freeze({
   aerin: Object.freeze([
     Object.freeze({ level: 0, name: 'Knight Longsword', model: 'sword', color: 0xd8e4f0, rarity: 'common' }),
-    Object.freeze({ level: 3, name: 'Oathbound Saber', model: 'saber', color: 0xf0d48a, rarity: 'uncommon' }),
-    Object.freeze({ level: 7, name: 'Sunsteel Greatblade', model: 'greatsword', color: 0xffb95f, rarity: 'rare' }),
-    Object.freeze({ level: 15, name: 'Crownbreaker', model: 'greatsword', color: 0xff805c, rarity: 'epic' }),
-    Object.freeze({ level: 22, name: 'Apex Aegis', model: 'relic', color: 0xe1b4ff, rarity: 'legendary' }),
-    Object.freeze({ level: 30, name: 'Worldbreaker Aegis', model: 'relic', color: 0xffe38b, rarity: 'legendary' }),
+    Object.freeze({ level: 3, name: 'Oathbound Saber', model: 'sword', color: 0xf0d48a, rarity: 'uncommon' }),
+    Object.freeze({ level: 7, name: 'Sunsteel Greatblade', model: 'sword', color: 0xffb95f, rarity: 'rare' }),
+    Object.freeze({ level: 15, name: 'Crownbreaker', model: 'sword', color: 0xff805c, rarity: 'epic' }),
+    Object.freeze({ level: 22, name: 'Apex Aegis', model: 'sword', color: 0xe1b4ff, rarity: 'legendary' }),
+    Object.freeze({ level: 30, name: 'Worldbreaker Aegis', model: 'sword', color: 0xffe38b, rarity: 'legendary' }),
   ]),
   wizard: Object.freeze([
     Object.freeze({ level: 0, name: 'Apprentice Staff', model: 'staff', color: 0xc8b4ff, rarity: 'common' }),
     Object.freeze({ level: 3, name: 'Crystal Rod', model: 'staff', color: 0x9ed8ff, rarity: 'uncommon' }),
     Object.freeze({ level: 7, name: 'Astral Scepter', model: 'staff', color: 0xc09aff, rarity: 'rare' }),
     Object.freeze({ level: 15, name: 'Void Conduit', model: 'staff', color: 0xe18bff, rarity: 'epic' }),
-    Object.freeze({ level: 22, name: 'Starforged Focus', model: 'relic', color: 0xf1c2ff, rarity: 'legendary' }),
-    Object.freeze({ level: 30, name: 'Event Horizon Focus', model: 'relic', color: 0x9ff6ff, rarity: 'legendary' }),
+    Object.freeze({ level: 22, name: 'Starforged Focus', model: 'staff', color: 0xf1c2ff, rarity: 'legendary' }),
+    Object.freeze({ level: 30, name: 'Event Horizon Focus', model: 'staff', color: 0x9ff6ff, rarity: 'legendary' }),
   ]),
   rogue: Object.freeze([
     Object.freeze({ level: 0, name: 'Fledgling Dagger', model: 'dagger', color: 0x9fe8d8, rarity: 'common' }),
     Object.freeze({ level: 3, name: 'Viper Kris', model: 'dagger', color: 0x68e6b3, rarity: 'uncommon' }),
-    Object.freeze({ level: 7, name: 'Moonfang', model: 'saber', color: 0xa8f0dc, rarity: 'rare' }),
-    Object.freeze({ level: 15, name: 'Night Lotus', model: 'saber', color: 0xd86fff, rarity: 'epic' }),
-    Object.freeze({ level: 22, name: 'Eclipse Fang', model: 'relic', color: 0xff98d8, rarity: 'legendary' }),
-    Object.freeze({ level: 30, name: 'Moonless Eclipse', model: 'relic', color: 0xff6fcf, rarity: 'legendary' }),
+    Object.freeze({ level: 7, name: 'Moonfang', model: 'dagger', color: 0xa8f0dc, rarity: 'rare' }),
+    Object.freeze({ level: 15, name: 'Night Lotus', model: 'dagger', color: 0xd86fff, rarity: 'epic' }),
+    Object.freeze({ level: 22, name: 'Eclipse Fang', model: 'dagger', color: 0xff98d8, rarity: 'legendary' }),
+    Object.freeze({ level: 30, name: 'Moonless Eclipse', model: 'dagger', color: 0xff6fcf, rarity: 'legendary' }),
   ]),
   ranger: Object.freeze([
     Object.freeze({ level: 0, name: 'Fledgling Bow', model: 'bow', color: 0xc4a574, rarity: 'common' }),
     Object.freeze({ level: 3, name: 'Ash Longbow', model: 'bow', color: 0xe0bf82, rarity: 'uncommon' }),
     Object.freeze({ level: 7, name: 'Storm Recurve', model: 'bow', color: 0x9ad0a8, rarity: 'rare' }),
     Object.freeze({ level: 15, name: 'Wildstar Bow', model: 'bow', color: 0xffc46b, rarity: 'epic' }),
-    Object.freeze({ level: 22, name: 'Convergence Arc', model: 'relic', color: 0xf2dc9a, rarity: 'legendary' }),
-    Object.freeze({ level: 30, name: 'Zenith Convergence', model: 'relic', color: 0xd9ff8a, rarity: 'legendary' }),
+    Object.freeze({ level: 22, name: 'Convergence Arc', model: 'bow', color: 0xf2dc9a, rarity: 'legendary' }),
+    Object.freeze({ level: 30, name: 'Zenith Convergence', model: 'bow', color: 0xd9ff8a, rarity: 'legendary' }),
   ]),
   gunner: Object.freeze([
     Object.freeze({ level: 0, name: 'Service Rifle', model: 'rifle', color: 0xc8b090, rarity: 'common' }),
     Object.freeze({ level: 3, name: 'Brass Carbine', model: 'rifle', color: 0xe0a868, rarity: 'uncommon' }),
     Object.freeze({ level: 7, name: 'Ember Lance', model: 'rifle', color: 0xff8a50, rarity: 'rare' }),
     Object.freeze({ level: 15, name: 'Thermite Rail', model: 'rifle', color: 0xff7040, rarity: 'epic' }),
-    Object.freeze({ level: 22, name: 'Vanguard Core', model: 'relic', color: 0xffb070, rarity: 'legendary' }),
-    Object.freeze({ level: 30, name: 'Apex Vanguard', model: 'relic', color: 0xffe0a0, rarity: 'legendary' }),
+    Object.freeze({ level: 22, name: 'Vanguard Core', model: 'rifle', color: 0xffb070, rarity: 'legendary' }),
+    Object.freeze({ level: 30, name: 'Apex Vanguard', model: 'rifle', color: 0xffe0a0, rarity: 'legendary' }),
   ]),
 });
 

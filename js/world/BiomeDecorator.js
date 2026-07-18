@@ -295,7 +295,7 @@ export class BiomeDecorator {
   }
 
   #buildCampfire() {
-    const group = new THREE.Group(); group.name = 'HunterCampfire'; group.position.set(0, this.terrain.heightAt(0, 7.1), 7.1);
+    const group = new THREE.Group(); group.name = 'HunterCampfire'; group.position.set(-2.1, this.terrain.heightAt(-2.1, 7.4), 7.4);
     const wood = new THREE.MeshStandardMaterial({ color: 0x5d3826, roughness: .92 });
     for (let i = 0; i < 3; i += 1) {
       const log = new THREE.Mesh(new THREE.CylinderGeometry(.17, .19, 1.55, 12, 3), wood);

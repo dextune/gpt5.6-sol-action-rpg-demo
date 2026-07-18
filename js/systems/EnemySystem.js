@@ -9,7 +9,12 @@ import {
 import { chance, clamp, rand, randInt, weightedPick } from '../core/Utils.js';
 import { createGameContext } from '../core/GameContext.js';
 import { Enemy } from '../entities/Enemy.js';
-import { clampHuntSpawnLevel, maxHuntSpawnLevel, zoneThreat } from './huntThreat.js';
+import {
+  clampHuntSpawnLevel,
+  maxHuntPopulationTarget,
+  maxHuntSpawnLevel,
+  zoneThreat,
+} from './huntThreat.js';
 
 const TMP = new THREE.Vector3();
 
@@ -72,6 +77,8 @@ export class EnemySystem {
   }
 
   update(delta) {
+    const ctx = this.ctx ?? this.game;
+    const player = ctx.player;
     this.spawnTimer -= delta;
     this.separationTimer -= delta;
     this.summonBudget = Math.max(0, this.summonBudget - delta * 0.35);
@@ -83,7 +90,7 @@ export class EnemySystem {
     for (let i = this.enemies.length - 1; i >= 0; i -= 1) {
       const enemy = this.enemies[i];
       enemy.update(delta, this.game);
-      const distance = enemy.position.distanceTo(this.game.player.position);
+      const distance = enemy.position.distanceTo(player.position);
       const stale = this.game.elapsed - enemy.lastHitAt > 8;
       // Never stale-despawn wave-tagged enemies (or anything in Defense) — soft-lock guard.
       const skipDespawn = defenseMode || enemy.defenseWave;
@@ -99,34 +106,28 @@ export class EnemySystem {
     }
 
     // Continuous field spawn is Hunt-only. Defense authors its own wave encounters.
-    if (huntMode && this.spawnTimer <= 0 && this.game.state === 'playing' && this.game.player.alive) {
+    if (huntMode && this.spawnTimer <= 0 && this.game.state === 'playing' && player.alive) {
       const sparseLiving = isMax ? MAX_HUNT_CONFIG.sparseLiving : HUNT_SPAWN_CONFIG.sparseLiving;
       const sparseInterval = isMax ? MAX_HUNT_CONFIG.sparseInterval : HUNT_SPAWN_CONFIG.sparseInterval;
       const steadyInterval = isMax ? MAX_HUNT_CONFIG.steadyInterval : HUNT_SPAWN_CONFIG.steadyInterval;
-      this.spawnTimer = this.livingCount < sparseLiving ? sparseInterval : steadyInterval;
+      const rampingMax = isMax && ['opening', 'surge', 'respawn'].includes(this.game.hunt?.invasionPhase);
+      this.spawnTimer = rampingMax
+        ? MAX_HUNT_CONFIG.surgeInterval
+        : this.livingCount < sparseLiving
+          ? sparseInterval
+          : steadyInterval;
 
       let target;
       if (isMax) {
         const phase = this.game.hunt.invasionPhase;
         const elapsed = this.game.hunt.invasionElapsed ?? 0;
-        if (phase === 'opening') target = MAX_HUNT_CONFIG.openingPopulation;
-        else if (phase === 'surge' || elapsed < MAX_HUNT_CONFIG.surgeSeconds) {
-          target = MAX_HUNT_CONFIG.surgePopulation;
-        } else if (phase === 'respawn') {
-          if (elapsed < 3) target = MAX_HUNT_CONFIG.respawn.recovery3s;
-          else if (elapsed < 8) target = MAX_HUNT_CONFIG.respawn.recovery8s;
-          else {
-            this.game.hunt.invasionPhase = 'steady';
-            target = MAX_HUNT_CONFIG.steadyTarget;
-          }
-        } else {
-          target = MAX_HUNT_CONFIG.steadyTarget;
-        }
+        target = maxHuntPopulationTarget(phase, elapsed);
+        if (phase === 'respawn' && elapsed >= 8) this.game.hunt.invasionPhase = 'steady';
         target = Math.min(target, this.activeEnemyCap);
       } else {
         target = clamp(
           GAME_CONFIG.targetEnemies
-            + Math.floor(Math.max(0, this.game.player.level - 1) / HUNT_SPAWN_CONFIG.levelTargetDivisor),
+            + Math.floor(Math.max(0, player.level - 1) / HUNT_SPAWN_CONFIG.levelTargetDivisor),
           Math.min(HUNT_SPAWN_CONFIG.initialEnemies, GAME_CONFIG.targetEnemies),
           this.activeEnemyCap,
         );
@@ -134,8 +135,9 @@ export class EnemySystem {
 
       if (this.livingCount < target) {
         const room = this.#spawnRoom();
-        const zone = this.game.world.currentZone;
-        const threat = zoneThreat(this.game.player.level, zone);
+        const targetRoom = Math.max(0, target - this.livingCount);
+        const zone = ctx.world.currentZone;
+        const threat = zoneThreat(player.level, zone);
         const pressure = this.livingCount < HUNT_THREAT_CONFIG.packPressureLiving
           && (threat.id === 'onlevel' || threat.id === 'challenging');
         const packRoll = isMax
@@ -144,7 +146,9 @@ export class EnemySystem {
             ? HUNT_THREAT_CONFIG.packPressureChance
             : HORDE_CONFIG.packChance;
         if (room >= this.activePackMin && chance(packRoll)) {
-          this.spawnPack();
+          const packCount = Math.min(room, targetRoom, this.activePackMax);
+          if (packCount >= this.activePackMin) this.spawnPack(null, packCount);
+          else this.#spawnOne();
         } else {
           this.#spawnOne();
         }
@@ -404,7 +408,11 @@ export class EnemySystem {
       return this.livingCount;
     }
     this.game.hunt.invasionPhase = 'respawn';
-    this.game.hunt.invasionElapsed = 0;
+    this.game.hunt.invasionElapsed = count >= MAX_HUNT_CONFIG.respawn.recovery8s
+      ? 8
+      : count >= MAX_HUNT_CONFIG.respawn.recovery3s
+        ? 3
+        : 0;
     this.populate(Math.min(count, this.activeEnemyCap));
     for (const enemy of this.enemies) {
       if (enemy.alive) enemy.aggroRadius = Math.max(enemy.aggroRadius, MAX_HUNT_CONFIG.aggroRange);

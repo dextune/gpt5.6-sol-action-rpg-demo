@@ -9,7 +9,7 @@ For larger feature additions see [extension-playbooks.md](./extension-playbooks.
 
 ### Too many / too few enemies
 - `js/config.js` → `targetEnemies`, `maxEnemies`
-- New Hunt refill/initial density: `HUNT_SPAWN_CONFIG`; pack size/chance: `HORDE_CONFIG`
+- MAX HUNT density/ramp/cap: `MAX_HUNT_CONFIG` + `maxHuntPopulationTarget`; legacy Hunt density: `HUNT_SPAWN_CONFIG`; pack size/chance: `HORDE_CONFIG`
 - Spawn ring: `spawnInnerRadius`, `spawnOuterRadius`
 - Despawn: `despawnRadius` (too small → enemies vanish and respawn repeatedly)
 
@@ -21,7 +21,7 @@ For larger feature additions see [extension-playbooks.md](./extension-playbooks.
 
 ### Enemy too tanky / too squishy
 - `content.js` the `enemy(..., hp, damage, defense, ...)`
-- New Hunt level curve: `HUNT_ENEMY_GROWTH_CONFIG` / `huntEnemyStatMultipliers`
+- MAX HUNT player-relative offsets: `MAX_HUNT_CONFIG.levelOffsets`; legacy Hunt level curve: `HUNT_ENEMY_GROWTH_CONFIG` / `huntEnemyStatMultipliers`
 - Global defense formula: `Enemy.takeDamage` `defense * .37`
 - Crit multiplier: `CombatSystem.#damageEnemy` `1.85`
 

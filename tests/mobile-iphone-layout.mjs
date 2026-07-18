@@ -242,7 +242,7 @@ async function main() {
   if (!rects.zone) failures.push('zone ribbon missing');
   if (rects.hunt) failures.push('Hunt record should be collapsed by default');
 
-  // Desktop parity: zone band + threat subtitle must stay visible on touch-ui.
+  // Desktop parity: legacy threat text or MAX breach pressure must stay visible on touch-ui.
   const zoneSubtitle = await page.evaluate(() => {
     const el = document.getElementById('zone-subtitle');
     if (!el) return { missing: true };
@@ -259,8 +259,8 @@ async function main() {
   if (zoneSubtitle.missing) failures.push('zone-subtitle element missing');
   else if (zoneSubtitle.display === 'none' || zoneSubtitle.visibility === 'hidden' || zoneSubtitle.height < 2) {
     failures.push(`zone-subtitle not visible on mobile (${JSON.stringify(zoneSubtitle)})`);
-  } else if (!/Lv\.|On-level|Safe|Danger|Lethal|Challenging|WAVE/i.test(zoneSubtitle.text)) {
-    failures.push(`zone-subtitle missing band/threat text: "${zoneSubtitle.text}"`);
+  } else if (!/Lv\.|On-level|Safe|Danger|Lethal|Challenging|WAVE|VILLAGE BREACH|HOSTILES/i.test(zoneSubtitle.text)) {
+    failures.push(`zone-subtitle missing threat/breach text: "${zoneSubtitle.text}"`);
   }
 
   const goldRow = await page.evaluate(() => {
@@ -424,7 +424,8 @@ async function main() {
   if (!/skill|art|instinct/i.test(skillsTitle || '') || skillCardCount === 0) {
     failures.push(`skills tab click failed, title="${skillsTitle}"`);
   }
-  const skillLayout = await page.evaluate(() => {
+  const skillLayout = await page.evaluate(async () => {
+    const { SKILLS } = await import('./js/data/content.js');
     const content = document.getElementById('panel-content');
     const banner = document.querySelector('.skill-points-banner');
     const cards = [...document.querySelectorAll('.skill-card')];
@@ -443,8 +444,9 @@ async function main() {
           const title = card.querySelector('h4')?.textContent ?? '';
           return title.includes('Vortex Call') || title.includes('Whirlwind');
         })?.textContent?.trim() ?? '',
-      judgmentCard: [...document.querySelectorAll('.skill-card')]
-        .find(card => card.querySelector('h4')?.textContent?.includes('Iron Judgment'))?.textContent?.trim() ?? '',
+      vanguardName: SKILLS.skyfall.name,
+      vanguardCard: [...document.querySelectorAll('.skill-card')]
+        .find(card => card.querySelector('h4')?.textContent?.includes(SKILLS.skyfall.name))?.textContent?.trim() ?? '',
     };
   });
   log.push(`skillLayout ${JSON.stringify(skillLayout)}`);
@@ -464,10 +466,10 @@ async function main() {
       failures.push(`shipped Whirlwind card is missing ${label}: ${skillLayout.whirlwindCard}`);
     }
   }
-  if (!skillLayout.judgmentCard.includes('Plant Damage')
-    || !skillLayout.judgmentCard.includes('Pull Radius')
-    || !skillLayout.judgmentCard.includes('Boss Stagger')) {
-    failures.push(`shipped Iron Judgment card is missing combat labels: ${skillLayout.judgmentCard}`);
+  if (!skillLayout.vanguardCard.includes('Damage')
+    || !skillLayout.vanguardCard.includes('Radius')
+    || !skillLayout.vanguardCard.includes('Armor Pierce')) {
+    failures.push(`shipped ${skillLayout.vanguardName} card is missing combat labels: ${skillLayout.vanguardCard}`);
   }
   const fallbackPressed = await page.locator(
     `button[data-action="select-mutation"][data-skill="whirlwind"][data-milestone="40"][data-choice="${whirlwindTier40First.id}"]`,

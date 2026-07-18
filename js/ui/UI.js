@@ -42,7 +42,7 @@ export class UI {
       'boss-hud', 'boss-name', 'boss-level', 'boss-health-fill', 'boss-break-row', 'boss-break-fill', 'boss-break-text', 'gold-count', 'potion-count',
       'combat-forge', 'combat-weapon-enhance', 'combat-option-enhance',
       'combat-weapon-level', 'combat-weapon-cost', 'combat-option-level', 'combat-option-cost',
-      'minimap', 'notifications', 'float-layer', 'aim-reticle', 'zone-toast',
+      'minimap', 'notifications', 'float-layer', 'aim-reticle', 'smartlink-reticle', 'zone-toast',
       'panel-layer', 'panel-title', 'panel-content', 'panel-close', 'death-screen', 'death-timer-fill',
       'damage-flash', 'fatal-error', 'debug-hud',
     ]) this.elements[id] = document.getElementById(id);

@@ -23,11 +23,15 @@ All values are `Object.freeze`d. After you **add or modify** a field, keep the f
 
 ## `HUNT_SPAWN_CONFIG` · `HUNT_ENEMY_GROWTH_CONFIG`
 
-New Hunt owns a separate field-density and stat-growth curve so Defense wave pacing stays authored by `DEFENSE_CONFIG`.
+Legacy Hunt owns a separate field-density and stat-growth curve so Defense wave pacing stays authored by `DEFENSE_CONFIG`.
 
 - `HUNT_SPAWN_CONFIG` controls initial/respawn population, sparse/steady refill intervals, level-based target growth, and pack headroom.
 - `HUNT_ENEMY_GROWTH_CONFIG` controls Hunt-only HP, damage, defense, and world-tier HP growth.
 - `huntEnemyStatMultipliers` is the shared pure calculator used by `Enemy`; Defense continues to use its existing level and wave multipliers.
+
+## `MAX_HUNT_CONFIG`
+
+MAX HUNT is a separate Hunt variant. Its frozen table owns the level-70 new-run baseline, opening/steady/cap populations, three-second surge, ramp sampling interval, post-respawn recovery targets, player-relative enemy levels, boss charge, contested spring, rewards, and invasion roster ratios. `maxHuntPopulationTarget` in `js/systems/huntThreat.js` is the pure time-ramp authority; do not replace the ramp with immediate step targets in `EnemySystem`.
 
 
 

@@ -12,7 +12,7 @@ Player **basic attacks** and **skills** fire along:
 
 They must **not** re-aim to the mouse ground ray (`game.aimPoint`) for combat orientation.
 
-This applies to **all classes** (melee knight and magic wizard).
+This applies to **all classes** (melee, magic, bow, and rifle profiles).
 
 ## Why
 

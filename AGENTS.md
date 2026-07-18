@@ -38,7 +38,7 @@ Detailed guides: **`docs/`** hub [docs/README.md](./docs/README.md). Short edits
 | Add monster/zone/skill | content-data, extension-playbooks (§3 spectacle skill), combat |
 | Skill spectacle / polish | combat, graphics-vfx, audio · history/skill-motion-spectacle (standard) |
 | Hero locomotion / pose bake | characters-visual · history/static-resource-character-motion |
-| Combat / skill motion upgrade | plan/combat-motion-sophistication · characters-visual · combat · graphics-vfx |
+| Hero graphics / combat motion upgrade | history/character-graphics-animation-overhaul · characters-visual · combat · graphics-vfx |
 | Hit / effects | combat, graphics-vfx · systems/combat/* |
 | Sound / audio | audio, combat, assets |
 | Character / blade visuals | characters-visual |

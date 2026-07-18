@@ -82,7 +82,7 @@ Applied in Player getters with passive aggregation.
 
 - Card: Wizard / Lyra · Arcane focus  
 - `?class=wizard` pre-select  
-- New Hunt / Defense pass `selectedClassId`  
+- MAX HUNT / Defense pass `selectedClassId`
 
 ## QA notes from implementation
 

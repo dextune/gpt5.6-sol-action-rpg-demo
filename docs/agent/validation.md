@@ -62,7 +62,7 @@ Game.js imports content symbol SKILLS
 ## Agent workflow after a class PR
 
 1. `node tests/integrity.mjs`  
-2. Manual: New Hunt as new class + Defense once  
+2. Manual: MAX HUNT as the new class + Defense once
 3. Kill enemies through a skill unlock level and confirm no console `ReferenceError`  
 4. Do **not** auto-commit/push unless the user asks  
 

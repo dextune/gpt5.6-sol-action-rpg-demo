@@ -25,18 +25,20 @@ Keyboard J only (not mouse)
       animation:
         melee  → attack_1..7 (fallback attack_1..4)
         magic  → cast_1..4 (fallback attack_*)
-      audio.swing
+      audio.basicAttack(profile, combo) // rifle has a distinct bounded fallback
       combat.playerAttack(player, combo, comboLength)
   → delayed hit frame(s)
       melee: swingArc + cone hits
       magic: mana orbs / finisher fan
       ranger L5+: lock the nearest enemy in the forward half-plane, focus every Strafe arrow,
                   then acquire the next target only after death or range exit
+      gunner: immutable muzzle/direction snapshot → nearest hitscan intersection + short tracer;
+              L5 Smartlink may correct facing only when the attack input fires
       #damageEnemy → enemy.takeDamage
       effects.impact (juice)
 ```
 
-### Common basic-attack values (`CombatSystem.#meleeAttack` / `#magicAttack`)
+### Common basic-attack values (`_meleeAttack` / `_magicAttack` / `_rifleAttack`)
 
 | Value | Location | Effect |
 |-------|----------|--------|

@@ -4,14 +4,20 @@
 import { GUNNER_CONFIG } from '../../config.js';
 import { clamp } from '../../core/Utils.js';
 
+const isLiveHostile = enemy => Boolean(
+  enemy?.alive
+  && enemy.hostile !== false
+  && enemy.removable !== true
+  && enemy.active !== false,
+);
+
 /**
  * @param {object} enemy
  * @param {{ x: number, z: number }} origin
  * @param {{ acquireRange?: number, retainRange?: number }} limits
  */
 export function isValidGunnerTarget(enemy, origin, limits = {}) {
-  if (!enemy?.alive) return false;
-  if (enemy.hostile === false) return false;
+  if (!isLiveHostile(enemy)) return false;
   const maxR = Math.max(
     Number(limits.acquireRange) || GUNNER_CONFIG.smartlink.acquireRange,
     Number(limits.retainRange) || GUNNER_CONFIG.smartlink.retainRange,
@@ -47,19 +53,22 @@ export function selectSmartlinkTarget(enemies, origin, facing, retainedId = null
 
   let retained = null;
   let bestFront = null;
-  let bestFrontScore = -Infinity;
+  let bestFrontDot = -Infinity;
+  let bestFrontDist = Infinity;
+  let bestFrontId = '';
   let bestRear = null;
   let bestRearDist = Infinity;
+  let bestRearId = '';
 
   const list = enemies ?? [];
   for (let i = 0; i < list.length; i += 1) {
     const enemy = list[i];
-    if (!enemy?.alive) continue;
+    if (!isLiveHostile(enemy)) continue;
     const dx = (enemy.position?.x ?? 0) - origin.x;
     const dz = (enemy.position?.z ?? 0) - origin.z;
     const dist = Math.hypot(dx, dz);
     const radius = enemy.radius ?? 0.6;
-    const id = enemy.id ?? enemy.typeId ?? String(i);
+    const id = String(enemy.id ?? enemy.entityId ?? enemy.spawnId ?? enemy.typeId ?? i);
 
     if (retainedId != null && id === retainedId && dist <= retain + radius) {
       retained = enemy;
@@ -69,15 +78,22 @@ export function selectSmartlinkTarget(enemies, origin, facing, retainedId = null
     const dot = dx * nx * inv + dz * nz * inv;
 
     if (dist <= acquire + radius && dot >= frontDot) {
-      // Higher facing, then nearer, then stable id.
-      const score = dot * 1000 - dist + (typeof id === 'string' ? id.charCodeAt(0) * 0.0001 : i * 0.0001);
-      if (score > bestFrontScore) {
-        bestFrontScore = score;
+      // Higher facing, then nearer, then lexicographically stable entity id.
+      const better = dot > bestFrontDot + 1e-9
+        || (Math.abs(dot - bestFrontDot) <= 1e-9
+          && (dist < bestFrontDist - 1e-9
+            || (Math.abs(dist - bestFrontDist) <= 1e-9 && (!bestFront || id < bestFrontId))));
+      if (better) {
+        bestFrontDot = dot;
+        bestFrontDist = dist;
+        bestFrontId = id;
         bestFront = enemy;
       }
     } else if (dist <= rearR + radius) {
-      if (dist < bestRearDist) {
+      if (dist < bestRearDist - 1e-9
+        || (Math.abs(dist - bestRearDist) <= 1e-9 && (!bestRear || id < bestRearId))) {
         bestRearDist = dist;
+        bestRearId = id;
         bestRear = enemy;
       }
     }
@@ -106,7 +122,7 @@ export function queryFirstRifleHit(enemies, origin, direction, range = GUNNER_CO
   const list = enemies ?? [];
   for (let i = 0; i < list.length; i += 1) {
     const enemy = list[i];
-    if (!enemy?.alive) continue;
+    if (!isLiveHostile(enemy)) continue;
     const ex = (enemy.position?.x ?? 0) - origin.x;
     const ez = (enemy.position?.z ?? 0) - origin.z;
     const along = ex * nx + ez * nz;
@@ -123,13 +139,69 @@ export function queryFirstRifleHit(enemies, origin, direction, range = GUNNER_CO
         distance: along,
         point: {
           x: closestX,
-          y: (origin.y ?? 0) + 1.1,
+          y: origin.y ?? 1.1,
           z: closestZ,
         },
       };
     }
   }
   return best;
+}
+
+/**
+ * Ordered intersections along one rifle lane. Keeps only the nearest `cap` hits,
+ * so Suppressive Burst does not repeatedly rediscover the first target.
+ */
+export function queryRifleLaneHits(
+  enemies,
+  origin,
+  direction,
+  range = GUNNER_CONFIG.rifleRange,
+  radius = GUNNER_CONFIG.rifleRadius,
+  cap = 4,
+) {
+  const dx = direction?.x ?? 0;
+  const dz = direction?.z ?? 1;
+  const len = Math.hypot(dx, dz) || 1;
+  const nx = dx / len;
+  const nz = dz / len;
+  const maxRange = Math.max(1, Number(range) || GUNNER_CONFIG.rifleRange);
+  const capsuleR = Math.max(0.1, Number(radius) || GUNNER_CONFIG.rifleRadius);
+  const maxHits = Math.max(1, Math.round(Number(cap) || 1));
+  const hits = [];
+
+  for (let i = 0; i < (enemies?.length ?? 0); i += 1) {
+    const enemy = enemies[i];
+    if (!isLiveHostile(enemy)) continue;
+    const ex = (enemy.position?.x ?? 0) - origin.x;
+    const ez = (enemy.position?.z ?? 0) - origin.z;
+    const along = ex * nx + ez * nz;
+    if (along < 0 || along > maxRange) continue;
+    const lateral = Math.hypot(ex - nx * along, ez - nz * along);
+    if (lateral > capsuleR + (enemy.radius ?? 0.6)) continue;
+
+    const id = String(enemy.id ?? enemy.entityId ?? enemy.spawnId ?? enemy.typeId ?? i);
+    const hit = {
+      enemy,
+      distance: along,
+      id,
+      point: {
+        x: origin.x + nx * along,
+        y: origin.y ?? 1.1,
+        z: origin.z + nz * along,
+      },
+    };
+    let insertAt = hits.length;
+    while (insertAt > 0) {
+      const previous = hits[insertAt - 1];
+      if (previous.distance < along - 1e-9
+        || (Math.abs(previous.distance - along) <= 1e-9 && previous.id <= id)) break;
+      insertAt -= 1;
+    }
+    hits.splice(insertAt, 0, hit);
+    if (hits.length > maxHits) hits.pop();
+  }
+  return hits.map(({ id: _id, ...hit }) => hit);
 }
 
 /**
@@ -149,7 +221,7 @@ export function queryFlameConeHits(enemies, origin, direction, cone = {}) {
   const list = enemies ?? [];
   for (let i = 0; i < list.length; i += 1) {
     const enemy = list[i];
-    if (!enemy?.alive) continue;
+    if (!isLiveHostile(enemy)) continue;
     const ex = (enemy.position?.x ?? 0) - origin.x;
     const ez = (enemy.position?.z ?? 0) - origin.z;
     const dist = Math.hypot(ex, ez);
@@ -158,11 +230,18 @@ export function queryFlameConeHits(enemies, origin, direction, cone = {}) {
       const dot = (ex * nx + ez * nz) / dist;
       if (dot < cosMin) continue;
     }
-    hits.push({ enemy, distance: dist });
-    if (hits.length >= cap * 2) break;
+    const id = String(enemy.id ?? enemy.entityId ?? enemy.spawnId ?? enemy.typeId ?? i);
+    let insertAt = hits.length;
+    while (insertAt > 0) {
+      const previous = hits[insertAt - 1];
+      if (previous.distance < dist - 1e-9
+        || (Math.abs(previous.distance - dist) <= 1e-9 && previous.id <= id)) break;
+      insertAt -= 1;
+    }
+    hits.splice(insertAt, 0, { enemy, distance: dist, id });
+    if (hits.length > cap) hits.pop();
   }
-  hits.sort((a, b) => a.distance - b.distance);
-  return hits.slice(0, cap).map(h => h.enemy);
+  return hits.map(h => h.enemy);
 }
 
 export function getGunnerBasicAttackSpec(comboStep = 0) {

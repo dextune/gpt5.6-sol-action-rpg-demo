@@ -38,9 +38,7 @@ Guides for agents modifying the **GPT-5.6: Sol / Action RPG DEMO** (Three.js bro
 
 | Plan | Status |
 |------|--------|
-| [plan/gunner-class.md](./plan/gunner-class.md) | **ready** — fifth hero class with a rifle baseline, level-5 Smartlink, later flame skills, full UI/assets/progression coverage, and staged release gates |
-| [plan/combat-motion-sophistication.md](./plan/combat-motion-sophistication.md) | **ready** — **full** combat action motion upgrade (research, baseline, out-of-scope, class cards, waves, validation) |
-| [plan/max-hunt.md](./plan/max-hunt.md) | **ready** — New Hunt → MAX HUNT conversion with a Lv.70 start, village breach, persistent growth, save migration, and performance gates |
+| [plan/audio-overhaul.md](./plan/audio-overhaul.md) | **ready** — full audio-system and content refactor: semantic events, mixer/voices, five-class combat, enemy/world/UI sound, ambience/music, and release gates |
 
 See also [plan/README.md](./plan/README.md).
 
@@ -48,7 +46,9 @@ See also [plan/README.md](./plan/README.md).
 
 Index: **[history/README.md](./history/README.md)**
 
-Includes code-quality P1 + N1–N5, Defense, multi-class/wizard/ranger, skill spectacle, L100 evolution, motion bake, horde-clear V1, weapon progression, etc. (Rift Rush history only — removed from product.) Use for archaeology and “how did we ship X?”, not as open todo lists.
+Hero graphics/animation overhaul: **[history/character-graphics-animation-overhaul.md](./history/character-graphics-animation-overhaul.md)**.
+
+Includes code-quality P1 + N1–N5, Defense, MAX HUNT, multi-class/wizard/ranger/Gunner, skill spectacle, L100 evolution, motion bake, horde-clear V1, weapon progression, etc. (Rift Rush history only — removed from product.) Use for archaeology and “how did we ship X?”, not as open todo lists.
 
 ## Agent working rules (summary)
 

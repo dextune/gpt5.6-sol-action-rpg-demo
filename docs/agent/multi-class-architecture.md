@@ -5,7 +5,7 @@
 Playable identity is **not** hardcoded to a single swordsman. A class is a package of:
 
 - **Look** — hero GLB key + runtime palette / head kit  
-- **Combat style** — `melee` or `magic` basic attack  
+- **Combat style** — explicit `melee`, `magic`, `bow`, or `rifle` basic-attack profile
 - **Skill tree** — active (Q/E/R/C) + passives  
 - **Starter gear** — locked weapon row  
 - **Optional stat mods** — MP/attack/skillPower multipliers  
@@ -36,7 +36,7 @@ Input (keyboard only)
   J              →  Player.tryAttack  (not mouse)
   Space          →  dash
   Q/E/R/C        →  getClassActiveSkills(classId)  →  Player.trySkill
-Basic attack     →  CombatSystem.playerAttack  →  melee | magic by attackStyle
+Basic attack     →  CombatSystem.playerAttack  →  melee | magic/bow | rifle by getBasicAttackProfile
 Active skill     →  CombatSystem.skillHandlers[skill.effect]
 Mouse            →  UI only (menus / inventory / buttons)
 ```
@@ -50,7 +50,8 @@ Mouse            →  UI only (menus / inventory / buttons)
 | `id`, `name`, `title`, `blurb` | Identity / UI copy |
 | `modelKey` | Manifest key, e.g. `hero.wizard` |
 | `lookId` | Key into `CLASS_LOOKS` in CharacterFactory |
-| `attackStyle` | `'melee'` \| `'magic'` |
+| `attackStyle` | Broad compatibility style: `'melee'` \| `'magic'` \| `'ranged'` |
+| `basicAttack.profile` | Optional explicit route: `'melee'` \| `'magic'` \| `'bow'` \| `'rifle'` |
 | `activeSkills` | Ordered list of skill ids (Q/E/R/C via each skill’s `key`) |
 | `passiveSkills` | Passive skill ids |
 | `baseStatMods` | `{ attack, mp, skillPower }` multipliers/offsets |
@@ -60,6 +61,7 @@ Mouse            →  UI only (menus / inventory / buttons)
 Helpers:
 
 - `resolveHeroClassId`, `getHeroClass`  
+- `getBasicAttackProfile`, `getClassBasicAttack`, `isRangedAttackStyle`
 - `getClassSkillIds`, `getClassActiveSkills`, `getClassPassiveSkills`  
 - `createEmptySkillRanks`, `createEmptySkillCooldowns`  
 - `createClassStarterWeapon`, `skillKeyCode`  

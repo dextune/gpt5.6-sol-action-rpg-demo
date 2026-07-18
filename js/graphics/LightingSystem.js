@@ -32,7 +32,7 @@ export class LightingSystem {
     this.scene.add(this.coolFill);
 
     this.camp = new THREE.PointLight(0xffa45e, 16, 24, 1.65);
-    this.camp.position.set(0, 2.8, 8.2);
+    this.camp.position.set(-2.1, 2.8, 7.4);
     this.scene.add(this.camp);
 
     this.applyQuality(quality);

@@ -22,6 +22,7 @@ const content = await import(pathToFileURL(join(root, 'js/data/content.js')).hre
 const huntThreat = await import(pathToFileURL(join(root, 'js/systems/huntThreat.js')).href);
 const { SaveManager, normalizeSaveData } = await import(pathToFileURL(join(root, 'js/core/SaveManager.js')).href);
 const { HuntSystem } = await import(pathToFileURL(join(root, 'js/systems/HuntSystem.js')).href);
+const { EnemySystem } = await import(pathToFileURL(join(root, 'js/systems/EnemySystem.js')).href);
 const { Player } = await import(pathToFileURL(join(root, 'js/entities/Player.js')).href);
 const { enhanceWeaponOptions, recomputeWeaponFromEnhance } = await import(
   pathToFileURL(join(root, 'js/systems/LootSystem.js')).href
@@ -36,7 +37,7 @@ const {
 } = content;
 const {
   maxHuntSpawnLevel, maxHuntBossKillEstimate, composeHuntRewardMul, maxHuntRewardScale,
-  huntPopulationProfile, clampHuntSpawnLevel, huntRewardMul,
+  huntPopulationProfile, maxHuntPopulationTarget, clampHuntSpawnLevel, huntRewardMul,
 } = huntThreat;
 
 console.log('\n--- max-hunt ---\n');
@@ -117,6 +118,91 @@ const legacyPop = huntPopulationProfile(false);
 ok(maxPop.opening === 64 && maxPop.surge >= 96 && maxPop.maxEnemies === 128, 'MAX population profile');
 ok(legacyPop.maxEnemies === GAME_CONFIG.maxEnemies, 'legacy population uses GAME_CONFIG cap');
 ok(legacyPop.opening === HUNT_SPAWN_CONFIG.initialEnemies, 'legacy opening matches HUNT_SPAWN_CONFIG');
+ok(maxHuntPopulationTarget('opening', 0) === 64, 'opening ramp starts at 64');
+ok(maxHuntPopulationTarget('surge', 1.5) === 80, 'opening ramp reaches midpoint at 1.5s');
+ok(maxHuntPopulationTarget('surge', 3) === 96, 'opening ramp reaches 96 at 3s');
+ok(maxHuntPopulationTarget('respawn', 0) === 36, 'respawn ramp starts at 36');
+ok(maxHuntPopulationTarget('respawn', 1.5) === 50, 'respawn ramp interpolates before 3s');
+ok(maxHuntPopulationTarget('respawn', 3) === 64, 'respawn ramp reaches 64 at 3s');
+ok(maxHuntPopulationTarget('respawn', 5.5) === 72, 'respawn ramp interpolates from 3s to 8s');
+ok(maxHuntPopulationTarget('respawn', 8) === 80, 'respawn ramp reaches 80 at 8s');
+
+// Exercise the production EnemySystem scheduler at a deterministic 20 FPS.
+// The pure target table alone cannot catch a refill cadence that lags behind it.
+{
+  const player = {
+    alive: true,
+    level: 70,
+    luck: 0,
+    position: new THREE.Vector3(),
+  };
+  const world = {
+    currentZone: ZONES.verdant,
+    zoneAt: () => ZONES.verdant,
+    randomSpawnAround: () => new THREE.Vector3(24, 0, 0),
+    resolvePosition() {},
+  };
+  const game = {
+    mode: 'hunt',
+    state: 'playing',
+    elapsed: 0,
+    player,
+    world,
+    effects: {},
+  };
+  game.ctx = { player, world };
+  const hunt = new HuntSystem(game);
+  hunt.variant = 'max';
+  hunt.invasionPhase = 'opening';
+  hunt.invasionElapsed = 0;
+  game.hunt = hunt;
+
+  const enemies = new EnemySystem(game);
+  game.enemies = enemies;
+  game.ctx.enemies = enemies;
+  enemies.separationTimer = 999;
+  enemies.spawnTimer = MAX_HUNT_CONFIG.sparseInterval;
+  const makeEnemy = ({ elite = false } = {}) => ({
+    alive: true,
+    boss: false,
+    elite,
+    data: { role: 'fodder_swarm' },
+    removable: false,
+    lastHitAt: 0,
+    aggroRadius: 0,
+    radius: 0.5,
+    position: new THREE.Vector3(24, 0, 0),
+    update() {},
+    forceRemove() { this.alive = false; this.removable = true; },
+  });
+  enemies.enemies.push(...Array.from({ length: MAX_HUNT_CONFIG.openingPopulation }, () => makeEnemy()));
+  enemies.spawn = (_data, _position, options = {}) => {
+    const enemy = makeEnemy(options);
+    enemies.enemies.push(enemy);
+    return enemy;
+  };
+  enemies.spawnPack = (_type, count = 1) => Array.from({ length: count }, () => {
+    const enemy = makeEnemy();
+    enemies.enemies.push(enemy);
+    return enemy;
+  });
+  enemies.rollEliteAffix = () => null;
+
+  const random = Math.random;
+  Math.random = () => 0;
+  try {
+    for (let frame = 0; frame < 61; frame += 1) {
+      const delta = 0.05;
+      game.elapsed += delta;
+      hunt.tickInvasion(delta);
+      enemies.update(delta);
+    }
+  } finally {
+    Math.random = random;
+  }
+  ok(enemies.livingCount >= 96, `production scheduler reaches 96 by T+3 (got ${enemies.livingCount})`);
+  ok(enemies.enemies.length <= MAX_HUNT_CONFIG.maxEnemies, 'production scheduler stays under MAX hard cap');
+}
 
 // —— Boss charge range ——
 const ordinaryKills = maxHuntBossKillEstimate(MAX_HUNT_CONFIG.bossCharge);
@@ -201,6 +287,12 @@ ok(migrated?.hunt?.variant === 'legacy', 'v5 without variant migrates to legacy'
 ok(migrated?.player?.level === 32, 'migration does not raise player level');
 ok(migrated?.defenseMeta?.bestWave === 40, 'Defense meta preserved on migration');
 ok(migrated?.migrated === true, 'migrated flag set for v5');
+const forgedV5Max = normalizeSaveData({
+  ...v5Blob,
+  hunt: { ...v5Blob.hunt, variant: 'max', maxBaselineVersion: 1 },
+});
+ok(forgedV5Max?.hunt?.variant === 'legacy', 'v5 stray MAX flag cannot promote a legacy character');
+ok(forgedV5Max?.hunt?.maxBaselineVersion === 0, 'v5 stray MAX baseline marker is cleared');
 
 const again = normalizeSaveData(migrated);
 ok(again?.hunt?.variant === 'legacy' && again?.player?.level === 32, 'normalization is idempotent');
@@ -296,10 +388,15 @@ for (const classId of classIds) {
   const ranksSnap = { ...snap.skills };
   const optSnap = Number(snap.inventory?.[0]?.optionEnhanceLevel) || 0;
   const wSnap = Number(snap.inventory?.[0]?.weaponEnhanceLevel) || 0;
+  player.stimRush = { remaining: 5, attackSpeed: .3, moveSpeed: .2 };
+  player._smartlinkTargetId = 'stale-target';
+  player._smartlinkStickTimer = 5;
+  player._smartlinkReticleEnemy = { alive: true };
   player.load(snap, { resolvePosition() {} });
   ok(player.gold === goldSnap, `${classId} load does not regrant gold`);
   ok((Number(player.weapon?.weaponEnhanceLevel) || 0) === wSnap, `${classId} load weapon level stable`);
   ok((Number(player.weapon?.optionEnhanceLevel) || 0) === optSnap, `${classId} load option level stable`);
+  ok(!player.stimRush && !player._smartlinkTargetId && !player._smartlinkReticleEnemy, `${classId} load clears Gunner transient state`);
   for (const id of getClassSkillIds(classId)) {
     ok((player.skills[id] ?? 0) === (ranksSnap[id] ?? 0), `${classId} load rank ${id} stable`);
   }

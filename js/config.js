@@ -19,6 +19,11 @@ export const GAME_CONFIG = Object.freeze({
   cameraHeight: 15.4,
   cameraHeightPerDistance: .42,
   cameraLookHeight: 1.25,
+  titleCameraDistance: 9.2,
+  titleCameraHeight: 6.5,
+  titleCameraForwardOffset: 1.0,
+  titleCameraFocusHeight: 1.9,
+  titleCameraFocusForward: .4,
   campRadius: 15,
   respawnPosition: [0, 0, 6],
 });
@@ -584,6 +589,8 @@ export const MAX_HUNT_CONFIG = Object.freeze({
   aggroRange: 64,
   sparseLiving: 48,
   sparseInterval: 0.04,
+  /** Opening/respawn ramps must sample the rising target often enough to keep pace. */
+  surgeInterval: 0.04,
   steadyInterval: 0.095,
   /** Respawn pressure after death (not a full opening grant). */
   respawn: Object.freeze({

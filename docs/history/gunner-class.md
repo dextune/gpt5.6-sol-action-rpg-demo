@@ -1,5 +1,7 @@
 # Gunner Hero Class Implementation Plan
 
+> Historical implementation specification. The shipped behavior is maintained by the living guides under `docs/` and `docs/agent/`.
+
 | Metadata | Value |
 |---|---|
 | Status | **implemented** |

@@ -288,8 +288,7 @@ export function returnGameToTitle(game) {
     game.defense.reset();
     (game.ctx?.player ?? game.player).reset();
     (game.ctx?.world ?? game.world).resolvePosition((game.ctx?.player ?? game.player).position, .48);
-    // Drop cache entries with zero live clones after run teardown.
-    game.purgeUnusedAssets();
+    // Title previews and synchronous equipment swaps reuse the initialized asset cache.
     game.state = 'title';
     (game.ctx?.ui ?? game.ui).showTitle();
   }

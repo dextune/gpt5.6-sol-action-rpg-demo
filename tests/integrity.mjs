@@ -223,6 +223,13 @@ void skillCombat;
 // Presentation / motion backlog (P1–P10) — recipes, coalesce, trail, status, audio, constraints
 console.log('\n--- presentation-motion ---');
 const presentationMotion = await import(pathToFileURL(join(root, 'tests/presentation-motion.mjs')));
+console.log('\n--- hero-asset-contract ---');
+const heroAssetContract = await import(pathToFileURL(join(root, 'tests/hero-asset-contract.mjs')));
+ok(heroAssetContract !== null, 'hero-asset-contract nested suite loaded');
+
+console.log('\n--- hero-animation-runtime ---');
+const heroAnimationRuntime = await import(pathToFileURL(join(root, 'tests/hero-animation-runtime.mjs')));
+ok(heroAnimationRuntime !== null, 'hero-animation-runtime nested suite loaded');
 
 console.log('\n--- template-boundary ---');
 const templateBoundary = await import(pathToFileURL(join(root, 'tests/template-boundary.mjs')));

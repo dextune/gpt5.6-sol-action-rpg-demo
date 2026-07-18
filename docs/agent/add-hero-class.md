@@ -31,7 +31,8 @@ knight: Object.freeze({
   blurb: 'Heavy armor · shield line',
   modelKey: 'hero.knight',
   lookId: 'knight',
-  attackStyle: 'melee', // or 'magic'
+  attackStyle: 'melee', // broad style: melee | magic | ranged
+  basicAttack: Object.freeze({ profile: 'melee' }), // explicit melee | magic | bow | rifle route
   skillPanelTitle: 'Oath Arts & Discipline',
   attackLabel: 'Strike',
   activeSkills: Object.freeze(['shield_bash', 'cleave', 'bulwark', 'judgment']),
@@ -215,7 +216,7 @@ Must pass:
 
 Manual QA:
 
-1. Title → select class → New Hunt  
+1. Title → select class → MAX HUNT
 2. Move + attack: direction matches movement  
 3. Unlock skills at 3 / 6 / 10 / 16  
 4. Equip loot weapon  

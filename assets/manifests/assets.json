@@ -6,7 +6,7 @@
       "lods": {
         "high": "./assets/models/hero/aerin_lod0.glb",
         "medium": "./assets/models/hero/aerin_lod1.glb",
-        "low": "./assets/models/hero/aerin_lod1.glb"
+        "low": "./assets/models/hero/aerin_lod2.glb"
       },
       "animationMap": {
         "idle": "idle",
@@ -36,7 +36,7 @@
       "lods": {
         "high": "./assets/models/hero/wizard_lod0.glb",
         "medium": "./assets/models/hero/wizard_lod1.glb",
-        "low": "./assets/models/hero/wizard_lod1.glb"
+        "low": "./assets/models/hero/wizard_lod2.glb"
       },
       "animationMap": {
         "idle": "idle",
@@ -67,7 +67,7 @@
       "lods": {
         "high": "./assets/models/hero/rogue_lod0.glb",
         "medium": "./assets/models/hero/rogue_lod1.glb",
-        "low": "./assets/models/hero/rogue_lod1.glb"
+        "low": "./assets/models/hero/rogue_lod2.glb"
       },
       "animationMap": {
         "idle": "idle",
@@ -97,7 +97,7 @@
       "lods": {
         "high": "./assets/models/hero/ranger_lod0.glb",
         "medium": "./assets/models/hero/ranger_lod1.glb",
-        "low": "./assets/models/hero/ranger_lod1.glb"
+        "low": "./assets/models/hero/ranger_lod2.glb"
       },
       "animationMap": {
         "idle": "idle",
@@ -128,7 +128,7 @@
       "lods": {
         "high": "./assets/models/hero/gunner_lod0.glb",
         "medium": "./assets/models/hero/gunner_lod1.glb",
-        "low": "./assets/models/hero/gunner_lod1.glb"
+        "low": "./assets/models/hero/gunner_lod2.glb"
       },
       "animationMap": {
         "idle": "idle",
@@ -148,10 +148,10 @@
         "hit_light": "hit_light",
         "hit_heavy": "hit_heavy",
         "death": "death",
-        "skill_pierce_shot": "skill_pierce_shot",
-        "skill_trap": "skill_trap",
-        "skill_vault_shot": "skill_vault_shot",
-        "skill_hunter_mark": "skill_hunter_mark"
+        "skill_suppressive_burst": "skill_suppressive_burst",
+        "skill_flame_jet": "skill_flame_jet",
+        "skill_stim_rush": "skill_stim_rush",
+        "skill_inferno_sweep": "skill_inferno_sweep"
       }
     },
     "monster.slime": {
@@ -884,6 +884,21 @@
         "./assets/audio/combat/swing_b.wav"
       ]
     },
+    "rifle_0": {
+      "urls": ["./assets/audio/combat/rifle_0.wav"]
+    },
+    "rifle_1": {
+      "urls": ["./assets/audio/combat/rifle_1.wav"]
+    },
+    "rifle_2": {
+      "urls": ["./assets/audio/combat/rifle_2.wav"]
+    },
+    "rifle_3": {
+      "urls": ["./assets/audio/combat/rifle_3.wav"]
+    },
+    "rifle": {
+      "urls": ["./assets/audio/combat/rifle_0.wav", "./assets/audio/combat/rifle_1.wav"]
+    },
     "hit_light": {
       "urls": [
         "./assets/audio/combat/hit_light_0.wav",
@@ -976,6 +991,12 @@
     "skill_dagger": {
       "urls": [
         "./assets/audio/combat/skill_dagger_0.wav",
+        "./assets/audio/combat/skill_0.wav"
+      ]
+    },
+    "skill_rifle": {
+      "urls": [
+        "./assets/audio/combat/skill_rifle_0.wav",
         "./assets/audio/combat/skill_0.wav"
       ]
     },

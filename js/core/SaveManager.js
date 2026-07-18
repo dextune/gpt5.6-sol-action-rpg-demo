@@ -23,10 +23,10 @@ export function normalizeSaveData(raw) {
 
   const player = { ...raw.player };
   const hunt = isPlainObject(raw.hunt) ? { ...raw.hunt } : {};
-  // v5 (and earlier) Continue saves without a variant stay legacy — never promote to MAX.
-  if (hunt.variant !== 'max' && hunt.variant !== 'legacy') {
-    hunt.variant = 'legacy';
-  }
+  // MAX is a v6 schema contract. Never trust a stray/partial `max` flag from an
+  // older blob or a low-level legacy character can be loaded into MAX pressure.
+  const carriesMaxVariant = version >= GAME_CONFIG.saveVersion && hunt.variant === 'max';
+  hunt.variant = carriesMaxVariant ? 'max' : 'legacy';
   if (hunt.variant === 'legacy') {
     hunt.maxBaselineVersion = 0;
   } else if (!Number.isFinite(Number(hunt.maxBaselineVersion))) {

@@ -2,6 +2,9 @@
  * Combat HUD helpers (N2 UI extract).
  */
 import {
+  GAME_CONFIG,
+  GUNNER_CONFIG,
+  MAX_HUNT_CONFIG,
   WEAPON_ENHANCE,
   WEAPON_OPTION_ENHANCE,
 } from '../../config.js';
@@ -263,6 +266,36 @@ export function updateReticle(ui) {
       reticle.style.left = `${pointer.x}px`;
       reticle.style.top = `${pointer.y}px`;
     }
+    const smartlink = ui.elements['smartlink-reticle'];
+    if (!smartlink) return;
+    const player = ui.game.player;
+    const target = player?._smartlinkReticleEnemy;
+    const visible = ui.game.state === 'playing'
+      && player?.alive
+      && player.classId === 'gunner'
+      && player.level >= GUNNER_CONFIG.smartlink.unlockLevel
+      && (player._smartlinkStickTimer ?? 0) > 0
+      && target?.alive;
+    if (!visible || !ui.game.camera || !target?.position?.clone) {
+      smartlink.classList.add('hidden');
+      return;
+    }
+    const point = target.position.clone();
+    const height = target.refs?.modelHeight ?? target.mesh?.userData?.modelHeight ?? 2.2;
+    point.y += height * 0.55;
+    point.project(ui.game.camera);
+    if (!Number.isFinite(point.x) || !Number.isFinite(point.y) || point.z < -1 || point.z > 1) {
+      smartlink.classList.add('hidden');
+      return;
+    }
+    const rect = ui.game.renderer?.domElement?.getBoundingClientRect?.()
+      ?? { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
+    const margin = 28;
+    const x = clamp(rect.left + (point.x * 0.5 + 0.5) * rect.width, margin, window.innerWidth - margin);
+    const y = clamp(rect.top + (-point.y * 0.5 + 0.5) * rect.height, margin, window.innerHeight - margin);
+    smartlink.style.left = `${x}px`;
+    smartlink.style.top = `${y}px`;
+    smartlink.classList.remove('hidden');
   }
 
 export function updateHUD(ui) {
@@ -351,7 +384,9 @@ export function updateHUD(ui) {
       const attackIcon = attackSlot?.querySelector('.ability-icon');
       if (attackIcon && player.classId === 'gunner') {
         const online = player.level >= 5;
-        const locked = online && Boolean(player._smartlinkReticleEnemy?.alive);
+        const locked = online
+          && (player._smartlinkStickTimer ?? 0) > 0
+          && Boolean(player._smartlinkReticleEnemy?.alive);
         attackIcon.classList.toggle('smartlink-ready', online);
         attackIcon.classList.toggle('smartlink-locked', locked);
         attackSlot?.classList.toggle('smartlink-online', online);
@@ -418,13 +453,13 @@ export function updateHUD(ui) {
       const campDist = Math.hypot(player.position.x, player.position.z);
       let bandLine = zoneBandSubtitle(zone, player.level);
       if (isMax) {
-        const contested = campDist < (ui.game?.config?.campRadius ?? 15) + 2;
+        const contested = campDist < GAME_CONFIG.campRadius + 2;
         if (contested) {
           bandLine = living > 0
             ? `VILLAGE BREACH · ${living} HOSTILES`
             : 'CONTESTED SPRING';
           // Nearby enemies within spring contest radius → contested label.
-          const radius = 12;
+          const radius = MAX_HUNT_CONFIG.contestedSpring.enemyRadius;
           const enemies = ui.game.enemies?.enemies ?? [];
           let near = false;
           for (const e of enemies) {
@@ -433,7 +468,7 @@ export function updateHUD(ui) {
             const dz = e.position.z - player.position.z;
             if (dx * dx + dz * dz <= radius * radius) { near = true; break; }
           }
-          if (near && campDist < 15) bandLine = `CONTESTED SPRING · ${living} HOSTILES`;
+          if (near && campDist < GAME_CONFIG.campRadius) bandLine = `CONTESTED SPRING · ${living} HOSTILES`;
         } else {
           bandLine = `${bandLine} · ${living} hostiles`;
         }

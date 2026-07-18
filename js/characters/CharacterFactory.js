@@ -1,11 +1,74 @@
 import * as THREE from 'three';
-import { CharacterAnimationController } from '../../packages/template-3d/index.js';
+import { CharacterAnimationController, SecondaryMotion } from '../../packages/template-3d/index.js';
 import { convertToStylized, inferMaterialRole } from '../graphics/StylizedMaterial.js';
 import { outlinedMesh, toonMaterial } from '../graphics/Materials.js';
 import { DEFAULT_HERO_CLASS_ID, getHeroClass, resolveHeroClassId } from '../data/content.js';
 
 function ensureUv2(geometry) {
   if (!geometry?.getAttribute?.('uv2') && geometry?.getAttribute?.('uv')) geometry.setAttribute('uv2', geometry.getAttribute('uv').clone());
+}
+
+/** First object found by name, tried in priority order. Used for v2-authored socket/grip names with v1 fallbacks. */
+function findFirstNamed(root, names) {
+  for (const name of names) {
+    const found = root?.getObjectByName?.(name);
+    if (found) return found;
+  }
+  return null;
+}
+function isAuthoredHeroV2(root) {
+  let authored = false;
+  root?.traverse?.(object => {
+    if (Number(object.userData?.schemaVersion) >= 2 && object.userData?.assetType === 'hero') authored = true;
+  });
+  return authored;
+}
+
+/**
+ * v2 rig sockets (preferred, authored) with v1 compatibility aliases (current baked GLBs).
+ * See docs/plan/character-graphics-animation-overhaul.md §7.3.
+ */
+const SOCKET_ALIASES = Object.freeze({
+  weaponR: Object.freeze(['weapon_socket_r', 'weapon_socket']),
+  weaponL: Object.freeze(['weapon_socket_l', 'offhand_socket']),
+  handR: Object.freeze(['hand_r', 'right_hand']),
+  handL: Object.freeze(['hand_l', 'left_hand']),
+});
+const GRIP_ALIASES = Object.freeze(['grip_main', 'grip_anchor']);
+const TRAIL_BASE_ALIASES = Object.freeze(['trail_base', 'blade_base']);
+const TRAIL_TIP_ALIASES = Object.freeze(['trail_tip', 'blade_tip']);
+const MUZZLE_ALIASES = Object.freeze(['muzzle_socket']);
+const SUPPORT_GRIP_ALIASES = Object.freeze(['grip_support']);
+const UPPER_BODY_BONES = Object.freeze([
+  'chest', 'neck', 'head',
+  'left_upper_arm', 'left_lower_arm', 'left_hand',
+  'right_upper_arm', 'right_lower_arm', 'right_hand',
+]);
+
+/** True flip of a single mount axis (e.g. Y-only mirror) is a genuine reflection and cannot
+ * be reproduced by rotation; a compound two-axis flip (X+Y or Y+Z) is a proper 180° rotation
+ * and IS reproducible, so it never needs negative scale. */
+const AXIS_FLIP_X = Object.freeze(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI));
+const AXIS_FLIP_Z = Object.freeze(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI));
+
+/** Dev/test/visual-smoke fail-closed switch (`?debug=1`). Never used inside template-candidate modules. */
+function isDebugStrict() {
+  if (typeof window === 'undefined') return false;
+  try {
+    return new URLSearchParams(window.location.search).get('debug') === '1';
+  } catch {
+    return false;
+  }
+}
+
+/** No negative-scale ancestor anywhere in the (unscaled-by-runtime) authored subtree. */
+function hasNegativeScale(root) {
+  let found = false;
+  root?.traverse?.(object => {
+    if (found || !object.scale) return;
+    if (object.scale.x < 0 || object.scale.y < 0 || object.scale.z < 0) found = true;
+  });
+  return found;
 }
 
 /** Per-look runtime palette + head kit. Add a kit when adding a new class. */
@@ -29,7 +92,7 @@ const CLASS_LOOKS = Object.freeze({
       rimSkin: 0xffd0b0,
     }),
     headKit: 'none',
-    scale: .96,
+    scale: .97,
   }),
   wizard: Object.freeze({
     palette: Object.freeze({
@@ -50,7 +113,7 @@ const CLASS_LOOKS = Object.freeze({
     }),
     // Hat + hair are baked into hero.wizard GLB.
     headKit: 'none',
-    scale: .94,
+    scale: .96,
   }),
   // Night rogue — dark leather wrap, mint accents; hood comes from the runtime head kit.
   rogue: Object.freeze({
@@ -71,7 +134,7 @@ const CLASS_LOOKS = Object.freeze({
       rimSkin: 0xffd0b0,
     }),
     headKit: 'rogue',
-    scale: .92,
+    scale: .89,
   }),
   // Wildshot ranger — forest olive cloak, auburn crop, amber eyes; no runtime hood.
   ranger: Object.freeze({
@@ -92,7 +155,7 @@ const CLASS_LOOKS = Object.freeze({
       rimSkin: 0xffd0b0,
     }),
     headKit: 'ranger',
-    scale: .93,
+    scale: .94,
   }),
   // Ember Vanguard gunner — slate rescue plate, brass + ember accents.
   gunner: Object.freeze({
@@ -120,22 +183,22 @@ const CLASS_LOOKS = Object.freeze({
 // Authored GLBs already use hero-space units. These values are final visual
 // multipliers only; combat range remains on meleeProfile / skills.
 const WEAPON_LENGTH = Object.freeze({
-  sword: 1.08,
-  saber: 1.13,
-  greatsword: 1.44,
+  sword: .84,
+  saber: .68,
+  greatsword: 1.05,
   katana: 1.48,
   leaf: 1.08,
   relic: 1.25,
   staff: 1.08,
-  /** ~85% of prior .78 for a shorter dual-dagger read. */
-  dagger: .663,
+  /** Compact dual-dagger scale keeps both blades inside the rogue silhouette. */
+  dagger: .53,
   bow: 1.05,
-  rifle: 1.12,
+  rifle: 1.2,
 });
 const WEAPON_GIRTH = Object.freeze({
   sword: .92,
-  saber: 1.1,
-  greatsword: 1.38,
+  saber: .72,
+  greatsword: 1.1,
   katana: 1.28,
   leaf: 1.15,
   relic: 1.25,
@@ -143,7 +206,7 @@ const WEAPON_GIRTH = Object.freeze({
   /** Slimmer than prior 1.0 so the rebaked sharp tip stays readable. */
   dagger: .78,
   bow: .9,
-  rifle: .95,
+  rifle: 1.05,
 });
 
 const WEAPON_MOUNT_PROFILES = Object.freeze({
@@ -152,12 +215,12 @@ const WEAPON_MOUNT_PROFILES = Object.freeze({
   staff: Object.freeze({ offset: [.01, -.02, .01], rotation: [-Math.PI / 2, -Math.PI / 2, 0], reverseBladeAxis: true }),
   dagger: Object.freeze({ offset: [0, 0, .01], rotation: [-.55, Math.PI, .05] }),
   bow: Object.freeze({ offset: [0, 0, .01], rotation: [-Math.PI / 2, Math.PI, 0] }),
-  rifle: Object.freeze({ offset: [0.02, -0.02, 0.04], rotation: [-Math.PI / 2, 0, 0.08] }),
+  rifle: Object.freeze({ offset: [0.02, -0.02, 0.04], rotation: [-Math.PI, 0, -0.35] }),
 });
 
 function attachWeaponAtGrip(socket, weapon, offset = [0, 0, 0]) {
   socket.add(weapon);
-  const grip = weapon.getObjectByName('grip_anchor');
+  const grip = findFirstNamed(weapon, GRIP_ALIASES);
   if (!grip) {
     weapon.position.fromArray(offset);
     return;
@@ -351,11 +414,14 @@ function boostAnimeProportions(group) {
   });
 }
 
+/**
+ * D8: palette is a tint/grade policy, not a texture eraser. When the source
+ * material carries authored maps (StylizedMaterial preserved them), `color`
+ * and `metalness`/`roughness` still apply — they multiply/override the same
+ * way they would on any MeshStandardMaterial with a populated `map` — so a
+ * future textured asset keeps its detail instead of being flattened.
+ */
 function applyPalette(material, role, palette) {
-  material.map = null;
-  material.normalMap = null;
-  material.roughnessMap = null;
-  material.aoMap = null;
   material.metalness = role === 'metal' ? .55 : 0;
   material.roughness = role === 'metal' ? .35 : role === 'skin' ? .62 : .88;
   if (role === 'skin') material.color.setHex(palette.skin);
@@ -382,6 +448,32 @@ function applyPalette(material, role, palette) {
   }
 }
 
+/**
+ * Class/weapon contract expectations injected into `AssetManager.cloneModel`.
+ * Catches wrong-file substitution (renamed class asset) and required-socket/
+ * negative-scale regressions before they render silently. Returns the shape
+ * `AssetManager` and `docs/agent` diagnostics expect: `{ ok, issues }`.
+ */
+function validateHeroContract(heroDef, scene) {
+  const issues = [];
+  if (scene.userData.assetKey && scene.userData.assetKey !== heroDef.modelKey) {
+    issues.push(`assetKey ${scene.userData.assetKey} != expected ${heroDef.modelKey}`);
+  }
+  if (!findFirstNamed(scene, SOCKET_ALIASES.weaponR)) {
+    issues.push(`missing weapon socket (${SOCKET_ALIASES.weaponR.join('/')})`);
+  }
+  if (hasNegativeScale(scene)) issues.push('negative scale in authored hero ancestry');
+  return { ok: issues.length === 0, issues };
+}
+
+/** Same contract shape as `validateHeroContract`, scoped to an equipped weapon asset. */
+function validateWeaponContract(kind, scene) {
+  const issues = [];
+  if (!findFirstNamed(scene, GRIP_ALIASES)) issues.push(`missing grip anchor (${GRIP_ALIASES.join('/')})`);
+  if (hasNegativeScale(scene)) issues.push('negative scale in authored weapon ancestry');
+  return { ok: issues.length === 0, issues };
+}
+
 export class CharacterFactory {
   constructor(assetManager, outlineSystem) {
     this.assets = assetManager;
@@ -395,7 +487,13 @@ export class CharacterFactory {
     const look = resolveLook(heroDef.lookId);
     const palette = look.palette;
     const quality = options.quality ?? 'high';
-    const asset = this.assets.cloneModel(heroDef.modelKey, { quality });
+    const strict = isDebugStrict();
+    const asset = this.assets.cloneModel(heroDef.modelKey, {
+      quality,
+      strict,
+      debugFallback: strict,
+      validate: scene => validateHeroContract(heroDef, scene),
+    });
     const group = asset.scene;
     group.name = `Hero_${classId}`;
     group.userData.classId = classId;
@@ -430,17 +528,20 @@ export class CharacterFactory {
       object.material = Array.isArray(object.material) ? converted : converted[0];
     });
 
-    boostAnimeProportions(group);
-    applyHeadKit(group, look);
+    const authoredV2 = isAuthoredHeroV2(group);
+    if (!authoredV2) {
+      boostAnimeProportions(group);
+      applyHeadKit(group, look);
+    }
     this.outlines.configure(group, { color: palette.outline, priority: 10, maxDistance: 48 });
 
-    let socket = group.getObjectByName('weapon_socket');
-    let offhandSocket = group.getObjectByName('offhand_socket');
+    let socket = findFirstNamed(group, SOCKET_ALIASES.weaponR);
+    let offhandSocket = findFirstNamed(group, SOCKET_ALIASES.weaponL);
     // Ranger animation poses the left arm as the bow hand and the right hand as
     // the string hand. Mounting the bow to the shared right-hand socket made the
     // correct asset look like it belonged to another class.
     if (classId === 'ranger') {
-      const leftHand = group.getObjectByName('left_hand');
+      const leftHand = findFirstNamed(group, SOCKET_ALIASES.handL);
       if (leftHand) {
         socket = new THREE.Group();
         socket.name = 'weapon_socket_ranger_runtime';
@@ -449,7 +550,7 @@ export class CharacterFactory {
       }
     }
     if (!offhandSocket && classId === 'rogue') {
-      const leftHand = group.getObjectByName('left_hand');
+      const leftHand = findFirstNamed(group, SOCKET_ALIASES.handL);
       if (leftHand) {
         offhandSocket = new THREE.Group();
         offhandSocket.name = 'offhand_socket_runtime';
@@ -457,6 +558,9 @@ export class CharacterFactory {
         leftHand.add(offhandSocket);
       }
     }
+    group.updateMatrixWorld(true);
+    const modelBounds = new THREE.Box3().setFromObject(group);
+    const modelHeight = Math.max(.01, modelBounds.max.y - modelBounds.min.y);
     const refs = {
       group,
       socket,
@@ -467,13 +571,46 @@ export class CharacterFactory {
       mainBladeTip: null,
       offhandBladeBase: null,
       offhandBladeTip: null,
-      modelHeight: 3.05,
+      modelHeight,
       materials: [...materials.values()],
       fallback: asset.fallback,
       classId,
       quality: group.userData.assetQuality ?? quality,
+      assetError: Boolean(group.userData.assetError),
+      assetErrorDetail: group.userData.assetErrorDetail ?? null,
+      contract: asset.contract ?? null,
+      socketNames: {
+        primary: socket?.name ?? null,
+        offhand: offhandSocket?.name ?? null,
+        muzzle: null,
+      },
     };
-    const animation = new CharacterAnimationController(group, asset.animations, { referenceRunSpeed: 7.2, defaultFade: .13 });
+    const animation = new CharacterAnimationController(group, asset.animations, {
+      referenceRunSpeed: 7.2,
+      defaultFade: .13,
+      locomotionMode: authoredV2 ? 'blend' : 'discrete',
+      strict,
+    });
+    animation.setLayerPolicy({
+      upperBoneNames: UPPER_BODY_BONES,
+      additiveBoneNames: UPPER_BODY_BONES,
+    });
+    if (authoredV2) {
+      animation.setAdditive('breath_add', classId === 'gunner' ? .12 : .16, { timeScale: .9 });
+      if (classId === 'wizard' || classId === 'ranger' || classId === 'gunner') {
+        animation.setAdditive('aim_idle_add', .08, { timeScale: .72 });
+      }
+    }
+    const secondaryChains = ['cape_root', 'hair_root']
+      .map(name => group.getObjectByName(name))
+      .filter(Boolean)
+      .map(bone => ({ bone }));
+    if (secondaryChains.length > 0) {
+      const secondaryMotion = new SecondaryMotion(secondaryChains, { quality });
+      animation.setSecondaryMotion(secondaryMotion);
+      refs.secondaryMotion = secondaryMotion;
+    }
+    refs.animation = animation;
     return { group, refs, animation, classId };
   }
 
@@ -483,19 +620,30 @@ export class CharacterFactory {
     this.clearWeapons(refs);
     const kind = item.model ?? 'sword';
     const quality = item.quality ?? refs.quality ?? 'high';
-    const asset = this.assets.cloneModel(`weapon.${kind}`, { quality });
+    const strict = isDebugStrict();
+    const asset = this.assets.cloneModel(`weapon.${kind}`, {
+      quality,
+      strict,
+      debugFallback: strict,
+      validate: scene => validateWeaponContract(kind, scene),
+    });
     const weapon = asset.scene;
     refs.weaponQuality = weapon.userData.assetQuality ?? quality;
     weapon.name = `Equipped_${kind}`;
     const rogueDual = refs.classId === 'rogue' && (kind === 'dagger' || kind === 'saber');
     const mount = WEAPON_MOUNT_PROFILES[kind] ?? WEAPON_MOUNT_PROFILES.default;
-    weapon.rotation.fromArray(mount.rotation);
     const length = WEAPON_LENGTH[kind] ?? 1;
     const girth = WEAPON_GIRTH[kind] ?? 1;
-    // Some authored weapons point along the inverse hand axis in their idle mount.
-    // Mirror only the longitudinal axis so the grip stays bound while the blade changes direction.
-    const bladeAxisScale = (rogueDual || mount.reverseBladeAxis) ? -length : length;
-    weapon.scale.set(girth, bladeAxisScale, girth);
+    // D9: some authored weapons point along the inverse hand axis in their idle
+    // mount. A single-axis mirror (negative scale) cannot always be produced by
+    // rotation alone, but this specific reversal (only the longitudinal axis)
+    // composes with the base mount rotation as one proper 180° rotation about a
+    // perpendicular axis — so no negative-scale ancestor is ever introduced here.
+    const needsAxisFlip = rogueDual || mount.reverseBladeAxis;
+    weapon.quaternion.setFromEuler(new THREE.Euler().fromArray(mount.rotation));
+    if (needsAxisFlip) weapon.quaternion.multiply(AXIS_FLIP_X);
+    weapon.scale.set(girth, length, girth);
+    weapon.userData.mountAxisFlipped = needsAxisFlip;
     const rarityColor = new THREE.Color(item.rarityColor ?? item.color ?? 0xe8f4ff);
     const outlineColor = resolveLook(getHeroClass(refs.classId).lookId).palette.outline;
     const mainMaterials = new Set();
@@ -510,7 +658,7 @@ export class CharacterFactory {
         role,
         style: { bandStrength: .22, rimStrength: role === 'metal' ? .12 : .04, bands: 3 },
       });
-      material.map = null;
+
       if (role === 'metal' || object.name.toLowerCase().includes('blade')) {
         material.color.copy(rarityColor).lerp(new THREE.Color(0xffffff), .35);
         material.metalness = .72;
@@ -527,13 +675,20 @@ export class CharacterFactory {
       mainMaterials.add(material);
     });
     attachWeaponAtGrip(refs.socket, weapon, mount.offset);
-    refs.bladeBase = weapon.getObjectByName('blade_base');
-    refs.bladeTip = weapon.getObjectByName('blade_tip');
+    refs.bladeBase = findFirstNamed(weapon, TRAIL_BASE_ALIASES);
+    refs.bladeTip = findFirstNamed(weapon, TRAIL_TIP_ALIASES);
     refs.mainBladeBase = refs.bladeBase;
     refs.mainBladeTip = refs.bladeTip;
     refs.weapon = weapon;
+    refs.weaponAssetError = Boolean(weapon.userData.assetError);
+    refs.weaponAssetErrorDetail = weapon.userData.assetErrorDetail ?? null;
+    refs.weaponContract = asset.contract ?? null;
+    if (refs.weaponAssetError) {
+      refs.assetError = true;
+      refs.assetErrorDetail = refs.assetErrorDetail ?? refs.weaponAssetErrorDetail;
+    }
     // Rifle muzzle origin for hitscan tracers (authored socket or tip fallback).
-    let muzzle = weapon.getObjectByName('muzzle_socket');
+    let muzzle = findFirstNamed(weapon, MUZZLE_ALIASES);
     if (!muzzle && kind === 'rifle') {
       muzzle = new THREE.Object3D();
       muzzle.name = 'muzzle_socket';
@@ -545,19 +700,37 @@ export class CharacterFactory {
         weapon.add(muzzle);
       }
     }
+
     refs.muzzleSocket = muzzle ?? refs.bladeTip ?? null;
     this.outlines.configure(weapon, { color: outlineColor, priority: 8, maxDistance: 36 });
     let offhand = null;
     let offhandRelease = null;
     const offhandMaterials = new Set();
     if (refs.classId === 'rogue' && refs.offhandSocket && (kind === 'dagger' || kind === 'saber')) {
-      const offhandAsset = this.assets.cloneModel(`weapon.${kind}`, { quality });
+      const offhandAsset = this.assets.cloneModel(`weapon.${kind}`, {
+        quality,
+        strict,
+        debugFallback: strict,
+        validate: scene => validateWeaponContract(kind, scene),
+      });
       offhandRelease = offhandAsset.release;
       offhand = offhandAsset.scene;
       offhand.name = `Equipped_${kind}_offhand`;
-      offhand.rotation.set(-0.55, 0, -.05);
-      // Mirror X for left hand; negative Y same as main so tip faces forward.
-      offhand.scale.set(-girth, -length, girth);
+      // D9: mirroring left/right hand chirality AND reversing the tip axis is a
+      // compound two-axis flip — mathematically identical to the equivalent
+      // 180° rotation about the perpendicular axis, so this never needs
+      // negative scale (see AXIS_FLIP_Z derivation note above).
+      offhand.quaternion.setFromEuler(new THREE.Euler(-0.55, 0, -.05));
+      offhand.quaternion.multiply(AXIS_FLIP_Z);
+      offhand.scale.set(girth, length, girth);
+      offhand.userData.mountAxisFlipped = true;
+      refs.offhandAssetError = Boolean(offhand.userData.assetError);
+      refs.offhandAssetErrorDetail = offhand.userData.assetErrorDetail ?? null;
+      refs.offhandContract = offhandAsset.contract ?? null;
+      if (refs.offhandAssetError) {
+        refs.assetError = true;
+        refs.assetErrorDetail = refs.assetErrorDetail ?? refs.offhandAssetErrorDetail;
+      }
       offhand.traverse(object => {
         if (!object.isMesh) return;
         object.castShadow = true;
@@ -568,7 +741,7 @@ export class CharacterFactory {
         const material = convertToStylized(source, {
           role, style: { bandStrength: .22, rimStrength: role === 'metal' ? .12 : .04, bands: 3 },
         });
-        material.map = null;
+
         if (role === 'metal' || object.name.toLowerCase().includes('blade')) {
           material.color.copy(rarityColor).lerp(new THREE.Color(0xd9c6ff), .42);
           material.metalness = .72;
@@ -580,10 +753,37 @@ export class CharacterFactory {
         offhandMaterials.add(material);
       });
       attachWeaponAtGrip(refs.offhandSocket, offhand, [0, 0, .01]);
-      refs.offhandBladeBase = offhand.getObjectByName('blade_base');
-      refs.offhandBladeTip = offhand.getObjectByName('blade_tip');
+      refs.offhandBladeBase = findFirstNamed(offhand, TRAIL_BASE_ALIASES);
+      refs.offhandBladeTip = findFirstNamed(offhand, TRAIL_TIP_ALIASES);
       refs.offhandWeapon = offhand;
       this.outlines.configure(offhand, { color: outlineColor, priority: 8, maxDistance: 36 });
+    }
+    refs.socketNames = {
+      ...refs.socketNames,
+      muzzle: refs.muzzleSocket?.name ?? null,
+    };
+    const supportGrip = findFirstNamed(weapon, SUPPORT_GRIP_ALIASES);
+    const supportRoot = refs.group?.getObjectByName('left_upper_arm');
+    const supportMid = refs.group?.getObjectByName('left_lower_arm');
+    const supportEnd = refs.group?.getObjectByName('left_hand');
+    if (kind === 'rifle' && supportGrip && refs.animation && supportRoot && supportMid && supportEnd) {
+      refs.group.updateMatrixWorld(true);
+      const rootPos = supportRoot.getWorldPosition(new THREE.Vector3());
+      const midPos = supportMid.getWorldPosition(new THREE.Vector3());
+      const endPos = supportEnd.getWorldPosition(new THREE.Vector3());
+      refs.animation.setIK({
+        chains: [{
+          name: 'support_hand',
+          root: supportRoot,
+          mid: supportMid,
+          end: supportEnd,
+          target: supportGrip,
+          upperLength: rootPos.distanceTo(midPos),
+          lowerLength: midPos.distanceTo(endPos),
+          weight: kind === 'rifle' ? 1 : .72,
+        }],
+      });
+      refs.supportGrip = supportGrip;
     }
     this.weaponInstances.set(refs, {
       main: { scene: weapon, release: asset.release, materials: mainMaterials },
@@ -605,6 +805,8 @@ export class CharacterFactory {
       handle.release?.();
     }
     this.weaponInstances.delete(refs);
+    refs.animation?.setIK?.({ chains: [] });
+    refs.supportGrip = null;
     refs.weapon = null;
     refs.offhandWeapon = null;
     refs.bladeBase = refs.bladeTip = null;

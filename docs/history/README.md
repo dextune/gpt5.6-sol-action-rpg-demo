@@ -23,6 +23,7 @@ New work should land as:
 | Doc | Outcome |
 |-----|---------|
 | [defense-mode.md](./defense-mode.md) | Defense wave climb (Hunt isolation) |
+| [max-hunt.md](./max-hunt.md) | MAX HUNT level-70 start, village breach, ramped population, save migration, and progression |
 | [shortform-rift-rush.md](./shortform-rift-rush.md) · [tasks](./shortform-rift-rush-tasks.md) | Rift Rush loop (**removed from product** — history only) |
 | [weapon-enhancement-gold-progression.md](./weapon-enhancement-gold-progression.md) | Gold + signature weapon tracks |
 | [monster-variety-hunt-defense.md](./monster-variety-hunt-defense.md) | Bestiary / roles / waves |
@@ -35,10 +36,13 @@ New work should land as:
 |-----|---------|
 | [multi-class-wizard.md](./multi-class-wizard.md) | Multi-class + wizard |
 | [ranger-class.md](./ranger-class.md) | 4th class Ranger |
+| [gunner-class.md](./gunner-class.md) | 5th class Gunner: rifle, Smartlink, flame kit, dedicated assets/audio, and UI |
 | [character-improvements.md](./character-improvements.md) | Class identity / energy / passives pass |
 | [skill-motion-spectacle.md](./skill-motion-spectacle.md) | Skill identity standard (still cited by living guides) |
 | [level-100-skill-evolution/README.md](./level-100-skill-evolution/README.md) | Active evolution L20–100 (scoped release complete) |
 | [static-resource-character-motion.md](./static-resource-character-motion.md) | Bake-only Diablo-lite motion S1–S4 |
+| [combat-motion-sophistication.md](./combat-motion-sophistication.md) | Shipped bake-first combat/skill motion densification and synchronization |
+| [character-graphics-animation-overhaul.md](./character-graphics-animation-overhaul.md) | Five schema-v2 authored heroes/LODs, deterministic build contracts, layered locomotion/additives, IK/grounding/secondary motion, and three cold release passes |
 | [presentation-and-motion-backlog.md](./presentation-and-motion-backlog.md) | VFX / hit-feel backlog shipped |
 | [short-session-polish.md](./short-session-polish.md) | Short-session density Tier A–B |
 | [weapon-visual-scale-detail.md](./weapon-visual-scale-detail.md) | Phase 1 weapon 1.5× scale (Phase 2+ optional) |

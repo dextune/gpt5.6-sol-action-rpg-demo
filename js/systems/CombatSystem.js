@@ -980,26 +980,28 @@ export class CombatSystem {
   clear() {
     if (this._clearing) return;
     this._clearing = true;
-    if (this.game.player) {
-      this.game.player.thornField = null;
-      this.game.player.predatorVerdict = null;
-      this.game.player.clearArcaneOverflow?.();
-      this.game.player.clearStimRush?.();
-      this.game.player._smartlinkTargetId = null;
-      this.game.player._smartlinkReticleEnemy = null;
-      this.rangerGeneration.delete(this.game.player);
-      this.rangerBasicTargets.delete(this.game.player);
-      this.weaponResonanceLastAt.delete(this.game.player);
-      this.ownedCastGenerations.delete(this.game.player);
-      this.whirlwindStates.delete(this.game.player);
-      this.twinFangStates.delete(this.game.player);
-      this.crescentStates.delete(this.game.player);
-      this.fanStates.delete(this.game.player);
-      this.shadowstepStates.delete(this.game.player);
-      this.starburstStates.delete(this.game.player);
-      this.lotusStates.delete(this.game.player);
+    const player = (this.ctx ?? this.game).player;
+    if (player) {
+      player.thornField = null;
+      player.predatorVerdict = null;
+      player.clearArcaneOverflow?.();
+      player.clearStimRush?.();
+      player._smartlinkTargetId = null;
+      player._smartlinkStickTimer = 0;
+      player._smartlinkReticleEnemy = null;
+      this.rangerGeneration.delete(player);
+      this.rangerBasicTargets.delete(player);
+      this.weaponResonanceLastAt.delete(player);
+      this.ownedCastGenerations.delete(player);
+      this.whirlwindStates.delete(player);
+      this.twinFangStates.delete(player);
+      this.crescentStates.delete(player);
+      this.fanStates.delete(player);
+      this.shadowstepStates.delete(player);
+      this.starburstStates.delete(player);
+      this.lotusStates.delete(player);
     }
-    this._clearGunnerTransientState?.(this.game.player);
+    this._clearGunnerTransientState?.(player);
     try {
       const projectiles = this.projectiles.splice(0, this.projectiles.length);
       for (const projectile of projectiles) {

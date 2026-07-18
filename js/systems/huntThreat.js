@@ -259,3 +259,23 @@ export function huntPopulationProfile(isMax) {
     respawnImmediate: HUNT_SPAWN_CONFIG.respawnEnemies,
   });
 }
+
+/** Time-based MAX HUNT population ramp. Pure so deterministic tests own the timeline. */
+export function maxHuntPopulationTarget(phase = 'steady', elapsed = 0) {
+  const t = Math.max(0, Number(elapsed) || 0);
+  const lerpTarget = (from, to, ratio) => Math.floor(from + (to - from) * clamp(ratio, 0, 1));
+  if (phase === 'opening' || phase === 'surge') {
+    return lerpTarget(
+      MAX_HUNT_CONFIG.openingPopulation,
+      MAX_HUNT_CONFIG.surgePopulation,
+      t / Math.max(0.001, MAX_HUNT_CONFIG.surgeSeconds),
+    );
+  }
+  if (phase === 'respawn') {
+    if (t < 3) {
+      return lerpTarget(MAX_HUNT_CONFIG.respawn.immediate, MAX_HUNT_CONFIG.respawn.recovery3s, t / 3);
+    }
+    return lerpTarget(MAX_HUNT_CONFIG.respawn.recovery3s, MAX_HUNT_CONFIG.respawn.recovery8s, (t - 3) / 5);
+  }
+  return MAX_HUNT_CONFIG.steadyTarget;
+}

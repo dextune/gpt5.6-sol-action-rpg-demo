@@ -1,6 +1,6 @@
 # Agent guides — hero classes & multi-class system
 
-English-only playbooks for AI agents and humans who extend **playable hero classes** (knight `aerin`, wizard, rogue, planned ranger, future jobs).
+English-only playbooks for AI agents and humans who extend the five **playable hero classes** (knight `aerin`, wizard, rogue, ranger, Gunner) and future jobs.
 
 These guides document the architecture and the work done to introduce multi-class heroes, a full wizard combat kit, facing-aligned combat, and import-integrity guards.
 
@@ -43,15 +43,14 @@ These guides document the architecture and the work done to introduce multi-clas
 | `wizard` | Arcane caster | `hero.wizard` | `magic` | Apprentice Staff (`staff`) |
 | `rogue` | Night fang — short-reach crit flurry | `hero.rogue` | `melee` | Fledgling Dagger (`dagger`) — runtime hood kit |
 | `ranger` | Wildshot — bow volleys, trap & mark | `hero.ranger` | `ranged` | Fledgling Bow (`bow`) — [../history/ranger-class.md](../history/ranger-class.md) |
-| `gunner` | Ember Vanguard — rifle hitscan, Smartlink, flame control | `hero.gunner` | `ranged` (`basicAttack.profile: 'rifle'`) | Service Rifle (`rifle`) — [../plan/gunner-class.md](../plan/gunner-class.md) |
+| `gunner` | Ember Vanguard — rifle hitscan, Smartlink, flame control | `hero.gunner` | `ranged` (`basicAttack.profile: 'rifle'`) | Service Rifle (`rifle`) — [../history/gunner-class.md](../history/gunner-class.md) |
 
 Melee basic-attack combo length grows with player level (3→7); clips `attack_1`–`attack_7` when baked.  
 Wizard basics use `cast_1`–`cast_4`. Ranger plan reuses projectile basics with bow presentation. See [combat-facing.md](./combat-facing.md) and Player `basicComboLength`.
 
 Class mechanics are data on the `HERO_CLASSES` row (see [../history/character-improvements.md](../history/character-improvements.md)):
 
-- **Basic attack** — `getClassBasicAttack(classId)` merges style defaults with `meleeProfile` / `basicAttack`
-  overrides (`rangeMult`/`arcMult`/`flurry`, melee range/mult curves, magic `bolts`/`comboMults`).
+- **Basic attack** — `getBasicAttackProfile(classId)` resolves `melee`, `magic`, `bow`, or `rifle`; `getClassBasicAttack(classId)` merges that profile with `meleeProfile` / `basicAttack` overrides.
 - **Energy resource (Focus/Rage)** — `energy: { label, effect, max, perHit, perCrit, perDamageTaken?, … }`.
   Full gauge (Lv3+) turns the next attack click into the class burst dispatched via
   `CombatSystem.energyHandlers[energy.effect]` (rogue `dagger_rush`, knight `wrath_slam`). Serialized in saves.
@@ -63,7 +62,7 @@ Class mechanics are data on the `HERO_CLASSES` row (see [../history/character-im
 
 Default when save/UI omit class: `DEFAULT_HERO_CLASS_ID = 'aerin'`.
 
-### Skill spectacle baseline (both classes)
+### Skill spectacle baseline (all classes)
 
 Actives must carry `combat` + `theme` + `sfx` + `recipe` + distinct `anim`.  
 Handlers use `skillCombatAtRank` / Effects recipes / themed audio. Validate with `node tests/skill-combat.mjs`.

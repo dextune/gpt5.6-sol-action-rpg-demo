@@ -138,6 +138,13 @@ export class Game {
     await new Promise(resolve => requestAnimationFrame(resolve));
 
     this.lighting = new LightingSystem(this.scene, this.quality);
+    this.titleKeyLight = new THREE.DirectionalLight(0xdcecff, 1.15);
+    this.titleKeyLight.name = 'TitleNeutralKey';
+    this.titleKeyLight.castShadow = false;
+    this.titleKeyLight.target.name = 'TitleNeutralKeyTarget';
+    this.titleRimLight = new THREE.PointLight(0x8fcfff, 7.5, 13, 1.8);
+    this.titleRimLight.name = 'TitleCoolRim';
+    this.scene.add(this.titleKeyLight, this.titleKeyLight.target, this.titleRimLight);
     this.outlineSystem = new OutlineSystem();
     this.assets = new AssetManager(this.renderer, { quality: this.quality });
     // Never leave heroes/monsters as bare capsules when a GLB fails — use procedural kits.
@@ -284,13 +291,30 @@ export class Game {
     this.player.update(delta, this);
     this.world.update(delta, this);
     this.effects.update(delta);
-    const focus = TMP_TARGET.copy(this.player.position).add(new THREE.Vector3(0, 1.65, 1.1));
+    if (this.world.decorator?.campfire) this.world.decorator.campfire.visible = false;
+    this.titleKeyLight.visible = true;
+    this.titleRimLight.visible = true;
+    this.titleKeyLight.position.set(
+      this.player.position.x + 5,
+      this.player.position.y + 8,
+      this.player.position.z + 6,
+    );
+    this.titleKeyLight.target.position.copy(this.player.position);
+    this.titleKeyLight.target.position.y += 1.35;
+    this.titleRimLight.position.set(
+      this.player.position.x - 3.2,
+      this.player.position.y + 3.8,
+      this.player.position.z - 2.4,
+    );
+    const focus = TMP_TARGET.copy(this.player.position);
+    focus.y += GAME_CONFIG.titleCameraFocusHeight;
+    focus.z += GAME_CONFIG.titleCameraFocusForward;
     const orbit = .55 + Math.sin(this.titleTime * .075) * .08;
-    const distance = 18.5;
+    const distance = GAME_CONFIG.titleCameraDistance;
     this.camera.position.set(
       this.player.position.x + Math.sin(orbit) * distance,
-      this.player.position.y + 12.2,
-      this.player.position.z + Math.cos(orbit) * distance + 2.8,
+      this.player.position.y + GAME_CONFIG.titleCameraHeight,
+      this.player.position.z + Math.cos(orbit) * distance + GAME_CONFIG.titleCameraForwardOffset,
     );
     this.camera.lookAt(focus);
     this.aimPoint.copy(this.player.position).addScaledVector(this.player.facing, 3);
@@ -304,6 +328,9 @@ export class Game {
 
   #updatePlaying(delta) {
     this.playTime += delta;
+    if (this.world.decorator?.campfire) this.world.decorator.campfire.visible = true;
+    this.titleKeyLight.visible = false;
+    this.titleRimLight.visible = false;
     this.#handleMenus();
     if (this.state !== 'playing') return;
     this.#handleInput(delta);

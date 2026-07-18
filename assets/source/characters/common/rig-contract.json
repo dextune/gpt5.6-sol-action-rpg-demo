@@ -1,0 +1,94 @@
+{
+  "$schema": "sol-hero-rig-contract",
+  "rigId": "sol_humanoid_v2",
+  "schemaVersion": 2,
+  "coordinate": {
+    "up": "+Y",
+    "forward": "+Z",
+    "origin": "ground under the midpoint between feet in reference pose",
+    "units": "meters",
+    "exportScale": 1.0,
+    "rootScale": [1, 1, 1],
+    "restPose": "neutral A-pose"
+  },
+  "deformationBones": [
+    "root", "motion_root", "pelvis",
+    "spine_01", "spine_02", "spine_03", "neck", "head",
+    "clavicle_l", "upperarm_l", "upperarm_twist_l", "lowerarm_l", "lowerarm_twist_l", "hand_l",
+    "clavicle_r", "upperarm_r", "upperarm_twist_r", "lowerarm_r", "lowerarm_twist_r", "hand_r",
+    "thigh_l", "thigh_twist_l", "calf_l", "foot_l", "ball_l",
+    "thigh_r", "thigh_twist_r", "calf_r", "foot_r", "ball_r"
+  ],
+  "optionalClassBones": [
+    "cape_01", "cape_02", "cape_03",
+    "hair_01", "hair_02",
+    "quiver_01", "quiver_02",
+    "coat_01", "coat_02"
+  ],
+  "sockets": [
+    "weapon_socket_r", "weapon_socket_l",
+    "hand_ik_l", "hand_ik_r",
+    "foot_contact_l", "foot_contact_r",
+    "head_look_target",
+    "back_socket", "hip_socket_l", "hip_socket_r"
+  ],
+  "weaponNodes": [
+    "grip_main", "grip_support",
+    "muzzle_socket",
+    "trail_base", "trail_tip",
+    "stock_anchor", "string_anchor", "projectile_socket"
+  ],
+  "skinning": {
+    "maxInfluences": 4,
+    "weightsFiniteNonNegativeNormalized": true,
+    "noUnweightedDeformingVertices": true,
+    "noScaleAnimationOnDeformationBones": true,
+    "singleLogicalArmature": true,
+    "rigidArmorMayBeBoneParentedOrRigidlyWeighted": true
+  },
+  "materialRoles": [
+    "skin", "hair", "cloth", "leather", "painted_metal", "bare_metal",
+    "composite", "wood", "emissive", "eye", "decal", "approved_alpha"
+  ],
+  "requiredMetadata": {
+    "assetType": "hero",
+    "schemaVersion": 2,
+    "classId": "<aerin|wizard|rogue|ranger|gunner>",
+    "rigId": "sol_humanoid_v2",
+    "modelHeight": "number",
+    "lod": "0|1|2"
+  },
+  "compatibilityAliases": {
+    "_comment": "Legacy shipping bone/socket name -> target v2 rig-contract name. Every hero root emitted by tools/assets/generate_assets.mjs carries this exact table in userData.rigAliases/extras so tooling and future Blender-authored assets can converge on the v2 contract without breaking existing stable clip/track names mid-migration.",
+    "root": "root",
+    "pelvis": "pelvis",
+    "spine": "spine_01",
+    "chest": "spine_03",
+    "neck": "neck",
+    "head": "head",
+    "left_upper_arm": "upperarm_l",
+    "left_lower_arm": "lowerarm_l",
+    "left_hand": "hand_l",
+    "right_upper_arm": "upperarm_r",
+    "right_lower_arm": "lowerarm_r",
+    "right_hand": "hand_r",
+    "left_upper_leg": "thigh_l",
+    "left_lower_leg": "calf_l",
+    "left_foot": "foot_l",
+    "right_upper_leg": "thigh_r",
+    "right_lower_leg": "calf_r",
+    "right_foot": "foot_r",
+    "cape_root": "cape_01",
+    "cape_mid": "cape_02",
+    "cape_tip": "cape_03",
+    "hair_root": "hair_01",
+    "hair_tip": "hair_02",
+    "weapon_socket": "weapon_socket_r"
+  },
+  "notes": [
+    "Exact deformation bone names are locked during Wave 1 of docs/plan/character-graphics-animation-overhaul.md; this file is the single source of truth consumed by both the Blender export path and the repository-owned authored-recipe exporter.",
+    "Target approximately 50-64 deformation bones and no more than 80 total exported nodes per hero (plan §7.2).",
+    "The current authored-recipe exporter (tools/assets/generate_assets.mjs) ships the compatibilityAliases keys as the physically named, skinned, animated production skeleton (24 deformation bones) plus the sockets listed above, exported additively at identity/positive scale as non-deforming marker nodes.",
+    "No production hero socket, weapon mount, or marker may use negative scale (plan D9)."
+  ]
+}

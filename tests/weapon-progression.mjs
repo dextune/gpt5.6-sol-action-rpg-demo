@@ -6,6 +6,7 @@ import * as THREE from '../vendor/three.module.min.js';
 import { WEAPON_ENHANCE, WEAPON_OPTION_ENHANCE } from '../js/config.js';
 import {
   HERO_CLASSES,
+  WEAPON_EVOLUTIONS,
   WEAPON_RESONANCE_LEVELS,
   createClassStarterWeapon,
   getWeaponEvolution,
@@ -45,6 +46,9 @@ const totalCostThrough = (weapon, target) => {
 
 for (const classId of classIds) {
   const weapon = createClassStarterWeapon(classId);
+  const signatureModel = HERO_CLASSES[classId].starterWeapon.model;
+  ok(WEAPON_EVOLUTIONS[classId].every(stage => stage.model === signatureModel),
+    `${classId} keeps the ${signatureModel} silhouette from title preview through every enhancement`);
   const basePower = weapon.power;
   const cost3 = totalCostThrough(weapon, 3);
   const cost6 = totalCostThrough(weapon, 6);

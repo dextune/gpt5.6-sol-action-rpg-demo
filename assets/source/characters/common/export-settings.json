@@ -1,0 +1,51 @@
+{
+  "rigId": "sol_humanoid_v2",
+  "schemaVersion": 2,
+  "sourceLayout": {
+    "common": "assets/source/characters/common/",
+    "perClassBlend": "assets/source/characters/<classId>/<classId>.blend",
+    "perClassReview": "assets/source/characters/<classId>/<classId>-review.md",
+    "blenderExportScript": "assets/source/characters/common/export_hero.py",
+    "note": "No .blend source files or export_hero.py script exist in this checkout yet, and Blender is not installed on this workstation. tools/assets/build-heroes.mjs checks for a resolvable Blender binary plus both the class .blend and the shared export script before attempting a Blender export, and falls back to the repository-owned authored-recipe exporter (tools/assets/generate_assets.mjs) whenever either is missing."
+  },
+  "exportRules": [
+    "Apply object transforms; positive uniform scale only, ideally [1,1,1].",
+    "Triangulate deterministically at export.",
+    "Export normals; export tangents when normal maps are used.",
+    "Export UV0; UV1 only where AO/lightmap policy requires it.",
+    "Export deformation bones and required socket nodes; bake constraints/control rig.",
+    "Limit skin influences to four per vertex and normalize.",
+    "Export named actions from explicit frame ranges, starting at zero.",
+    "Reset pose between actions to avoid cross-clip leakage.",
+    "Strip cameras, lights, control widgets, debug geometry, and proxy outlines.",
+    "Preserve approved custom properties/extras (schema v2 metadata, rig aliases, sockets).",
+    "Run glTF validation before optimization and after final output."
+  ],
+  "lods": {
+    "lod0": { "residency": "primary", "resolution": 66, "flag": null },
+    "lod1": { "residency": "secondary", "resolution": 46, "flag": null },
+    "lod2": { "residency": "default", "resolution": 30, "flag": "--no-lod2 to skip" }
+  },
+  "optimization": {
+    "meshCompression": "meshopt-or-draco (choose after visual comparison against the Gunner golden asset)",
+    "textureCompression": "ktx2",
+    "animationKeyReduction": "contact/foot/weapon anchor error-checked",
+    "materialAtlasing": true,
+    "rejectVisibleArtifacts": true
+  },
+  "provenance": {
+    "fields": [
+      "sourceFile", "sourceHash", "toolVersions", "outputHash", "byteSize",
+      "triangles", "vertices", "drawGroups", "materials", "textures",
+      "bones", "skins", "clips", "keyCounts",
+      "validatorMessages", "contractResults", "optimizationSettings"
+    ],
+    "hashAlgorithm": "sha256",
+    "deterministic": true,
+    "notes": "tools/assets/generate_assets.mjs embeds a provenanceHash and a stats block (triangles/vertices/bones/clips) in every hero root's userData/extras, derived only from class id, LOD, resolution, rig id, schema version, bone names, and clip names (no wall-clock input). tools/assets/build-heroes.mjs additionally sha256-hashes the emitted GLB bytes per class/LOD and prints a build-level provenance report to stdout (and to --report=<path> when given)."
+  },
+  "buildModes": {
+    "blender": "Used only when a Blender binary is resolvable (BLENDER_BIN env var, --blender-bin=<path>, or 'blender' on PATH) and the target class's <classId>.blend plus the shared export_hero.py both exist on disk.",
+    "authored-recipe": "Repository-owned deterministic procedural exporter (tools/assets/generate_assets.mjs). Used whenever the Blender path above is unavailable, which is the current state of this workstation. This is a build-time, versioned, offline source -- never a runtime primitive fallback -- and every asset it emits carries provenance.mode = \"authored-recipe\" so the distinction is always inspectable."
+  }
+}

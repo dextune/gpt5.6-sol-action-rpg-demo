@@ -24,6 +24,7 @@ export {
   LOCOMOTION_CONFIG,
   ANIM_LOD_CONFIG,
   ASSET_FALLBACK_CONFIG,
+  GROUNDING_CONFIG,
 } from '../../js/core/runtimeConstants.js';
 
 // Assets
@@ -43,6 +44,8 @@ export { OutlineSystem } from '../../js/graphics/OutlineSystem.js';
 
 // Animation
 export { CharacterAnimationController } from '../../js/characters/CharacterAnimationController.js';
+export { SecondaryMotion } from '../../js/characters/SecondaryMotion.js';
+export { TwoBoneIK } from '../../js/characters/TwoBoneIK.js';
 
 /** Package identity for harnesses / diagnostics */
 export const TEMPLATE_3D_PACKAGE_ID = '@sol/template-3d';

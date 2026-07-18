@@ -51,6 +51,15 @@ export const ANIM_LOD_CONFIG = Object.freeze({
   midDistance: 22,
   midInterval: 0.055,
 });
+/** Generic near-ground contact window and visual IK blend defaults. */
+export const GROUNDING_CONFIG = Object.freeze({
+  /** Foot-end target height above the sampled ground plane, in world units. */
+  footOffset: 0.08,
+  /** Only solve while the animated foot is inside this contact window. */
+  maxCorrection: 0.16,
+  /** Partial blend avoids snapping the authored leg pose on uneven terrain. */
+  weight: 0.72,
+});
 
 /** Minimal AssetManager fallback mesh proportions (template-safe). */
 export const ASSET_FALLBACK_CONFIG = Object.freeze({

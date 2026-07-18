@@ -110,10 +110,26 @@ export function inferMaterialRole(name = '') {
   return 'default';
 }
 
+/** PBR map slots preserved (not erased) by the stylized conversion. */
+const PRESERVED_MAP_KEYS = Object.freeze([
+  'map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap', 'alphaMap',
+]);
+
+/**
+ * Convert a source (authored/GLTF) material into a StylizedMaterial.
+ *
+ * D8: this preserves authored PBR map slots and their color-space/UV behavior
+ * instead of erasing them. Texture instances are shared by reference (same
+ * clone-refcount semantics as before — no extra texture clones are created
+ * here); `map.colorSpace`, wrap modes, and filtering stay whatever the loader
+ * assigned. Pass `options.preserveMaps = false` to opt out (e.g. a role that
+ * is deliberately flat-shaded/proxy geometry).
+ */
 export function convertToStylized(source, options = {}) {
   const role = options.role ?? inferMaterialRole(source?.name ?? '');
   const style = { ...ROLE_STYLES[role], ...(options.style ?? {}) };
-  const material = new StylizedMaterial({
+  const preserveMaps = options.preserveMaps ?? true;
+  const parameters = {
     name: source?.name ?? `stylized_${role}`,
     color: source?.color?.clone?.() ?? new THREE.Color(options.color ?? 0xffffff),
     emissive: source?.emissive?.clone?.() ?? new THREE.Color(0x000000),
@@ -127,11 +143,34 @@ export function convertToStylized(source, options = {}) {
     depthWrite: source?.depthWrite ?? true,
     depthTest: source?.depthTest ?? true,
     vertexColors: source?.vertexColors ?? false,
-  }, style);
+  };
+  const preservedMaps = {};
+  if (preserveMaps && source) {
+    for (const key of PRESERVED_MAP_KEYS) {
+      if (source[key]) {
+        parameters[key] = source[key];
+        preservedMaps[key] = true;
+      }
+    }
+    if (source.normalMap && source.normalScale?.isVector2) parameters.normalScale = source.normalScale.clone();
+    if (source.aoMap && typeof source.aoMapIntensity === 'number') parameters.aoMapIntensity = source.aoMapIntensity;
+  }
+  const material = new StylizedMaterial(parameters, style);
   material.userData.materialRole = role;
+  // Role/extras metadata authored on the source (glTF `extras.role` or a stable name);
+  // runtime tints/grades this role, it does not redefine it.
+  material.userData.assetRole = source?.userData?.role ?? source?.userData?.gltfExtras?.role ?? null;
   material.userData.baseColor = material.color.clone();
   material.userData.baseEmissive = material.emissive.clone();
   material.userData.baseEmissiveIntensity = material.emissiveIntensity;
+  material.userData.hasMap = Boolean(preservedMaps.map);
+  material.userData.hasNormalMap = Boolean(preservedMaps.normalMap);
+  material.userData.hasRoughnessMap = Boolean(preservedMaps.roughnessMap);
+  material.userData.hasMetalnessMap = Boolean(preservedMaps.metalnessMap);
+  material.userData.hasAoMap = Boolean(preservedMaps.aoMap);
+  material.userData.hasEmissiveMap = Boolean(preservedMaps.emissiveMap);
+  material.userData.hasAlphaMap = Boolean(preservedMaps.alphaMap);
+  material.userData.sourceMapsPreserved = preserveMaps;
   return material;
 }
 

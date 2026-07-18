@@ -17,25 +17,27 @@ Query params:
 
 - `?quality=low|medium|high`
 - `?debug=1` (show debug HUD on start)
-- `?autostart=1` (auto start after title; with `?mode=defense` starts Defense, else New Hunt)
-- `?class=aerin|wizard|rogue|ranger` (pre-select title class)
+- `?autostart=1` (auto start after title; with `?mode=defense` starts Defense, otherwise MAX HUNT)
+- `?class=aerin|wizard|rogue|ranger|gunner` (pre-select title class)
 
-Title modes: **New Hunt**, **Defense**, **Continue**. Rift Rush / Daily Rift were removed.
+Title modes: **MAX HUNT**, **Defense**, **Continue**. Rift Rush / Daily Rift were removed.
 
 `server.mjs` uses `safePath` which accounts for Windows path separators. Watch for 403 when modifying the path guard.
 
 ## Save
 
 - Key: `GAME_CONFIG.saveKey` (`gpt5.6-sol-arpg-demo-v1`)
-- Version: `saveVersion: 5` (player `classId` plus one signature weapon; missing → `aerin`)
+- Version: `saveVersion: 6` (`hunt.variant` is `max` or `legacy`; player `classId` and one signature weapon are retained)
 - Auto-save: `autoSaveSeconds`
 - Continue: title `continue-btn`
 
 When changing save schema:
 
 1. Increment `saveVersion`
-2. Handle old versions in load branch or show reset notice. Version 5 folds legacy equipment into one legal signature weapon and converts discarded legacy gear to gold.
+2. Handle old versions in `normalizeSaveData` or show a reset notice. Version 5 and earlier always migrate to legacy Hunt; they must never be promoted into MAX pressure by a stray variant field.
 3. Note in docs/README
+
+Only a new MAX HUNT start applies the level-70 baseline. Continue, load, death, and respawn restore the serialized character without re-granting baseline gold, ranks, or enhancement levels.
 
 ## Verify
 

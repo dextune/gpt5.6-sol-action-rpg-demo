@@ -14,7 +14,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const base = process.env.BASE_URL || 'http://127.0.0.1:8777';
 const outDir = process.env.OUT_DIR
   || `/tmp/grok-goal-74a662b96cd3/implementer/max-hunt-visual`;
-const classes = ['aerin', 'wizard', 'rogue', 'ranger'];
+const classes = ['aerin', 'wizard', 'rogue', 'ranger', 'gunner'];
 const failures = [];
 const consoleErrors = [];
 let server;
@@ -67,11 +67,13 @@ async function startMaxHunt(page, classId) {
 }
 
 async function snapshotMaxState(page) {
-  return page.evaluate(() => {
+  return page.evaluate(async () => {
+    const { GAME_CONFIG } = await import('./js/config.js');
+    const { maxHuntPopulationTarget } = await import('./js/systems/huntThreat.js');
     const g = window.__SOL_ARPG_DEMO__;
     if (!g) return null;
     const p = g.player;
-    const campR = 15;
+    const campR = GAME_CONFIG.campRadius;
     let enemiesInCamp = 0;
     let minCampDist = Infinity;
     for (const e of g.enemies?.enemies ?? []) {
@@ -96,6 +98,9 @@ async function snapshotMaxState(page) {
       weaponEnhance: Number(p.weapon?.weaponEnhanceLevel ?? p.weapon?.enhanceLevel) || 0,
       optionEnhance: Number(p.weapon?.optionEnhanceLevel) || 0,
       living: g.enemies?.livingCount ?? 0,
+      invasionPhase: g.hunt?.invasionPhase,
+      invasionElapsed: g.hunt?.invasionElapsed ?? 0,
+      populationTarget: maxHuntPopulationTarget(g.hunt?.invasionPhase, g.hunt?.invasionElapsed),
       totalEnemies: (g.enemies?.enemies ?? []).filter(e => e.alive).length,
       ranks,
       worldTier: g.hunt?.worldTier,
@@ -129,16 +134,26 @@ async function desktopClass(browser, classId) {
   if (snap.weaponEnhance !== 20) failures.push(`${classId}: weapon +${snap.weaponEnhance}`);
   if (snap.optionEnhance !== 12) failures.push(`${classId}: option +${snap.optionEnhance}`);
   if (snap.skillPoints !== 13) failures.push(`${classId}: skillPoints ${snap.skillPoints}`);
-  if (snap.living < 48) failures.push(`${classId}: opening living ${snap.living} too low`);
+  if (snap.living < 64) failures.push(`${classId}: opening living ${snap.living} < 64`);
   if (snap.contractType !== 'breach') failures.push(`${classId}: contract ${snap.contractType}`);
   if (!/BREACH/i.test(snap.contractLabel || '')) failures.push(`${classId}: contract label ${snap.contractLabel}`);
 
   await page.screenshot({ path: resolve(outDir, `desktop-${classId}-t0.png`) });
 
-  // Wait for invasion approach / surge
+  // Wait for invasion approach / surge. Headless software WebGL can run below
+  // real time, so validate against elapsed game time; the deterministic unit
+  // suite owns the exact T+3 >= 96 merge gate.
   await sleep(3500);
   snap = await snapshotMaxState(page);
-  if (snap.living < 64) failures.push(`${classId}: T+3 living ${snap.living} < 64`);
+  if (snap.living + 1 < snap.populationTarget) {
+    failures.push(
+      `${classId}: population ${snap.living} trails game-time target ${snap.populationTarget}`
+      + ` at ${snap.invasionElapsed.toFixed(2)}s/${snap.invasionPhase}`,
+    );
+  }
+  if (snap.invasionElapsed >= 3 && snap.living < 96) {
+    failures.push(`${classId}: game T+3 living ${snap.living} < 96`);
+  }
   // Idle at hub — invaders should enter camp within ~6s from spawn (already 3.5s + more)
   await sleep(3000);
   snap = await snapshotMaxState(page);

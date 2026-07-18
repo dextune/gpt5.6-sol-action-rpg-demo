@@ -14,11 +14,15 @@ import { ASSET_FALLBACK_CONFIG } from '../core/runtimeConstants.js';
  * Games may pass `options.createFallbackModel` to cloneModel for richer fallbacks.
  * Proportions from ASSET_FALLBACK_CONFIG (runtimeConstants).
  */
+/** Conspicuous, content-free color used for dev/strict-mode fallback substitutions. */
+const DEBUG_FALLBACK_COLOR = 0xff26e0;
+
 function createMinimalFallback(key, options = {}) {
   const F = ASSET_FALLBACK_CONFIG;
   const group = new THREE.Group();
   group.name = `fallback:${key}`;
-  const color = options.data?.color ?? (key.startsWith('hero.') ? F.heroColor : F.enemyColor);
+  const debugFallback = Boolean(options.debugFallback);
+  const color = debugFallback ? DEBUG_FALLBACK_COLOR : (options.data?.color ?? (key.startsWith('hero.') ? F.heroColor : F.enemyColor));
   const scale = options.data?.scale ?? 1;
   const body = new THREE.Mesh(
     new THREE.CapsuleGeometry(
@@ -29,11 +33,14 @@ function createMinimalFallback(key, options = {}) {
     ),
     new THREE.MeshStandardMaterial({
       color, roughness: F.roughness, metalness: F.metalness,
+      emissive: debugFallback ? new THREE.Color(DEBUG_FALLBACK_COLOR) : undefined,
+      emissiveIntensity: debugFallback ? .55 : 0,
     }),
   );
   body.position.y = F.bodyY * scale;
   group.add(body);
   group.userData.fallback = true;
+  group.userData.debugFallback = debugFallback;
   group.userData.refs = { group };
   return { group, refs: { group } };
 }
@@ -187,23 +194,57 @@ export class AssetManager extends EventTarget {
     return actualKey ? this.models.get(actualKey) : null;
   }
 
+  /**
+   * Clone a cached model instance.
+   *
+   * Generic validation hook (D7/D8/D9 support, template-safe — no content
+   * knowledge here): callers may pass `options.validate(scene, result)` →
+   * `{ ok, issues }`. `options.strict` (dev/test/visual-smoke) throws on any
+   * contract mismatch or missing asset instead of silently substituting a
+   * fallback. In non-strict (production) mode, a mismatch/missing asset sets
+   * `scene.userData.assetError = true` + `assetErrorDetail`, dispatches an
+   * `assetError` event, and logs a console error, but the session continues.
+   * Refcount semantics are unchanged: fallback paths never touch `clones`,
+   * and a strict-mode contract failure after clone rolls the increment back
+   * before throwing.
+   */
   cloneModel(key, options = {}) {
     const quality = options.quality ?? this.quality;
     const candidates = [`${key}@${quality}`, `${key}@medium`, `${key}@high`, `${key}@low`];
     const actualKey = candidates.find(candidate => this.models.has(candidate));
     const entry = actualKey ? this.models.get(actualKey) : null;
-    if (!entry) return this.createFallback(key, options);
+    if (!entry) {
+      if (options.strict) throw new Error(`[AssetManager] required asset missing: ${key}`);
+      return this.createFallback(key, { ...options, assetErrorReason: 'missing-asset' });
+    }
     entry.clones += 1;
     const scene = cloneSkeleton(entry.gltf.scene);
     scene.userData.assetKey = key;
     scene.userData.assetQuality = entry.quality;
     scene.userData.assetCacheKey = actualKey;
-    return {
+    const result = {
       scene,
       animations: entry.gltf.animations,
       fallback: false,
       release: () => this.releaseModel(scene),
     };
+    const contract = options.validate ? (options.validate(scene, result) ?? { ok: true, issues: [] }) : null;
+    if (contract && contract.ok === false) {
+      const issues = contract.issues ?? [];
+      if (options.strict) {
+        entry.clones = Math.max(0, entry.clones - 1);
+        disposeObjectTree(scene);
+        throw new Error(`[AssetManager] asset contract mismatch for ${key}: ${issues.join('; ') || 'unspecified'}`);
+      }
+      scene.userData.assetError = true;
+      scene.userData.assetErrorDetail = { key, reason: 'contract-mismatch', issues };
+      console.error(`[AssetManager] asset contract mismatch for ${key}:`, issues);
+      this.dispatchEvent(new CustomEvent('assetError', { detail: scene.userData.assetErrorDetail }));
+    } else {
+      scene.userData.assetError = false;
+    }
+    result.contract = contract;
+    return result;
   }
 
   createFallback(key, options = {}) {
@@ -215,9 +256,13 @@ export class AssetManager extends EventTarget {
       console.error(`[AssetManager] createFallbackModel failed for ${key}, using capsule:`, error);
       refs = createMinimalFallback(key, options);
     }
+    const errorDetail = { key, reason: options.assetErrorReason ?? 'fallback', issues: options.assetErrors ?? [] };
     const scene = refs?.group ?? refs?.scene ?? refs;
     if (!scene?.isObject3D) {
       const minimal = createMinimalFallback(key, options);
+      minimal.group.userData.assetError = true;
+      minimal.group.userData.assetErrorDetail = errorDetail;
+      this.dispatchEvent(new CustomEvent('assetError', { detail: errorDetail }));
       return {
         scene: minimal.group,
         animations: [],
@@ -228,12 +273,15 @@ export class AssetManager extends EventTarget {
     }
     scene.userData.fallback = true;
     scene.userData.fallbackKey = key;
+    scene.userData.assetError = true;
+    scene.userData.assetErrorDetail = errorDetail;
     // Detect pure capsule minimal fallback vs rich ModelFactory rebuild.
     const isCapsule = scene.name?.startsWith?.('fallback:')
       || (scene.children?.length === 1 && scene.children[0]?.geometry?.type === 'CapsuleGeometry');
     if (isCapsule) {
       console.warn(`[AssetManager] CAPSULE fallback active for ${key} — GLB missing/unloadable`);
     }
+    this.dispatchEvent(new CustomEvent('assetError', { detail: errorDetail }));
     return {
       scene,
       animations: [],

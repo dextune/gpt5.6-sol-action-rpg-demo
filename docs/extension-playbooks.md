@@ -260,9 +260,9 @@ Watch for peaking on high volume (small gain values).
 ## 12) Add a hero class (full kit)
 
 1. `js/data/content.js`
-   - `HERO_CLASSES.<id>`: `attackStyle` (`melee`|`magic`), `activeSkills`, `passiveSkills`, `starterWeapon`, `baseStatMods`, look/model keys
+   - `HERO_CLASSES.<id>`: broad `attackStyle` plus explicit `basicAttack.profile` (`melee`|`magic`|`bow`|`rifle`), `activeSkills`, `passiveSkills`, `starterWeapon`, `baseStatMods`, look/model keys
    - `SKILLS` entries with `classId`, and for actives: `effect`, `anim`, `castTime`, `key`
-2. `CombatSystem.skillHandlers` — implement each new `effect` id; for magic basics use `attackStyle: 'magic'`
+2. Register each new active `effect` in `skillEffectRegistry.js`; choose an explicit basic-attack profile when bow/rifle behavior must differ
 3. Bake: hero GLB (`exportHeroClass`) + weapon if needed (`--staff-only` pattern)
 4. `assets.json` model keys; `CLASS_LOOKS` + title `data-class-id`
 5. HUD/input auto-bind via class `activeSkills` — no hard-coded skill ids in Game

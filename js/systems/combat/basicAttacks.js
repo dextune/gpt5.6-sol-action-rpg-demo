@@ -229,9 +229,12 @@ _rifleAttack(player, combo, comboLength = 4) {
         player._smartlinkReticleEnemy = target;
       } else {
         player._smartlinkTargetId = null;
+        player._smartlinkStickTimer = 0;
         player._smartlinkReticleEnemy = null;
       }
     } else {
+      player._smartlinkTargetId = null;
+      player._smartlinkStickTimer = 0;
       player._smartlinkReticleEnemy = null;
     }
 
@@ -247,25 +250,21 @@ _rifleAttack(player, combo, comboLength = 4) {
       }
       return player.position.clone().add(new THREE.Vector3(0, 1.15, 0)).addScaledVector(direction, 0.75);
     })();
+    // The trigger owns one immutable trajectory. Delayed finisher rounds must not
+    // inherit a turn, target swap, or reconstructed muzzle socket.
+    const shotDirection = direction.clone();
+    const shotOrigin = origin.clone();
     const effects = (this.ctx ?? this.game).effects;
-    effects?.recipeRifleMuzzle?.(origin, direction, theme);
+    effects?.recipeRifleMuzzle?.(shotOrigin, shotDirection, theme);
     const rounds = Math.max(1, spec.rounds);
     const perRoundMult = spec.mult;
     // Finisher: three visual rounds, single proc eligibility (first round only).
     const procRound = 0;
     for (let r = 0; r < rounds; r += 1) {
       this._delay(r * 0.045, () => {
-        if (!player.alive) return;
-        const dir = this._facingDir(player);
-        const muzzle = (() => {
-          const socket = player.refs?.muzzleSocket
-            ?? player.refs?.weapon?.getObjectByName?.('muzzle_socket');
-          if (socket?.getWorldPosition) {
-            const p = socket.getWorldPosition(new THREE.Vector3());
-            if (Number.isFinite(p.x)) return p;
-          }
-          return player.position.clone().add(new THREE.Vector3(0, 1.15, 0)).addScaledVector(dir, 0.75);
-        })();
+        if (!player.alive || player.classId !== 'gunner') return;
+        const dir = shotDirection.clone();
+        const muzzle = shotOrigin.clone();
         const hit = queryFirstRifleHit(enemies, muzzle, dir, spec.range, spec.radius);
         const end = hit?.point
           ? new THREE.Vector3(hit.point.x, hit.point.y, hit.point.z)

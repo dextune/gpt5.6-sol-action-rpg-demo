@@ -2332,7 +2332,7 @@ const expectedEvolutionAnimations={
   fireball:['cast_2','skill_fireball'],frost_nova:['cast_3','skill_frost_nova'],arcane_blink:['dodge','skill_blink'],meteor_storm:['cast_4','skill_meteor'],
   twin_fang:['attack_6','skill_twin_fang'],fan_of_knives:['attack_5','skill_fan_knives'],shadowstep:['attack_6','skill_twin_fang'],death_lotus:['attack_5','skill_death_lotus'],
   piercing_shot:['cast_2','skill_pierce_shot'],caltrop_trap:['cast_3','skill_trap'],vault_shot:['dodge','skill_vault_shot'],hunter_mark:['cast_4','skill_hunter_mark'],
-  suppressive_burst:['cast_2','skill_pierce_shot'],flame_jet:['cast_3','skill_trap'],stim_rush:['cast_1','skill_vault_shot'],inferno_sweep:['cast_4','skill_hunter_mark'],
+  suppressive_burst:['cast_2','skill_suppressive_burst'],flame_jet:['cast_3','skill_flame_jet'],stim_rush:['cast_1','skill_stim_rush'],inferno_sweep:['cast_4','skill_inferno_sweep'],
 };
 for(const skill of actives){
   const [form60,form100]=expectedEvolutionAnimations[skill.id]??[];

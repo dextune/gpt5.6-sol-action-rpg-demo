@@ -1,5 +1,7 @@
 # MAX HUNT — Full Mode Conversion Plan
 
+> Historical implementation specification. The shipped behavior is maintained by the living guides under `docs/`.
+
 **Status:** implemented  
 **Captured:** 2026-07-17  
 **Implemented:** 2026-07-17  
