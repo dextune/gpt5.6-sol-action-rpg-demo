@@ -215,7 +215,7 @@ const WEAPON_MOUNT_PROFILES = Object.freeze({
   staff: Object.freeze({ offset: [.01, -.02, .01], rotation: [-Math.PI / 2, -Math.PI / 2, 0], reverseBladeAxis: true }),
   dagger: Object.freeze({ offset: [0, 0, .01], rotation: [-.55, Math.PI, .05] }),
   bow: Object.freeze({ offset: [0, 0, .01], rotation: [-Math.PI / 2, Math.PI, 0] }),
-  rifle: Object.freeze({ offset: [0.02, -0.02, 0.04], rotation: [-Math.PI, 0, -0.35] }),
+  rifle: Object.freeze({ offset: [0.02, -0.02, 0.04], rotation: [-Math.PI, 1.23, -1.28] }),
 });
 
 function attachWeaponAtGrip(socket, weapon, offset = [0, 0, 0]) {

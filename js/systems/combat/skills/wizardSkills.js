@@ -212,6 +212,7 @@ _frostNova(player, bundle, phase = null, apexAudio = null) {
       this._hitEnemiesInRadius(center, radius * 1.05, shatterRaw, {
         knockback: combat.shatterKnockback ?? 2.4,
         multiHit: true,
+        criticalBonus: combat.criticalBonus ?? 0.05,
         skill: true,
         sameCastHit: { key: `${frostCastId}:shatter`, maxHits: 1 },
         onHit: enemy => {
@@ -306,6 +307,7 @@ _arcaneBlink(player, bundle, apexAudio = null) {
     const to = target.clone();
     to.y = (this.ctx ?? this.game).world.heightAt(to.x, to.z);
     (this.ctx ?? this.game).effects.recipeBlinkBurst(from, to, theme, radius);
+    (this.ctx ?? this.game).effects.recipeSpaceSeam?.(from, to, theme, false);
     this._apexAudioPhase(player, castState.apexAudio, 'impact');
     if (combat.routeMult) {
       const route = to.clone().sub(from).setY(0);
@@ -313,7 +315,7 @@ _arcaneBlink(player, bundle, apexAudio = null) {
       const routeDir = route.normalize();
       let anchors = 0;
       const anchored = [];
-      (this.ctx ?? this.game).effects.recipeSpaceSeam?.(from, to, theme, Boolean(combat.spaceRend));
+      if (combat.spaceRend) (this.ctx ?? this.game).effects.recipeSpaceSeam?.(from, to, theme, true);
       const crossed = [];
       for (const enemy of (this.ctx ?? this.game).enemies.enemies) {
         if (!enemy.alive) continue;
@@ -387,6 +389,7 @@ _arcaneBlink(player, bundle, apexAudio = null) {
         armorPierce: combat.armorPierce ?? 0.22,
         criticalBonus: combat.criticalBonus ?? 0.05,
         skill: true,
+        status: combat.status ?? null,
       },
     );
     this._endWizardCast(player, castState);
@@ -402,8 +405,8 @@ _meteorStorm(player, bundle, apexAudio = null) {
   });
   const center = lockedTarget?.position.clone() ?? this._aimAlongFacing(player, combat.aim ?? 10);
   if (combat.worldEnder) {
-    const durable = this._autoTargetEnemy(player, combat.targetRange ?? 24, { durableFirst: true });
-    if (durable) center.copy(durable.position);
+    const apexTarget = this._autoTargetEnemy(player, combat.targetRange ?? 24);
+    if (apexTarget) center.copy(apexTarget.position);
   }
   const facing = center.clone().sub(player.position).setY(0);
   if (facing.lengthSq() < .0001) facing.copy(this._facingDir(player));
@@ -416,6 +419,11 @@ _meteorStorm(player, bundle, apexAudio = null) {
   castState.impactsResolved = 0;
   castState.authoritiesExpected = hits * (combat.fractures ? 2 : 1);
   const meteorCastId = `meteor-${castState.generation}-${++this.spellCastSerial}`;
+  (this.ctx ?? this.game).effects.recipeMeteorConvergence?.(
+    center,
+    theme,
+    combat.finaleRadius ?? 5.6,
+  );
   const orbitTargets = combat.orbitTargets
     ? (this.ctx ?? this.game).enemies.enemies.filter(enemy => enemy.alive)
       .sort((a, b) => a.position.distanceToSquared(center) - b.position.distanceToSquared(center))

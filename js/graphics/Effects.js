@@ -591,28 +591,41 @@ export class Effects {
     this.#skillContact(origin.clone().addScaledVector(dir, 2.2), theme, 1.1, true);
   }
 
-  /** Wizard E — prison cage read on open. */
+  /** Wizard E — prison cage read on open: frost ring + inward crystal spokes. */
   recipeGlacialPrison(position, theme, radius) {
-    this.ring(position, theme.core, radius * 0.95, { life: 0.7, startScale: 0.12, opacity: 0.8 });
-    this.groundDecal(position, theme.accent, radius * 0.9, { life: 1.6, opacity: 0.5, startScale: 0.15 });
+    this.ring(position, theme.core, radius * 0.95, { life: 0.72, startScale: 0.12, opacity: 0.82 });
+    this.ring(position, theme.primary, radius * 0.55, { life: 0.5, startScale: 0.2, height: 0.08, opacity: 0.6 });
+    this.groundDecal(position, theme.accent, radius * 0.9, { life: 1.7, opacity: 0.52, startScale: 0.15 });
+    this.groundDecal(position, theme.secondary, radius * 0.55, { life: 1.2, opacity: 0.3, startScale: 0.2 });
     for (let i = 0; i < 6; i += 1) {
       const ang = (i / 6) * Math.PI * 2;
       const at = position.clone().add(new THREE.Vector3(Math.cos(ang) * radius * 0.72, 0, Math.sin(ang) * radius * 0.72));
-      this.pillar(at, i % 2 ? theme.secondary : theme.primary, 2.8, { life: 0.7, bottom: 0.28, opacity: 0.48 });
+      this.pillar(at, i % 2 ? theme.secondary : theme.primary, 3.1, { life: 0.75, bottom: 0.3, opacity: 0.52 });
     }
+    this.burst(position.clone().add(new THREE.Vector3(0, 1.0, 0)), theme.primary, 18, {
+      speed: 3.4, size: 0.2, life: 0.5, upward: 0.5,
+    });
     this.#skillContact(position, theme, 1.15, false);
   }
 
-  /** Wizard E — delayed shatter spike. */
+  /** Wizard E — delayed shatter spike: radial ice-shard arcs + double burst finisher. */
   recipeGlacialShatter(position, theme, radius) {
-    this.ring(position, theme.core, radius * 1.1, { life: 0.55, startScale: 0.08, opacity: 0.9 });
-    this.ring(position, theme.primary, radius * 0.7, { life: 0.4, startScale: 0.15, height: 0.1, opacity: 0.75 });
+    this.ring(position, theme.core, radius * 1.15, { life: 0.58, startScale: 0.08, opacity: 0.92 });
+    this.ring(position, theme.primary, radius * 0.72, { life: 0.42, startScale: 0.15, height: 0.1, opacity: 0.78 });
+    for (let i = 0; i < 6; i += 1) {
+      const ang = (i / 6) * Math.PI * 2;
+      const dir = new THREE.Vector3(Math.cos(ang), 0, Math.sin(ang));
+      this.slash(position, dir, i % 2 ? theme.secondary : theme.core, radius * 0.6, {
+        height: 0.9 + (i % 3) * 0.15, life: 0.26, thickness: 0.045, spin: (i % 2 ? 1 : -1) * 3.0, opacity: 0.72,
+      });
+    }
     this.burst(position.clone().add(new THREE.Vector3(0, 0.9, 0)), theme.secondary, 36, {
       speed: 6.5, size: 0.32, life: 0.55, upward: 0.35,
     });
     this.burst(position.clone().add(new THREE.Vector3(0, 1.1, 0)), theme.core, 18, {
       speed: 4.2, size: 0.22, life: 0.42, upward: 0.7,
     });
+    this.groundDecal(position, theme.accent, radius * 0.75, { life: 1.1, opacity: 0.4, startScale: 0.15 });
     this.starburst(position.clone().add(new THREE.Vector3(0, 1, 0)), theme.core, 3.6, { life: 0.28 });
     this.flash(position, theme.primary, 22, { life: 0.2, distance: radius + 6 });
     this.impact(position.clone().add(new THREE.Vector3(0, 1, 0)), theme.primary, 'heavy');
@@ -976,48 +989,63 @@ export class Effects {
     });
   }
 
+  /** Wizard — fire orb muzzle: layered flame streaks + double burst + hot core pop. */
   recipeFireOrb(muzzle, direction, theme) {
-    this.slash(muzzle, direction, theme.secondary, 3.2, {
-      height: 1.0, life: 0.32, thickness: 0.09, spin: 2.4, opacity: 0.9,
+    this.slash(muzzle, direction, theme.secondary, 3.4, {
+      height: 1.05, life: 0.34, thickness: 0.1, spin: 2.6, opacity: 0.92,
     });
-    this.slash(muzzle, direction, theme.core, 2.4, {
-      height: 1.25, life: 0.2, thickness: 0.04, spin: -1.8, angleOffset: 0.6, opacity: 0.65,
+    this.slash(muzzle, direction, theme.core, 2.6, {
+      height: 1.3, life: 0.22, thickness: 0.045, spin: -2.0, angleOffset: 0.6, opacity: 0.68,
     });
-    this.burst(muzzle.clone().add(new THREE.Vector3(0, 1.1, 0)).addScaledVector(direction, 0.6), theme.primary, 24, {
-      speed: 4.4, size: 0.32, life: 0.4, upward: 0.4,
+    this.slash(muzzle, direction, theme.primary, 1.8, {
+      height: 0.85, life: 0.26, thickness: 0.06, spin: 1.2, angleOffset: -0.3, opacity: 0.6,
     });
-    this.burst(muzzle.clone().add(new THREE.Vector3(0, 1.0, 0)).addScaledVector(direction, 0.4), theme.core, 12, {
-      speed: 2.8, size: 0.2, life: 0.3, upward: 0.55,
+    this.burst(muzzle.clone().add(new THREE.Vector3(0, 1.1, 0)).addScaledVector(direction, 0.6), theme.primary, 28, {
+      speed: 4.8, size: 0.34, life: 0.42, upward: 0.42,
     });
-    this.trail(muzzle.clone().add(new THREE.Vector3(0, 1.15, 0)).addScaledVector(direction, 0.8), theme.core, 0.7, 0.26);
-    this.trail(muzzle.clone().add(new THREE.Vector3(0, 1.0, 0)).addScaledVector(direction, 1.4), theme.primary, 0.45, 0.2);
-    this.ring(muzzle.clone().addScaledVector(direction, 0.5), theme.accent, 1.4, {
-      life: 0.24, startScale: 0.3, height: 0.9, opacity: 0.55,
+    this.burst(muzzle.clone().add(new THREE.Vector3(0, 1.0, 0)).addScaledVector(direction, 0.4), theme.core, 14, {
+      speed: 3.0, size: 0.22, life: 0.32, upward: 0.58,
     });
-    this.#skillContact(muzzle.clone().addScaledVector(direction, 0.7), theme, 0.9, false);
+    this.trail(muzzle.clone().add(new THREE.Vector3(0, 1.15, 0)).addScaledVector(direction, 0.8), theme.core, 0.78, 0.28);
+    this.trail(muzzle.clone().add(new THREE.Vector3(0, 1.0, 0)).addScaledVector(direction, 1.4), theme.primary, 0.5, 0.22);
+    this.ring(muzzle.clone().addScaledVector(direction, 0.5), theme.accent, 1.5, {
+      life: 0.26, startScale: 0.3, height: 0.9, opacity: 0.6,
+    });
+    this.starburst(muzzle.clone().add(new THREE.Vector3(0, 1.1, 0)).addScaledVector(direction, 0.5), theme.core, 1.8, { life: 0.16 });
+    this.#skillContact(muzzle.clone().addScaledVector(direction, 0.7), theme, 0.95, false);
   }
 
+  /** Wizard — fire blast: shockwave rings + radial shard slashes + triple burst pillar of flame. */
   recipeFireBlast(at, theme, radius) {
     // Scorch residual + dual ring for explosion silhouette (P1).
-    this.ring(at, theme.primary, radius, { life: 0.55, startScale: 0.08, opacity: 0.88 });
-    this.ring(at, theme.core, radius * 0.55, { life: 0.32, startScale: 0.16, height: 0.1, opacity: 0.92 });
-    this.ring(at, theme.secondary, radius * 1.2, { life: 0.42, startScale: 0.06, height: 0.04, opacity: 0.5, lift: 0.45 });
-    this.burst(at.clone().add(new THREE.Vector3(0, 0.9, 0)), theme.secondary, 38, {
-      speed: 7.0, size: 0.4, life: 0.62, upward: 0.55,
+    this.ring(at, theme.primary, radius, { life: 0.58, startScale: 0.08, opacity: 0.9 });
+    this.ring(at, theme.core, radius * 0.55, { life: 0.34, startScale: 0.16, height: 0.1, opacity: 0.94 });
+    this.ring(at, theme.secondary, radius * 1.25, { life: 0.45, startScale: 0.06, height: 0.04, opacity: 0.52, lift: 0.45 });
+    for (let i = 0; i < 5; i += 1) {
+      const ang = (i / 5) * Math.PI * 2;
+      const dir = new THREE.Vector3(Math.cos(ang), 0, Math.sin(ang));
+      this.slash(at, dir, i % 2 ? theme.secondary : theme.primary, radius * 0.7, {
+        height: 0.5 + (i % 3) * 0.15, life: 0.3, thickness: 0.05, opacity: 0.6, spin: 1.4,
+      });
+    }
+    this.burst(at.clone().add(new THREE.Vector3(0, 0.9, 0)), theme.secondary, 40, {
+      speed: 7.2, size: 0.42, life: 0.64, upward: 0.55,
     });
-    this.burst(at.clone().add(new THREE.Vector3(0, 0.7, 0)), theme.core, 20, {
-      speed: 4.6, size: 0.24, life: 0.45, upward: 0.9,
+    this.burst(at.clone().add(new THREE.Vector3(0, 0.7, 0)), theme.core, 22, {
+      speed: 4.8, size: 0.26, life: 0.46, upward: 0.9,
     });
     this.burst(at.clone().add(new THREE.Vector3(0, 1.1, 0)), theme.primary, 14, {
       speed: 3.2, size: 0.18, life: 0.55, upward: 1.2,
     });
-    this.pillar(at, theme.accent, 5.5, { life: 0.4, bottom: 0.9, opacity: 0.42 });
-    this.groundDecal(at, theme.accent, radius * 0.95, { life: 1.15, opacity: 0.52, startScale: 0.12 });
+    this.pillar(at, theme.accent, 5.8, { life: 0.42, bottom: 0.9, opacity: 0.45 });
+    this.groundDecal(at, theme.accent, radius * 0.95, { life: 1.2, opacity: 0.55, startScale: 0.12 });
     this.dust(at, theme.dust, 20, 0.44);
-    this.#skillContact(at, theme, 1.15, true);
+    this.starburst(at.clone().add(new THREE.Vector3(0, 0.9, 0)), theme.core, 3.0, { life: 0.22 });
+    this.#skillContact(at, theme, 1.2, true);
     this.impact(at.clone().add(new THREE.Vector3(0, 1, 0)), theme.primary, 'heavy');
   }
 
+  /** Wizard — ice nova: expanding frost rings + dense lattice shards + frost mist. */
   recipeIceNova(position, theme, radius) {
     this.ring(position, theme.primary, radius, { life: 0.68, startScale: 0.08, opacity: 0.88 });
     this.ring(position, theme.secondary, radius * 0.72, { life: 0.5, startScale: 0.14, height: 0.08, opacity: 0.75 });
@@ -1028,6 +1056,9 @@ export class Effects {
     });
     this.burst(position.clone().add(new THREE.Vector3(0, 1.1, 0)), theme.core, 16, {
       speed: 3.5, size: 0.22, life: 0.45, upward: 0.5,
+    });
+    this.burst(position.clone().add(new THREE.Vector3(0, 0.5, 0)), theme.accent, 10, {
+      speed: 2.2, size: 0.16, life: 0.5, upward: 0.1,
     });
     // Longer frost residual floor (A6).
     this.groundDecal(position, theme.accent, radius * 1.0, { life: 2.1, opacity: 0.55, startScale: 0.1 });
@@ -1041,15 +1072,19 @@ export class Effects {
       });
     }
     this.pillar(position, theme.secondary, 4.2, { life: 0.4, bottom: 0.7, opacity: 0.38 });
+    this.dust(position, theme.dust, 14, 0.38);
     this.#skillContact(position, theme, 1.2, true);
+    this.impact(position.clone().add(new THREE.Vector3(0, 0.9, 0)), theme.primary, 'heavy');
   }
 
+  /** Wizard — blink burst: departure flare + path trail + arrival shockwave with sky beam. */
   recipeBlinkBurst(from, to, theme, radius) {
     this.afterimage(from, theme.primary, { life: 0.42, opacity: 0.68, scale: 1.08 });
     this.burst(from.clone().add(new THREE.Vector3(0, 1, 0)), theme.primary, 26, {
       speed: 4.8, size: 0.32, life: 0.48, upward: 0.35,
     });
     this.ring(from, theme.accent, 2.6, { life: 0.36, startScale: 0.15, opacity: 0.7 });
+    this.starburst(from.clone().add(new THREE.Vector3(0, 1, 0)), theme.primary, 2.0, { life: 0.18 });
     this.#skillContact(from, theme, 0.85, false);
     // Path trail samples
     const mid = from.clone().lerp(to, 0.5).add(new THREE.Vector3(0, 1.1, 0));
@@ -1066,10 +1101,30 @@ export class Effects {
       speed: 6.8, upward: 0.6, size: 0.38, life: 0.82,
     });
     this.groundDecal(to, theme.accent, radius * 0.55, { life: 0.85, opacity: 0.35, startScale: 0.2 });
+    this.starburst(to.clone().add(new THREE.Vector3(0, 1.1, 0)), theme.core, 2.6, { life: 0.2 });
     this.#skillContact(to, theme, 1.2, true);
     this.impact(to.clone().add(new THREE.Vector3(0, 1.1, 0)), theme.primary, 'heavy');
   }
 
+  /** Wizard — pre-barrage sky/ground convergence cue: converging beams telegraph the incoming meteors. */
+  recipeMeteorConvergence(center, theme, radius) {
+    const r = Math.max(1, Number(radius) || 4);
+    this.ring(center, theme.core, r * 0.7, { life: 0.5, startScale: 0.3, opacity: 0.5 });
+    this.ring(center, theme.primary, r * 0.4, { life: 0.4, startScale: 0.4, height: 0.05, opacity: 0.4 });
+    this.groundDecal(center, theme.accent, r * 0.8, { life: 0.9, opacity: 0.35, startScale: 0.4 });
+    for (let i = 0; i < 4; i += 1) {
+      const ang = (i / 4) * Math.PI * 2 + Math.PI / 4;
+      const foot = center.clone().add(new THREE.Vector3(Math.cos(ang) * r * 0.6, 0, Math.sin(ang) * r * 0.6));
+      const sky = foot.clone().add(new THREE.Vector3(0, 6 + i * 0.6, 0));
+      this.trail(sky, i % 2 ? theme.secondary : theme.primary, 0.4, 0.3);
+      this.verticalBeam(foot, theme.core, 5, { life: 0.35, bottom: 0.15, opacity: 0.3 });
+    }
+    this.burst(center.clone().add(new THREE.Vector3(0, 0.4, 0)), theme.primary, 12, {
+      speed: 2.0, size: 0.18, life: 0.4, upward: 0.15,
+    });
+  }
+
+  /** Wizard — meteor drop: falling sky trail + impact pillar + double crater burst. */
   recipeMeteorDrop(point, theme, fallHeight = 8) {
     const sky = point.clone().add(new THREE.Vector3(0, fallHeight, 0));
     this.verticalBeam(point, theme.secondary, fallHeight * 0.95, { life: 0.45, bottom: 0.42, opacity: 0.62 });
@@ -1088,7 +1143,9 @@ export class Effects {
     this.ring(point, theme.primary, 1.8, { life: 0.3, startScale: 0.18, height: 0.1, opacity: 0.7 });
     this.groundDecal(point, theme.accent, 2.4, { life: 1.15, opacity: 0.55, startScale: 0.12 });
     this.dust(point, theme.dust, 18, 0.48);
+    this.starburst(point.clone().add(new THREE.Vector3(0, 0.9, 0)), theme.primary, 2.6, { life: 0.2 });
     this.#skillContact(point, theme, 1.15, true);
+    this.impact(point.clone().add(new THREE.Vector3(0, 0.9, 0)), theme.primary, 'heavy');
   }
 
   recipeFangRush(position, direction, theme, range, hitIndex = 0, finale = false) {
@@ -1253,12 +1310,20 @@ export class Effects {
     this.starburst(position.clone().add(new THREE.Vector3(0,1,0)),theme.accent,1.5+Math.min(3,count)*.3,{life:.34});
   }
 
+  /** Wizard — meteor barrage finale: dual sky beams + radial fire-shard rim + massive double burst. */
   recipeMeteorFinale(center, theme, radius) {
     this.ring(center, theme.core, radius, { life: 0.95, startScale: 0.04, opacity: 0.9 });
     this.ring(center, theme.primary, radius * 0.7, { life: 0.6, startScale: 0.08, height: 0.1, opacity: 0.75 });
     this.pillar(center, theme.secondary, 9.5, { life: 0.75, bottom: 1.35, opacity: 0.62 });
     this.verticalBeam(center, theme.primary, 12, { life: 0.58, bottom: 0.9, opacity: 0.5 });
     this.verticalBeam(center, theme.core, 9, { life: 0.4, bottom: 0.45, opacity: 0.38 });
+    for (let i = 0; i < 6; i += 1) {
+      const ang = (i / 6) * Math.PI * 2;
+      const dir = new THREE.Vector3(Math.cos(ang), 0, Math.sin(ang));
+      this.slash(center, dir, i % 2 ? theme.secondary : theme.primary, radius * 0.85, {
+        height: 0.6 + (i % 3) * 0.2, life: 0.32, thickness: 0.06, opacity: 0.7, spin: 2.4 * (i % 2 ? 1 : -1),
+      });
+    }
     this.burst(center.clone().add(new THREE.Vector3(0, 1.2, 0)), theme.primary, 52, {
       speed: 8.0, size: 0.42, life: 0.82, upward: 0.7,
     });
@@ -1267,6 +1332,7 @@ export class Effects {
     });
     this.groundDecal(center, theme.accent, radius * 0.85, { life: 1.4, opacity: 0.55, startScale: 0.06 });
     this.dust(center, theme.dust, 24, 0.5);
+    this.starburst(center.clone().add(new THREE.Vector3(0, 1.2, 0)), theme.core, 4.2, { life: 0.3 });
     this.#skillContact(center, theme, 1.45, true);
     this.impact(center.clone().add(new THREE.Vector3(0, 1.2, 0)), theme.primary, 'finisher');
   }
@@ -1298,75 +1364,155 @@ export class Effects {
     this.#skillContact(muzzle.clone().addScaledVector(direction, 0.6), theme, rail ? 1.1 : 0.85, rail);
   }
 
-  /** Gunner — compact muzzle flash (not an arrow streak). */
+  /** Gunner — compact muzzle flash (not an arrow streak), now with a hot core pop. */
   recipeRifleMuzzle(muzzle, direction, theme) {
-    this.burst(muzzle.clone().addScaledVector(direction, 0.15), theme.core, 8, {
-      speed: 3.2, size: 0.12, life: 0.18, upward: 0.05,
+    this.burst(muzzle.clone().addScaledVector(direction, 0.15), theme.core, 12, {
+      speed: 4.4, size: 0.16, life: 0.17, upward: 0.06,
     });
-    this.slash(muzzle, direction, theme.secondary, 1.2, {
-      height: 0.35, life: 0.12, thickness: 0.04, opacity: 0.75, spin: 0.4,
+    this.slash(muzzle, direction, theme.secondary, 1.5, {
+      height: 0.4, life: 0.12, thickness: 0.05, opacity: 0.8, spin: 0.5,
     });
+    this.ring(muzzle.clone().addScaledVector(direction, 0.1), theme.accent, 0.6, {
+      life: 0.11, startScale: 0.3, height: 0.35, opacity: 0.6,
+    });
+    this.flash(muzzle.clone().addScaledVector(direction, 0.2), theme.core, 9, { life: 0.08 });
   }
 
+  /** Gunner — bright ballistic streak with a hot spark tip. */
   recipeRifleTracer(muzzle, direction, theme, length = 18) {
     const len = Math.max(2, Number(length) || 18);
-    this.slash(muzzle, direction, theme.primary, Math.min(len, 10), {
-      height: 0.12, life: 0.1, thickness: 0.02, opacity: 0.55, spin: 0,
+    const tip = Math.min(len, 10);
+    this.slash(muzzle, direction, theme.primary, tip, {
+      height: 0.16, life: 0.12, thickness: 0.032, opacity: 0.68, spin: 0,
+    });
+    this.slash(muzzle, direction, theme.core, tip * 0.6, {
+      height: 0.1, life: 0.09, thickness: 0.016, opacity: 0.85, spin: 0,
     });
     this.trail(
       muzzle.clone().add(new THREE.Vector3(0, 0.05, 0)).addScaledVector(direction, Math.min(4, len * 0.25)),
-      theme.core, 0.35, 0.1,
+      theme.core, 0.4, 0.12,
     );
+    this.burst(muzzle.clone().addScaledVector(direction, tip), theme.accent, 7, {
+      speed: 2.6, size: 0.11, life: 0.15, upward: 0.12,
+    });
   }
 
+  /** Gunner — three-round burst read: muzzle pop + layered ejection cone + hot brass sparks. */
   recipeRifleBurst(muzzle, direction, theme) {
     this.recipeRifleMuzzle(muzzle, direction, theme);
-    this.slash(muzzle, direction, theme.primary, 3.4, {
-      height: 0.45, life: 0.22, thickness: 0.035, opacity: 0.7,
+    this.slash(muzzle, direction, theme.primary, 4.4, {
+      height: 0.55, life: 0.25, thickness: 0.05, opacity: 0.8,
     });
-    this.ring(muzzle.clone().addScaledVector(direction, 0.4), theme.accent, 0.9, {
-      life: 0.22, startScale: 0.2, height: 0.5, opacity: 0.5,
+    this.slash(muzzle, direction, theme.core, 2.8, {
+      height: 0.32, life: 0.17, thickness: 0.025, opacity: 0.62, angleOffset: 0.22,
     });
+    this.ring(muzzle.clone().addScaledVector(direction, 0.4), theme.accent, 1.15, {
+      life: 0.25, startScale: 0.22, height: 0.5, opacity: 0.58,
+    });
+    this.burst(muzzle.clone().addScaledVector(direction, 0.5), theme.secondary, 18, {
+      speed: 5.6, size: 0.18, life: 0.26, upward: 0.16,
+    });
+    this.#skillContact(muzzle.clone().addScaledVector(direction, 0.55), theme, 0.85, false);
   }
 
+  /** Gunner — sustained incendiary jet: layered flame cone + rising heat column. */
   recipeFlameJet(muzzle, direction, theme, range = 7) {
     const r = Math.max(3, Number(range) || 7);
-    this.slash(muzzle, direction, theme.primary, r * 0.55, {
-      height: 0.9, life: 0.28, thickness: 0.08, opacity: 0.72, spin: 1.2,
+    this.slash(muzzle, direction, theme.primary, r * 0.6, {
+      height: 1.05, life: 0.3, thickness: 0.11, opacity: 0.82, spin: 1.5,
     });
-    this.slash(muzzle, direction, theme.secondary, r * 0.4, {
-      height: 1.1, life: 0.22, thickness: 0.05, opacity: 0.55, angleOffset: 0.25,
+    this.slash(muzzle, direction, theme.secondary, r * 0.45, {
+      height: 1.3, life: 0.24, thickness: 0.06, opacity: 0.62, angleOffset: 0.25,
     });
-    this.burst(muzzle.clone().addScaledVector(direction, r * 0.35), theme.primary, 18, {
-      speed: 3.6, size: 0.22, life: 0.4, upward: 0.35,
+    this.slash(muzzle, direction, theme.core, r * 0.3, {
+      height: 0.7, life: 0.18, thickness: 0.04, opacity: 0.88, angleOffset: -0.22, spin: -1.8,
     });
-    this.groundDecal?.(muzzle.clone().addScaledVector(direction, r * 0.4), theme.accent, r * 0.35, {
-      life: 0.8, opacity: 0.35, startScale: 0.2,
+    this.burst(muzzle.clone().addScaledVector(direction, r * 0.35), theme.primary, 24, {
+      speed: 4.2, size: 0.26, life: 0.44, upward: 0.4,
     });
+    this.burst(muzzle.clone().addScaledVector(direction, r * 0.55), theme.core, 11, {
+      speed: 2.8, size: 0.17, life: 0.32, upward: 0.62,
+    });
+    this.pillar(muzzle.clone().addScaledVector(direction, r * 0.5), theme.accent, r * 0.55, {
+      life: 0.32, bottom: 0.5, opacity: 0.32,
+    });
+    this.groundDecal?.(muzzle.clone().addScaledVector(direction, r * 0.4), theme.accent, r * 0.4, {
+      life: 0.9, opacity: 0.42, startScale: 0.2,
+    });
+    this.dust(muzzle.clone().addScaledVector(direction, r * 0.5), theme.dust, 10, 0.3);
   }
 
+  /** Gunner — adrenaline surge: double ring shock + upward spark trails. */
   recipeStimPulse(center, theme) {
-    this.ring(center, theme.primary, 2.4, { life: 0.4, startScale: 0.12, opacity: 0.7 });
-    this.burst(center.clone().add(new THREE.Vector3(0, 1.1, 0)), theme.secondary, 14, {
-      speed: 3.8, size: 0.18, life: 0.36, upward: 0.4,
+    this.ring(center, theme.primary, 2.6, { life: 0.42, startScale: 0.1, opacity: 0.78 });
+    this.ring(center, theme.secondary, 1.6, { life: 0.3, startScale: 0.2, height: 0.1, opacity: 0.6 });
+    this.burst(center.clone().add(new THREE.Vector3(0, 1.1, 0)), theme.secondary, 20, {
+      speed: 4.6, size: 0.2, life: 0.4, upward: 0.5,
     });
-    this.trail(center.clone().add(new THREE.Vector3(0, 1.2, 0)), theme.core, 0.45, 0.16);
+    this.burst(center.clone().add(new THREE.Vector3(0, 0.6, 0)), theme.core, 10, {
+      speed: 3.0, size: 0.14, life: 0.3, upward: 0.7,
+    });
+    this.trail(center.clone().add(new THREE.Vector3(0, 1.3, 0)), theme.core, 0.55, 0.2);
+    this.trail(center.clone().add(new THREE.Vector3(0, 0.9, 0)), theme.primary, 0.42, 0.14);
+    this.starburst(center.clone().add(new THREE.Vector3(0, 1.1, 0)), theme.core, 2.0, { life: 0.2 });
   }
 
+  /** Gunner — wide incendiary sweep: fanned flame licks + ember burst. */
   recipeInfernoSweep(center, direction, theme, range = 8) {
     const r = Math.max(4, Number(range) || 8);
     this.slash(center, direction, theme.primary, r, {
-      height: 1.15, life: 0.36, thickness: 0.1, opacity: 0.8, spin: 2.2,
+      height: 1.2, life: 0.38, thickness: 0.11, opacity: 0.85, spin: 2.4,
     });
     this.slash(center, direction, theme.core, r * 0.75, {
-      height: 0.9, life: 0.28, thickness: 0.06, opacity: 0.65, angleOffset: -0.35,
+      height: 0.95, life: 0.3, thickness: 0.07, opacity: 0.7, angleOffset: -0.35,
     });
-    this.ring(center, theme.primary, r * 0.55, { life: 0.5, startScale: 0.1, opacity: 0.7 });
-    this.groundDecal?.(center, theme.accent, r * 0.7, { life: 1.2, opacity: 0.4, startScale: 0.15 });
-    this.burst(center.clone().add(new THREE.Vector3(0, 0.9, 0)), theme.secondary, 28, {
-      speed: 5.2, size: 0.28, life: 0.5, upward: 0.55,
+    this.slash(center, direction, theme.secondary, r * 0.55, {
+      height: 1.45, life: 0.22, thickness: 0.045, opacity: 0.55, angleOffset: 0.4, spin: 1.6,
     });
-    this.#skillContact(center, theme, 1.2, true);
+    this.ring(center, theme.primary, r * 0.55, { life: 0.52, startScale: 0.1, opacity: 0.72 });
+    this.ring(center, theme.core, r * 0.3, { life: 0.32, startScale: 0.18, height: 0.12, opacity: 0.6 });
+    this.groundDecal?.(center, theme.accent, r * 0.75, { life: 1.3, opacity: 0.44, startScale: 0.15 });
+    this.burst(center.clone().add(new THREE.Vector3(0, 0.9, 0)), theme.secondary, 32, {
+      speed: 5.6, size: 0.3, life: 0.55, upward: 0.6,
+    });
+    this.burst(center.clone().add(new THREE.Vector3(0, 1.2, 0)), theme.core, 14, {
+      speed: 3.4, size: 0.18, life: 0.4, upward: 0.85,
+    });
+    this.dust(center, theme.dust, 12, 0.34);
+    this.#skillContact(center, theme, 1.3, true);
+  }
+
+  /** Gunner — burning zone: creation lays a fire ring + spoke licks; ticks flare a random ember spot. */
+  recipeInfernoZone(position, theme, radius, pulse = false) {
+    const r = Math.max(1, Number(radius) || 3);
+    if (!pulse) {
+      this.ring(position, theme.primary, r, { life: 0.6, startScale: 0.1, opacity: 0.78 });
+      this.ring(position, theme.secondary, r * 0.65, { life: 0.42, startScale: 0.18, height: 0.08, opacity: 0.6 });
+      this.groundDecal(position, theme.accent, r * 0.95, { life: 2.2, opacity: 0.5, startScale: 0.12 });
+      this.groundDecal(position, theme.core, r * 0.55, { life: 1.6, opacity: 0.32, startScale: 0.18 });
+      for (let i = 0; i < 5; i += 1) {
+        const ang = (i / 5) * Math.PI * 2;
+        const dir = new THREE.Vector3(Math.cos(ang), 0, Math.sin(ang));
+        const at = position.clone().addScaledVector(dir, r * 0.5);
+        this.slash(at, dir, i % 2 ? theme.secondary : theme.primary, r * 0.4, {
+          height: 0.8 + (i % 3) * 0.2, life: 0.4, thickness: 0.05, opacity: 0.62, spin: 1.4,
+        });
+      }
+      this.burst(position.clone().add(new THREE.Vector3(0, 0.6, 0)), theme.primary, 22, {
+        speed: 3.6, size: 0.22, life: 0.5, upward: 0.7,
+      });
+      this.#skillContact(position, theme, 0.9, false);
+      return;
+    }
+    const spot = position.clone().add(new THREE.Vector3(
+      (Math.random() - 0.5) * r * 1.2, 0, (Math.random() - 0.5) * r * 1.2,
+    ));
+    this.slash(spot, new THREE.Vector3(0, 0, 1), theme.primary, r * 0.3, {
+      height: 0.6, life: 0.24, thickness: 0.04, opacity: 0.55, spin: 2.0,
+    });
+    this.burst(spot.clone().add(new THREE.Vector3(0, 0.3, 0)), theme.secondary, 8, {
+      speed: 2.4, size: 0.14, life: 0.3, upward: 0.5,
+    });
   }
 
   recipeTrapField(center, theme, radius) {

@@ -30,13 +30,15 @@ Keyboard J only (not mouse)
   → delayed hit frame(s)
       melee: swingArc + cone hits
       magic: mana orbs / finisher fan
-      ranger L5+: lock the nearest enemy in the forward half-plane, focus every Strafe arrow,
-                  then acquire the next target only after death or range exit
+      ranger L5+: re-evaluate each Strafe arrow with shared priority
+                   (boss → elite → nearest normal)
       gunner: immutable muzzle/direction snapshot → nearest hitscan intersection + short tracer;
-              L5 Smartlink may correct facing only when the attack input fires
+              L5 Smartlink corrects attack facing with the same shared priority
       #damageEnemy → enemy.takeDamage
       effects.impact (juice)
 ```
+
+All hero auto-target selectors use one ordering contract: **boss first, then elite, then nearest normal**. Distance breaks ties inside a tier; dead or out-of-range targets are skipped immediately.
 
 ### Common basic-attack values (`_meleeAttack` / `_magicAttack` / `_rifleAttack`)
 
@@ -116,10 +118,14 @@ Register effects on `this.skillHandlers[effectId]`.
 | crescent | aerin | `groundWave` | bladewave | skill_blade | pierce wave; **expose** |
 | skyfall | aerin | `leapImpact` | skyice | skill_leap | facing leap + land AoE |
 | starburst | aerin | `starBlade` + finale | starlight | skill_star | **star** radial blades |
-| fireball | wizard | `fireOrb` + blast | ember | skill_fire | projectile; **burn** |
-| frost_nova | wizard | `iceNova` | frost | skill_ice | ring; **slow** |
-| arcane_blink | wizard | `blinkBurst` | arcane | skill_arcane | afterimage teleport |
-| meteor_storm | wizard | `meteorDrop` | meteor | skill_fire | **fallCone** (not star twin) |
+| fireball | wizard | `fireOrb` + `fireBlast` | ember | skill_fire | gravity projectile, implosion, solar blast; **burn** |
+| frost_nova | wizard | `iceNova` + `glacialPrison` + `glacialShatter` | frost | skill_ice | prison cage, delayed destructive shatter; **slow** |
+| arcane_blink | wizard | `blinkBurst` + `spaceSeam` | arcane | skill_arcane | forward damage seam, destination detonation, and **expose** |
+| meteor_storm | wizard | `meteorConvergence` + `meteorDrop` + finale | meteor | skill_fire | converging sky barrage, burning impacts, and crater finale |
+| suppressive_burst | gunner | `rifleBurst` + `rifleTracer` | brassfire | skill_rifle | three heavy piercing lanes; **slow** |
+| flame_jet | gunner | `flameJet` | ember | skill_fire | layered incendiary cone and finisher pulse; **burn** |
+| stim_rush | gunner | `stimPulse` | brassfire | skill_rifle | damaging shockwave plus multi-pulse attack/movement overdrive |
+| inferno_sweep | gunner | `infernoSweep` + `infernoZone` | ember | skill_fire | destructive frontal sweep and pulsing burn zones |
 
 MP / cooldown gating is `Player.trySkill` + `SKILLS` table.  
 **Balance numbers live in `SKILLS[id].combat`** — do not hardcode mult/radius only inside handlers.
@@ -130,7 +136,7 @@ MP / cooldown gating is `Player.trySkill` + `SKILLS` table.
 |----|-----------------|--------|
 | `slow` | frost_nova | `statusMoveMul` reduces enemy move speed |
 | `burn` | fireball, meteor | DoT ticks via `tickStatuses` in `Enemy.update` |
-| `expose` | crescent pierce | extra armor pierce on subsequent hits |
+| `expose` | crescent pierce, arcane_blink | extra armor pierce and damage amplification on subsequent hits |
 
 API: `enemy.applyStatus(id, opts, game)` → pure merge in `skillCombat.applyStatus`.  
 Presentation: trails / ground decals / hit-pulse tint — no buff bar required.

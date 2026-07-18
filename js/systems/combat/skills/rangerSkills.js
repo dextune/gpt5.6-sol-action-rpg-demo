@@ -492,9 +492,7 @@ _hunterMark(player, bundle, apexAudio = null) {
     && this.rangerGeneration.get(player)?.predator === generation;
   const range = combat.targetRange ?? 24;
   const targetCap = Math.max(1, Math.round(combat.targetCap ?? 2));
-  const acquireTargets = () => this._autoTargetEnemies(player, range, targetCap, {
-    durableFirst: Boolean(combat.durableMult),
-  });
+  const acquireTargets = () => this._autoTargetEnemies(player, range, targetCap);
   const openingTargets = acquireTargets();
   const primary = openingTargets[0] ?? null;
   const direction = primary ? this._faceAutoTarget(player, primary) : this._facingDir(player);

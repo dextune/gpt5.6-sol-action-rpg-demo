@@ -3,6 +3,7 @@
  */
 import { GUNNER_CONFIG } from '../../config.js';
 import { clamp } from '../../core/Utils.js';
+import { compareAutoTargets } from './targetPriority.js';
 
 const isLiveHostile = enemy => Boolean(
   enemy?.alive
@@ -30,8 +31,10 @@ export function isValidGunnerTarget(enemy, origin, limits = {}) {
 }
 
 /**
- * Single-pass Smartlink selection — no sort/filter allocations of full arrays.
- * Priority: retained → front acquire → rear emergency → none.
+ * Single-pass Smartlink selection with shared hero priority.
+ * Eligible targets rank boss → elite → normal, then nearest. The front cone is
+ * the normal acquisition zone; the smaller rear radius remains an emergency
+ * acquisition zone.
  *
  * @param {object[]} enemies
  * @param {{ x: number, z: number }} origin
@@ -53,12 +56,7 @@ export function selectSmartlinkTarget(enemies, origin, facing, retainedId = null
 
   let retained = null;
   let bestFront = null;
-  let bestFrontDot = -Infinity;
-  let bestFrontDist = Infinity;
-  let bestFrontId = '';
   let bestRear = null;
-  let bestRearDist = Infinity;
-  let bestRearId = '';
 
   const list = enemies ?? [];
   for (let i = 0; i < list.length; i += 1) {
@@ -70,7 +68,7 @@ export function selectSmartlinkTarget(enemies, origin, facing, retainedId = null
     const radius = enemy.radius ?? 0.6;
     const id = String(enemy.id ?? enemy.entityId ?? enemy.spawnId ?? enemy.typeId ?? i);
 
-    if (retainedId != null && id === retainedId && dist <= retain + radius) {
+    if (retainedId != null && id === String(retainedId) && dist <= retain + radius) {
       retained = enemy;
     }
 
@@ -78,30 +76,16 @@ export function selectSmartlinkTarget(enemies, origin, facing, retainedId = null
     const dot = dx * nx * inv + dz * nz * inv;
 
     if (dist <= acquire + radius && dot >= frontDot) {
-      // Higher facing, then nearer, then lexicographically stable entity id.
-      const better = dot > bestFrontDot + 1e-9
-        || (Math.abs(dot - bestFrontDot) <= 1e-9
-          && (dist < bestFrontDist - 1e-9
-            || (Math.abs(dist - bestFrontDist) <= 1e-9 && (!bestFront || id < bestFrontId))));
-      if (better) {
-        bestFrontDot = dot;
-        bestFrontDist = dist;
-        bestFrontId = id;
-        bestFront = enemy;
-      }
+      if (!bestFront || compareAutoTargets(enemy, bestFront, origin, i) < 0) bestFront = enemy;
     } else if (dist <= rearR + radius) {
-      if (dist < bestRearDist - 1e-9
-        || (Math.abs(dist - bestRearDist) <= 1e-9 && (!bestRear || id < bestRearId))) {
-        bestRearDist = dist;
-        bestRearId = id;
-        bestRear = enemy;
-      }
+      if (!bestRear || compareAutoTargets(enemy, bestRear, origin, i) < 0) bestRear = enemy;
     }
   }
 
-  if (retained) return retained;
-  if (bestFront) return bestFront;
-  return bestRear;
+  let best = bestFront ?? bestRear;
+  if (bestFront && bestRear && compareAutoTargets(bestRear, bestFront, origin) < 0) best = bestRear;
+  if (retained && (!best || compareAutoTargets(retained, best, origin) < 0)) best = retained;
+  return best;
 }
 
 /**

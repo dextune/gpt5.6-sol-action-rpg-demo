@@ -7,23 +7,17 @@
  */
 import * as THREE from 'three';
 import { skillDamage } from '../../../data/skillCombat.js';
+import { compareAutoTargets } from '../targetPriority.js';
 
 export function attachRogueSkillMethods(proto) {
   Object.assign(proto, {
-    _rogueTargets(player, range, cap = 1, origin = player.position, durableFirst = false) {
+    _rogueTargets(player, range, cap = 1, origin = player.position) {
       const limit = Math.max(1, Math.round(cap));
       const maxRange = Math.max(0, Number(range) || 0);
       return ((this.ctx ?? this.game).enemies?.enemies ?? [])
         .filter(enemy => enemy.alive
           && enemy.position.distanceTo(origin) <= maxRange + (enemy.radius ?? .55))
-        .sort((a, b) => {
-          if (durableFirst) {
-            const durableA = a.boss ? 2 : a.elite ? 1 : 0;
-            const durableB = b.boss ? 2 : b.elite ? 1 : 0;
-            if (durableA !== durableB) return durableB - durableA;
-          }
-          return a.position.distanceToSquared(origin) - b.position.distanceToSquared(origin);
-        })
+        .sort((a, b) => compareAutoTargets(a, b, origin))
         .slice(0, limit);
     },
 
@@ -278,7 +272,6 @@ export function attachRogueSkillMethods(proto) {
         combat.targetRange ?? 12,
         combat.targetCap ?? 3,
         player.position,
-        Boolean(combat.durableExtraHits),
       );
       if (hitIndex === 0) this._apexAudioPhase(player, state.apexAudio, 'impact');
       if (!targets.length) {

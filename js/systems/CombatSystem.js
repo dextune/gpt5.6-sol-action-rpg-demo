@@ -15,6 +15,7 @@ import { createEnergyHandlers, createSkillHandlers } from './combat/createSkillH
 import { attachBasicAttackMethods } from './combat/basicAttacks.js';
 import { attachProjectileMethods } from './combat/projectiles.js';
 import { receiveDamageMul } from './huntThreat.js';
+import { autoTargetTier, compareAutoTargets } from './combat/targetPriority.js';
 
 const TMP_A = new THREE.Vector3();
 const TMP_B = new THREE.Vector3();
@@ -215,14 +216,13 @@ export class CombatSystem {
   }
 
   /**
-   * Stick-friendly target selection shared by ranged active skills.
-   * A cluster radius promotes enemies standing inside the densest nearby pack;
-   * without it the result is simply nearest-first.
+   * Shared hero auto-target selection.
+   * Eligible enemies are ordered boss → elite → normal, nearest first inside
+   * each tier. Area density only breaks otherwise equivalent target choices.
    */
   _autoTargetEnemies(player, range = 18, limit = 1, options = {}) {
     const origin = options.origin ?? player.position;
     const clusterRadius = Math.max(0, Number(options.clusterRadius) || 0);
-    const durableFirst = Boolean(options.durableFirst);
     const enemies = (this.ctx ?? this.game).enemies?.enemies ?? [];
     const candidates = enemies.filter(enemy => enemy.alive
       && enemy.position.distanceTo(origin) <= range + (enemy.radius ?? 0.5));
@@ -236,12 +236,12 @@ export class CombatSystem {
           }
         }
       }
-      const durableScore = durableFirst && (enemy.boss || enemy.elite) ? 1 : 0;
-      return { enemy, distanceSq, clusterScore, durableScore };
+      return { enemy, distanceSq, clusterScore, tierScore: autoTargetTier(enemy) };
     });
-    scored.sort((a, b) => b.durableScore - a.durableScore
+    scored.sort((a, b) => b.tierScore - a.tierScore
+      || a.distanceSq - b.distanceSq
       || b.clusterScore - a.clusterScore
-      || a.distanceSq - b.distanceSq);
+      || compareAutoTargets(a.enemy, b.enemy, origin));
     return scored.slice(0, Math.max(1, Math.round(limit) || 1)).map(entry => entry.enemy);
   }
 

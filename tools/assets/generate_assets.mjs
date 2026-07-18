@@ -775,39 +775,40 @@ const HERO_SHARED_CLIPS = Object.freeze([
  */
 function classWeaponHold(profileId = 'aerin') {
   if (profileId === 'gunner') {
-    // Two-hand shouldered rifle: stock hand near chest, support hand forward.
+    // Two-hand low-ready rifle hold: firing hand stays at the waist while runtime IK
+    // keeps the support hand locked to the foregrip. Recoil must never become a swing.
     const ready = Object.freeze({
-      pelvis: [.07, -.06, 0], spine: [-.12, -.04, .02], chest: [-.16, -.06, -.04],
-      neck: [.05, .03, 0], head: [.04, .04, -.01],
-      left_upper_arm: [-.5, .18, .34], left_lower_arm: [-.58, .06, .2], left_hand: [.06, .08, .06],
-      right_upper_arm: [-.5, .2, .68], right_lower_arm: [-.72, -.04, 1.42], right_hand: [.08, -.08, -.05],
-      left_upper_leg: [.18, .08, .07], left_lower_leg: [.32, 0, 0], left_foot: [-.08, 0, .03],
-      right_upper_leg: [-.05, -.09, -.08], right_lower_leg: [.45, 0, 0], right_foot: [-.06, 0, -.02],
+      pelvis: [.09, -.04, 0], spine: [-.08, -.025, .015], chest: [-.1, -.035, -.025],
+      neck: [.035, .025, 0], head: [.025, .035, -.008],
+      left_upper_arm: [-.34, .13, .24], left_lower_arm: [-.48, .045, .16], left_hand: [.045, .065, .045],
+      right_upper_arm: [.2, .08, .9], right_lower_arm: [.1, -.02, .82], right_hand: [.055, -.06, -.035],
+      left_upper_leg: [.2, .08, .07], left_lower_leg: [.34, 0, 0], left_foot: [-.08, 0, .03],
+      right_upper_leg: [-.06, -.09, -.08], right_lower_leg: [.47, 0, 0], right_foot: [-.06, 0, -.02],
       cape_root: [.12, 0, 0], hair_root: [-.02, 0, 0],
     });
     return {
       idleDuration: 1.5,
       idle: {
         a: ready,
-        b: { ...ready, pelvis: [.06, -.05, 0], spine: [-.1, -.03, .018], chest: [-.14, -.05, -.035], left_upper_arm: [-.47, .17, .32], left_lower_arm: [-.55, .05, .18], right_upper_arm: [-.47, .19, .65], right_lower_arm: [-.69, -.03, 1.38], cape_root: [.16, .02, 0], hair_root: [.03, 0, 0] },
+        b: { ...ready, pelvis: [.08, -.035, 0], spine: [-.07, -.02, .012], chest: [-.09, -.03, -.02], left_upper_arm: [-.33, .125, .23], left_lower_arm: [-.47, .04, .155], right_upper_arm: [.19, .075, .88], right_lower_arm: [.09, -.018, .8], cape_root: [.16, .02, 0], hair_root: [.03, 0, 0] },
         bob: [0, -.025, .015],
         bobMid: [0, -.008, .02],
       },
       runArms: (phase) => {
-        const pump = Math.sin(phase * Math.PI * 2) * .1;
+        const pump = Math.sin(phase * Math.PI * 2) * .06;
         return {
-          spine: [-.12, -.04, pump * .16], chest: [-.16, -.05, -.04 + pump * .12],
-          left_upper_arm: [-.72 + pump * .07, .2, .34], left_lower_arm: [-.7, .07, .22], left_hand: [.07, .09, .07],
-          right_upper_arm: [-.65 - pump * .07, .22, .7 + pump * .05], right_lower_arm: [-.96, -.04, 1.42], right_hand: [.09, -.09, -.06],
+          spine: [-.11, -.025, pump * .12], chest: [-.14, -.035, -.03 + pump * .08],
+          left_upper_arm: [-.42 + pump * .04, .14, .25], left_lower_arm: [-.54, .05, .17], left_hand: [.05, .07, .05],
+          right_upper_arm: [.14 - pump * .03, .08, .86 + pump * .02], right_lower_arm: [.06, -.02, .78], right_hand: [.06, -.065, -.04],
           cape_root: [.42, pump * .08, 0], hair_root: [.12, 0, 0],
         };
       },
       sprintArms: (phase) => {
-        const pump = Math.sin(phase * Math.PI * 2) * .14;
+        const pump = Math.sin(phase * Math.PI * 2) * .08;
         return {
-          spine: [-.17, -.03, pump * .2], chest: [-.21, -.04, -.05 + pump * .14],
-          left_upper_arm: [-.64 + pump * .09, .17, .3], left_lower_arm: [-.64, .06, .2], left_hand: [.06, .08, .06],
-          right_upper_arm: [-.58 - pump * .09, .18, .64 + pump * .06], right_lower_arm: [-.88, -.04, 1.34], right_hand: [.08, -.08, -.05],
+          spine: [-.16, -.025, pump * .14], chest: [-.19, -.03, -.04 + pump * .1],
+          left_upper_arm: [-.44 + pump * .05, .14, .25], left_lower_arm: [-.55, .05, .17], left_hand: [.05, .07, .05],
+          right_upper_arm: [.12 - pump * .04, .08, .84 + pump * .025], right_lower_arm: [.04, -.02, .76], right_hand: [.06, -.065, -.04],
           cape_root: [.7, pump * .1, 0], hair_root: [.26, 0, 0],
         };
       },
@@ -1809,40 +1810,48 @@ function buildClassCombatClipSpecs(profileId, F) {
     return [...attacks, ...casts];
   }
 
-  // —— Gunner: shouldered aim → compact recoil → immediate sight recovery.
+  // —— Gunner: locked two-hand waist fire → compact in-line recoil → immediate recovery.
   if (profileId === 'gunner') {
+    const waistGrip = Object.freeze({
+      left_upper_arm: [-.34, .13, .24],
+      left_lower_arm: [-.48, .045, .16],
+      left_hand: [.045, .065, .045],
+      right_upper_arm: [.2, .08, .9],
+      right_lower_arm: [.1, -.02, .82],
+      right_hand: [.055, -.06, -.035],
+    });
     const rifleBeat = (name, base, yaw = 0, recoil = .18, finisher = false) => {
       const duration = combatClipDuration(base, profile, { finisher });
       return [name, duration, strikePhases(duration, {
         finisher,
-        ready: { pelvis: [.06, yaw * .35, 0], spine: [-.12, yaw * .45, .02], chest: [-.16, yaw, -.04],
-          left_upper_arm: [-.82, .22 + yaw * .2, .38], left_lower_arm: [-.74, .08, .24],
-          right_upper_arm: [-.72, -.18 + yaw * .2, -.38], right_lower_arm: [-1.02, -.05, -.2], ...weightR(.38) },
-        coil: { pelvis: [.1, yaw * .55, 0], spine: [-.18, yaw * .7, .01], chest: [-.23, yaw * 1.15, -.07], neck: [.08, yaw * .15, 0],
-          left_upper_arm: [-.94, .25 + yaw * .22, .43], left_lower_arm: [-.82, .08, .26],
-          right_upper_arm: [-.86, -.2 + yaw * .22, -.43], right_lower_arm: [-1.12, -.05, -.23], cape_root: [.3, -yaw * .3, 0], ...weightR(.7) },
-        coilPos: { pelvis: [0, -.015, .015] },
-        contact: { pelvis: [.02, -yaw * .2, 0], spine: [recoil * .32, -yaw * .28, -.02], chest: [recoil, -yaw * .38, .05], neck: [-recoil * .3, 0, 0],
-          left_upper_arm: [-.7, .17 + yaw * .12, .32], left_lower_arm: [-.62, .06, .2],
-          right_upper_arm: [-.58, -.13 + yaw * .12, -.32], right_lower_arm: [-.86, -.04, -.16], cape_root: [.48, yaw * .2, 0], ...weightL(.4) },
-        contactPos: { pelvis: [0, .01, -recoil * .12] },
-        follow: { spine: [-.06, yaw * .2, .01], chest: [-.08, yaw * .35, -.01],
-          left_upper_arm: [-.76, .2, .35], right_upper_arm: [-.65, -.16, -.35], ...weightL(.14) },
-        settle: { spine: [-.1, -.03, .018], chest: [-.14, -.05, -.035],
-          left_upper_arm: [-.8, .22, .37], right_upper_arm: [-.7, -.18, -.37] },
+        ready: { ...waistGrip, pelvis: [.09, yaw * .16, 0], spine: [-.08, yaw * .2, .015], chest: [-.1, yaw * .3, -.025],
+          neck: [.035, yaw * .08, 0], ...weightR(.38) },
+        coil: { ...waistGrip, pelvis: [.11, yaw * .2, 0], spine: [-.11, yaw * .24, .01], chest: [-.14, yaw * .34, -.04], neck: [.05, yaw * .08, 0],
+          left_upper_arm: [-.36, .135 + yaw * .05, .245], left_lower_arm: [-.5, .045, .165],
+          right_upper_arm: [.22, .085 + yaw * .03, .92], right_lower_arm: [.12, -.02, .84],
+          cape_root: [.24, -yaw * .12, 0], ...weightR(.58) },
+        coilPos: { pelvis: [0, -.01, .01] },
+        contact: { ...waistGrip, pelvis: [.04, -yaw * .08, 0], spine: [recoil * .22, -yaw * .1, -.01], chest: [recoil * .62, -yaw * .14, .025], neck: [-recoil * .2, 0, 0],
+          left_upper_arm: [-.3, .12 + yaw * .04, .225], left_lower_arm: [-.43, .04, .15],
+          right_upper_arm: [.16, .075 + yaw * .03, .86], right_lower_arm: [.04, -.018, .76],
+          cape_root: [.36, yaw * .08, 0], ...weightL(.3) },
+        contactPos: { pelvis: [0, .008, -recoil * .05] },
+        follow: { ...waistGrip, spine: [-.04, yaw * .08, .01], chest: [-.055, yaw * .12, -.01],
+          left_upper_arm: [-.32, .125, .235], right_upper_arm: [.18, .078, .88], right_lower_arm: [.08, -.019, .8], ...weightL(.1) },
+        settle: { ...waistGrip, spine: [-.07, -.02, .012], chest: [-.09, -.03, -.02] },
       })];
     };
     const attacks = [
-      rifleBeat('attack_1', .52, -.05, .15),
-      rifleBeat('attack_2', .55, .045, .17),
-      rifleBeat('attack_3', .58, -.025, .2),
-      rifleBeat('attack_4', .7, .02, .3, true),
+      rifleBeat('attack_1', .52, -.018, .15),
+      rifleBeat('attack_2', .55, .016, .17),
+      rifleBeat('attack_3', .58, -.012, .2),
+      rifleBeat('attack_4', .7, .01, .3, true),
     ];
     const casts = [
-      rifleBeat('cast_1', .54, -.04, .16),
-      rifleBeat('cast_2', .58, .045, .19),
-      rifleBeat('cast_3', .62, -.02, .22),
-      rifleBeat('cast_4', .76, .015, .34, true),
+      rifleBeat('cast_1', .54, -.016, .16),
+      rifleBeat('cast_2', .58, .016, .19),
+      rifleBeat('cast_3', .62, -.01, .22),
+      rifleBeat('cast_4', .76, .008, .34, true),
     ];
     const suppressDuration = combatClipDuration(.86, profile);
     const flameDuration = combatClipDuration(.92, profile);
@@ -3733,7 +3742,7 @@ function createRifle() {
   tip.name = 'blade_tip';
   tip.position.copy(muzzleSocket.position);
   const gripMain = v2WeaponAnchor('grip_main', gripAnchor.position);
-  const gripSupport = v2WeaponAnchor('grip_support', V3(0, 1.08, .18));
+  const gripSupport = v2WeaponAnchor('grip_support', V3(0, .62, .12));
   const projectileSocket = v2WeaponAnchor('projectile_socket', muzzleSocket.position);
   group.add(gripAnchor, muzzleSocket, stockAnchor, base, tip, gripMain, gripSupport, projectileSocket);
   return group;

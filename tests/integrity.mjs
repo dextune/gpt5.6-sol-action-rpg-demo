@@ -244,6 +244,10 @@ console.log('\n--- gunner-class ---');
 const gunnerClass = await import(pathToFileURL(join(root, 'tests/gunner-class.mjs')));
 ok(gunnerClass !== null, 'gunner-class nested suite loaded');
 
+console.log('\n--- target-priority ---');
+const targetPriority = await import(pathToFileURL(join(root, 'tests/target-priority.mjs')));
+ok(targetPriority !== null, 'target-priority nested suite loaded');
+
 console.log('\n--- max-hunt ---');
 const maxHunt = await import(pathToFileURL(join(root, 'tests/max-hunt.mjs')));
 ok(maxHunt !== null, 'max-hunt nested suite loaded');

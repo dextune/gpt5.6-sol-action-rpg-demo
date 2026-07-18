@@ -632,6 +632,10 @@ ok(skillUsesAnimTimeline(content.SKILLS.frost_nova), 'frost_nova uses anim timel
 // Frost/fire status
 ok(content.SKILLS.frost_nova.combat.status?.id === 'slow', 'frost applies slow');
 ok(content.SKILLS.fireball.combat.status?.id === 'burn', 'fireball applies burn');
+ok(content.SKILLS.arcane_blink.combat.status?.id === 'expose', 'Rift Barrage exposes enemies');
+ok(content.SKILLS.meteor_storm.combat.status?.id === 'burn'
+  && content.SKILLS.meteor_storm.combat.status.duration >= content.SKILLS.fireball.combat.status.duration,
+'meteor burn sustains destructive pressure');
 
 // Damage snapshot from content combat matches helper
 const ww = skillCombatAtRank(content.SKILLS.whirlwind, 2);
@@ -639,8 +643,8 @@ const wwDmg = skillDamage(100, ww);
 ok(Math.abs(wwDmg - 100 * (0.46 + 2 * 0.055)) < 1e-9, 'whirlwind damage from content combat');
 
 const fb = skillCombatAtRank(content.SKILLS.fireball, 1);
-ok(Math.abs(fb.blastRadius - (2.4 + 0.12)) < 1e-9, 'fireball blastRadius rank scale');
-ok(Math.abs(fb.mult - (1.55 + 0.24)) < 1e-9, 'fireball mult rank scale');
+ok(Math.abs(fb.blastRadius - (3.0 + 0.14)) < 1e-9, 'fireball blastRadius rank scale');
+ok(Math.abs(fb.mult - (1.9 + 0.28)) < 1e-9, 'fireball mult rank scale');
 
 // —— Real hit-resolution path: skillPower applied exactly once ——
 // Mirrors CombatSystem handlers → resolveSkillHitRaw (#damageEnemy uses this export).
@@ -1420,26 +1424,26 @@ const firstVolley = strafeProbe.combat.delayed.splice(0)
   .sort((a, b) => a.time - b.time);
 for (let i = 0; i < 3; i += 1) firstVolley[i].callback();
 const openingTargets = strafeProbe.combat.projectiles.map(projectile => projectile.homingTarget);
-strafeFront.alive = false;
+strafeBehind.alive = false;
 for (let i = 3; i < firstVolley.length; i += 1) firstVolley[i].callback();
 const inheritedTargets = strafeProbe.combat.projectiles.slice(3).map(projectile => projectile.homingTarget);
-ok(openingTargets.length === 3 && openingTargets.every(target => target === strafeFront)
-  && inheritedTargets.length > 0 && inheritedTargets.every(target => target === strafeNext),
-  'Ranger L5 Strafe focuses the nearest forward prey, then inherits the next target only after death');
+ok(openingTargets.length === 3 && openingTargets.every(target => target === strafeBehind)
+  && inheritedTargets.length > 0 && inheritedTargets.every(target => target === strafeFront),
+  'Ranger L5 Strafe chooses the nearest eligible prey and immediately reacquires after death');
 
 const strafeCloser = makeWizardEnemy('strafe-closer', 2, 0);
 strafeProbe.game.enemies.enemies.push(strafeCloser);
 strafeProbe.combat._rangerStrafeAttack(strafeProbe.player, 0);
 const secondVolley = strafeProbe.combat.delayed.splice(0).sort((a, b) => a.time - b.time);
 secondVolley[0].callback();
-ok(strafeProbe.combat.projectiles.at(-1)?.homingTarget === strafeNext,
-  'Ranger basic target lock persists across volleys instead of switching to a newly closer enemy');
-strafeNext.position.set(400, 0, 0);
+ok(strafeProbe.combat.projectiles.at(-1)?.homingTarget === strafeCloser,
+  'Ranger basic auto-target switches to a newly closer enemy across volleys');
+strafeCloser.position.set(400, 0, 0);
 strafeProbe.combat._rangerStrafeAttack(strafeProbe.player, 0);
 const rangeExitVolley = strafeProbe.combat.delayed.splice(0).sort((a, b) => a.time - b.time);
 rangeExitVolley[0].callback();
-ok(strafeProbe.combat.projectiles.at(-1)?.homingTarget === strafeCloser,
-  'Ranger basic target lock advances when the focused enemy leaves Strafe range');
+ok(strafeProbe.combat.projectiles.at(-1)?.homingTarget === strafeFront,
+  'Ranger basic auto-target advances when the nearest enemy leaves Strafe range');
 strafeProbe.combat.clear();
 ok(!strafeProbe.combat.rangerBasicTargets.has(strafeProbe.player),
   'combat clear releases the persistent Ranger basic target lock');

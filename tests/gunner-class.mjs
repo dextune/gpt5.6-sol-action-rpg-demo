@@ -65,6 +65,37 @@ ok(SKILLS.smartlink?.unlockNotice?.title?.includes('SMARTLINK'), 'smartlink unlo
 ok(SKILLS.suppressive_burst?.sfx === 'skill_rifle', 'Suppressive Burst uses rifle skill audio');
 ok(SKILLS.stim_rush?.sfx === 'skill_rifle', 'Stim Rush uses rifle skill audio');
 ok(SKILLS.flame_jet?.sfx === 'skill_fire' && SKILLS.inferno_sweep?.sfx === 'skill_fire', 'flame skills use fire audio');
+ok(
+  SKILLS.suppressive_burst.combat.mult[0] === 1.55
+    && SKILLS.suppressive_burst.combat.mult[1] === 0.18
+    && SKILLS.suppressive_burst.combat.armorPierce === 0.18,
+  'Suppressive Burst keeps destructive three-round damage and armor penetration',
+);
+ok(
+  SKILLS.flame_jet.combat.mult[0] === 2.15
+    && SKILLS.flame_jet.combat.mult[1] === 0.23
+    && SKILLS.flame_jet.combat.armorPierce === 0.14,
+  'Flame Jet keeps upgraded direct damage against armored targets',
+);
+ok(
+  SKILLS.stim_rush.combat.mult[0] === 0.35
+    && SKILLS.stim_rush.combat.mult[1] === 0.035,
+  'Stim Rush shockwave remains a meaningful damaging opener',
+);
+ok(
+  SKILLS.inferno_sweep.combat.mult[0] === 2.9
+    && SKILLS.inferno_sweep.combat.mult[1] === 0.32
+    && SKILLS.inferno_sweep.combat.zoneMult === 0.34
+    && SKILLS.inferno_sweep.combat.armorPierce === 0.12,
+  'Inferno Sweep keeps upgraded impact, ground damage, and armor penetration',
+);
+ok(
+  SKILLS.flame_jet.evolution.mutations[80].sticky_fuel.combat.status.dps
+    > SKILLS.flame_jet.combat.status.dps
+    && SKILLS.inferno_sweep.evolution.mutations[40].deep_burn.combat.zoneMult
+      > SKILLS.inferno_sweep.combat.zoneMult,
+  'Gunner damage mutations never downgrade their base damage-over-time values',
+);
 
 ok(Boolean(WEAPON_EVOLUTIONS.gunner?.length >= 5), 'gunner weapon evolution stages');
 ok(Boolean(WEAPON_RESONANCES.gunner?.milestones?.length === 7), 'gunner resonance milestones');
@@ -81,10 +112,10 @@ const enemies = [
   { alive: true, id: 'side', radius: 0.5, position: { x: 1, z: 10 } },
   { alive: false, id: 'dead', radius: 0.5, position: { x: 3, z: 0 } },
 ];
-const front = selectSmartlinkTarget(enemies, { x: 0, z: 0 }, { x: 1, z: 0 }, null);
-ok(front?.id === 'front', 'prefers front acquire target');
-const retained = selectSmartlinkTarget(enemies, { x: 0, z: 0 }, { x: 1, z: 0 }, 'rear');
-ok(retained?.id === 'rear', 'retained valid target wins when in retain range');
+const nearest = selectSmartlinkTarget(enemies, { x: 0, z: 0 }, { x: 1, z: 0 }, null);
+ok(nearest?.id === 'rear', 'Smartlink selects the nearest eligible target');
+const retained = selectSmartlinkTarget(enemies, { x: 0, z: 0 }, { x: 1, z: 0 }, 'front');
+ok(retained?.id === 'rear', 'a farther retained target does not override nearest-target policy');
 const onlyRear = selectSmartlinkTarget(
   [{ alive: true, id: 'close-rear', radius: 0.5, position: { x: -3, z: 0 } }],
   { x: 0, z: 0 }, { x: 1, z: 0 }, null,
@@ -103,6 +134,20 @@ ok(
 );
 const nonHostile = { alive: true, hostile: false, id: 'friendly', radius: 0.5, position: { x: 2, z: 0 } };
 ok(selectSmartlinkTarget([nonHostile], { x: 0, z: 0 }, { x: 1, z: 0 }) == null, 'Smartlink ignores non-hostile targets');
+const priorityTargets = [
+  { alive: true, id: 'normal-near', radius: 0.5, position: { x: 2, z: 0 } },
+  { alive: true, elite: true, id: 'elite-mid', radius: 0.5, position: { x: 5, z: 0 } },
+  { alive: true, boss: true, id: 'boss-far', radius: 0.5, position: { x: 12, z: 0 } },
+];
+ok(
+  selectSmartlinkTarget(priorityTargets, { x: 0, z: 0 }, { x: 1, z: 0 }, 'normal-near')?.id === 'boss-far',
+  'Smartlink prioritizes boss over retained normal and nearer elite',
+);
+priorityTargets[2].alive = false;
+ok(
+  selectSmartlinkTarget(priorityTargets, { x: 0, z: 0 }, { x: 1, z: 0 })?.id === 'elite-mid',
+  'Smartlink falls back from dead boss to elite',
+);
 
 // Hitscan
 const lane = [
@@ -186,6 +231,7 @@ const gunnerSkillProto = {};
 attachGunnerSkillMethods(gunnerSkillProto);
 const flameDelayed = [];
 const flameDamage = [];
+const radiusHits = [];
 const flameEnemy = { alive: true, id: 'flame-target', radius: .5, position: new THREE.Vector3(3, 0, 0) };
 const skillRuntime = {
   ctx: {
@@ -197,31 +243,60 @@ const skillRuntime = {
   },
   _facingDir: player => player.facing.clone(),
   _delay: (_seconds, fn) => flameDelayed.push(fn),
-  _damageEnemy: (_enemy, _damage, options) => flameDamage.push(options),
+  _damageEnemy: (_enemy, damage, options) => flameDamage.push({ damage, ...options }),
   _skillBundle: bundle => bundle,
   _apexAudioPhase() {},
   _hitEnemiesInCone() {},
+  _hitEnemiesInRadius: (...args) => radiusHits.push(args),
 };
 const skillPlayer = {
   alive: true, classId: 'gunner', attackPower: 10,
   position: new THREE.Vector3(), facing: new THREE.Vector3(1, 0, 0), refs: {},
 };
 gunnerSkillProto._flameJet.call(skillRuntime, skillPlayer, {
-  combat: { range: 8, ticks: 3, tickInterval: .1, halfAngle: .5, cap: 8, mult: 1 },
+  combat: {
+    range: 8, ticks: 3, tickInterval: .1, halfAngle: .5, cap: 8, mult: 1,
+    damageMult: 1.5, knockback: .6, armorPierce: .2, criticalBonus: .1,
+  },
   theme: { primary: 0xff7733, secondary: 0xffaa55 },
 });
 for (const tick of flameDelayed.splice(0)) tick();
 ok(flameDamage.length === 3, 'Flame Jet resolves one damage event per authored tick');
 ok(flameDamage[0]?.weaponProcDerived === false && flameDamage.slice(1).every(options => options.weaponProcDerived === true), 'Flame Jet allows one weapon proc per target per cast');
+ok(Math.abs(flameDamage[0]?.damage - 5) < 1e-9
+  && flameDamage[0]?.knockback === .6
+  && flameDamage[0]?.armorPierce === .2
+  && flameDamage[0]?.criticalBonus === .1,
+'Flame Jet honors mutation damage and hit modifiers');
+
+gunnerSkillProto._stimRush.call(skillRuntime, skillPlayer, {
+  combat: {
+    mult: .3, duration: 7.4, attackSpeed: .3, moveSpeed: .22,
+    radius: 3.6, knockback: 3, criticalBonus: .08,
+  },
+  theme: { primary: 0xff7733, secondary: 0xffaa55 },
+});
+ok(radiusHits.length === 1
+  && radiusHits[0][1] === 3.6
+  && Math.abs(radiusHits[0][2] - 3) < 1e-9
+  && radiusHits[0][3]?.knockback === 3,
+'Stim Rush opens with an authored damaging shockwave');
+ok(skillPlayer.stimRush?.attackSpeed === .3 && skillPlayer.stimRush?.moveSpeed === .22,
+  'Stim Rush retains its haste and mobility buff');
 
 flameDamage.length = 0;
 gunnerSkillProto._infernoSweep.call(skillRuntime, skillPlayer, {
-  combat: { range: 8, arc: Math.PI, mult: 1, zoneCount: 3, zoneLife: 2, zoneRadius: 10, zoneMult: .2 },
+  combat: {
+    range: 8, arc: Math.PI, mult: 1, damageMult: 1.5,
+    zoneCount: 3, zoneLife: 2, zoneRadius: 10, zoneMult: .2,
+  },
   theme: { primary: 0xff7733, secondary: 0xffaa55 },
 });
 gunnerSkillProto._tickGunnerGroundZones.call(skillRuntime, .1);
 ok(flameDamage.length === 3 && flameDamage.every(options => options.weaponProcDerived === true), 'Inferno ground ticks never trigger weapon procs');
 ok(new Set(flameDamage.map(options => options.sameCastHit?.key)).size === 1, 'overlapping Inferno zones share a per-cast tick cap key');
+ok(flameDamage.every(event => Math.abs(event.damage - 3) < 1e-9),
+  'Inferno ground damage inherits the initial damage multiplier');
 
 if (failures.length) {
   console.error(`\n${failures.length} gunner-class failure(s)`);

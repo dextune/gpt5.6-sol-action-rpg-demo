@@ -58,10 +58,13 @@ Constructor: `new Effects(scene, assets?, quality?)` — quality also via `effec
 | `recipeGroundWave` | crescent ground scar wave |
 | `recipeLeapImpact` | skyfall landing (dual ring + dust cone) |
 | `recipeStarBlade` / `recipeStarFinale` | starburst star blades + finale |
-| `recipeFireOrb` / `recipeFireBlast` | fireball muzzle + explode |
-| `recipeIceNova` | frost lattice rings + decal |
-| `recipeBlinkBurst` | arcane blink from/to afterimages |
-| `recipeMeteorDrop` / `recipeMeteorFinale` | falling meteors (vertical, not star twins) |
+| `recipeFireOrb` / `recipeFireBlast` | gravity fireball launch + solar detonation |
+| `recipeIceNova` / `recipeGlacialPrison` / `recipeGlacialShatter` | frost lattice, prison cage, delayed shatter |
+| `recipeBlinkBurst` / `recipeSpaceSeam` | arcane transit afterimages + destructive route seam |
+| `recipeMeteorConvergence` / `recipeMeteorDrop` / `recipeMeteorFinale` | sky convergence, falling impacts, crater finale |
+| `recipeRifleBurst` / `recipeRifleTracer` | ballistic muzzle pressure + piercing lane |
+| `recipeFlameJet` / `recipeStimPulse` | incendiary cone + overdrive pulse |
+| `recipeInfernoSweep` / `recipeInfernoZone` | frontal thermite sweep + persistent burn zones |
 
 **Rule for new skills:** add a **new recipe** (or clearly different composition) so silhouettes stay distinct. Do not only recolor another skill’s stack.
 

@@ -209,7 +209,7 @@ async function assertRenderBinding(page, classId, label) {
       failures.push(`${label}: Gunner support-hand error ${actual.supportHandError} exceeds .035`);
     }
     if (!Number.isFinite(actual.rifleVerticalRatio) || actual.rifleVerticalRatio > .45) {
-      failures.push(`${label}: Gunner rifle is not shouldered horizontally (vertical ratio ${actual.rifleVerticalRatio})`);
+      failures.push(`${label}: Gunner rifle is not held horizontally at the waist (vertical ratio ${actual.rifleVerticalRatio})`);
     }
   }
 }
@@ -258,6 +258,27 @@ async function assertGameEntered(page, classId, mode, label) {
   if (Math.abs(viewportScale - 1) > .001) failures.push(`${label}: page viewport is zoomed (${viewportScale})`);
 }
 
+async function sampleGunnerRiflePose(page) {
+  return page.evaluate(async () => {
+    const THREE = await import('./vendor/three.module.min.js');
+    const player = window.__SOL_ARPG_DEMO__?.player;
+    const rifle = player?.refs?.weapon;
+    const muzzle = rifle?.getObjectByName('muzzle_socket');
+    const stock = rifle?.getObjectByName('stock_anchor');
+    if (!player || !muzzle || !stock) return null;
+    player.mesh.updateMatrixWorld(true);
+    const axis = muzzle.getWorldPosition(new THREE.Vector3())
+      .sub(stock.getWorldPosition(new THREE.Vector3()))
+      .normalize();
+    const facing = player.facing.clone().setY(0).normalize();
+    return {
+      axis: axis.toArray(),
+      forwardAlignment: axis.dot(facing),
+      supportHandError: player.animation?.getDiagnostics?.()?.ik?.support_hand?.error ?? null,
+    };
+  });
+}
+
 async function assertGunnerSmartlinkReticle(page, label) {
   await page.evaluate(() => {
     const game = window.__SOL_ARPG_DEMO__;
@@ -278,10 +299,39 @@ async function assertGunnerSmartlinkReticle(page, label) {
       target.position.copy(player.position).addScaledVector(player.facing, 6);
     }
   });
+  const readyPose = await sampleGunnerRiflePose(page);
   await page.keyboard.down('KeyJ');
-  await sleep(80);
+  await sleep(60);
+  const bracedPose = await sampleGunnerRiflePose(page);
+  await sleep(55);
+  const recoilPose = await sampleGunnerRiflePose(page);
   await page.keyboard.up('KeyJ');
-  await sleep(80);
+  await sleep(65);
+  const followPose = await sampleGunnerRiflePose(page);
+  const samples = [readyPose, bracedPose, recoilPose, followPose];
+  if (samples.some(sample => !sample)) {
+    failures.push(`${label}: Gunner rifle pose could not be sampled through the attack`);
+  } else {
+    const readyAxis = readyPose.axis;
+    const dot = axis => readyAxis[0] * axis[0] + readyAxis[1] * axis[1] + readyAxis[2] * axis[2];
+    const minimumAlignment = Math.min(...samples.slice(1).map(sample => dot(sample.axis)));
+    const maximumVerticalRatio = Math.max(...samples.map(sample => Math.abs(sample.axis[1])));
+    const maximumSupportError = Math.max(...samples.map(sample => sample.supportHandError ?? Infinity));
+    const minimumForwardAlignment = Math.min(...samples.map(sample => sample.forwardAlignment));
+    if (minimumAlignment < .78) {
+      failures.push(`${label}: Gunner rifle swung out of its waist-fire lane (minimum alignment ${minimumAlignment})`);
+    }
+    if (minimumForwardAlignment < .75) {
+      failures.push(`${label}: Gunner muzzle did not stay forward (minimum facing alignment ${minimumForwardAlignment})`);
+    }
+    if (maximumVerticalRatio > .45) {
+      failures.push(`${label}: Gunner rifle left its horizontal firing lane (vertical ratio ${maximumVerticalRatio})`);
+    }
+    if (maximumSupportError > .035) {
+      failures.push(`${label}: Gunner support hand detached during recoil (error ${maximumSupportError})`);
+    }
+  }
+  await sleep(20);
   const locked = await page.evaluate(() => {
     const game = window.__SOL_ARPG_DEMO__;
     const element = document.getElementById('smartlink-reticle');

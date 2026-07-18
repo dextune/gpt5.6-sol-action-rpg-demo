@@ -5,7 +5,6 @@ import * as THREE from 'three';
 import { GUNNER_CONFIG } from '../../../config.js';
 import { skillDamage } from '../../../data/skillCombat.js';
 import { getFxTheme } from '../../../data/fxThemes.js';
-import { clamp } from '../../../core/Utils.js';
 import {
   queryFlameConeHits,
   queryRifleLaneHits,
@@ -55,10 +54,11 @@ _suppressiveBurst(player, bundle, phase = null, apexAudio = null) {
     const origin = muzzleOrigin(player, direction, combat);
     const effects = (this.ctx ?? this.game).effects;
     effects?.recipeRifleBurst?.(origin, direction, theme);
-    const damage = skillDamage(player.attackPower, combat);
+    const damage = skillDamage(player.attackPower, combat) * (combat.damageMult ?? 1);
     this.gunnerSerial = (this.gunnerSerial ?? 0) + 1;
     const castId = `suppress-${this.gunnerSerial}`;
-    const hits = queryRifleLaneHits(enemies, origin, direction, range, combat.radius ?? 0.7, pierce);
+    const laneRadius = (combat.radius ?? 0.7) * (combat.radiusMult ?? 1);
+    const hits = queryRifleLaneHits(enemies, origin, direction, range, laneRadius, pierce);
     for (const hit of hits) {
       const dir = hit.enemy.position.clone().sub(player.position).setY(0);
       if (dir.lengthSq() < 1e-6) dir.copy(direction);
@@ -66,16 +66,21 @@ _suppressiveBurst(player, bundle, phase = null, apexAudio = null) {
       this._damageEnemy(hit.enemy, damage, {
         direction: dir,
         knockback: combat.knockback ?? 1.4,
+        armorPierce: combat.armorPierce ?? 0,
+        criticalBonus: combat.criticalBonus ?? 0,
         skill: true,
         status: combat.status ?? { id: 'slow', duration: 1.4, power: 0.28 },
         sameCastHit: { key: castId, maxHits: 1 },
       });
-      effects?.burst?.(hit.point ? new THREE.Vector3(hit.point.x, hit.point.y, hit.point.z) : hit.enemy.position, theme.primary, 6, {
-        speed: 2.8, size: 0.14, life: 0.28, upward: 0.2,
+      const hitAt = hit.point
+        ? new THREE.Vector3(hit.point.x, hit.point.y, hit.point.z)
+        : hit.enemy.position.clone();
+      effects?.burst?.(hitAt, theme.primary, 14, {
+        speed: 4.2, size: 0.2, life: 0.38, upward: 0.3,
       });
     }
     // Cosmetic tracers (capped, independent of pierce count).
-    const tracerCount = Math.min(3, pierce);
+    const tracerCount = Math.min(5, pierce);
     for (let t = 0; t < tracerCount; t += 1) {
       effects?.recipeRifleTracer?.(
         origin.clone().addScaledVector(direction, 0.2 * t),
@@ -100,7 +105,7 @@ _flameJet(player, bundle, phase = null, apexAudio = null) {
   const ticks = Math.max(1, Math.round(combat.ticks ?? GUNNER_CONFIG.flameJet.ticks));
   const interval = combat.tickInterval ?? GUNNER_CONFIG.flameJet.tickInterval;
   const halfAngle = combat.halfAngle ?? GUNNER_CONFIG.flameJet.halfAngle;
-  const damage = skillDamage(player.attackPower, combat) / ticks;
+  const damage = skillDamage(player.attackPower, combat) * (combat.damageMult ?? 1) / ticks;
   const burnOnce = new Set();
   const procOnce = new Set();
   this.gunnerSerial = (this.gunnerSerial ?? 0) + 1;
@@ -126,8 +131,10 @@ _flameJet(player, bundle, phase = null, apexAudio = null) {
         if (allowProc) procOnce.add(enemy);
         this._damageEnemy(enemy, damage, {
           direction: dir,
-          knockback: 0.35,
+          knockback: combat.knockback ?? 0.35,
           skill: true,
+          armorPierce: combat.armorPierce ?? 0,
+          criticalBonus: combat.criticalBonus ?? 0,
           multiHit: true,
           weaponProcDerived: !allowProc,
           status: applyBurn
@@ -140,6 +147,15 @@ _flameJet(player, bundle, phase = null, apexAudio = null) {
         player.position.clone().add(new THREE.Vector3(0, 1, 0)).addScaledVector(direction, 1.4 + tick * 0.4),
         theme.primary, 8, { speed: 2.4, size: 0.18, life: 0.28, upward: 0.35 },
       );
+      const pulseAt = player.position.clone().add(new THREE.Vector3(0, 0.55, 0))
+        .addScaledVector(direction, Math.min(range * 0.85, 2.2 + tick * 1.05));
+      effects?.ring?.(pulseAt, tick % 2 ? theme.secondary : theme.primary, 1.2 + tick * 0.22, {
+        life: 0.3, startScale: 0.18, height: 0.2, opacity: 0.7,
+      });
+      effects?.trail?.(pulseAt.clone().add(new THREE.Vector3(0, 0.35, 0)), theme.core, 0.5 + tick * 0.08, 0.24);
+      if (tick === ticks - 1) {
+        effects?.impact?.(pulseAt.clone().add(new THREE.Vector3(0, 0.65, 0)), theme.primary, 'finisher', { direction });
+      }
       if (tick === ticks - 1) this._apexAudioPhase(player, apexAudio, 'finisher');
     });
   }
@@ -171,6 +187,27 @@ _stimRush(player, bundle, phase = null, apexAudio = null) {
   effects?.burst?.(player.position.clone().add(new THREE.Vector3(0, 1.1, 0)), theme.secondary, 16, {
     speed: 4.2, size: 0.2, life: 0.4, upward: 0.45,
   });
+  this._hitEnemiesInRadius(
+    player.position,
+    combat.radius ?? 3.6,
+    skillDamage(player.attackPower, combat) * (combat.damageMult ?? 1),
+    {
+      knockback: combat.knockback ?? 3,
+      criticalBonus: combat.criticalBonus ?? 0.08,
+      skill: true,
+    },
+  );
+  for (let pulse = 1; pulse <= 2; pulse += 1) {
+    this._delay(pulse * 0.22, () => {
+      if (!player.alive || !player.stimRush) return;
+      effects?.ring?.(player.position, pulse === 2 ? theme.core : theme.secondary, 2.8 + pulse * 0.55, {
+        life: 0.42, startScale: 0.18, height: 0.12 * pulse, opacity: 0.62,
+      });
+      effects?.burst?.(player.position.clone().add(new THREE.Vector3(0, 1.15, 0)), theme.primary, 10 + pulse * 4, {
+        speed: 4.8 + pulse, size: 0.18, life: 0.38, upward: 0.55,
+      });
+    });
+  }
   (this.ctx ?? this.game).ui?.notify?.('STIM RUSH', 'level', 2.2);
   this._apexAudioPhase(player, apexAudio, 'finisher');
   void phase;
@@ -183,7 +220,7 @@ _infernoSweep(player, bundle, phase = null, apexAudio = null) {
   const direction = this._facingDir(player);
   const range = combat.range ?? GUNNER_CONFIG.inferno.range;
   const arc = combat.arc ?? GUNNER_CONFIG.inferno.arc;
-  const damage = skillDamage(player.attackPower, combat);
+  const damage = skillDamage(player.attackPower, combat) * (combat.damageMult ?? 1);
   const effects = (this.ctx ?? this.game).effects;
   const origin = player.position.clone();
   effects?.recipeInfernoSweep?.(origin, direction, theme, range);
@@ -192,6 +229,7 @@ _infernoSweep(player, bundle, phase = null, apexAudio = null) {
   this._hitEnemiesInCone(origin, direction, range, arc, damage, {
     knockback: combat.knockback ?? 3.2,
     skill: true,
+    armorPierce: combat.armorPierce ?? 0,
     criticalBonus: combat.criticalBonus ?? 0.06,
     status: combat.status ?? { id: 'burn', duration: 2.8, dps: 0.12, tick: 0.4, power: 1 },
   });
@@ -203,7 +241,7 @@ _infernoSweep(player, bundle, phase = null, apexAudio = null) {
     GUNNER_CONFIG.inferno.maxZones,
   );
   const zoneLife = combat.zoneLife ?? GUNNER_CONFIG.inferno.zoneLife;
-  const zoneR = combat.zoneRadius ?? GUNNER_CONFIG.inferno.zoneRadius;
+  const zoneR = (combat.zoneRadius ?? GUNNER_CONFIG.inferno.zoneRadius) * (combat.radiusMult ?? 1);
   const tickDmg = damage * (combat.zoneMult ?? 0.22);
   this.gunnerSerial = (this.gunnerSerial ?? 0) + 1;
   const castId = `inferno-${this.gunnerSerial}`;
@@ -229,7 +267,7 @@ _infernoSweep(player, bundle, phase = null, apexAudio = null) {
       castId,
       tickIndex: 0,
     });
-    effects?.ring?.(pos, theme.primary, zoneR, { life: 0.55, startScale: 0.15, opacity: 0.65 });
+    effects?.recipeInfernoZone?.(pos, theme, zoneR, false);
   }
   this._apexAudioPhase(player, apexAudio, 'finisher');
   void phase;
@@ -270,6 +308,12 @@ _tickGunnerGroundZones(delta) {
       zone.theme?.primary ?? 0xff7a42,
       4,
       { speed: 1.6, size: 0.12, life: 0.28, upward: 0.5 },
+    );
+    (this.ctx ?? this.game).effects?.recipeInfernoZone?.(
+      zone.position,
+      zone.theme ?? getFxTheme('ember'),
+      zone.radius,
+      true,
     );
   }
 },

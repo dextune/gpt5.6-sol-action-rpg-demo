@@ -84,7 +84,7 @@ Runtime locomotion uses discrete speed bands (idle → walk → run → sprint) 
 
 Hit reactions: `Player.takeDamage` picks `hit_light` / `hit` / `hit_heavy` from damage severity when those clips exist (falls back to `hit`).
 
-**Weapon holds:** every class has a soft combat-ready idle/run hold via `classWeaponHold(profileId)` (knight guard, wizard staff stance, ranger bow-ready, rogue dual crouch, Gunner shouldered rifle). Combat clips start from that rest so attacks/casts no longer snap out of T-pose arms.
+**Weapon holds:** every class has a soft combat-ready idle/run hold via `classWeaponHold(profileId)` (knight guard, wizard staff stance, ranger bow-ready, rogue dual crouch, Gunner two-hand waist-level rifle). Combat clips start from that rest so attacks/casts no longer snap out of T-pose arms.
 
 ### Basic attack poses
 
@@ -93,7 +93,7 @@ Hit reactions: `Player.takeDamage` picks `hit_light` / `hit` / `hit_heavy` from 
 | `aerin` | `attack_1`–`attack_7` | Full-body sword chain (weight shift, follow-through) |
 | `rogue` | `attack_1`–`attack_7` | Dual-dagger chain with settle back to crouch rest |
 | `wizard` / `ranger` | `cast_1`–`cast_4` primary + `attack_1`–`attack_4` fallback | Body-weighted casts and bow releases |
-| `gunner` | `cast_1`–`cast_4` primary + `attack_1`–`attack_4` fallback | Compact recoil beats; fourth pose supports the three-round finisher |
+| `gunner` | `cast_1`–`cast_4` primary + `attack_1`–`attack_4` fallback | Forward-aligned waist-fire with compact in-line recoil; fourth pose supports the three-round finisher |
 
 Runtime: melee plays `attack_N`; magic/ranged prefer `cast_N` (`Player.tryAttack`).
 

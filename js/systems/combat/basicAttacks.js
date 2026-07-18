@@ -12,18 +12,13 @@ import {
   queryFirstRifleHit,
   selectSmartlinkTarget,
 } from './gunnerTargeting.js';
+import { autoTargetTier } from './targetPriority.js';
 
 const RANGER_BASIC_TARGETING = Object.freeze({
   frontDot: 0,
 });
 
 function selectRangerBasicTarget(enemies, origin, facing, range, currentTarget = null) {
-  if (currentTarget?.alive && enemies.includes(currentTarget)) {
-    const dx = currentTarget.position.x - origin.x;
-    const dz = currentTarget.position.z - origin.z;
-    const reach = range + (currentTarget.radius ?? .6);
-    if (dx * dx + dz * dz <= reach * reach) return currentTarget;
-  }
 
   const facingLengthSq = facing.x * facing.x + facing.z * facing.z;
   const candidates = [];
@@ -38,11 +33,20 @@ function selectRangerBasicTarget(enemies, origin, facing, range, currentTarget =
     const frontDot = distanceSq > 1e-6 && facingLengthSq > 1e-6
       ? (dx * facing.x + dz * facing.z) / Math.sqrt(distanceSq * facingLengthSq)
       : 1;
-    candidates.push({ enemy, distanceSq, front: frontDot >= RANGER_BASIC_TARGETING.frontDot, index });
+    candidates.push({
+      enemy,
+      distanceSq,
+      tier: autoTargetTier(enemy),
+      current: enemy === currentTarget,
+      front: frontDot >= RANGER_BASIC_TARGETING.frontDot,
+      index,
+    });
   }
 
-  candidates.sort((a, b) => Number(b.front) - Number(a.front)
+  candidates.sort((a, b) => b.tier - a.tier
     || a.distanceSq - b.distanceSq
+    || Number(b.current) - Number(a.current)
+    || Number(b.front) - Number(a.front)
     || a.index - b.index);
   return candidates[0]?.enemy ?? null;
 }
@@ -402,7 +406,7 @@ _rangerStrafeAttack(player, combo, comboLength = 4) {
       return target;
     };
 
-    // Keep the same prey across volleys; only death or leaving range releases the lock.
+    // Re-evaluate every shot so a newly available boss or elite preempts a lower tier lock.
     acquireTarget();
 
     const castId = `strafe-${++this.rangerSerial}`;
