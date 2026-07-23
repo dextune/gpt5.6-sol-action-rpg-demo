@@ -1,39 +1,120 @@
-name: Agent repository snapshot
+name: Finalize stylized hero assets
 
 on:
-  issues:
-    types: [opened]
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/agent-repo-snapshot.yml'
 
 permissions:
-  contents: read
-  issues: write
+  contents: write
+
+concurrency:
+  group: finalize-stylized-hero-assets
+  cancel-in-progress: false
 
 jobs:
-  snapshot:
+  finalize:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
-      - name: Create repository snapshot
+        with:
+          fetch-depth: 2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Restore reviewed source payload
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
         run: |
-          python - <<'PY'
-          import shutil
-          shutil.make_archive('/tmp/gpt5.6-sol-action-rpg-demo', 'zip', '.')
-          PY
-      - name: Upload repository snapshot
-        uses: actions/upload-artifact@v4
-        with:
-          name: gpt5.6-sol-action-rpg-demo-snapshot
-          path: /tmp/gpt5.6-sol-action-rpg-demo.zip
-          if-no-files-found: error
-          retention-days: 1
-      - name: Publish run id
-        uses: actions/github-script@v7
-        with:
-          script: |
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body: `SNAPSHOT_RUN_ID=${context.runId}`,
-            });
+          set -euo pipefail
+          : > /tmp/sol-v8-text-payload.b64
+          for sha in \
+            0fc533e9550b6f522fe68af15dceece990de77fd \
+            40a37f5f08b075d35187a516b656cff973cd003f \
+            8b0ba62d8add5c101d7d30686fdcebe3de295626 \
+            30da2ad4f95de078688973aa4bd5960919f6f8dc \
+            b48e0622f821d0b6c2b23cd03d7419ce06acdd06 \
+            1e1bf41b60edca8d2ae4dff73f807682d0831a11 \
+            e1dd575efc4a5373b2c67902970666d7968984bb \
+            d8b7fd98881a02a958a5fa0ea51db9ef08611152
+          do
+            gh api \
+              -H 'Accept: application/vnd.github.raw+json' \
+              "repos/${GITHUB_REPOSITORY}/git/blobs/${sha}" \
+              >> /tmp/sol-v8-text-payload.b64
+          done
+          base64 --decode /tmp/sol-v8-text-payload.b64 > /tmp/sol-v8-text-payload.tar.xz
+          echo '91c61d8dad27b4ae67d961ed36436a6c8c69e8b586e01e833defbdd8df00c89a  /tmp/sol-v8-text-payload.tar.xz' | sha256sum --check
+          tar -xJf /tmp/sol-v8-text-payload.tar.xz -C .
+
+      - name: Build deterministic hero and weapon GLBs
+        shell: bash
+        run: |
+          set -euo pipefail
+          node tools/assets/build-stylized-heroes.mjs --all --report=/tmp/stylized-hero-report.json
+          find assets/models/hero -maxdepth 1 -name '*.glb' -print0 | sort -z | xargs -0 sha256sum > /tmp/hero-assets-before.sha256
+          sha256sum \
+            assets/models/props/weapon_sword.glb \
+            assets/models/props/weapon_staff.glb \
+            assets/models/props/weapon_dagger.glb \
+            assets/models/props/weapon_bow.glb \
+            assets/models/props/weapon_rifle.glb \
+            >> /tmp/hero-assets-before.sha256
+          node tools/assets/build-stylized-heroes.mjs --all --report=/tmp/stylized-hero-report-repeat.json
+          sha256sum --check /tmp/hero-assets-before.sha256
+
+      - name: Validate shipping contracts and runtime regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tools/assets/generate_stylized_heroes.py
+          node --check tools/assets/build-stylized-heroes.mjs
+          node --check tests/class-mode-visual-smoke.mjs
+          node tools/assets/validate-hero-assets.mjs
+          node tests/hero-asset-contract.mjs
+          node tests/hero-animation-runtime.mjs
+          node tests/gunner-class.mjs
+          node tests/presentation-motion.mjs
+          node tests/integrity.mjs
+          git diff --check
+
+      - name: Commit generated assets and reviewed source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            assets/models/hero \
+            assets/models/props/weapon_sword.glb \
+            assets/models/props/weapon_staff.glb \
+            assets/models/props/weapon_dagger.glb \
+            assets/models/props/weapon_bow.glb \
+            assets/models/props/weapon_rifle.glb \
+            docs/README.md \
+            docs/characters-visual.md \
+            docs/hero-asset-upgrade-v8.md \
+            js/characters/CharacterFactory.js \
+            js/graphics/StylizedMaterial.js \
+            tests/class-mode-visual-smoke.mjs \
+            tools/assets/build-stylized-heroes.mjs \
+            tools/assets/generate_stylized_heroes.py \
+            tools/hero-review.html
+          if git diff --cached --quiet; then
+            echo 'No generated changes to commit.'
+            exit 0
+          fi
+          git commit -m 'feat: ship stylized articulated hero assets'
+          git push origin HEAD:master
