@@ -1,0 +1,30 @@
+name: Agent repository snapshot
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/agent-repo-snapshot.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Create repository snapshot
+        run: |
+          python - <<'PY'
+          import shutil
+          shutil.make_archive('/tmp/gpt5.6-sol-action-rpg-demo', 'zip', '.')
+          PY
+      - name: Upload repository snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: gpt5.6-sol-action-rpg-demo-snapshot
+          path: /tmp/gpt5.6-sol-action-rpg-demo.zip
+          if-no-files-found: error
+          retention-days: 1
