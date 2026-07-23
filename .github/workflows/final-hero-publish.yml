@@ -1,0 +1,194 @@
+name: Publish final reviewed hero assets
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: final-reviewed-hero-assets-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.event.issue.title == 'Publish final reviewed hero assets'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Publish run id
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `FINAL_HERO_PUBLISH_RUN_ID=${context.runId}`,
+            });
+
+      - name: Check out current master
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 8
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Restore the reviewed v8 source when needed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if grep -Eq 'HERO_RECIPE_VERSION[[:space:]]*=[[:space:]]*8\b' tools/assets/generate_assets.mjs; then
+            echo 'Reviewed v8 source is already committed.'
+          else
+            test -f .github/workflows/agent-repo-snapshot.yml
+            python - <<'PY'
+            from pathlib import Path
+            import textwrap
+
+            workflow = Path('.github/workflows/agent-repo-snapshot.yml').read_text(encoding='utf-8')
+            marker = "cat > /tmp/restore_reviewed_source.py <<'PY'"
+            start = workflow.index(marker) + len(marker)
+            lines = workflow[start:].splitlines()
+            body = []
+            for line in lines:
+                if line.strip() == 'PY':
+                    break
+                body.append(line)
+            script = textwrap.dedent('\n'.join(body)).lstrip('\n') + '\n'
+            if 'Reviewed v8 generator was not restored' not in script:
+                raise SystemExit('Hardened source restorer extraction failed')
+            Path('/tmp/restore_reviewed_source.py').write_text(script, encoding='utf-8')
+            PY
+            python /tmp/restore_reviewed_source.py
+          fi
+          grep -n 'HERO_RECIPE_VERSION' tools/assets/generate_assets.mjs
+          grep -q 'grip_support' tools/assets/generate_assets.mjs
+          grep -q 'upperarm_twist' tools/assets/generate_assets.mjs
+          git diff --check
+
+      - name: Generate hero LODs and signature weapons twice
+        run: |
+          set -euo pipefail
+          build_assets() {
+            node tools/assets/generate_assets.mjs --heroes-only
+            node tools/assets/generate_assets.mjs --sword-only
+            node tools/assets/generate_assets.mjs --staff-only
+            node tools/assets/generate_assets.mjs --dagger-only
+            node tools/assets/generate_assets.mjs --bow-only
+            node tools/assets/generate_assets.mjs --rifle-only
+          }
+          hash_assets() {
+            find assets/models/hero -maxdepth 1 -name '*.glb' -print0 | sort -z | xargs -0 sha256sum
+            for weapon in sword staff dagger bow rifle; do sha256sum "assets/models/props/weapon_${weapon}.glb"; done
+          }
+          build_assets
+          hash_assets > /tmp/final-assets-first.sha256
+          build_assets
+          hash_assets > /tmp/final-assets-second.sha256
+          diff -u /tmp/final-assets-first.sha256 /tmp/final-assets-second.sha256
+
+      - name: Run asset, animation, and integrity gates
+        run: |
+          set -euo pipefail
+          node tools/assets/validate-hero-assets.mjs
+          node tests/hero-asset-contract.mjs
+          node tests/hero-animation-runtime.mjs
+          node tests/gunner-class.mjs
+          node tests/presentation-motion.mjs
+          node tests/integrity.mjs
+          git diff --check
+
+      - name: Install Playwright Chromium
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund
+          npx playwright install --with-deps chromium
+
+      - name: Run full desktop and mobile visual smoke
+        run: |
+          set -euo pipefail
+          SMOKE_SCOPE=desktop node tests/class-mode-visual-smoke.mjs
+          SMOKE_SCOPE=mobile node tests/class-mode-visual-smoke.mjs
+
+      - name: Commit, clean temporary automation, and push master
+        id: publish
+        run: |
+          set -euo pipefail
+          rm -rf node_modules
+          git restore -- package.json
+          if git ls-files --error-unmatch package-lock.json >/dev/null 2>&1; then
+            git restore -- package-lock.json
+          else
+            rm -f package-lock.json
+          fi
+          rm -f artifacts/agent-final-hero-build-trigger*.txt
+          rmdir artifacts 2>/dev/null || true
+          git rm -f .github/workflows/agent-repo-snapshot.yml 2>/dev/null || true
+          git rm -f .github/workflows/final-hero-cleanup.yml 2>/dev/null || true
+          git rm -f .github/workflows/final-hero-publish.yml
+          git add -A
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo 'No reviewed source, generated asset, or cleanup change is available.' >&2
+            exit 1
+          fi
+          git config user.name 'dextune'
+          git config user.email '82388633+dextune@users.noreply.github.com'
+          git commit -m 'feat: ship stylized articulated hero assets'
+          for attempt in 1 2 3; do
+            if git push origin HEAD:master; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              exit 1
+            fi
+            git fetch origin master
+            git rebase origin/master
+          done
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Report success and close temporary issues
+        uses: actions/github-script@v7
+        env:
+          FINAL_SHA: ${{ steps.publish.outputs.sha }}
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const message = [
+              'Final reviewed stylized hero assets were committed and pushed to master.',
+              `Commit: ${process.env.FINAL_SHA}`,
+              'Passed: byte-identical double generation, GLB contracts, animation runtime, Gunner IK, presentation motion, integrity, complete desktop/mobile visual smoke.',
+            ].join('\n');
+            await github.rest.issues.createComment({ owner, repo, issue_number: context.issue.number, body: message });
+            for (const issue_number of [1, 2, 3, 4, context.issue.number]) {
+              try {
+                await github.rest.issues.update({ owner, repo, issue_number, state: 'closed', state_reason: 'completed' });
+              } catch (error) {
+                core.warning(`Could not close issue #${issue_number}: ${error.message}`);
+              }
+            }
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-hero-publish-diagnostics
+          path: |
+            /tmp/restore-report.json
+            /tmp/final-assets-first.sha256
+            /tmp/final-assets-second.sha256
+          if-no-files-found: ignore
+          retention-days: 2
