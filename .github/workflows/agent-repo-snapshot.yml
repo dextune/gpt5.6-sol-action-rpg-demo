@@ -54,15 +54,20 @@ jobs:
             0fc533e9550b6f522fe68af15dceece990de77fd \
             40a37f5f08b075d35187a516b656cff973cd003f \
             8b0ba62d8add5c101d7d30686fdcebe3de295626 \
-            30da2ad4f95de078688973aa4bd5960919f6f8dc \
+            3241bc85d63eed0661fb4672e1b242d39792fc85 \
+            8e707058549ba793f3271f0fc28ecb595a68d0df \
+            db423963a45b0793778058a684cdbc5277ac2918 \
+            8cbd9f591876b1d3288d0a7aafc5da23ab0ed06d \
+            0848b4180f97520f49eb3a88ccb62f53c6da88a1 \
+            7ec0dc295a6e0eb48bd63b44ab498b80e7cd397d \
             b48e0622f821d0b6c2b23cd03d7419ce06acdd06 \
             1e1bf41b60edca8d2ae4dff73f807682d0831a11 \
             e1dd575efc4a5373b2c67902970666d7968984bb \
             d8b7fd98881a02a958a5fa0ea51db9ef08611152
           do
-            gh api \
-              -H 'Accept: application/vnd.github.raw+json' \
-              "repos/${GITHUB_REPOSITORY}/git/blobs/${sha}" \
+            gh api "repos/${GITHUB_REPOSITORY}/git/blobs/${sha}" --jq .content \
+              | tr -d '\n' \
+              | base64 --decode \
               >> /tmp/sol-v8-text-payload.b64
           done
           base64 --decode /tmp/sol-v8-text-payload.b64 > /tmp/sol-v8-text-payload.tar.xz
