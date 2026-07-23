@@ -1,13 +1,12 @@
 name: Agent repository snapshot
 
 on:
-  push:
-    branches: [master]
-    paths:
-      - '.github/workflows/agent-repo-snapshot.yml'
+  issues:
+    types: [opened]
 
 permissions:
   contents: read
+  issues: write
 
 jobs:
   snapshot:
@@ -28,3 +27,13 @@ jobs:
           path: /tmp/gpt5.6-sol-action-rpg-demo.zip
           if-no-files-found: error
           retention-days: 1
+      - name: Publish run id
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `SNAPSHOT_RUN_ID=${context.runId}`,
+            });
